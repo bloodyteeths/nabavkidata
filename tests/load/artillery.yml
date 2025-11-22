@@ -1,0 +1,286 @@
+config:
+  target: "http://localhost:8000"
+  phases:
+    # Warm-up phase - gradually introduce load
+    - duration: 120
+      arrivalRate: 5
+      name: "Warm-up"
+      rampTo: 20
+
+    # Ramp-up phase - increase to target load
+    - duration: 300
+      arrivalRate: 20
+      name: "Ramp-up"
+      rampTo: 100
+
+    # Sustained load phase - maintain target load
+    - duration: 600
+      arrivalRate: 100
+      name: "Sustained Load"
+
+    # Peak load phase - test higher capacity
+    - duration: 180
+      arrivalRate: 100
+      name: "Peak Load"
+      rampTo: 200
+
+    # Ramp-down phase - gradually reduce load
+    - duration: 120
+      arrivalRate: 200
+      name: "Ramp-down"
+      rampTo: 10
+
+  # Plugin configuration
+  plugins:
+    expect: {}
+    metrics-by-endpoint: {}
+    publish-metrics:
+      - type: "prometheus"
+        pushGateway: "http://localhost:9091"
+        tags:
+          - "environment:load-test"
+          - "service:nabavki"
+
+  # Environment variables
+  variables:
+    api_base: "/api/v1"
+
+  # Performance thresholds
+  ensure:
+    maxErrorRate: 1                  # Max 1% error rate
+    p95: 500                         # 95th percentile < 500ms
+    p99: 1000                        # 99th percentile < 1000ms
+
+  # HTTP configuration
+  http:
+    timeout: 30
+    pool: 50                         # Connection pool size
+
+  # Payload configuration
+  payload:
+    path: "test-data.csv"
+    fields:
+      - "user_email"
+      - "search_term"
+    skipHeader: true
+    order: "sequence"
+
+# Scenarios
+scenarios:
+  # Scenario 1: Browse tenders (most common)
+  - name: "Browse Tenders"
+    weight: 40
+    flow:
+      - get:
+          url: "/"
+          capture:
+            - json: "$.csrf_token"
+              as: "csrf"
+          expect:
+            - statusCode: 200
+            - contentType: "text/html"
+
+      - think: 2
+
+      - get:
+          url: "{{ api_base }}/tenders"
+          qs:
+            page: "{{ $randomNumber(1, 50) }}"
+            limit: "{{ $randomNumber(10, 50) }}"
+          capture:
+            - json: "$.items[0].id"
+              as: "tender_id"
+          expect:
+            - statusCode: 200
+            - contentType: "application/json"
+            - hasProperty: "items"
+
+      - think: 3
+
+      - get:
+          url: "{{ api_base }}/tenders/{{ tender_id }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "id"
+            - hasProperty: "title"
+          afterResponse: "recordTenderView"
+
+      - think: 5
+
+  # Scenario 2: Search for tenders
+  - name: "Search Tenders"
+    weight: 30
+    flow:
+      - get:
+          url: "{{ api_base }}/tenders/search"
+          qs:
+            q: "{{ search_terms[$randomNumber(0, 9)] }}"
+            page: 1
+            limit: 20
+          expect:
+            - statusCode: 200
+            - contentType: "application/json"
+          afterResponse: "recordSearch"
+
+      - think: 2
+
+      - get:
+          url: "{{ api_base }}/tenders/search"
+          qs:
+            q: "{{ search_terms[$randomNumber(0, 9)] }}"
+            min_value: "{{ $randomNumber(1000, 50000) }}"
+            page: 1
+            limit: 20
+          expect:
+            - statusCode: 200
+
+      - think: 4
+
+  # Scenario 3: User authentication flow
+  - name: "Authentication Flow"
+    weight: 15
+    flow:
+      - post:
+          url: "{{ api_base }}/auth/login"
+          json:
+            email: "test_user_{{ $randomNumber(1, 100) }}@example.com"
+            password: "test_password_123"
+          capture:
+            - json: "$.access_token"
+              as: "auth_token"
+          expect:
+            - statusCode: 200
+            - hasProperty: "access_token"
+          afterResponse: "recordLogin"
+
+      - think: 1
+
+      - get:
+          url: "{{ api_base }}/users/me"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "email"
+
+      - think: 3
+
+      - get:
+          url: "{{ api_base }}/users/favorites"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          expect:
+            - statusCode: 200
+
+      - think: 2
+
+      - post:
+          url: "{{ api_base }}/users/favorites"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          json:
+            tender_id: "{{ $randomNumber(1, 1000) }}"
+          expect:
+            - statusCode: [200, 201]
+
+      - think: 5
+
+  # Scenario 4: RAG chat queries
+  - name: "RAG Chat Queries"
+    weight: 10
+    flow:
+      - post:
+          url: "{{ api_base }}/auth/login"
+          json:
+            email: "test_user_{{ $randomNumber(1, 100) }}@example.com"
+            password: "test_password_123"
+          capture:
+            - json: "$.access_token"
+              as: "auth_token"
+
+      - think: 2
+
+      - post:
+          url: "{{ api_base }}/rag/query"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          json:
+            query: "{{ rag_queries[$randomNumber(0, 9)] }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "answer"
+          afterResponse: "recordRAGQuery"
+
+      - think: 8
+
+      - post:
+          url: "{{ api_base }}/rag/query"
+          headers:
+            Authorization: "Bearer {{ auth_token }}"
+          json:
+            query: "{{ rag_queries[$randomNumber(0, 9)] }}"
+            context: "{{ tender_id }}"
+          expect:
+            - statusCode: 200
+
+      - think: 10
+
+  # Scenario 5: Statistics and analytics
+  - name: "View Statistics"
+    weight: 5
+    flow:
+      - get:
+          url: "{{ api_base }}/statistics"
+          expect:
+            - statusCode: 200
+            - contentType: "application/json"
+            - hasProperty: "total_tenders"
+
+      - think: 3
+
+      - get:
+          url: "{{ api_base }}/statistics/trends"
+          qs:
+            period: "30d"
+          expect:
+            - statusCode: 200
+
+      - think: 5
+
+# Processor for custom logic
+processor: "./artillery-processor.js"
+
+# Before/After hooks
+before:
+  flow:
+    - log: "Starting load test for Nabavki Data Platform"
+
+after:
+  flow:
+    - log: "Load test completed"
+
+# Custom variables
+variables:
+  search_terms:
+    - "računalniki"
+    - "medicinska oprema"
+    - "storitve čiščenja"
+    - "pisarniški material"
+    - "avtomobili"
+    - "gradbena dela"
+    - "IT storitve"
+    - "svetovanje"
+    - "vzdrževanje"
+    - "energija"
+
+  rag_queries:
+    - "Katere so največje javne naročilnice v zadnjem letu?"
+    - "Pokaži trende v IT naročilih"
+    - "Kdo so najpogostejši dobavitelji?"
+    - "Kakšna je povprečna vrednost naročil za medicino?"
+    - "Prikaži statistiko po regijah"
+    - "Kateri postopki so najpogostejši?"
+    - "Kako se je trg spremenil zadnjih 6 mesecev?"
+    - "Prikaži anomalije v cenah"
+    - "Katere institucije izdajo največ naročil?"
+    - "Analiziraj konkurenco v gradbeništvu"

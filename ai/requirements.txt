@@ -1,0 +1,14 @@
+# AI/RAG Dependencies
+
+# OpenAI API
+openai==0.28.1
+
+# Tokenization
+tiktoken==0.6.0
+
+# Database (async PostgreSQL + pgvector)
+asyncpg==0.30.0
+pgvector==0.2.4
+
+# Utilities
+python-dotenv==1.0.0

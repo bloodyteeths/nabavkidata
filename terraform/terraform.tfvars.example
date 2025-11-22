@@ -1,0 +1,44 @@
+# AWS Configuration
+aws_region = "eu-central-1"
+environment = "production"
+project_name = "nabavki-data"
+
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+availability_zones = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
+enable_nat_gateway = true
+
+# Database Configuration
+db_engine_version = "15.4"
+db_instance_class = "db.t3.medium"
+db_allocated_storage = 100
+db_name = "nabavki"
+db_username = "admin"
+db_password = "CHANGE_ME_STRONG_PASSWORD"
+db_backup_retention_period = 7
+
+# EKS Configuration
+eks_cluster_version = "1.28"
+node_instance_types = ["t3.medium", "t3.large"]
+node_desired_size = 2
+node_min_size = 1
+node_max_size = 5
+
+# Spot Instances (optional)
+enable_spot_instances = false
+spot_instance_types = ["t3.medium", "t3.large", "t3a.medium", "t3a.large"]
+spot_desired_size = 1
+spot_min_size = 0
+spot_max_size = 3
+
+# Storage Configuration
+backup_retention_days = 30
+
+# Logging Configuration
+log_retention_days = 30
+
+# Additional Tags
+additional_tags = {
+  Team = "DevOps"
+  CostCenter = "Engineering"
+}

@@ -1,0 +1,103 @@
+# OWASP ZAP Security Scan Configuration
+# https://www.zaproxy.org/docs/docker/baseline-scan/
+
+# Application context
+env:
+  contexts:
+    - name: nabavki-platform
+      urls:
+        - http://localhost:8000/api
+        - http://localhost:3000
+      includePaths:
+        - "http://localhost:8000/api/.*"
+        - "http://localhost:3000/.*"
+      excludePaths:
+        - ".*\\.js$"
+        - ".*\\.css$"
+        - ".*\\.png$"
+        - ".*\\.jpg$"
+        - ".*\\.svg$"
+        - ".*/logout.*"
+      authentication:
+        method: "json"
+        parameters:
+          loginUrl: "http://localhost:8000/api/auth/login"
+          loginRequestData: '{"username": "test", "password": "test123"}'
+      sessionManagement:
+        method: "cookie"
+        parameters: {}
+
+# Parameters
+params:
+  failOnError: true
+  failOnWarning: false
+  progressToStdout: true
+
+# Passive scan rules
+rules:
+  - id: 10015  # Re-examine Cache-control Directives
+    threshold: "MEDIUM"
+  - id: 10017  # Cross-Domain JavaScript Source File Inclusion
+    threshold: "MEDIUM"
+  - id: 10019  # Content-Type Header Missing
+    threshold: "LOW"
+  - id: 10020  # X-Frame-Options Header
+    threshold: "MEDIUM"
+  - id: 10021  # X-Content-Type-Options Header Missing
+    threshold: "LOW"
+  - id: 10023  # Information Disclosure - Debug Error Messages
+    threshold: "MEDIUM"
+  - id: 10024  # Information Disclosure - Sensitive Information in URL
+    threshold: "MEDIUM"
+  - id: 10025  # Information Disclosure - Sensitive Information in HTTP Referrer Header
+    threshold: "MEDIUM"
+  - id: 10026  # HTTP Parameter Override
+    threshold: "MEDIUM"
+  - id: 10027  # Information Disclosure - Suspicious Comments
+    threshold: "LOW"
+  - id: 10028  # Open Redirect
+    threshold: "MEDIUM"
+  - id: 10029  # Cookie Poisoning
+    threshold: "MEDIUM"
+  - id: 10030  # User Controllable Charset
+    threshold: "MEDIUM"
+  - id: 10031  # User Controllable HTML Element Attribute
+    threshold: "MEDIUM"
+  - id: 10032  # Viewstate
+    threshold: "MEDIUM"
+  - id: 10033  # Directory Browsing
+    threshold: "MEDIUM"
+  - id: 10034  # Heartbleed OpenSSL Vulnerability
+    threshold: "HIGH"
+  - id: 10035  # Strict-Transport-Security Header
+    threshold: "LOW"
+  - id: 10036  # HTTP Server Response Header
+    threshold: "LOW"
+  - id: 10037  # Server Leaks Information via "X-Powered-By" HTTP Response Header
+    threshold: "LOW"
+  - id: 10038  # Content Security Policy (CSP) Header Not Set
+    threshold: "MEDIUM"
+  - id: 10040  # Secure Pages Include Mixed Content
+    threshold: "MEDIUM"
+  - id: 10041  # HTTP to HTTPS Insecure Transition in Form Post
+    threshold: "MEDIUM"
+  - id: 10042  # HTTPS to HTTP Insecure Transition in Form Post
+    threshold: "MEDIUM"
+  - id: 10043  # User Controllable JavaScript Event (XSS)
+    threshold: "MEDIUM"
+
+# Alert filters
+alertFilters:
+  - ruleId: 10015
+    url: "http://localhost:3000/static/.*"
+    urlRegex: true
+    enabled: true
+  - ruleId: 10036
+    newRisk: "INFO"
+    enabled: true
+
+# API scan configuration
+api:
+  format: openapi
+  url: http://localhost:8000/api/docs/openapi.json
+  targetUrl: http://localhost:8000

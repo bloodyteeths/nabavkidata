@@ -1,0 +1,78 @@
+# Trivy Security Scanner Configuration
+# https://aquasecurity.github.io/trivy/latest/docs/
+
+# Scan configuration
+scan:
+  # Skip files and directories
+  skip-files:
+    - "**/*.md"
+    - "**/test_*.py"
+    - "**/tests/**"
+    - "**/node_modules/**"
+    - "**/.venv/**"
+    - "**/venv/**"
+
+  # Skip directories
+  skip-dirs:
+    - "node_modules"
+    - ".git"
+    - ".venv"
+    - "venv"
+    - "__pycache__"
+    - ".pytest_cache"
+
+# Vulnerability scanning
+vulnerability:
+  type:
+    - os
+    - library
+
+  # Ignore unfixable vulnerabilities
+  ignore-unfixed: true
+
+  # Severity levels to report
+  severity:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+
+# Security checks
+security-checks:
+  - vuln
+  - secret
+  - config
+
+# Database
+db:
+  # Skip database update
+  skip-update: false
+
+  # Database repository
+  repository: "ghcr.io/aquasecurity/trivy-db"
+
+# Output configuration
+format: sarif
+
+# Ignore specific CVEs (with justification)
+ignore:
+  # Example: CVE-2023-12345 - False positive in test dependencies
+  # - id: CVE-2023-12345
+  #   paths:
+  #     - "requirements-dev.txt"
+  #   reason: "Test dependency only, not in production"
+
+# Custom policies
+policy:
+  # Policy bundle repository
+  bundle-repository: ""
+
+  # Namespaces to load policies from
+  namespaces:
+    - "appshield"
+    - "defsec"
+
+# Timeout settings
+timeout: 5m
+
+# Cache directory
+cache-dir: /tmp/trivy-cache

@@ -1,0 +1,476 @@
+# Multi-Agent Orchestrator Configuration
+# Tender AI SaaS Platform - Claude Multi-Agent Development System
+# This file defines agent coordination, execution order, dependencies, and quality controls
+
+version: "1.0"
+project_name: "Tender Intelligence SaaS"
+target_platform: "North Macedonia Public Procurement"
+
+# ====================================================================
+# ORCHESTRATION SETTINGS
+# ====================================================================
+orchestration:
+  mode: "parallel_with_dependencies"
+  max_parallel_agents: 4
+  retry_on_failure: true
+  max_retries: 3
+  retry_backoff: "exponential"  # exponential, linear, fixed
+  audit_enforcement: "strict"   # strict, relaxed, none
+
+# ====================================================================
+# AGENT REGISTRY
+# ====================================================================
+agents:
+  - id: "orchestrator"
+    name: "Orchestrator Agent"
+    role: "coordinator"
+    file: "claude/agents/orchestrator.md"
+    priority: 1
+    always_active: true
+
+  - id: "database"
+    name: "Database Agent"
+    role: "infrastructure"
+    file: "claude/agents/database.md"
+    priority: 2
+    execution_stage: "foundation"
+
+  - id: "scraper"
+    name: "Web Scraper Agent"
+    role: "data_ingestion"
+    file: "claude/agents/scraper.md"
+    priority: 3
+    execution_stage: "core"
+
+  - id: "backend"
+    name: "Backend API Agent"
+    role: "api_service"
+    file: "claude/agents/backend.md"
+    priority: 3
+    execution_stage: "core"
+
+  - id: "ai_rag"
+    name: "AI/RAG Agent"
+    role: "intelligence"
+    file: "claude/agents/ai_rag.md"
+    priority: 3
+    execution_stage: "core"
+
+  - id: "frontend"
+    name: "Frontend UI Agent"
+    role: "presentation"
+    file: "claude/agents/frontend.md"
+    priority: 4
+    execution_stage: "integration"
+
+  - id: "billing"
+    name: "Billing/Stripe Agent"
+    role: "monetization"
+    file: "claude/agents/billing.md"
+    priority: 4
+    execution_stage: "integration"
+
+  - id: "devops"
+    name: "DevOps Agent"
+    role: "deployment"
+    file: "claude/agents/devops.md"
+    priority: 5
+    execution_stage: "deployment"
+
+  - id: "qa_testing"
+    name: "QA/Testing Agent"
+    role: "quality_assurance"
+    file: "claude/agents/qa_testing.md"
+    priority: 6
+    execution_stage: "validation"
+    cross_cutting: true  # This agent reviews all other agents' work
+
+# ====================================================================
+# DEPENDENCY GRAPH
+# ====================================================================
+dependencies:
+  database:
+    depends_on: []
+    required_for: ["scraper", "backend", "ai_rag"]
+    blocking: true  # Must complete before dependents start
+    outputs:
+      - "db/schema.sql"
+      - "db/migrations/"
+      - "db/seed_data.sql"
+
+  scraper:
+    depends_on: ["database"]
+    required_for: ["ai_rag"]
+    blocking: false  # Can be developed in parallel with backend
+    outputs:
+      - "scraper/spiders/"
+      - "scraper/pipelines.py"
+      - "scraper/config.yaml"
+
+  backend:
+    depends_on: ["database"]
+    required_for: ["frontend", "billing"]
+    blocking: false
+    outputs:
+      - "backend/api/"
+      - "backend/models/"
+      - "backend/services/"
+      - "backend/middleware/"
+
+  ai_rag:
+    depends_on: ["database", "scraper"]
+    required_for: ["backend"]
+    blocking: false
+    outputs:
+      - "ai/rag_pipeline.py"
+      - "ai/embeddings/"
+      - "ai/prompts/"
+
+  frontend:
+    depends_on: ["backend"]
+    required_for: []
+    blocking: false
+    outputs:
+      - "frontend/pages/"
+      - "frontend/components/"
+      - "frontend/styles/"
+
+  billing:
+    depends_on: ["backend"]
+    required_for: ["frontend"]
+    blocking: false
+    outputs:
+      - "backend/billing/"
+      - "backend/webhooks/stripe.py"
+
+  devops:
+    depends_on: ["backend", "frontend", "scraper", "ai_rag"]
+    required_for: []
+    blocking: false
+    outputs:
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - "kubernetes/"
+      - ".github/workflows/"
+
+  qa_testing:
+    depends_on: ["backend", "frontend", "scraper", "ai_rag", "billing"]
+    required_for: []
+    blocking: false
+    outputs:
+      - "tests/"
+      - "test_reports/"
+      - "audit_reports/"
+
+# ====================================================================
+# EXECUTION STAGES
+# ====================================================================
+execution_stages:
+  - name: "foundation"
+    description: "Database setup, schema design, core infrastructure"
+    agents: ["database"]
+    parallel: false
+
+  - name: "core"
+    description: "Core business logic - scraper, backend, AI pipeline"
+    agents: ["scraper", "backend", "ai_rag"]
+    parallel: true
+    wait_for_stage: "foundation"
+
+  - name: "integration"
+    description: "User-facing and payment integration"
+    agents: ["frontend", "billing"]
+    parallel: true
+    wait_for_stage: "core"
+
+  - name: "deployment"
+    description: "DevOps, CI/CD, containerization"
+    agents: ["devops"]
+    parallel: false
+    wait_for_stage: "integration"
+
+  - name: "validation"
+    description: "Testing, QA, security audits"
+    agents: ["qa_testing"]
+    parallel: false
+    wait_for_stage: "deployment"
+
+# ====================================================================
+# AGENT HANDOFF RULES
+# ====================================================================
+handoff_rules:
+  # When database agent completes
+  - from: "database"
+    to: ["scraper", "backend", "ai_rag"]
+    trigger: "completion"
+    data_transfer:
+      - "db/schema.sql"
+      - "db/schema.md"
+    validation_required: true
+
+  # When scraper completes initial implementation
+  - from: "scraper"
+    to: ["ai_rag"]
+    trigger: "milestone:data_extraction"
+    data_transfer:
+      - "scraper/output_schema.json"
+      - "scraper/sample_data.json"
+
+  # When backend API is ready
+  - from: "backend"
+    to: ["frontend", "billing"]
+    trigger: "milestone:api_endpoints_ready"
+    data_transfer:
+      - "backend/api_spec.yaml"
+      - "backend/api_documentation.md"
+
+  # When AI/RAG pipeline is ready
+  - from: "ai_rag"
+    to: ["backend"]
+    trigger: "milestone:rag_pipeline_ready"
+    data_transfer:
+      - "ai/integration_guide.md"
+      - "ai/api_contract.py"
+
+  # All agents to QA for continuous testing
+  - from: ["scraper", "backend", "frontend", "ai_rag", "billing"]
+    to: ["qa_testing"]
+    trigger: "continuous"
+    data_transfer:
+      - "*/CHANGELOG.md"
+      - "*/module_audit.md"
+
+# ====================================================================
+# CODE AUDIT ENFORCEMENT
+# ====================================================================
+audit_rules:
+  mandatory_checks:
+    - name: "self_audit"
+      description: "Every agent must produce self-audit report"
+      applies_to: "all"
+      output_file: "{module}/audit_report.md"
+
+    - name: "security_scan"
+      description: "Check for common vulnerabilities"
+      applies_to: ["backend", "frontend", "billing"]
+      automated_tools:
+        - "bandit"  # Python security
+        - "eslint-plugin-security"  # JavaScript
+
+    - name: "dependency_check"
+      description: "Verify all dependencies are secure and up-to-date"
+      applies_to: "all"
+
+    - name: "code_quality"
+      description: "Enforce coding standards"
+      applies_to: "all"
+      tools:
+        - "pylint"
+        - "black"
+        - "prettier"
+
+    - name: "test_coverage"
+      description: "Minimum 80% test coverage"
+      applies_to: ["backend", "ai_rag", "billing"]
+      minimum_coverage: 80
+
+  audit_frequency:
+    - event: "before_handoff"
+      scope: "module"
+    - event: "after_integration"
+      scope: "system"
+    - event: "pre_deployment"
+      scope: "full_stack"
+
+# ====================================================================
+# QUALITY GATES
+# ====================================================================
+quality_gates:
+  - stage: "foundation"
+    requirements:
+      - "Database schema validates against OCDS standards"
+      - "All tables have proper indexes"
+      - "Foreign key constraints defined"
+      - "Migration scripts tested"
+
+  - stage: "core"
+    requirements:
+      - "Scraper successfully extracts sample data"
+      - "Backend API endpoints return valid responses"
+      - "AI RAG pipeline produces coherent answers"
+      - "All services pass integration tests"
+
+  - stage: "integration"
+    requirements:
+      - "Frontend successfully calls all backend APIs"
+      - "Stripe test payments complete successfully"
+      - "User authentication flow works end-to-end"
+      - "Tier enforcement logic verified"
+
+  - stage: "deployment"
+    requirements:
+      - "Docker containers build successfully"
+      - "All services start without errors"
+      - "Health checks pass"
+      - "CI/CD pipeline executes"
+
+  - stage: "validation"
+    requirements:
+      - "All unit tests pass"
+      - "Integration tests pass"
+      - "Security scan shows no critical issues"
+      - "Performance benchmarks met"
+
+# ====================================================================
+# COMMUNICATION PROTOCOL
+# ====================================================================
+communication:
+  message_format: "structured_json"
+
+  message_types:
+    - type: "status_update"
+      required_fields: ["agent_id", "timestamp", "status", "progress_percentage"]
+
+    - type: "error_report"
+      required_fields: ["agent_id", "timestamp", "error_type", "description", "severity"]
+
+    - type: "handoff_request"
+      required_fields: ["from_agent", "to_agent", "artifacts", "validation_status"]
+
+    - type: "integration_request"
+      required_fields: ["requesting_agent", "target_agent", "interface_contract"]
+
+    - type: "audit_report"
+      required_fields: ["agent_id", "timestamp", "findings", "fixes_applied", "status"]
+
+  escalation_protocol:
+    level_1: "agent_self_resolution"
+    level_2: "peer_agent_consultation"
+    level_3: "orchestrator_intervention"
+    level_4: "human_review_required"
+
+  escalation_triggers:
+    - condition: "critical_security_vulnerability"
+      action: "immediate_halt"
+      escalate_to: "level_4"
+
+    - condition: "blocking_dependency_failure"
+      action: "retry_with_backoff"
+      escalate_to: "level_3"
+      max_retries: 3
+
+    - condition: "integration_contract_mismatch"
+      action: "negotiate_resolution"
+      escalate_to: "level_2"
+
+    - condition: "quality_gate_failure"
+      action: "remediation_required"
+      escalate_to: "level_3"
+
+# ====================================================================
+# SAFEGUARDS
+# ====================================================================
+safeguards:
+  code_generation:
+    - "No hardcoded credentials or secrets"
+    - "All sensitive data must use environment variables"
+    - "Input validation on all user-facing endpoints"
+    - "SQL injection prevention via parameterized queries"
+    - "XSS protection in frontend rendering"
+    - "CSRF tokens for state-changing operations"
+
+  data_handling:
+    - "No deletion of production data without explicit confirmation"
+    - "All migrations must be reversible"
+    - "Backup verification before destructive operations"
+    - "PII handling compliant with GDPR"
+
+  deployment:
+    - "No direct deployment to production"
+    - "All changes go through staging environment first"
+    - "Rollback plan must exist for every deployment"
+    - "Database migrations tested in isolation"
+
+  ai_behavior:
+    - "AI responses must be grounded in retrieved data"
+    - "No speculation beyond provided context"
+    - "Refusal to answer when data insufficient"
+    - "Clear attribution of sources when possible"
+
+# ====================================================================
+# MONITORING & REPORTING
+# ====================================================================
+monitoring:
+  metrics:
+    - "Agent execution time"
+    - "Code generation quality score"
+    - "Test pass rate"
+    - "Security vulnerability count"
+    - "Integration success rate"
+    - "Audit compliance percentage"
+
+  reporting_frequency:
+    status_updates: "every_milestone"
+    audit_reports: "every_completion"
+    integration_reports: "every_handoff"
+    final_report: "project_completion"
+
+  report_destinations:
+    - "reports/agent_logs/"
+    - "reports/audit_reports/"
+    - "reports/integration_tests/"
+    - "reports/final_deliverables/"
+
+# ====================================================================
+# ROLLBACK & RECOVERY
+# ====================================================================
+rollback_strategy:
+  git_integration: true
+  branch_strategy: "feature_per_agent"
+  commit_frequency: "every_milestone"
+
+  recovery_procedures:
+    - scenario: "agent_failure_during_execution"
+      action: "restore_from_last_checkpoint"
+
+    - scenario: "integration_breaks_existing_functionality"
+      action: "git_revert_and_notify"
+
+    - scenario: "quality_gate_persistent_failure"
+      action: "agent_redesign_required"
+
+    - scenario: "security_vulnerability_introduced"
+      action: "immediate_fix_required_before_continuation"
+
+# ====================================================================
+# SUCCESS CRITERIA
+# ====================================================================
+success_criteria:
+  project_completion:
+    - "All 8 agents complete their assigned modules"
+    - "All quality gates passed"
+    - "Integration tests at 100% pass rate"
+    - "Security audit shows zero critical vulnerabilities"
+    - "Documentation complete for all modules"
+    - "Deployment pipeline functional"
+    - "End-to-end user journey validated"
+
+  agent_completion:
+    - "Code generated and self-audited"
+    - "Unit tests written and passing"
+    - "Integration points documented"
+    - "Audit report submitted"
+    - "No blocking issues remaining"
+    - "Handoff artifacts validated by recipient agent"
+
+# ====================================================================
+# NOTES
+# ====================================================================
+# This orchestrator configuration ensures:
+# 1. Parallel development where possible
+# 2. Clear dependency management
+# 3. Quality enforcement at every stage
+# 4. Self-auditing agents that fix their own issues
+# 5. Coordinated handoffs between agents
+# 6. Security and safety built-in from the start
+# 7. Near-zero debugging required due to strict quality controls

@@ -1,0 +1,111 @@
+MIT License
+
+Copyright (c) 2025 nabavkidata.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+THIRD-PARTY LICENSES
+
+This software includes the following third-party libraries:
+
+1. FastAPI - MIT License
+   Copyright (c) 2018 Sebastián Ramírez
+   https://github.com/tiangolo/fastapi
+
+2. Next.js - MIT License
+   Copyright (c) 2023 Vercel, Inc.
+   https://github.com/vercel/next.js
+
+3. Scrapy - BSD License
+   Copyright (c) Scrapy developers
+   https://github.com/scrapy/scrapy
+
+4. PostgreSQL - PostgreSQL License
+   Copyright (c) 1996-2024, PostgreSQL Global Development Group
+   https://www.postgresql.org/
+
+5. Redis - BSD 3-Clause License
+   Copyright (c) 2006-2024, Redis Ltd.
+   https://redis.io/
+
+6. OpenAI Python SDK - MIT License
+   Copyright (c) OpenAI
+   https://github.com/openai/openai-python
+
+7. LangChain - MIT License
+   Copyright (c) LangChain, Inc.
+   https://github.com/langchain-ai/langchain
+
+8. Radix UI - MIT License
+   Copyright (c) 2022 WorkOS
+   https://github.com/radix-ui/primitives
+
+9. Tailwind CSS - MIT License
+   Copyright (c) Tailwind Labs, Inc.
+   https://github.com/tailwindlabs/tailwindcss
+
+For a complete list of dependencies and their licenses, see:
+- backend/requirements.txt
+- frontend/package.json
+
+---
+
+DATA ATTRIBUTION
+
+This software scrapes and processes data from:
+- e-nabavki.gov.mk (Macedonian Public Procurement Bureau)
+
+The data is publicly available and used in accordance with applicable laws
+and regulations. The software does not claim ownership of the scraped data.
+
+Users of this software are responsible for ensuring compliance with:
+- Macedonian data protection laws
+- GDPR (if applicable)
+- Terms of service of data sources
+- Robot.txt and web scraping etiquette
+
+---
+
+DISCLAIMER
+
+THE SOFTWARE AND DATA ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+THE AUTHORS ARE NOT RESPONSIBLE FOR:
+- Accuracy of scraped data
+- Availability of data sources
+- Compliance with local regulations
+- Any damages arising from use of the software
+
+Users are responsible for:
+- Verifying data accuracy before making business decisions
+- Complying with applicable laws and regulations
+- Respecting rate limits and terms of service
+- Proper use of API keys and credentials
+
+---
+
+CONTACT
+
+For licensing questions or commercial use inquiries:
+- Email: legal@nabavkidata.com
+- Website: https://nabavkidata.com
+
+For security issues:
+- Email: security@nabavkidata.com

@@ -1,0 +1,44 @@
+# Nabavki Scraper Cron Jobs
+# Install with: crontab scraper.cron
+
+# Set environment variables
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+DATABASE_URL=postgresql://user:pass@localhost:5432/nabavkidata
+
+# Scraper working directory
+SCRAPER_DIR=/path/to/nabavkidata/scraper
+
+# ============================================================================
+# HOURLY SCRAPING (Incremental)
+# ============================================================================
+# Run every hour to catch new tenders quickly
+# Minute Hour Day Month DayOfWeek Command
+0 * * * * cd $SCRAPER_DIR && python3 scheduler.py run --incremental >> logs/scraper_hourly.log 2>&1
+
+# ============================================================================
+# DAILY FULL SCRAPE (Backup)
+# ============================================================================
+# Run full scrape once per day at 2 AM to catch anything missed
+# Ensures data consistency
+0 2 * * * cd $SCRAPER_DIR && python3 scheduler.py run --full >> logs/scraper_daily.log 2>&1
+
+# ============================================================================
+# WEEKLY DEEP SCRAPE
+# ============================================================================
+# Run comprehensive scrape every Sunday at 3 AM
+# Includes historical data refresh
+0 3 * * 0 cd $SCRAPER_DIR && python3 scheduler.py run --full --max-pages 1000 >> logs/scraper_weekly.log 2>&1
+
+# ============================================================================
+# LOG ROTATION (Weekly)
+# ============================================================================
+# Rotate logs every Monday at 4 AM to prevent disk space issues
+0 4 * * 1 cd $SCRAPER_DIR/logs && find . -name "*.log" -mtime +30 -delete
+
+# ============================================================================
+# HEALTH CHECK (Daily)
+# ============================================================================
+# Check scraper health every day at 6 AM
+# Sends alert if no successful scrapes in 24 hours
+0 6 * * * cd $SCRAPER_DIR && python3 scripts/health_check.py >> logs/health_check.log 2>&1

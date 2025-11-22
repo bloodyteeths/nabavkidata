@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nabavkidata
+  labels:
+    name: nabavkidata
+    environment: production
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: nabavkidata-quota
+  namespace: nabavkidata
+spec:
+  hard:
+    requests.cpu: "10"
+    requests.memory: 20Gi
+    limits.cpu: "20"
+    limits.memory: 40Gi
+    persistentvolumeclaims: "10"
