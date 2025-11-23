@@ -50,7 +50,7 @@ export default function LoginPage() {
 
     try {
       await login(formData.email, formData.password);
-      router.push('/');
+      router.push('/dashboard');
     } catch (error: any) {
       setErrors({ general: error.message || 'Погрешна е-пошта или лозинка' });
     } finally {

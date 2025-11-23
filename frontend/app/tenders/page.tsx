@@ -27,8 +27,8 @@ export default function TendersPage() {
     try {
       setLoading(true);
       const params: Record<string, any> = {
-        skip: (page - 1) * limit,
-        limit,
+        page: page,
+        page_size: limit,
       };
 
       if (filters.search) params.search = filters.search;
@@ -52,10 +52,10 @@ export default function TendersPage() {
     try {
       const result = await api.getTenderStats();
       setStats({
-        total: result.total_count || 0,
-        open: result.status_counts?.open || 0,
-        closed: result.status_counts?.closed || 0,
-        awarded: result.status_counts?.awarded || 0,
+        total: result.total_tenders || 0,
+        open: result.open_tenders || 0,
+        closed: result.closed_tenders || 0,
+        awarded: 0, // Backend doesn't track awarded status
       });
     } catch (error) {
       console.error("Failed to load stats:", error);
