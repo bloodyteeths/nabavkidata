@@ -14,6 +14,7 @@ import {
   Database,
   PlayCircle,
 } from 'lucide-react';
+import { toast } from "sonner";
 import {
   LineChart,
   Line,
@@ -137,13 +138,13 @@ export default function AdminDashboard() {
       });
 
       if (response.ok) {
-        alert('Scraper успешно активиран');
+        toast.success('Scraper успешно активиран');
       } else {
-        alert('Грешка при активирање на scraper');
+        toast.error('Грешка при активирање на scraper');
       }
     } catch (error) {
       console.error('Error triggering scraper:', error);
-      alert('Грешка при активирање на scraper');
+      toast.error('Грешка при активирање на scraper');
     }
   };
 

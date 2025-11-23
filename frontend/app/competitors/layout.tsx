@@ -5,10 +5,12 @@ export const metadata: Metadata = {
   description: "Анализа на активности и успеси на вашите конкуренти во јавните набавки.",
 };
 
+import DashboardLayout from "@/components/layout/DashboardLayout";
+
 export default function CompetitorsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return <DashboardLayout>{children}</DashboardLayout>;
 }

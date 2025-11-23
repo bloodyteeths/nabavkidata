@@ -5,10 +5,12 @@ export const metadata: Metadata = {
   description: "Преглед на е-мејл дигести и системски известувања за тендери.",
 };
 
+import DashboardLayout from "@/components/layout/DashboardLayout";
+
 export default function InboxLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return <DashboardLayout>{children}</DashboardLayout>;
 }

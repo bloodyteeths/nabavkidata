@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  // Store tokens in localStorage
+  // Store tokens in localStorage and cookies
   const storeTokens = (tokens: AuthTokens) => {
     if (typeof window === 'undefined') return;
 
@@ -78,15 +78,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Store expiry time (default to 15 minutes)
     const expiryTime = Date.now() + 15 * 60 * 1000;
     localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+
+    // Also set cookie for middleware authentication
+    // Cookie expires in 15 minutes (same as token)
+    const expires = new Date(expiryTime).toUTCString();
+    document.cookie = `auth_token=${tokens.access_token}; path=/; expires=${expires}; SameSite=Lax`;
   };
 
-  // Clear tokens from localStorage
+  // Clear tokens from localStorage and cookies
   const clearTokens = () => {
     if (typeof window === 'undefined') return;
 
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(TOKEN_EXPIRY_KEY);
+
+    // Also clear the cookie
+    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   };
 
   // Schedule automatic token refresh

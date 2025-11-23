@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { X, Check, Sparkles, CreditCard, Zap } from "lucide-react";
+import { toast } from "sonner";
 
 const AVAILABLE_SECTORS = ["ИТ", "Градежништво", "Консултинг", "Опрема"];
 
@@ -155,7 +156,7 @@ export default function SettingsPage() {
       window.location.href = session.checkout_url;
     } catch (error) {
       console.error("Failed to create checkout session:", error);
-      alert("Грешка при креирање на сесија за плаќање. Ве молиме обидете се повторно.");
+      toast.error("Грешка при креирање на сесија за плаќање. Ве молиме обидете се повторно.");
     } finally {
       setUpgrading(null);
     }
@@ -167,7 +168,7 @@ export default function SettingsPage() {
       window.location.href = portal.url;
     } catch (error) {
       console.error("Failed to open billing portal:", error);
-      alert("Грешка при отворање на порталот за наплата.");
+      toast.error("Грешка при отворање на порталот за наплата.");
     }
   };
 
@@ -176,7 +177,7 @@ export default function SettingsPage() {
       if (!userId) return;
       setSaving(true);
       await api.updatePreferences(userId, preferences);
-      console.log("Преференциите се успешно зачувани");
+      toast.success("Преференциите се успешно зачувани");
     } catch (error) {
       console.error("Грешка при зачувување:", error);
     } finally {
@@ -186,7 +187,7 @@ export default function SettingsPage() {
 
   const handleReset = () => {
     setPreferences(DEFAULT_PREFERENCES);
-    console.log("Преференциите се ресетирани на стандардни");
+    toast.success("Преференциите се ресетирани на стандардни");
   };
 
   const toggleSector = (sector: string) => {

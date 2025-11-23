@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import UserTable from '@/components/admin/UserTable';
 import { Search, Filter, Download, UserPlus } from 'lucide-react';
+import { toast } from "sonner";
 
 interface User {
   id: string;
@@ -138,12 +139,13 @@ export default function AdminUsersPage() {
         fetchUsers();
         setIsEditModalOpen(false);
         setSelectedUser(null);
+        toast.success('Корисникот е успешно зачуван');
       } else {
-        alert('Грешка при зачувување на корисникот');
+        toast.error('Грешка при зачувување на корисникот');
       }
     } catch (error) {
       console.error('Error saving user:', error);
-      alert('Грешка при зачувување на корисникот');
+      toast.error('Грешка при зачувување на корисникот');
     }
   };
 
@@ -157,11 +159,15 @@ export default function AdminUsersPage() {
         method: action === 'delete' ? 'DELETE' : method,
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      if (response.ok) fetchUsers();
-      else alert(`Грешка при ${action === 'verify' ? 'верификација' : action === 'ban' ? 'банирање' : 'бришење'} на корисникот`);
+      if (response.ok) {
+        fetchUsers();
+        toast.success('Акцијата е успешно извршена');
+      } else {
+        toast.error(`Грешка при ${action === 'verify' ? 'верификација' : action === 'ban' ? 'банирање' : 'бришење'} на корисникот`);
+      }
     } catch (error) {
       console.error(`Error ${action} user:`, error);
-      alert(`Грешка при ${action === 'verify' ? 'верификација' : action === 'ban' ? 'банирање' : 'бришење'} на корисникот`);
+      toast.error(`Грешка при ${action === 'verify' ? 'верификација' : action === 'ban' ? 'банирање' : 'бришење'} на корисникот`);
     }
   };
 
@@ -171,7 +177,7 @@ export default function AdminUsersPage() {
 
   const handleBulkAction = async (action: string) => {
     if (selectedUsers.length === 0) {
-      alert('Изберете барем еден корисник');
+      toast.error('Изберете барем еден корисник');
       return;
     }
 
@@ -194,12 +200,13 @@ export default function AdminUsersPage() {
       if (response.ok) {
         fetchUsers();
         setSelectedUsers([]);
+        toast.success('Акцијата е успешно извршена');
       } else {
-        alert('Грешка при извршување на акцијата');
+        toast.error('Грешка при извршување на акцијата');
       }
     } catch (error) {
       console.error('Error performing bulk action:', error);
-      alert('Грешка при извршување на акцијата');
+      toast.error('Грешка при извршување на акцијата');
     }
   };
 
@@ -219,7 +226,7 @@ export default function AdminUsersPage() {
       }
     } catch (error) {
       console.error('Error exporting users:', error);
-      alert('Грешка при експорт на корисниците');
+      toast.error('Грешка при експорт на корисниците');
     }
   };
 

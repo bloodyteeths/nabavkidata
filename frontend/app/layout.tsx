@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   keywords: ["јавни набавки", "тендери", "Македонија", "AI анализа", "набавки"],
 };
 
+import { Toaster } from "sonner";
+
+// ... imports
+
 export default function RootLayout({
   children,
 }: {
@@ -24,6 +28,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProviderWrapper>
           {children}
+          <Toaster position="top-center" richColors />
         </AuthProviderWrapper>
       </body>
     </html>

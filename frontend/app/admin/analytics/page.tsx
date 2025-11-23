@@ -36,6 +36,7 @@ import {
   AreaChart,
 } from 'recharts';
 import { Download, TrendingUp, Users, DollarSign, Activity } from 'lucide-react';
+import { toast } from "sonner";
 
 interface AnalyticsData {
   userGrowth: Array<{ date: string; users: number; newUsers: number }>;
@@ -105,7 +106,7 @@ export default function AdminAnalyticsPage() {
       }
     } catch (error) {
       console.error('Error exporting data:', error);
-      alert('Грешка при експорт на податоците');
+      toast.error('Грешка при експорт на податоците');
     }
   };
 

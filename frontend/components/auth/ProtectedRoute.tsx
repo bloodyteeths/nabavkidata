@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/lib/auth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -17,11 +17,11 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading } = useAuth();
+  const { user, isLoading } = useAuth();
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    if (!loading) {
+    if (!isLoading) {
       if (requireAuth && !user) {
         const returnUrl = pathname !== '/auth/login' ? `?returnUrl=${encodeURIComponent(pathname)}` : '';
         router.push(`${redirectTo}${returnUrl}`);
@@ -29,9 +29,9 @@ export default function ProtectedRoute({
         setIsChecking(false);
       }
     }
-  }, [user, loading, requireAuth, router, pathname, redirectTo]);
+  }, [user, isLoading, requireAuth, router, pathname, redirectTo]);
 
-  if (loading || isChecking) {
+  if (isLoading || isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">

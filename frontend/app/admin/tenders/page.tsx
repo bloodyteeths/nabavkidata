@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, CheckCircle, XCircle, Edit, Trash2 } from 'lucide-react';
+import { toast } from "sonner";
 
 interface Tender {
   id: string;
@@ -116,11 +117,15 @@ export default function AdminTendersPage() {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      if (response.ok) fetchTenders();
-      else alert(`Грешка при ${action === 'approve' ? 'одобрување' : 'одбивање'} на тендерот`);
+      if (response.ok) {
+        fetchTenders();
+        toast.success(`Тендерот е успешно ${action === 'approve' ? 'одобрен' : 'одбиен'}`);
+      } else {
+        toast.error(`Грешка при ${action === 'approve' ? 'одобрување' : 'одбивање'} на тендерот`);
+      }
     } catch (error) {
       console.error(`Error ${action} tender:`, error);
-      alert(`Грешка при ${action === 'approve' ? 'одобрување' : 'одбивање'} на тендерот`);
+      toast.error(`Грешка при ${action === 'approve' ? 'одобрување' : 'одбивање'} на тендерот`);
     }
   };
 
@@ -146,15 +151,16 @@ export default function AdminTendersPage() {
       });
 
       if (response.ok) {
+        toast.success('Тендерот е успешно зачуван');
         fetchTenders();
         setIsEditModalOpen(false);
         setSelectedTender(null);
       } else {
-        alert('Грешка при зачувување на тендерот');
+        toast.error('Грешка при зачувување на тендерот');
       }
     } catch (error) {
       console.error('Error saving tender:', error);
-      alert('Грешка при зачувување на тендерот');
+      toast.error('Грешка при зачувување на тендерот');
     }
   };
 
@@ -172,12 +178,13 @@ export default function AdminTendersPage() {
 
       if (response.ok) {
         fetchTenders();
+        toast.success('Тендерот е успешно избришан');
       } else {
-        alert('Грешка при бришење на тендерот');
+        toast.error('Грешка при бришење на тендерот');
       }
     } catch (error) {
       console.error('Error deleting tender:', error);
-      alert('Грешка при бришење на тендерот');
+      toast.error('Грешка при бришење на тендерот');
     }
   };
 

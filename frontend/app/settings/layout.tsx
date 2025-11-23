@@ -5,10 +5,12 @@ export const metadata: Metadata = {
   description: "Управувајте со вашите преференци, претплата и профил на Nabavkidata.com.",
 };
 
+import DashboardLayout from "@/components/layout/DashboardLayout";
+
 export default function SettingsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return <DashboardLayout>{children}</DashboardLayout>;
 }

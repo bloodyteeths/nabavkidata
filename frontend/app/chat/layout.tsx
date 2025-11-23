@@ -5,10 +5,12 @@ export const metadata: Metadata = {
   description: "Поставете прашања за тендерите и добијте AI-базирани одговори и анализа.",
 };
 
+import DashboardLayout from "@/components/layout/DashboardLayout";
+
 export default function ChatLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return <DashboardLayout>{children}</DashboardLayout>;
 }
