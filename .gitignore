@@ -42,6 +42,8 @@ out/
 .env.local
 .env.production
 .env.*.local
+.env.prod
+*.env.prod
 
 # IDE
 .vscode/
