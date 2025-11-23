@@ -78,12 +78,17 @@ export function useAuth() {
       setLoading(true);
       setError(null);
 
+      // Login endpoint expects OAuth2 form data (username + password), not JSON
+      const formData = new URLSearchParams();
+      formData.append('username', email);  // OAuth2 uses 'username' field for email
+      formData.append('password', password);
+
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({ email, password }),
+        body: formData.toString(),
       });
 
       if (!response.ok) {
