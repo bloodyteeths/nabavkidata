@@ -72,13 +72,12 @@ export default function DashboardLayout({
                                 <Button variant="ghost" className="w-full justify-start p-2 hover:bg-white/5 rounded-xl">
                                     <div className="flex items-center gap-3">
                                         <Avatar className="h-8 w-8 border-2 border-primary/20">
-                                            <AvatarImage src={user.avatar_url} alt={user.full_name || user.email} />
                                             <AvatarFallback className="bg-primary/20 text-primary">{getUserInitials()}</AvatarFallback>
                                         </Avatar>
                                         <div className="flex-1 text-left overflow-hidden">
                                             <p className="text-sm font-medium truncate text-white">{user.full_name || user.email}</p>
-                                            <p className="text-xs text-muted-foreground truncate">
-                                                {user.is_verified ? "✓ Верифициран" : "Неверифициран"}
+                                            <p className="text-xs text-muted-foreground truncate capitalize">
+                                                {user.subscription_tier} план
                                             </p>
                                         </div>
                                     </div>

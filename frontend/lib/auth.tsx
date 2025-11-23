@@ -8,13 +8,12 @@ const API_URL = (typeof window !== 'undefined')
   : 'https://api.nabavkidata.com';
 
 export interface User {
-  id: string;
+  user_id: string;
   email: string;
   full_name?: string;
-  avatar_url?: string;
-  is_verified: boolean;
+  email_verified: boolean;
+  subscription_tier: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface AuthTokens {

@@ -362,7 +362,7 @@ async def get_user_subscription(db: AsyncSession, user_id: str) -> Optional[Subs
 async def get_usage_stats(db: AsyncSession, user_id: str, period_start: datetime) -> Dict[str, int]:
     """Get usage statistics for current billing period"""
     result = await db.execute(
-        select(UsageTracking)
+        select(UsageTracking.action_type)
         .where(
             and_(
                 UsageTracking.user_id == user_id,
@@ -370,24 +370,24 @@ async def get_usage_stats(db: AsyncSession, user_id: str, period_start: datetime
             )
         )
     )
-    usage_records = result.scalars().all()
+    action_types = result.scalars().all()
 
     stats = {
         "rag_queries": 0,
         "exports": 0,
         "api_calls": 0,
         "alerts": 0,
-        "total": len(usage_records)
+        "total": len(action_types)
     }
 
-    for record in usage_records:
-        if record.action_type == "rag_query":
+    for action_type in action_types:
+        if action_type == "rag_query":
             stats["rag_queries"] += 1
-        elif record.action_type == "export":
+        elif action_type == "export":
             stats["exports"] += 1
-        elif record.action_type == "api_call":
+        elif action_type == "api_call":
             stats["api_calls"] += 1
-        elif record.action_type == "alert":
+        elif action_type == "alert":
             stats["alerts"] += 1
 
     return stats
@@ -528,8 +528,8 @@ async def get_billing_status(
     # Get usage stats
     usage = await get_usage_stats(db, str(current_user.user_id), period_start)
 
-    # Get plan details
-    tier = subscription.tier if subscription else "free"
+    # Get plan details - check subscription first, then fall back to user's subscription_tier
+    tier = subscription.tier if subscription else (current_user.subscription_tier or "free")
     plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS["free"])
     limits = plan.get("limits", {})
 
@@ -1031,8 +1031,7 @@ async def check_usage_limit(
     if allowed and action_type in ["rag_query", "export", "api_call", "alert"]:
         tracking = UsageTracking(
             user_id=current_user.user_id,
-            action_type=action_type,
-            tracking_metadata={"tier": tier, "in_trial": in_trial}
+            action_type=action_type
         )
         db.add(tracking)
         await db.commit()

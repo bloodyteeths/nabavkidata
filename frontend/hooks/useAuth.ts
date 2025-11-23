@@ -4,13 +4,12 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 export interface User {
-  id: string;
+  user_id: string;
   email: string;
   full_name?: string;
-  avatar_url?: string;
-  is_verified: boolean;
+  email_verified: boolean;
+  subscription_tier: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface AuthTokens {
@@ -151,11 +150,11 @@ export function useAuth() {
 
       // Return a placeholder user object since registration doesn't return user data
       const placeholderUser: User = {
-        id: '',
+        user_id: '',
         email: email,
-        is_verified: false,
+        email_verified: false,
+        subscription_tier: 'free',
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       };
 
       return placeholderUser;
