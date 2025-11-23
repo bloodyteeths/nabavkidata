@@ -59,6 +59,33 @@ export default function DashboardPage() {
       animate="show"
       className="p-8 space-y-8"
     >
+      {/* Free Tier Upgrade Banner */}
+      <motion.div variants={item}>
+        <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 border-primary/30">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Sparkles className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Вие сте на FREE планот</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Надоградете за целосен пристап до напредна аналитика, неограничени пребарувања и повеќе функции
+                  </p>
+                </div>
+              </div>
+              <a href="/settings">
+                <Button className="bg-primary hover:bg-primary/90 shadow-lg">
+                  <Award className="mr-2 h-4 w-4" />
+                  Надогради сега
+                </Button>
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Header */}
       <motion.div variants={item} className="flex items-center justify-between">
         <div>

@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { api, UserPreferences } from "@/lib/api";
+import { billing, BillingPlan } from "@/lib/billing";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
+import { X, Check, Sparkles, CreditCard, Zap } from "lucide-react";
 
 const AVAILABLE_SECTORS = ["ИТ", "Градежништво", "Консултинг", "Опрема"];
 
@@ -31,10 +32,15 @@ export default function SettingsPage() {
   const [entityInput, setEntityInput] = useState("");
   const [keywordInput, setKeywordInput] = useState("");
   const [competitorInput, setCompetitorInput] = useState("");
+  const [plans, setPlans] = useState<BillingPlan[]>([]);
+  const [currentTier, setCurrentTier] = useState<string>("free");
+  const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
+  const [upgrading, setUpgrading] = useState<string | null>(null);
   const userId = "demo-user";
 
   useEffect(() => {
     loadPreferences();
+    loadPlans();
   }, []);
 
   const loadPreferences = async () => {
@@ -46,6 +52,51 @@ export default function SettingsPage() {
       console.error("Грешка при вчитување на преференци:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPlans = async () => {
+    try {
+      const allPlans = await billing.getPlans();
+      setPlans(allPlans);
+
+      // Try to get current subscription status
+      try {
+        const status = await api.getSubscriptionStatus();
+        setCurrentTier(status.tier);
+      } catch (err) {
+        // User not logged in or no subscription
+        setCurrentTier('free');
+      }
+    } catch (error) {
+      console.error("Failed to load plans:", error);
+    }
+  };
+
+  const handleUpgrade = async (tier: string) => {
+    if (tier === 'free') return;
+
+    try {
+      setUpgrading(tier);
+      const session = await api.createCheckoutSession(tier, interval);
+
+      // Redirect to Stripe checkout
+      window.location.href = session.url;
+    } catch (error) {
+      console.error("Failed to create checkout session:", error);
+      alert("Грешка при креирање на сесија за плаќање. Ве молиме обидете се повторно.");
+    } finally {
+      setUpgrading(null);
+    }
+  };
+
+  const handleManageBilling = async () => {
+    try {
+      const portal = await api.createPortalSession();
+      window.location.href = portal.url;
+    } catch (error) {
+      console.error("Failed to open billing portal:", error);
+      alert("Грешка при отворање на порталот за наплата.");
     }
   };
 
@@ -90,13 +141,163 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 max-w-4xl">
+    <div className="container mx-auto py-8 max-w-6xl">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Поставки</h1>
-        <p className="text-muted-foreground mt-2">Управувајте со вашите преференци за нотификации</p>
+        <p className="text-muted-foreground mt-2">Управувајте со вашите преференци и претплата</p>
       </div>
 
       <div className="space-y-6">
+        {/* Subscription Plans */}
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Претплата и цени
+            </CardTitle>
+            <CardDescription>Одберете го планот што најдобро одговара на вашите потреби</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Monthly/Yearly Toggle */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex rounded-lg border border-primary/20 p-1 bg-background/50">
+                <button
+                  onClick={() => setInterval('monthly')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    interval === 'monthly'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Месечно
+                </button>
+                <button
+                  onClick={() => setInterval('yearly')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    interval === 'yearly'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Годишно
+                  <Badge variant="secondary" className="ml-2 bg-green-500/10 text-green-400 border-green-500/20">
+                    Заштеди 17%
+                  </Badge>
+                </button>
+              </div>
+            </div>
+
+            {/* Plans Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {plans.map((plan) => {
+                const isCurrentPlan = plan.tier === currentTier;
+                const price = interval === 'monthly' ? plan.price_monthly_eur : plan.price_yearly_eur;
+                const isFree = plan.tier === 'free';
+                const isPopular = plan.tier === 'professional';
+
+                return (
+                  <div key={plan.tier} className="relative">
+                    {isPopular && (
+                      <div className="absolute -top-4 left-0 right-0 flex justify-center">
+                        <Badge className="bg-primary text-primary-foreground">
+                          Најпопуларно
+                        </Badge>
+                      </div>
+                    )}
+                    <Card className={`h-full ${isCurrentPlan ? 'border-primary shadow-lg shadow-primary/20' : ''} ${isPopular ? 'border-primary/50' : ''}`}>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-xl">{plan.name}</CardTitle>
+                          {isCurrentPlan && (
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                              Тековен
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="mt-4">
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-4xl font-bold">€{price.toFixed(2)}</span>
+                            <span className="text-muted-foreground">
+                              {isFree ? '/засекогаш' : `/${interval === 'monthly' ? 'мес' : 'год'}`}
+                            </span>
+                          </div>
+                          {!isFree && interval === 'yearly' && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              €{(price / 12).toFixed(2)} месечно
+                            </p>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Daily Queries */}
+                        <div className="flex items-center gap-2 text-sm">
+                          <Zap className="h-4 w-4 text-primary" />
+                          <span className="font-medium">
+                            {plan.daily_queries === -1 ? 'Неограничени' : plan.daily_queries} AI пребарувања дневно
+                          </span>
+                        </div>
+
+                        {/* Trial Info */}
+                        {plan.trial_days > 0 && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Check className="h-4 w-4" />
+                            <span>{plan.trial_days}-дневен пробен период</span>
+                          </div>
+                        )}
+
+                        {/* Features */}
+                        <div className="space-y-2 pt-2 border-t">
+                          {plan.features.map((feature, idx) => (
+                            <div key={idx} className="flex items-start gap-2 text-sm">
+                              <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                              <span className="text-muted-foreground">{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* CTA Button */}
+                        <div className="pt-4">
+                          {isCurrentPlan ? (
+                            <Button
+                              variant="outline"
+                              className="w-full"
+                              onClick={handleManageBilling}
+                            >
+                              <CreditCard className="mr-2 h-4 w-4" />
+                              Управувај претплата
+                            </Button>
+                          ) : isFree ? (
+                            <Button variant="outline" className="w-full" disabled>
+                              Тековен план
+                            </Button>
+                          ) : (
+                            <Button
+                              className={`w-full ${isPopular ? 'bg-primary hover:bg-primary/90' : ''}`}
+                              onClick={() => handleUpgrade(plan.tier)}
+                              disabled={upgrading === plan.tier}
+                            >
+                              {upgrading === plan.tier ? 'Се обработува...' : 'Надогради'}
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Trial Warning for Free Users */}
+            {currentTier === 'free' && (
+              <div className="mt-6 p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                <p className="text-sm text-orange-400">
+                  <strong>Важно:</strong> Бесплатниот план е ограничен на 14 дена. По истекот на пробниот период, ќе треба да надоградите за да продолжите да ја користите платформата.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Сектори</CardTitle>

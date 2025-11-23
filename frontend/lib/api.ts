@@ -360,10 +360,10 @@ class APIClient {
     return this.request<UserSubscription | null>('/api/billing/subscription');
   }
 
-  async createCheckoutSession(planId: string) {
-    return this.request<{ session_id: string; checkout_url: string }>('/api/billing/checkout', {
+  async createCheckoutSession(tier: string, interval: 'monthly' | 'yearly' = 'monthly') {
+    return this.request<{ url: string; session_id: string }>('/api/billing/checkout', {
       method: 'POST',
-      body: JSON.stringify({ plan_id: planId }),
+      body: JSON.stringify({ tier, interval }),
     });
   }
 
@@ -373,8 +373,21 @@ class APIClient {
     });
   }
 
+  async getSubscriptionStatus() {
+    return this.request<{
+      tier: string;
+      status: string;
+      trial_ends_at?: string;
+      is_trial_expired: boolean;
+      daily_queries_used: number;
+      daily_queries_limit: number;
+      is_blocked: boolean;
+      block_reason?: string;
+    }>('/api/billing/status');
+  }
+
   async cancelSubscription() {
-    return this.request<void>('/api/billing/subscription/cancel', {
+    return this.request<void>('/api/billing/cancel', {
       method: 'POST',
     });
   }
@@ -389,6 +402,23 @@ class APIClient {
 
   async getUsage() {
     return this.request<UsageStats>('/api/billing/usage');
+  }
+
+  // Fraud Prevention Methods
+  async getTierLimits() {
+    return this.request<{
+      free: { tier: string; daily_queries: number; monthly_queries: number; trial_days: number; allow_vpn: boolean; features: string[] };
+      starter: { tier: string; daily_queries: number; monthly_queries: number; trial_days: number; allow_vpn: boolean; features: string[] };
+      professional: { tier: string; daily_queries: number; monthly_queries: number; trial_days: number; allow_vpn: boolean; features: string[] };
+      enterprise: { tier: string; daily_queries: number; monthly_queries: number; trial_days: number; allow_vpn: boolean; features: string[] };
+    }>('/api/fraud/tier-limits');
+  }
+
+  async validateEmail(email: string) {
+    return this.request<{ email: string; is_allowed: boolean; reason: string | null }>('/api/fraud/validate-email', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
   }
 
   // Admin Methods
