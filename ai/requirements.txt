@@ -4,7 +4,7 @@
 openai==0.28.1
 
 # Tokenization
-tiktoken==0.6.0
+tiktoken>=0.8.0
 
 # Database (async PostgreSQL + pgvector)
 asyncpg==0.30.0

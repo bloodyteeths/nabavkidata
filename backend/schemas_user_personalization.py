@@ -58,7 +58,7 @@ class BehaviorLog(BaseModel):
     tender_id: str
     action: str = Field(..., pattern="^(click|view|save|share)$")
     duration_seconds: Optional[int] = None
-    metadata: Optional[Dict[str, Any]] = None
+    behavior_metadata: Optional[Dict[str, Any]] = None
 
 
 class BehaviorResponse(BaseModel):

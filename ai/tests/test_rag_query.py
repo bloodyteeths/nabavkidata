@@ -26,7 +26,7 @@ SAMPLE_SEARCH_RESULTS = [
         chunk_index=0,
         tender_id='TENDER-001',
         doc_id='DOC-001',
-        metadata={'type': 'tender_notice'},
+        chunk_metadata={'type': 'tender_notice'},
         similarity=0.95
     ),
     SearchResult(
@@ -35,7 +35,7 @@ SAMPLE_SEARCH_RESULTS = [
         chunk_index=1,
         tender_id='TENDER-001',
         doc_id='DOC-001',
-        metadata={'type': 'tender_notice'},
+        chunk_metadata={'type': 'tender_notice'},
         similarity=0.87
     ),
     SearchResult(
@@ -44,7 +44,7 @@ SAMPLE_SEARCH_RESULTS = [
         chunk_index=2,
         tender_id='TENDER-001',
         doc_id='DOC-001',
-        metadata={'type': 'tender_notice'},
+        chunk_metadata={'type': 'tender_notice'},
         similarity=0.82
     )
 ]
@@ -61,7 +61,7 @@ class TestSearchResult:
             chunk_index=0,
             tender_id='T-001',
             doc_id='D-001',
-            metadata={'key': 'value'},
+            chunk_metadata={'key': 'value'},
             similarity=0.95
         )
 
@@ -123,7 +123,7 @@ class TestContextAssembler:
                 chunk_index=i,
                 tender_id='T-001',
                 doc_id='D-001',
-                metadata={},
+                chunk_metadata={},
                 similarity=0.9 - (i * 0.01)
             )
             for i in range(20)
@@ -146,7 +146,7 @@ class TestContextAssembler:
                 chunk_index=0,
                 tender_id='T-001',
                 doc_id='D-001',
-                metadata={},
+                chunk_metadata={},
                 similarity=0.95
             ),
             SearchResult(
@@ -155,7 +155,7 @@ class TestContextAssembler:
                 chunk_index=1,
                 tender_id='T-001',
                 doc_id='D-002',
-                metadata={},
+                chunk_metadata={},
                 similarity=0.85
             ),
             SearchResult(
@@ -164,7 +164,7 @@ class TestContextAssembler:
                 chunk_index=2,
                 tender_id='T-002',
                 doc_id='D-003',
-                metadata={},
+                chunk_metadata={},
                 similarity=0.80
             )
         ]
@@ -183,7 +183,7 @@ class TestContextAssembler:
                 chunk_index=0,
                 tender_id='T-001',
                 doc_id='D-001',
-                metadata={},
+                chunk_metadata={},
                 similarity=0.60
             ),
             SearchResult(
@@ -192,7 +192,7 @@ class TestContextAssembler:
                 chunk_index=1,
                 tender_id='T-002',
                 doc_id='D-002',
-                metadata={},
+                chunk_metadata={},
                 similarity=0.95
             ),
             SearchResult(
@@ -201,7 +201,7 @@ class TestContextAssembler:
                 chunk_index=2,
                 tender_id='T-003',
                 doc_id='D-003',
-                metadata={},
+                chunk_metadata={},
                 similarity=0.75
             )
         ]
@@ -360,7 +360,7 @@ class TestRAGQueryPipeline:
                 'chunk_index': 0,
                 'tender_id': 'T-001',
                 'doc_id': 'D-001',
-                'metadata': {},
+                'chunk_metadata': {},
                 'similarity': 0.95
             }
         ]
@@ -430,7 +430,7 @@ class TestRAGQueryPipeline:
                 'chunk_index': 0,
                 'tender_id': 'T-001',
                 'doc_id': 'D-001',
-                'metadata': {},
+                'chunk_metadata': {},
                 'similarity': 0.95
             }
         ]

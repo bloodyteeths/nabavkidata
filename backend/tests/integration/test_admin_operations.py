@@ -10,7 +10,7 @@ import uuid
 
 from main import app
 from models_auth import UserAuth, UserRole
-from models import Tender, TenderStatus
+from models import Tender
 from models_billing import UserSubscription, Payment
 
 

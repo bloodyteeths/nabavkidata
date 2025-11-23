@@ -9,9 +9,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from main import app
-from models import Tender, TenderStatus
+from models import Tender
 from models_auth import UserAuth
-from models_user_personalization import UserPreference, SavedSearch, TenderAlert
+from models_user_personalization import UserPreferences, SavedSearch, TenderAlert
 
 
 class TestTenderWorkflow:

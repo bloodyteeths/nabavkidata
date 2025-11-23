@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from main import app
-from services.auth_service import AuthService
+from services.auth_service import hash_password, verify_password, create_access_token, verify_token
 
 client = TestClient(app)
 
@@ -58,16 +58,16 @@ def test_login_user():
 def test_password_hashing():
     """Test password hashing and verification"""
     password = "TestPassword123!"
-    hashed = AuthService.hash_password(password)
+    hashed = hash_password(password)
     
     assert hashed != password
-    assert AuthService.verify_password(password, hashed)
-    assert not AuthService.verify_password("WrongPassword", hashed)
+    assert verify_password(password, hashed)
+    assert not verify_password("WrongPassword", hashed)
 
 def test_token_creation():
     """Test JWT token creation"""
     data = {"sub": "test-user-id"}
-    token = AuthService.create_access_token(data, timedelta(minutes=30))
+    token = create_access_token(data, timedelta(minutes=30))
     
     assert token
     assert isinstance(token, str)
@@ -76,9 +76,9 @@ def test_token_creation():
 def test_token_verification():
     """Test JWT token verification"""
     data = {"sub": "test-user-id", "email": "test@example.com"}
-    token = AuthService.create_access_token(data, timedelta(minutes=30))
+    token = create_access_token(data, timedelta(minutes=30))
     
-    decoded = AuthService.verify_token(token)
+    decoded = verify_token(token)
     assert decoded
     assert decoded["sub"] == "test-user-id"
     assert decoded["email"] == "test@example.com"
@@ -86,16 +86,16 @@ def test_token_verification():
 def test_invalid_token():
     """Test invalid token handling"""
     with pytest.raises(Exception):
-        AuthService.verify_token("invalid.token.here")
+        verify_token("invalid.token.here")
 
 def test_expired_token():
     """Test expired token handling"""
     data = {"sub": "test-user-id"}
     # Create token that expires immediately
-    token = AuthService.create_access_token(data, timedelta(seconds=-1))
+    token = create_access_token(data, timedelta(seconds=-1))
     
     with pytest.raises(Exception):
-        AuthService.verify_token(token)
+        verify_token(token)
 
 def test_me_endpoint_unauthorized():
     """Test /me endpoint without auth"""

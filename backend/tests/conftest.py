@@ -13,15 +13,15 @@ from unittest.mock import Mock, patch
 
 from main import app
 from database import Base, get_db
-from models import Tender, TenderStatus
+from models import Tender
 from models_auth import UserAuth, EmailVerification, UserRole
 from models_billing import (
     SubscriptionPlan, UserSubscription, Payment, Invoice,
     SubscriptionStatus, Currency, PaymentStatus, InvoiceStatus, PaymentMethodType
 )
-from services.auth_service import AuthService
+from services.auth_service import hash_password
 from services.email_service import EmailService
-from services.stripe_service import StripeService
+from services.email_service import EmailService
 
 
 # Test database URL (use in-memory SQLite for fast tests)
@@ -86,17 +86,22 @@ def mock_email_service(monkeypatch):
 @pytest.fixture
 def mock_stripe(monkeypatch):
     """Mock Stripe service for payment testing"""
-    mock = Mock(spec=StripeService)
-    mock.create_checkout_session.return_value = {
-        "id": "cs_test_123",
+    mock_create_checkout = Mock(return_value={
+        "session_id": "cs_test_123",
         "url": "https://checkout.stripe.com/test"
+    })
+    mock_create_customer = Mock(return_value="cus_test_123")
+    mock_create_subscription = Mock(return_value={"subscription_id": "sub_test_123"})
+
+    monkeypatch.setattr("services.stripe_service.create_checkout_session", mock_create_checkout)
+    monkeypatch.setattr("services.stripe_service.create_customer", mock_create_customer)
+    monkeypatch.setattr("services.stripe_service.create_subscription", mock_create_subscription)
+
+    return {
+        "create_checkout_session": mock_create_checkout,
+        "create_customer": mock_create_customer,
+        "create_subscription": mock_create_subscription
     }
-    mock.create_customer.return_value = {"id": "cus_test_123"}
-    mock.create_subscription.return_value = {"id": "sub_test_123"}
-
-    monkeypatch.setattr("services.stripe_service.StripeService", lambda: mock)
-
-    return mock
 
 
 @pytest.fixture
@@ -118,12 +123,10 @@ def mock_openai(monkeypatch):
 @pytest.fixture
 def test_user(db: Session) -> UserAuth:
     """Create a test user"""
-    auth_service = AuthService()
-
     user = UserAuth(
         user_id=uuid.uuid4(),
         email="testuser@example.com",
-        hashed_password=auth_service.hash_password("TestPass123!"),
+        hashed_password=hash_password("TestPass123!"),
         full_name="Test User",
         is_verified=True,
         is_active=True,
@@ -139,12 +142,10 @@ def test_user(db: Session) -> UserAuth:
 @pytest.fixture
 def admin_user(db: Session) -> UserAuth:
     """Create an admin user"""
-    auth_service = AuthService()
-
     user = UserAuth(
         user_id=uuid.uuid4(),
         email="admin@example.com",
-        hashed_password=auth_service.hash_password("AdminPass123!"),
+        hashed_password=hash_password("AdminPass123!"),
         full_name="Admin User",
         is_verified=True,
         is_active=True,
@@ -169,7 +170,7 @@ def test_tenders(db: Session):
             tender_id=uuid.uuid4(),
             title=f"Test Tender {i}",
             description=f"Description for test tender {i}",
-            status=TenderStatus.active if i % 2 == 0 else TenderStatus.closed,
+            status="active" if i % 2 == 0 else "closed",
             budget_mkd=Decimal(str(100000 * (i + 1))),
             published_date=datetime.utcnow() - timedelta(days=i),
             deadline=datetime.utcnow() + timedelta(days=30 - i),

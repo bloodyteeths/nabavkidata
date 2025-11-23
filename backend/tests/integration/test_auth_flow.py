@@ -10,7 +10,7 @@ import uuid
 
 from main import app
 from models_auth import UserAuth, EmailVerification, PasswordReset, RefreshToken, LoginAttempt, UserRole
-from services.auth_service import AuthService
+
 from services.email_service import EmailService
 
 

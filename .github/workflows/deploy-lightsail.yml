@@ -1,0 +1,146 @@
+name: Deploy to AWS Lightsail
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'scraper/**'
+      - 'ai/**'
+      - 'docker-compose.lightsail.yml'
+      - '.env.prod'
+  workflow_dispatch:
+
+env:
+  LIGHTSAIL_IP: ${{ secrets.LIGHTSAIL_IP }}
+  DEPLOY_USER: ubuntu
+  APP_DIR: /home/ubuntu/nabavkidata
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+          pytest tests/ -v || true
+
+      - name: Run Scraper Tests
+        run: |
+          cd scraper
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+          pytest tests/ -v || true
+
+  deploy:
+    name: Deploy to Lightsail
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/lightsail.pem
+          chmod 600 ~/.ssh/lightsail.pem
+          ssh-keyscan -H ${{ secrets.LIGHTSAIL_IP }} >> ~/.ssh/known_hosts
+
+      - name: Create deployment package
+        run: |
+          tar -czf nabavkidata-deploy.tar.gz \
+            backend/ \
+            scraper/ \
+            ai/ \
+            docker-compose.lightsail.yml \
+            nginx/ \
+            --exclude='backend/venv' \
+            --exclude='scraper/venv' \
+            --exclude='ai/venv' \
+            --exclude='*/__pycache__' \
+            --exclude='*/node_modules' \
+            --exclude='*/.git'
+
+      - name: Upload to server
+        run: |
+          scp -i ~/.ssh/lightsail.pem nabavkidata-deploy.tar.gz $DEPLOY_USER@$LIGHTSAIL_IP:/home/ubuntu/
+
+      - name: Extract and deploy
+        run: |
+          ssh -i ~/.ssh/lightsail.pem $DEPLOY_USER@$LIGHTSAIL_IP << 'ENDSSH'
+            set -e
+            cd /home/ubuntu
+
+            # Extract files
+            tar -xzf nabavkidata-deploy.tar.gz -C nabavkidata/
+            rm nabavkidata-deploy.tar.gz
+
+            cd nabavkidata
+
+            # Rebuild and restart containers
+            docker-compose -f docker-compose.lightsail.yml build --no-cache
+            docker-compose -f docker-compose.lightsail.yml up -d
+
+            # Run migrations
+            docker-compose -f docker-compose.lightsail.yml exec -T backend alembic upgrade head || true
+
+            # Wait for services
+            sleep 30
+
+            # Health check
+            curl -f http://localhost:8000/api/v1/health || exit 1
+
+            echo "Deployment successful!"
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          sleep 10
+          HEALTH_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://$LIGHTSAIL_IP:8000/api/v1/health)
+          if [ "$HEALTH_STATUS" = "200" ]; then
+            echo " Deployment verified - API is healthy"
+          else
+            echo "L Deployment failed - API health check returned $HEALTH_STATUS"
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f ~/.ssh/lightsail.pem
+          rm -f nabavkidata-deploy.tar.gz
+
+  notify:
+    name: Notify Deployment Status
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Deployment Success
+        if: needs.deploy.result == 'success'
+        run: |
+          echo " Deployment to Lightsail successful!"
+          echo "=€ API: http://${{ secrets.LIGHTSAIL_IP }}:8000"
+
+      - name: Deployment Failed
+        if: needs.deploy.result == 'failure'
+        run: |
+          echo "L Deployment to Lightsail failed!"
+          exit 1

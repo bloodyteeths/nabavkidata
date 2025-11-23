@@ -178,7 +178,7 @@ class Payment(Base):
 
     # Payment metadata
     description = Column(Text)
-    metadata = Column(JSONB, default={})
+    payment_metadata = Column(JSONB, default={})
 
     # Failure information
     failure_code = Column(String(100))

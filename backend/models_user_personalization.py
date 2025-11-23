@@ -46,7 +46,7 @@ class UserBehavior(Base):
 
     action = Column(String(50), nullable=False, index=True)  # click, view, save, share
     duration_seconds = Column(Integer)
-    metadata = Column(JSONB)
+    behavior_metadata = Column(JSONB)
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
@@ -83,4 +83,32 @@ class EmailDigest(Base):
     sent = Column(Boolean, default=False)
     sent_at = Column(DateTime)
 
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SavedSearch(Base):
+    __tablename__ = "saved_searches"
+
+    search_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"),
+                     nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    query = Column(String)
+    filters = Column(JSONB)
+    notify = Column(Boolean, default=False)
+    last_executed = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TenderAlert(Base):
+    __tablename__ = "tender_alerts"
+
+    alert_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"),
+                     nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    criteria = Column(JSONB)
+    frequency = Column(String(50), default="daily")
+    is_active = Column(Boolean, default=True)
+    last_triggered = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -1,0 +1,105 @@
+# ===================================================================
+# Cron Jobs for nabavkidata.com Production Server
+# ===================================================================
+# Install with: crontab crontab.txt
+# View with: crontab -l
+# ===================================================================
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+APP_DIR=/home/ubuntu/nabavkidata
+
+# ===================================================================
+# SCRAPER JOBS
+# ===================================================================
+
+# Hourly incremental scrape (every hour at :15)
+15 * * * * cd $APP_DIR && docker-compose -f docker-compose.lightsail.yml exec -T scraper python scheduler.py run --incremental --max-pages 50 >> /var/log/scraper-hourly.log 2>&1
+
+# Daily full scrape (2 AM every day)
+0 2 * * * cd $APP_DIR && docker-compose -f docker-compose.lightsail.yml exec -T scraper python scheduler.py run --full >> /var/log/scraper-daily.log 2>&1
+
+# ===================================================================
+# VECTOR DATABASE REFRESH
+# ===================================================================
+
+# Rebuild embeddings daily (3 AM every day)
+0 3 * * * cd $APP_DIR && docker-compose -f docker-compose.lightsail.yml exec -T backend python -c "from ai.embeddings import rebuild_all_embeddings; rebuild_all_embeddings()" >> /var/log/embeddings-rebuild.log 2>&1
+
+# ===================================================================
+# EMAIL DIGESTS
+# ===================================================================
+
+# Daily digest (8 AM every weekday)
+0 8 * * 1-5 cd $APP_DIR && docker-compose -f docker-compose.lightsail.yml exec -T backend python scripts/send_daily_digest.py >> /var/log/daily-digest.log 2>&1
+
+# Weekly summary (9 AM every Monday)
+0 9 * * 1 cd $APP_DIR && docker-compose -f docker-compose.lightsail.yml exec -T backend python scripts/send_weekly_summary.py >> /var/log/weekly-summary.log 2>&1
+
+# ===================================================================
+# DATABASE MAINTENANCE
+# ===================================================================
+
+# Database vacuum and analyze (Sunday 4 AM)
+0 4 * * 0 cd $APP_DIR && docker-compose -f docker-compose.lightsail.yml exec -T backend python scripts/db_maintenance.py >> /var/log/db-maintenance.log 2>&1
+
+# Cleanup old logs and PDFs (1st of month, 5 AM)
+0 5 1 * * cd $APP_DIR && docker-compose -f docker-compose.lightsail.yml exec -T backend python scripts/cleanup_old_files.py >> /var/log/cleanup.log 2>&1
+
+# ===================================================================
+# BACKUP JOBS
+# ===================================================================
+
+# Daily database backup (1 AM every day)
+0 1 * * * cd $APP_DIR && bash deployment/backup-database.sh >> /var/log/db-backup.log 2>&1
+
+# Weekly full backup (Sunday 1 AM)
+0 1 * * 0 cd $APP_DIR && bash deployment/backup-full.sh >> /var/log/full-backup.log 2>&1
+
+# ===================================================================
+# MONITORING & HEALTH CHECKS
+# ===================================================================
+
+# Health check every 5 minutes
+*/5 * * * * curl -f http://localhost:8000/api/v1/health > /dev/null 2>&1 || echo "$(date): API health check failed" >> /var/log/health-check.log
+
+# Disk space check (every hour)
+0 * * * * df -h | grep -E '^/dev/' | awk '{ if(int($5) > 80) print $0 }' >> /var/log/disk-space.log 2>&1
+
+# Docker container status check (every 30 minutes)
+*/30 * * * * cd $APP_DIR && docker-compose -f docker-compose.lightsail.yml ps | grep -v "Up" >> /var/log/container-status.log 2>&1
+
+# ===================================================================
+# SSL CERTIFICATE RENEWAL
+# ===================================================================
+
+# Certbot auto-renewal check (twice daily)
+0 0,12 * * * certbot renew --quiet --post-hook "systemctl reload nginx" >> /var/log/certbot-renew.log 2>&1
+
+# ===================================================================
+# LOG ROTATION
+# ===================================================================
+
+# Compress old logs weekly (Sunday 6 AM)
+0 6 * * 0 find /var/log -name "*.log" -type f -mtime +7 -exec gzip {} \; >> /var/log/log-rotation.log 2>&1
+
+# Delete logs older than 30 days (1st of month)
+0 7 1 * * find /var/log -name "*.log.gz" -type f -mtime +30 -delete >> /var/log/log-cleanup.log 2>&1
+
+# ===================================================================
+# PERFORMANCE MONITORING
+# ===================================================================
+
+# System metrics collection (every 15 minutes)
+*/15 * * * * echo "$(date),$(uptime),$(free -m | grep Mem | awk '{print $3}'),$(df -h / | tail -1 | awk '{print $5}')" >> /var/log/system-metrics.csv
+
+# ===================================================================
+# SCRAPER STATS AGGREGATION
+# ===================================================================
+
+# Aggregate scraper statistics (daily at 11 PM)
+0 23 * * * cd $APP_DIR && docker-compose -f docker-compose.lightsail.yml exec -T scraper python scripts/aggregate_stats.py >> /var/log/scraper-stats.log 2>&1
+
+# ===================================================================
+# END OF CRONTAB
+# ===================================================================
