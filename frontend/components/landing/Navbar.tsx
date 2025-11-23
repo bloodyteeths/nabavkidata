@@ -2,47 +2,124 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { Menu, X } from "lucide-react";
+import { useState } from "react";
+import Image from "next/image";
 
 export default function Navbar() {
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+    const menuItems = [
+        { href: "#features", label: "Можности" },
+        { href: "#comparison", label: "Предности" },
+        { href: "#pricing", label: "Цени" },
+    ];
+
     return (
-        <motion.nav
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 glass"
-        >
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-xl">N</span>
+        <>
+            <motion.nav
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 md:px-6 py-4 glass"
+            >
+                <Link href="/" className="flex items-center gap-2">
+                    <Image
+                        src="/logo.png"
+                        alt="nabavkidata"
+                        width={32}
+                        height={32}
+                        className="w-8 h-8"
+                    />
+                    <span className="text-lg md:text-xl font-bold tracking-tight text-white">nabavkidata</span>
+                </Link>
+
+                {/* Desktop Menu */}
+                <div className="hidden md:flex items-center gap-8">
+                    {menuItems.map((item) => (
+                        <Link
+                            key={item.href}
+                            href={item.href}
+                            className="text-sm font-medium text-gray-300 hover:text-white transition-colors"
+                        >
+                            {item.label}
+                        </Link>
+                    ))}
                 </div>
-                <span className="text-xl font-bold tracking-tight text-white">nabavkidata</span>
-            </div>
 
-            <div className="hidden md:flex items-center gap-8">
-                <Link href="#features" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
-                    Можности
-                </Link>
-                <Link href="#comparison" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
-                    Предности
-                </Link>
-                <Link href="#pricing" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
-                    Цени
-                </Link>
-            </div>
+                {/* Desktop Auth Buttons */}
+                <div className="hidden md:flex items-center gap-4">
+                    <Link href="/auth/login">
+                        <Button variant="ghost" className="text-white hover:text-white hover:bg-white/10">
+                            Најава
+                        </Button>
+                    </Link>
+                    <Link href="/auth/register">
+                        <Button className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.5)]">
+                            Започни Бесплатно
+                        </Button>
+                    </Link>
+                </div>
 
-            <div className="flex items-center gap-4">
-                <Link href="/auth/login">
-                    <Button variant="ghost" className="text-white hover:text-white hover:bg-white/10">
-                        Најава
-                    </Button>
-                </Link>
-                <Link href="/auth/register">
-                    <Button className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.5)]">
-                        Започни Бесплатно
-                    </Button>
-                </Link>
-            </div>
-        </motion.nav>
+                {/* Mobile Menu Button */}
+                <button
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    className="md:hidden p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+                    aria-label="Toggle menu"
+                >
+                    {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                </button>
+            </motion.nav>
+
+            {/* Mobile Menu */}
+            <AnimatePresence>
+                {mobileMenuOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, x: "100%" }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: "100%" }}
+                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                        className="fixed top-[72px] right-0 bottom-0 w-full sm:w-80 bg-black/95 backdrop-blur-xl border-l border-white/10 z-40 md:hidden"
+                    >
+                        <div className="flex flex-col h-full p-6">
+                            {/* Menu Items */}
+                            <nav className="flex flex-col gap-4 mb-8">
+                                {menuItems.map((item, index) => (
+                                    <motion.div
+                                        key={item.href}
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: index * 0.1 }}
+                                    >
+                                        <Link
+                                            href={item.href}
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            className="block px-4 py-3 text-lg font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                                        >
+                                            {item.label}
+                                        </Link>
+                                    </motion.div>
+                                ))}
+                            </nav>
+
+                            {/* Auth Buttons */}
+                            <div className="flex flex-col gap-3 mt-auto">
+                                <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
+                                    <Button variant="outline" className="w-full h-12 text-white border-white/20 hover:bg-white/10">
+                                        Најава
+                                    </Button>
+                                </Link>
+                                <Link href="/auth/register" onClick={() => setMobileMenuOpen(false)}>
+                                    <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.5)]">
+                                        Започни Бесплатно
+                                    </Button>
+                                </Link>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </>
     );
 }

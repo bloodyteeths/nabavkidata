@@ -104,28 +104,29 @@ export default function DashboardPage() {
       variants={container}
       initial="hidden"
       animate="show"
-      className="p-8 space-y-8"
+      className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6 lg:space-y-8"
     >
       {/* Free Tier Upgrade Banner */}
       <motion.div variants={item}>
         <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 border-primary/30">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Sparkles className="h-6 w-6 text-primary" />
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1">
+                <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">Вие сте на FREE планот</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
+                <div className="flex-1">
+                  <h3 className="text-base md:text-lg font-bold text-white">Вие сте на FREE планот</h3>
+                  <p className="text-xs md:text-sm text-muted-foreground mt-1">
                     Надоградете за целосен пристап до напредна аналитика, неограничени пребарувања и повеќе функции
                   </p>
                 </div>
               </div>
-              <a href="/settings">
-                <Button className="bg-primary hover:bg-primary/90 shadow-lg">
+              <a href="/settings" className="w-full md:w-auto">
+                <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg">
                   <Award className="mr-2 h-4 w-4" />
-                  Надогради сега
+                  <span className="hidden sm:inline">Надогради сега</span>
+                  <span className="sm:hidden">Надогради</span>
                 </Button>
               </a>
             </div>
@@ -134,18 +135,19 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* Header */}
-      <motion.div variants={item} className="flex items-center justify-between">
+      <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+          <h1 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
             Персонализирана Табла
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm md:text-base text-muted-foreground mt-1">
             Вашите препорачани тендери и анализа на конкуренцијата
           </p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]">
+        <Button className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]">
           <Sparkles className="mr-2 h-4 w-4" />
-          Нова Анализа
+          <span className="hidden sm:inline">Нова Анализа</span>
+          <span className="sm:hidden">Анализа</span>
         </Button>
       </motion.div>
 
@@ -220,7 +222,7 @@ export default function DashboardPage() {
         </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
         {/* Recommended Tenders */}
         <motion.div variants={item} className="lg:col-span-2">
           <Card className="h-full">

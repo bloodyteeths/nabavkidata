@@ -86,11 +86,11 @@ export default function TendersPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Истражувач на Тендери</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl md:text-3xl font-bold">Истражувач на Тендери</h1>
+        <p className="text-sm md:text-base text-muted-foreground">
           Пребарувајте и филтрирајте тендери од целата база
         </p>
       </div>
@@ -104,7 +104,7 @@ export default function TendersPage() {
       />
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
         {/* Filters Sidebar */}
         <div className="lg:col-span-1">
           <TenderFilters
@@ -117,11 +117,11 @@ export default function TendersPage() {
         {/* Tenders List */}
         <div className="lg:col-span-3 space-y-4">
           {/* Results Header */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <p className="text-xs md:text-sm text-muted-foreground">
               {total} резултати {filters.search && `за "${filters.search}"`}
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs md:text-sm text-muted-foreground">
               Страна {page} од {totalPages}
             </p>
           </div>
@@ -148,17 +148,19 @@ export default function TendersPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 pt-4">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1}
+                className="w-full sm:w-auto"
               >
-                <ChevronLeft className="h-4 w-4" />
-                Претходна
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Претходна</span>
+                <span className="sm:hidden">Назад</span>
               </Button>
-              <span className="text-sm text-muted-foreground px-4">
+              <span className="text-xs md:text-sm text-muted-foreground px-2 sm:px-4">
                 {page} / {totalPages}
               </span>
               <Button
@@ -166,9 +168,11 @@ export default function TendersPage() {
                 size="sm"
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages}
+                className="w-full sm:w-auto"
               >
-                Следна
-                <ChevronRight className="h-4 w-4" />
+                <span className="hidden sm:inline">Следна</span>
+                <span className="sm:hidden">Напред</span>
+                <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
           )}
