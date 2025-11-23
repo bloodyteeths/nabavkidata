@@ -4,7 +4,7 @@ RAG Query Pipeline - Question Answering over Tender Documents
 Features:
 - Semantic search using embeddings
 - Context retrieval from pgvector
-- OpenAI GPT-4 for answer generation
+- Google Gemini 1.5 Flash/Pro for answer generation
 - Source attribution with citations
 - Macedonian language support
 - Conversation history tracking
@@ -16,7 +16,7 @@ import asyncpg
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
-import openai
+import google.generativeai as genai
 
 from embeddings import EmbeddingGenerator, VectorStore
 
@@ -176,7 +176,7 @@ Guidelines:
         question: str,
         context: str,
         conversation_history: Optional[List[Dict]] = None
-    ) -> List[Dict[str, str]]:
+    ) -> str:
         """
         Build complete prompt for RAG query
 
@@ -186,32 +186,29 @@ Guidelines:
             conversation_history: Optional previous Q&A pairs
 
         Returns:
-            Messages list for OpenAI chat API
+            Full prompt string for Gemini
         """
-        messages = [
-            {"role": "system", "content": cls.SYSTEM_PROMPT}
-        ]
+        prompt_parts = [cls.SYSTEM_PROMPT, "\n\n"]
 
         # Add conversation history if provided
         if conversation_history:
+            prompt_parts.append("Previous conversation:\n")
             for turn in conversation_history[-3:]:  # Last 3 turns only
-                messages.append({"role": "user", "content": turn["question"]})
-                messages.append({"role": "assistant", "content": turn["answer"]})
+                prompt_parts.append(f"Q: {turn['question']}\n")
+                prompt_parts.append(f"A: {turn['answer']}\n\n")
 
         # Add current query with context
-        user_message = f"""Context from tender documents:
+        prompt_parts.append("Context from tender documents:\n\n")
+        prompt_parts.append(context)
+        prompt_parts.append("\n\n---\n\n")
+        prompt_parts.append(f"Question: {question}\n\n")
+        prompt_parts.append(
+            "Please answer the question based ONLY on the context provided above. "
+            "If the answer is not in the context, say \"I don't have enough information "
+            "to answer this question based on the available documents.\""
+        )
 
-{context}
-
----
-
-Question: {question}
-
-Please answer the question based ONLY on the context provided above. If the answer is not in the context, say "I don't have enough information to answer this question based on the available documents." """
-
-        messages.append({"role": "user", "content": user_message})
-
-        return messages
+        return "".join(prompt_parts)
 
 
 class RAGQueryPipeline:
@@ -224,8 +221,9 @@ class RAGQueryPipeline:
     def __init__(
         self,
         database_url: Optional[str] = None,
-        openai_api_key: Optional[str] = None,
-        model: str = "gpt-4",
+        gemini_api_key: Optional[str] = None,
+        model: str = "gemini-1.5-flash",
+        fallback_model: str = "gemini-1.5-pro",
         top_k: int = 5,
         max_context_tokens: int = 3000
     ):
@@ -233,17 +231,18 @@ class RAGQueryPipeline:
         if not self.database_url:
             raise ValueError("DATABASE_URL not set")
 
-        self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
-        if not self.openai_api_key:
-            raise ValueError("OPENAI_API_KEY not set")
+        self.gemini_api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
+        if not self.gemini_api_key:
+            raise ValueError("GEMINI_API_KEY not set")
 
-        openai.api_key = self.openai_api_key
+        genai.configure(api_key=self.gemini_api_key)
         self.model = model
+        self.fallback_model = fallback_model
         self.top_k = top_k
         self.max_context_tokens = max_context_tokens
 
         # Initialize components
-        self.embedder = EmbeddingGenerator(api_key=self.openai_api_key)
+        self.embedder = EmbeddingGenerator(api_key=self.gemini_api_key)
         self.vector_store = VectorStore(self.database_url)
         self.context_assembler = ContextAssembler()
         self.prompt_builder = PromptBuilder()
@@ -316,23 +315,19 @@ class RAGQueryPipeline:
             )
 
             # 4. Build prompt
-            messages = self.prompt_builder.build_query_prompt(
+            prompt = self.prompt_builder.build_query_prompt(
                 question=question,
                 context=context,
                 conversation_history=conversation_history
             )
 
-            # 5. Generate answer with OpenAI
+            # 5. Generate answer with Gemini
             logger.info(f"Generating answer with {self.model}...")
-            response = await asyncio.to_thread(
-                openai.ChatCompletion.create,
-                model=self.model,
-                messages=messages,
-                temperature=0.3,  # Low temperature for factual answers
-                max_tokens=1000
-            )
-
-            answer_text = response['choices'][0]['message']['content']
+            try:
+                answer_text = await self._generate_with_gemini(prompt, self.model)
+            except Exception as e:
+                logger.warning(f"Primary model {self.model} failed: {e}, trying fallback...")
+                answer_text = await self._generate_with_gemini(prompt, self.fallback_model)
 
             # 6. Determine confidence
             confidence = self.context_assembler.determine_confidence(sources_used)
@@ -353,6 +348,31 @@ class RAGQueryPipeline:
 
         finally:
             await self.vector_store.close()
+
+    async def _generate_with_gemini(self, prompt: str, model: str) -> str:
+        """
+        Generate answer using Gemini model
+
+        Args:
+            prompt: Full prompt
+            model: Model name
+
+        Returns:
+            Generated answer text
+        """
+        def _sync_generate():
+            model_obj = genai.GenerativeModel(model)
+            response = model_obj.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.3,  # Low temperature for factual answers
+                    max_output_tokens=1000
+                )
+            )
+            return response.text
+
+        answer_text = await asyncio.to_thread(_sync_generate)
+        return answer_text
 
     async def batch_query(
         self,
@@ -418,9 +438,6 @@ class ConversationManager:
         Returns:
             interaction_id
         """
-        # Note: This assumes a conversations table exists
-        # Schema would need to be created separately
-
         sources_data = [
             {
                 'embed_id': s.embed_id,

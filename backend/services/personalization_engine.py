@@ -1,6 +1,8 @@
 """
 Personalization Engine
 Hybrid search, interest vectors, insights
+
+Uses Google Gemini for embeddings (768 dimensions)
 """
 import sys
 import os

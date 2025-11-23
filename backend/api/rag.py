@@ -293,7 +293,8 @@ async def rag_health_check():
     return {
         "status": "healthy" if RAG_AVAILABLE else "unavailable",
         "rag_enabled": RAG_AVAILABLE,
-        "openai_configured": bool(os.getenv('OPENAI_API_KEY')),
+        "gemini_configured": bool(os.getenv('GEMINI_API_KEY')),
         "database_configured": bool(os.getenv('DATABASE_URL')),
-        "service": "rag-api"
+        "service": "rag-api",
+        "model": "gemini-1.5-flash"
     }

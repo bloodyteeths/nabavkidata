@@ -57,7 +57,7 @@ class UserInterestVector(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"),
                      primary_key=True, index=True)
 
-    embedding = Column(Vector(1536), nullable=False)
+    embedding = Column(Vector(768), nullable=False)  # Gemini text-embedding-004
 
     # Metadata
     interaction_count = Column(Integer, default=0)

@@ -22,11 +22,8 @@ bcrypt==4.1.2
 aiosmtplib==3.0.1
 email-validator==2.1.0
 
-# AI & Embeddings
-openai>=1.10.0
-langchain>=0.1.5
-langchain-openai>=0.0.5
-tiktoken>=0.6.0
+# AI & Embeddings (Google Gemini)
+google-generativeai>=0.3.0
 faiss-cpu>=1.9.0
 
 # Data Processing

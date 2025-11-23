@@ -166,9 +166,9 @@ CREATE TABLE embeddings (
     doc_id UUID REFERENCES documents(doc_id) ON DELETE CASCADE,
     chunk_text TEXT NOT NULL,
     chunk_index INTEGER,  -- Order of chunk within document
-    vector VECTOR(1536),  -- OpenAI ada-002 or similar (1536 dimensions)
+    vector VECTOR(768),  -- Google Gemini text-embedding-004 (768 dimensions)
     metadata JSONB,  -- Additional context: page number, section, etc.
-    embedding_model VARCHAR(100) DEFAULT 'text-embedding-ada-002',
+    embedding_model VARCHAR(100) DEFAULT 'text-embedding-004',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -308,7 +308,7 @@ COMMENT ON TABLE system_config IS 'System-wide configuration settings';
 -- Insert default configurations
 INSERT INTO system_config (config_key, config_value, description) VALUES
     ('scraper_last_run', '2024-01-01T00:00:00Z', 'Last successful scraper execution'),
-    ('embedding_model', 'text-embedding-ada-002', 'Current embedding model in use'),
+    ('embedding_model', 'text-embedding-004', 'Current embedding model in use (Google Gemini)'),
     ('default_llm', 'gemini-pro', 'Default LLM for AI assistant'),
     ('fallback_llm', 'gpt-4', 'Fallback LLM if primary fails'),
     ('free_tier_query_limit_daily', '5', 'Free tier daily query limit'),

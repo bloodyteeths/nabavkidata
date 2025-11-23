@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS embeddings (
     tender_id VARCHAR(100) REFERENCES tenders(tender_id) ON DELETE CASCADE,
     chunk_text TEXT NOT NULL,
     chunk_index INTEGER,
-    vector VECTOR(1536),
+    vector VECTOR(768),
     metadata JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

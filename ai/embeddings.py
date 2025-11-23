@@ -2,7 +2,7 @@
 AI Embeddings Generator - Vector embeddings for RAG
 
 Features:
-- OpenAI ada-002 embeddings (1536 dimensions)
+- Google Gemini text-embedding-004 (768 dimensions)
 - Semantic text chunking (Cyrillic-aware)
 - Batch processing for efficiency
 - pgvector storage integration
@@ -12,11 +12,11 @@ import os
 import logging
 import asyncio
 import asyncpg
+import json
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
-import tiktoken
-import openai
+import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +53,18 @@ class TextChunker:
 
     def __init__(
         self,
-        chunk_size: int = 500,  # tokens
-        chunk_overlap: int = 50,  # tokens
-        model: str = "gpt-3.5-turbo"
+        chunk_size: int = 500,  # approximate tokens
+        chunk_overlap: int = 50  # approximate tokens
     ):
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self.encoding = tiktoken.encoding_for_model(model)
+
+    def _approximate_tokens(self, text: str) -> int:
+        """
+        Approximate token count for text
+        Using simple heuristic: ~4 chars per token
+        """
+        return len(text) // 4
 
     def chunk_text(self, text: str, metadata: Optional[Dict] = None) -> List[TextChunk]:
         """
@@ -75,72 +80,65 @@ class TextChunker:
         if not text or not text.strip():
             return []
 
-        # Tokenize text
-        tokens = self.encoding.encode(text)
-        total_tokens = len(tokens)
+        # Split into sentences first
+        sentences = self._split_sentences(text)
 
-        if total_tokens <= self.chunk_size:
-            # Entire text fits in one chunk
-            return [TextChunk(
-                text=text,
-                chunk_index=0,
-                metadata=metadata or {}
-            )]
+        if not sentences:
+            return []
 
         chunks = []
         chunk_index = 0
-        start = 0
+        current_chunk = []
+        current_size = 0
 
-        while start < total_tokens:
-            # Get chunk
-            end = min(start + self.chunk_size, total_tokens)
-            chunk_tokens = tokens[start:end]
+        for sentence in sentences:
+            sentence_tokens = self._approximate_tokens(sentence)
 
-            # Decode back to text
-            chunk_text = self.encoding.decode(chunk_tokens)
+            if current_size + sentence_tokens > self.chunk_size and current_chunk:
+                # Create chunk from accumulated sentences
+                chunk_text = ' '.join(current_chunk)
+                chunks.append(TextChunk(
+                    text=chunk_text,
+                    chunk_index=chunk_index,
+                    metadata=metadata or {}
+                ))
+                chunk_index += 1
 
-            # Try to break at sentence boundary for last chunk
-            if end == total_tokens or (end - start) < self.chunk_size:
-                # Last chunk or short chunk - use as is
-                pass
-            else:
-                # Try to find good break point
-                chunk_text = self._break_at_sentence(chunk_text)
+                # Start new chunk with overlap
+                overlap_sentences = current_chunk[-2:] if len(current_chunk) >= 2 else current_chunk
+                current_chunk = overlap_sentences
+                current_size = sum(self._approximate_tokens(s) for s in current_chunk)
 
+            current_chunk.append(sentence)
+            current_size += sentence_tokens
+
+        # Add final chunk
+        if current_chunk:
+            chunk_text = ' '.join(current_chunk)
             chunks.append(TextChunk(
                 text=chunk_text,
                 chunk_index=chunk_index,
                 metadata=metadata or {}
             ))
 
-            chunk_index += 1
-            start = end - self.chunk_overlap
-
-        logger.info(f"Split text into {len(chunks)} chunks ({total_tokens} tokens)")
+        logger.info(f"Split text into {len(chunks)} chunks")
         return chunks
 
-    def _break_at_sentence(self, text: str) -> str:
+    def _split_sentences(self, text: str) -> List[str]:
         """
-        Try to break text at sentence boundary
-
+        Split text into sentences
         Works with both English and Macedonian punctuation
         """
-        # Sentence endings (English + Macedonian)
-        sentence_endings = ['. ', '! ', '? ', '.\n', '!\n', '?\n']
+        import re
 
-        # Try to find last sentence ending
-        last_pos = -1
-        for ending in sentence_endings:
-            pos = text.rfind(ending)
-            if pos > last_pos and pos > len(text) * 0.5:  # At least 50% through
-                last_pos = pos
+        # Sentence boundaries (English + Macedonian)
+        pattern = r'[.!?]+[\s\n]+'
+        sentences = re.split(pattern, text)
 
-        if last_pos > 0:
-            # Break at sentence
-            return text[:last_pos + 1].strip()
+        # Clean and filter empty
+        sentences = [s.strip() for s in sentences if s.strip()]
 
-        # No good break point found - return as is
-        return text
+        return sentences
 
     def chunk_document(
         self,
@@ -173,7 +171,7 @@ class TextChunker:
 
 class EmbeddingGenerator:
     """
-    Generate embeddings using OpenAI ada-002
+    Generate embeddings using Google Gemini text-embedding-004
 
     Handles batching, rate limiting, and error recovery
     """
@@ -181,17 +179,17 @@ class EmbeddingGenerator:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "text-embedding-ada-002",
+        model: str = "models/text-embedding-004",
         batch_size: int = 100
     ):
-        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+        self.api_key = api_key or os.getenv('GEMINI_API_KEY')
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY not set")
+            raise ValueError("GEMINI_API_KEY not set")
 
-        openai.api_key = self.api_key
+        genai.configure(api_key=self.api_key)
         self.model = model
         self.batch_size = batch_size
-        self.dimensions = 1536  # ada-002 dimensions
+        self.dimensions = 768  # text-embedding-004 dimensions
 
     async def generate_embedding(self, text: str) -> List[float]:
         """
@@ -201,17 +199,18 @@ class EmbeddingGenerator:
             text: Text to embed
 
         Returns:
-            1536-dimensional vector
+            768-dimensional vector
         """
         try:
-            # OpenAI API call
-            response = await asyncio.to_thread(
-                openai.Embedding.create,
-                input=text,
-                model=self.model
+            # Gemini API call (synchronous, so run in thread)
+            result = await asyncio.to_thread(
+                genai.embed_content,
+                model=self.model,
+                content=text,
+                task_type="retrieval_document"
             )
 
-            vector = response['data'][0]['embedding']
+            vector = result['embedding']
             return vector
 
         except Exception as e:
@@ -235,15 +234,20 @@ class EmbeddingGenerator:
             return []
 
         try:
-            # OpenAI batch API call
-            response = await asyncio.to_thread(
-                openai.Embedding.create,
-                input=texts,
-                model=self.model
+            # Gemini batch embedding
+            result = await asyncio.to_thread(
+                genai.embed_content,
+                model=self.model,
+                content=texts,
+                task_type="retrieval_document"
             )
 
-            # Extract vectors in original order
-            vectors = [item['embedding'] for item in response['data']]
+            # Extract vectors
+            if isinstance(result['embedding'][0], list):
+                vectors = result['embedding']
+            else:
+                # Single embedding returned as flat list
+                vectors = [result['embedding']]
 
             logger.info(f"Generated {len(vectors)} embeddings")
             return vectors
@@ -327,19 +331,25 @@ class VectorStore:
         Returns:
             embed_id (UUID)
         """
+        # Convert vector list to pgvector format
+        vector_str = '[' + ','.join(map(str, vector)) + ']'
+
+        # Convert metadata dict to JSON string
+        metadata_json = json.dumps(metadata or {})
+
         result = await self.conn.fetchrow("""
             INSERT INTO embeddings (
                 vector, chunk_text, chunk_index,
-                tender_id, doc_id, chunk_metadata
-            ) VALUES ($1, $2, $3, $4, $5, $6)
+                tender_id, doc_id, metadata
+            ) VALUES ($1::vector, $2, $3, $4, $5, $6::jsonb)
             RETURNING embed_id
         """,
-            vector,
+            vector_str,
             chunk_text,
             chunk_index,
             tender_id,
             doc_id,
-            metadata or {}
+            metadata_json
         )
 
         return str(result['embed_id'])
@@ -392,6 +402,9 @@ class VectorStore:
         Returns:
             List of results with similarity scores
         """
+        # Convert vector list to pgvector format
+        vector_str = '[' + ','.join(map(str, query_vector)) + ']'
+
         if tender_id:
             # Filter by tender
             query = """
@@ -401,14 +414,14 @@ class VectorStore:
                     chunk_index,
                     tender_id,
                     doc_id,
-                    chunk_metadata as metadata,
+                    metadata,
                     1 - (vector <=> $1::vector) as similarity
                 FROM embeddings
                 WHERE tender_id = $2
                 ORDER BY vector <=> $1::vector
                 LIMIT $3
             """
-            rows = await self.conn.fetch(query, query_vector, tender_id, limit)
+            rows = await self.conn.fetch(query, vector_str, tender_id, limit)
         else:
             # Search all embeddings
             query = """
@@ -418,13 +431,13 @@ class VectorStore:
                     chunk_index,
                     tender_id,
                     doc_id,
-                    chunk_metadata as metadata,
+                    metadata,
                     1 - (vector <=> $1::vector) as similarity
                 FROM embeddings
                 ORDER BY vector <=> $1::vector
                 LIMIT $2
             """
-            rows = await self.conn.fetch(query, query_vector, limit)
+            rows = await self.conn.fetch(query, vector_str, limit)
 
         results = [dict(row) for row in rows]
         logger.info(f"Found {len(results)} similar vectors")
@@ -441,7 +454,7 @@ class EmbeddingsPipeline:
     def __init__(
         self,
         database_url: Optional[str] = None,
-        openai_api_key: Optional[str] = None,
+        gemini_api_key: Optional[str] = None,
         chunk_size: int = 500,
         batch_size: int = 100
     ):
@@ -451,7 +464,7 @@ class EmbeddingsPipeline:
 
         self.chunker = TextChunker(chunk_size=chunk_size)
         self.embedder = EmbeddingGenerator(
-            api_key=openai_api_key,
+            api_key=gemini_api_key,
             batch_size=batch_size
         )
         self.vector_store = VectorStore(self.database_url)

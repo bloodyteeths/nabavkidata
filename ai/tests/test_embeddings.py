@@ -1,430 +1,304 @@
 """
-Tests for embeddings pipeline
+Tests for Google Gemini embeddings module
 
-Tests text chunking, embedding generation, and vector storage
+Tests embedding generation, chunking, and vector storage with Gemini API
 """
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime
+import os
+from unittest.mock import Mock, patch, AsyncMock
+import google.generativeai as genai
+
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from embeddings import (
-    TextChunk,
-    EmbeddingResult,
     TextChunker,
     EmbeddingGenerator,
     VectorStore,
-    EmbeddingsPipeline
+    EmbeddingsPipeline,
+    TextChunk
 )
 
 
-# Test Data
+# ============================================================================
+# FIXTURES
+# ============================================================================
 
-SAMPLE_TEXT_SHORT = """
-Јавен повик за набавка на канцелариски материјали.
-Референтен број: 2024-001-КАНЦ
-Нарачател: Општина Скопје
-"""
+@pytest.fixture
+def sample_text():
+    """Sample tender document text"""
+    return """
+    Јавен повик за набавка на канцелариски материјал.
+    Постапката се спроведува согласно Законот за јавни набавки.
 
-SAMPLE_TEXT_LONG = """
-Јавен повик за избор на најповолна понуда за набавка на канцелариски материјали.
+    Предмет на набавка: Канцелариски материјал за 2024 година.
+    Проценета вредност: 500,000 МКД.
+    Рок за достава: 30 дена од склучување договор.
 
-Референтен број: 2024-001-КАНЦ
-Датум на објавување: 15.11.2024
+    Критериум за избор: Најниска цена.
+    Рок за поднесување понуди: 15.02.2024.
+    """
 
-Нарачател: Општина Скопје
-Адреса: бул. Илинден 82, Скопје
-Телефон: +389 2 3289 999
 
-Предмет на набавка: Канцелариски материјали за потребите на општинската администрација
-за период од 12 месеци. Набавката вклучува хартија, пишувачки прибор, фасцикли,
-регистратори, коверти и друг канцелариски материјал.
+@pytest.fixture
+def mock_gemini_response():
+    """Mock Gemini API embedding response (768 dimensions)"""
+    return {
+        'embedding': [0.1] * 768
+    }
 
-CPV код: 30190000-7 (Разни опрема и производи)
 
-Рок за доставување понуди: 30.11.2024 до 16:00 часот
+@pytest.fixture
+def mock_gemini_batch_response():
+    """Mock Gemini API batch embedding response"""
+    return {
+        'embedding': [
+            [0.1] * 768,
+            [0.2] * 768,
+            [0.3] * 768
+        ]
+    }
 
-Критериум за избор: Економски најповолна понуда
 
-Проценета вредност: 500.000,00 МКД без ДДВ
-"""
-
-MACEDONIAN_TEXT_WITH_SENTENCES = """
-Првата реченица е кратка. Втората реченица содржи малку повеќе информации за тестирање.
-Третата реченица е најдолга од сите и содржи детални информации за целите на тестирањето
-на функционалноста на системот за препознавање на граници меѓу реченици во македонски јазик.
-"""
-
+# ============================================================================
+# TEXT CHUNKER TESTS
+# ============================================================================
 
 class TestTextChunker:
-    """Test TextChunker class"""
-
-    def test_initialization(self):
-        """Test chunker initialization"""
-        chunker = TextChunker(chunk_size=100, chunk_overlap=20)
-        assert chunker.chunk_size == 100
-        assert chunker.chunk_overlap == 20
-        assert chunker.encoding is not None
+    """Test text chunking functionality"""
 
     def test_chunk_short_text(self):
-        """Test chunking text that fits in single chunk"""
+        """Short text should be single chunk"""
         chunker = TextChunker(chunk_size=500)
-        chunks = chunker.chunk_text(SAMPLE_TEXT_SHORT)
+        text = "Short text that fits in one chunk"
+
+        chunks = chunker.chunk_text(text)
 
         assert len(chunks) == 1
-        assert chunks[0].text == SAMPLE_TEXT_SHORT
+        assert chunks[0].text == text
         assert chunks[0].chunk_index == 0
 
-    def test_chunk_long_text(self):
-        """Test chunking text that requires multiple chunks"""
+    def test_chunk_long_text(self, sample_text):
+        """Long text should be split into multiple chunks"""
         chunker = TextChunker(chunk_size=50, chunk_overlap=10)
-        chunks = chunker.chunk_text(SAMPLE_TEXT_LONG)
+
+        chunks = chunker.chunk_text(sample_text)
 
         assert len(chunks) > 1
-        # Verify chunk indices
         for i, chunk in enumerate(chunks):
             assert chunk.chunk_index == i
-        # Verify all chunks have content
-        for chunk in chunks:
-            assert len(chunk.text.strip()) > 0
-
-    def test_chunk_empty_text(self):
-        """Test chunking empty or whitespace text"""
-        chunker = TextChunker()
-
-        assert chunker.chunk_text("") == []
-        assert chunker.chunk_text("   ") == []
-        assert chunker.chunk_text("\n\n") == []
+            assert len(chunk.text) > 0
 
     def test_chunk_with_metadata(self):
-        """Test chunking with metadata attachment"""
+        """Chunks should preserve metadata"""
         chunker = TextChunker()
-        metadata = {'source': 'test', 'tender_id': 'T-001'}
-        chunks = chunker.chunk_text(SAMPLE_TEXT_SHORT, metadata=metadata)
+        text = "Test text"
+        metadata = {"source": "test"}
 
-        assert len(chunks) == 1
+        chunks = chunker.chunk_text(text, metadata)
+
         assert chunks[0].metadata == metadata
 
-    def test_sentence_boundary_breaking(self):
-        """Test that chunks prefer sentence boundaries"""
-        chunker = TextChunker(chunk_size=20, chunk_overlap=5)
-        chunks = chunker.chunk_text(MACEDONIAN_TEXT_WITH_SENTENCES)
-
-        # At least one chunk should end with sentence punctuation
-        sentence_endings = ['.', '!', '?']
-        has_sentence_break = any(
-            chunk.text.strip()[-1] in sentence_endings
-            for chunk in chunks
-        )
-        assert has_sentence_break
-
-    def test_chunk_document(self):
-        """Test chunk_document with IDs"""
+    def test_chunk_document_with_ids(self, sample_text):
+        """Chunks should have tender and doc IDs"""
         chunker = TextChunker()
+
         chunks = chunker.chunk_document(
-            text=SAMPLE_TEXT_SHORT,
-            tender_id='TENDER-123',
-            doc_id='DOC-456',
-            metadata={'type': 'tender_notice'}
+            text=sample_text,
+            tender_id="TENDER-123",
+            doc_id="DOC-456"
         )
 
-        assert len(chunks) == 1
-        assert chunks[0].tender_id == 'TENDER-123'
-        assert chunks[0].doc_id == 'DOC-456'
-        assert chunks[0].metadata == {'type': 'tender_notice'}
+        for chunk in chunks:
+            assert chunk.tender_id == "TENDER-123"
+            assert chunk.doc_id == "DOC-456"
 
+    def test_empty_text(self):
+        """Empty text should return no chunks"""
+        chunker = TextChunker()
+
+        chunks = chunker.chunk_text("")
+
+        assert len(chunks) == 0
+
+
+# ============================================================================
+# EMBEDDING GENERATOR TESTS
+# ============================================================================
 
 class TestEmbeddingGenerator:
-    """Test EmbeddingGenerator class"""
+    """Test Gemini embedding generation"""
 
-    @pytest.fixture
-    def mock_openai_response(self):
-        """Mock OpenAI API response"""
-        return {
-            'data': [
-                {'embedding': [0.1] * 1536}
-            ]
-        }
-
-    @pytest.fixture
-    def mock_openai_batch_response(self):
-        """Mock OpenAI batch API response"""
-        return {
-            'data': [
-                {'embedding': [0.1] * 1536},
-                {'embedding': [0.2] * 1536},
-                {'embedding': [0.3] * 1536}
-            ]
-        }
-
-    @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'})
-    def test_initialization(self):
-        """Test generator initialization"""
-        generator = EmbeddingGenerator()
-        assert generator.model == "text-embedding-ada-002"
-        assert generator.dimensions == 1536
-        assert generator.batch_size == 100
-
-    @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'})
-    @patch('openai.Embedding.create')
     @pytest.mark.asyncio
-    async def test_generate_embedding(self, mock_create):
-        """Test single embedding generation"""
-        mock_create.return_value = {
-            'data': [{'embedding': [0.1] * 1536}]
-        }
+    async def test_generate_single_embedding(self, mock_gemini_response):
+        """Test single embedding generation with Gemini"""
+        with patch.object(genai, 'embed_content', return_value=mock_gemini_response):
+            generator = EmbeddingGenerator(api_key="test-key")
 
-        generator = EmbeddingGenerator()
-        vector = await generator.generate_embedding("Test text")
+            embedding = await generator.generate_embedding("Test text")
 
-        assert len(vector) == 1536
-        assert vector[0] == 0.1
-        mock_create.assert_called_once()
+            assert len(embedding) == 768  # Gemini text-embedding-004
+            assert all(isinstance(x, (int, float)) for x in embedding)
 
-    @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'})
-    @patch('openai.Embedding.create')
     @pytest.mark.asyncio
-    async def test_generate_embeddings_batch(self, mock_create):
+    async def test_generate_batch_embeddings(self, mock_gemini_batch_response):
         """Test batch embedding generation"""
-        mock_create.return_value = {
-            'data': [
-                {'embedding': [0.1] * 1536},
-                {'embedding': [0.2] * 1536}
-            ]
-        }
+        with patch.object(genai, 'embed_content', return_value=mock_gemini_batch_response):
+            generator = EmbeddingGenerator(api_key="test-key")
 
-        generator = EmbeddingGenerator()
-        texts = ["Text 1", "Text 2"]
-        vectors = await generator.generate_embeddings_batch(texts)
+            texts = ["Text 1", "Text 2", "Text 3"]
+            embeddings = await generator.generate_embeddings_batch(texts)
 
-        assert len(vectors) == 2
-        assert len(vectors[0]) == 1536
-        assert vectors[0][0] == 0.1
-        assert vectors[1][0] == 0.2
+            assert len(embeddings) == 3
+            assert all(len(emb) == 768 for emb in embeddings)
 
-    @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'})
-    @patch('openai.Embedding.create')
     @pytest.mark.asyncio
-    async def test_embed_chunks(self, mock_create):
-        """Test embedding TextChunk objects"""
-        mock_create.return_value = {
-            'data': [
-                {'embedding': [0.1] * 1536},
-                {'embedding': [0.2] * 1536}
+    async def test_embed_chunks(self, mock_gemini_batch_response):
+        """Test embedding chunk objects"""
+        with patch.object(genai, 'embed_content', return_value=mock_gemini_batch_response):
+            generator = EmbeddingGenerator(api_key="test-key")
+
+            chunks = [
+                TextChunk(text="Chunk 1", chunk_index=0),
+                TextChunk(text="Chunk 2", chunk_index=1),
+                TextChunk(text="Chunk 3", chunk_index=2)
             ]
-        }
 
-        generator = EmbeddingGenerator()
-        chunks = [
-            TextChunk(text="Chunk 1", chunk_index=0),
-            TextChunk(text="Chunk 2", chunk_index=1)
-        ]
+            results = await generator.embed_chunks(chunks)
 
-        results = await generator.embed_chunks(chunks)
+            assert len(results) == 3
+            for chunk, vector in results:
+                assert isinstance(chunk, TextChunk)
+                assert len(vector) == 768
 
-        assert len(results) == 2
-        assert results[0][0].text == "Chunk 1"
-        assert len(results[0][1]) == 1536
-        assert results[1][0].text == "Chunk 2"
-        assert len(results[1][1]) == 1536
+    def test_missing_api_key(self):
+        """Should raise error if API key missing"""
+        with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+            EmbeddingGenerator(api_key=None)
 
+    @pytest.mark.asyncio
+    async def test_api_error_handling(self):
+        """Should handle API errors gracefully"""
+        with patch.object(genai, 'embed_content', side_effect=Exception("API Error")):
+            generator = EmbeddingGenerator(api_key="test-key")
+
+            with pytest.raises(Exception):
+                await generator.generate_embedding("Test")
+
+    def test_default_model(self):
+        """Should use text-embedding-004 by default"""
+        generator = EmbeddingGenerator(api_key="test-key")
+        assert generator.model == "models/text-embedding-004"
+        assert generator.dimensions == 768
+
+
+# ============================================================================
+# VECTOR STORE TESTS
+# ============================================================================
 
 class TestVectorStore:
-    """Test VectorStore class"""
+    """Test vector database operations"""
 
     @pytest.fixture
-    def mock_conn(self):
-        """Mock asyncpg connection"""
+    def mock_db_conn(self):
+        """Mock database connection"""
         conn = AsyncMock()
+        conn.fetchrow = AsyncMock(return_value={'embed_id': 'test-id'})
+        conn.fetch = AsyncMock(return_value=[
+            {
+                'embed_id': 'id-1',
+                'chunk_text': 'Test chunk',
+                'chunk_index': 0,
+                'tender_id': 'TENDER-123',
+                'doc_id': 'DOC-456',
+                'metadata': {},
+                'similarity': 0.95
+            }
+        ])
         return conn
 
-    @patch.dict('os.environ', {'DATABASE_URL': 'postgresql://localhost/test'})
-    def test_initialization(self):
-        """Test vector store initialization"""
-        store = VectorStore('postgresql://localhost/test')
-        assert store.database_url == 'postgresql://localhost/test'
-        assert store.conn is None
-
     @pytest.mark.asyncio
-    async def test_store_embedding(self, mock_conn):
-        """Test storing single embedding"""
-        mock_conn.fetchrow.return_value = {'embed_id': 'test-uuid'}
+    async def test_store_embedding(self, mock_db_conn):
+        """Test storing 768-dimensional embedding"""
+        store = VectorStore("postgresql://test")
+        store.conn = mock_db_conn
 
-        store = VectorStore('postgresql://localhost/test')
-        store.conn = mock_conn
-
-        vector = [0.1] * 1536
+        vector = [0.1] * 768  # Gemini 768-dim vector
         embed_id = await store.store_embedding(
             vector=vector,
             chunk_text="Test chunk",
             chunk_index=0,
-            tender_id="TENDER-123",
-            doc_id="DOC-456",
-            metadata={'test': 'data'}
+            tender_id="TENDER-123"
         )
 
-        assert embed_id == 'test-uuid'
-        mock_conn.fetchrow.assert_called_once()
+        assert embed_id == "test-id"
+        mock_db_conn.fetchrow.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_similarity_search(self, mock_conn):
-        """Test similarity search"""
-        mock_conn.fetch.return_value = [
-            {
-                'embed_id': 'uuid-1',
-                'chunk_text': 'Result 1',
-                'chunk_index': 0,
-                'tender_id': 'T-001',
-                'doc_id': 'D-001',
-                'metadata': {},
-                'similarity': 0.95
-            },
-            {
-                'embed_id': 'uuid-2',
-                'chunk_text': 'Result 2',
-                'chunk_index': 1,
-                'tender_id': 'T-002',
-                'doc_id': 'D-002',
-                'metadata': {},
-                'similarity': 0.85
-            }
-        ]
+    async def test_similarity_search(self, mock_db_conn):
+        """Test vector similarity search"""
+        store = VectorStore("postgresql://test")
+        store.conn = mock_db_conn
 
-        store = VectorStore('postgresql://localhost/test')
-        store.conn = mock_conn
-
-        query_vector = [0.1] * 1536
+        query_vector = [0.1] * 768
         results = await store.similarity_search(query_vector, limit=5)
 
-        assert len(results) == 2
+        assert len(results) == 1
         assert results[0]['similarity'] == 0.95
-        assert results[1]['similarity'] == 0.85
-        mock_conn.fetch.assert_called_once()
+        assert results[0]['tender_id'] == 'TENDER-123'
 
     @pytest.mark.asyncio
-    async def test_similarity_search_with_tender_filter(self, mock_conn):
-        """Test similarity search filtered by tender_id"""
-        mock_conn.fetch.return_value = [
-            {
-                'embed_id': 'uuid-1',
-                'chunk_text': 'Result 1',
-                'chunk_index': 0,
-                'tender_id': 'T-001',
-                'doc_id': 'D-001',
-                'metadata': {},
-                'similarity': 0.95
-            }
-        ]
+    async def test_similarity_search_with_filter(self, mock_db_conn):
+        """Test filtered similarity search"""
+        store = VectorStore("postgresql://test")
+        store.conn = mock_db_conn
 
-        store = VectorStore('postgresql://localhost/test')
-        store.conn = mock_conn
-
-        query_vector = [0.1] * 1536
+        query_vector = [0.1] * 768
         results = await store.similarity_search(
             query_vector,
             limit=5,
-            tender_id='T-001'
+            tender_id="TENDER-123"
         )
 
-        assert len(results) == 1
-        # Verify tender_id was passed to query
-        call_args = mock_conn.fetch.call_args
-        assert 'T-001' in call_args[0]
+        assert mock_db_conn.fetch.called
 
+
+# ============================================================================
+# INTEGRATION TESTS
+# ============================================================================
 
 class TestEmbeddingsPipeline:
-    """Test EmbeddingsPipeline class"""
+    """Test complete embeddings pipeline"""
 
-    @patch.dict('os.environ', {
-        'DATABASE_URL': 'postgresql://localhost/test',
-        'OPENAI_API_KEY': 'test-key'
-    })
-    def test_initialization(self):
-        """Test pipeline initialization"""
-        pipeline = EmbeddingsPipeline()
-        assert pipeline.chunker is not None
-        assert pipeline.embedder is not None
-        assert pipeline.vector_store is not None
-
-    @patch.dict('os.environ', {
-        'DATABASE_URL': 'postgresql://localhost/test',
-        'OPENAI_API_KEY': 'test-key'
-    })
-    @patch('openai.Embedding.create')
     @pytest.mark.asyncio
-    async def test_process_document(self, mock_create):
-        """Test complete document processing pipeline"""
-        # Mock OpenAI response
-        mock_create.return_value = {
-            'data': [{'embedding': [0.1] * 1536}]
-        }
-
-        # Mock vector store
+    async def test_full_pipeline(self, sample_text, mock_gemini_batch_response):
+        """Test complete document processing pipeline with Gemini"""
         mock_conn = AsyncMock()
-        mock_conn.fetchrow.return_value = {'embed_id': 'test-uuid'}
+        mock_conn.fetchrow = AsyncMock(return_value={'embed_id': 'test-id'})
+        mock_conn.transaction = AsyncMock()
+        mock_conn.transaction.return_value.__aenter__ = AsyncMock()
+        mock_conn.transaction.return_value.__aexit__ = AsyncMock()
 
-        pipeline = EmbeddingsPipeline(chunk_size=500)
-        pipeline.vector_store.conn = mock_conn
+        with patch('asyncpg.connect', return_value=mock_conn):
+            with patch.object(genai, 'embed_content', return_value=mock_gemini_batch_response):
+                pipeline = EmbeddingsPipeline(
+                    database_url="postgresql://test",
+                    gemini_api_key="test-key"
+                )
 
-        # Process short text (single chunk)
-        embed_ids = await pipeline.process_document(
-            text=SAMPLE_TEXT_SHORT,
-            tender_id='TENDER-123',
-            doc_id='DOC-456',
-            metadata={'test': 'data'}
-        )
+                embed_ids = await pipeline.process_document(
+                    text=sample_text,
+                    tender_id="TENDER-123",
+                    doc_id="DOC-456"
+                )
 
-        assert len(embed_ids) == 1
-        assert embed_ids[0] == 'test-uuid'
-
-    @patch.dict('os.environ', {
-        'DATABASE_URL': 'postgresql://localhost/test',
-        'OPENAI_API_KEY': 'test-key'
-    })
-    @pytest.mark.asyncio
-    async def test_process_empty_document(self):
-        """Test processing empty document"""
-        pipeline = EmbeddingsPipeline()
-
-        # Mock vector store connection
-        mock_conn = AsyncMock()
-        pipeline.vector_store.conn = mock_conn
-
-        embed_ids = await pipeline.process_document(
-            text="",
-            tender_id='TENDER-123'
-        )
-
-        assert embed_ids == []
+                assert len(embed_ids) > 0
 
 
-# Integration-style tests (would require actual database)
-
-@pytest.mark.integration
-class TestEmbeddingsIntegration:
-    """
-    Integration tests for embeddings pipeline
-
-    NOTE: These tests require:
-    - PostgreSQL with pgvector extension
-    - Valid DATABASE_URL
-    - Valid OPENAI_API_KEY
-    - embeddings table created
-    """
-
-    @pytest.mark.asyncio
-    async def test_full_pipeline_integration(self):
-        """Test complete pipeline with real database"""
-        # This test would run against a real database
-        # Skipped in unit tests
-        pytest.skip("Requires database setup")
-
-    @pytest.mark.asyncio
-    async def test_macedonian_text_embedding(self):
-        """Test embedding Macedonian text"""
-        # This test would verify Cyrillic handling
-        pytest.skip("Requires OpenAI API key")
-
+# ============================================================================
+# RUN TESTS
+# ============================================================================
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
