@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 
 from database import init_db, close_db
-from api import tenders, documents, rag, auth
+from api import tenders, documents, rag, auth, billing
 
 app = FastAPI(
     title="nabavkidata.com API",
@@ -51,6 +51,7 @@ async def shutdown():
 
 # Include API routers
 app.include_router(auth.router, prefix="/api")
+app.include_router(billing.router, prefix="/api")
 app.include_router(tenders.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
