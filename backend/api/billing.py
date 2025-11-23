@@ -138,6 +138,11 @@ class CheckoutRequest(BaseModel):
     interval: str = "monthly"  # monthly or yearly
 
 
+class UpgradeRequest(BaseModel):
+    new_tier: str
+    interval: str = "monthly"  # monthly or yearly
+
+
 class LimitCheckRequest(BaseModel):
     action_type: str  # rag_query, export, alert, api_call
 
@@ -855,6 +860,134 @@ async def cancel_subscription(
         "message": "Subscription cancelled successfully",
         "cancellation_type": cancellation_type,
         "access_until": subscription.current_period_end.isoformat() if subscription.current_period_end and not immediate else None
+    }
+
+
+@router.post("/upgrade")
+async def upgrade_subscription(
+    upgrade_data: UpgradeRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Upgrade or downgrade user subscription to a new tier
+
+    Security:
+        - Requires authentication
+        - Users can only upgrade their own subscription
+
+    Args:
+        - new_tier: New subscription tier (starter, professional, enterprise)
+        - interval: Billing interval (monthly, yearly)
+
+    Returns:
+        - Upgrade confirmation with proration details
+
+    Response: 200 OK, 400 Bad Request, 404 Not Found
+    """
+    new_tier = upgrade_data.new_tier
+    interval = upgrade_data.interval
+
+    # Validate new tier
+    if new_tier not in ["starter", "professional", "enterprise"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid subscription tier. Choose 'starter', 'professional', or 'enterprise'."
+        )
+
+    # Validate interval
+    if interval not in ["monthly", "yearly"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid billing interval. Choose 'monthly' or 'yearly'."
+        )
+
+    # Get active subscription
+    subscription = await get_user_subscription(db, str(current_user.user_id))
+
+    if not subscription:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active subscription found. Please subscribe first."
+        )
+
+    if not subscription.stripe_subscription_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid subscription configuration."
+        )
+
+    # Check if already on this tier
+    if subscription.tier == new_tier:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"You are already subscribed to the {new_tier} plan."
+        )
+
+    # Get new price ID
+    new_price_id = SUBSCRIPTION_PLANS.get(new_tier, {}).get("stripe_price_id")
+    if not new_price_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Price ID not configured for {new_tier} plan."
+        )
+
+    try:
+        # Use billing service to update subscription
+        update_result = await billing_service.update_subscription(
+            subscription_id=subscription.stripe_subscription_id,
+            new_price_id=new_price_id
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to upgrade subscription: {str(e)}"
+        )
+
+    # Update local subscription
+    await db.execute(
+        update(Subscription)
+        .where(Subscription.subscription_id == subscription.subscription_id)
+        .values(
+            tier=new_tier,
+            updated_at=datetime.utcnow()
+        )
+    )
+
+    # Update user tier
+    await db.execute(
+        update(User)
+        .where(User.user_id == current_user.user_id)
+        .values(subscription_tier=new_tier)
+    )
+
+    await db.commit()
+
+    # Log audit
+    await log_audit(
+        db, str(current_user.user_id), "subscription_upgraded",
+        {
+            "old_tier": subscription.tier,
+            "new_tier": new_tier,
+            "interval": interval
+        },
+        None
+    )
+
+    # Determine if upgrade or downgrade
+    tier_hierarchy = ["starter", "professional", "enterprise"]
+    old_index = tier_hierarchy.index(subscription.tier) if subscription.tier in tier_hierarchy else -1
+    new_index = tier_hierarchy.index(new_tier) if new_tier in tier_hierarchy else -1
+    change_type = "upgrade" if new_index > old_index else "downgrade" if new_index < old_index else "change"
+
+    return {
+        "message": f"Subscription {change_type}d successfully",
+        "old_tier": subscription.tier,
+        "new_tier": new_tier,
+        "change_type": change_type,
+        "prorated": True,
+        "next_billing_date": subscription.current_period_end.isoformat() if subscription.current_period_end else None
     }
 
 

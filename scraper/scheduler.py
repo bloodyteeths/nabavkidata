@@ -278,11 +278,29 @@ class ScraperScheduler:
                 errors_count=stats.get('errors_count', 0)
             )
 
-            return {
+            # Auto-trigger embeddings if documents were scraped
+            embedding_stats = None
+            if stats.get('documents_scraped', 0) > 0:
+                try:
+                    logger.info("Auto-triggering embeddings for new documents...")
+                    embedding_stats = await self._trigger_embeddings(job_id)
+                    logger.info(
+                        f"✓ Embeddings generated: {embedding_stats.get('total_embeddings', 0)} "
+                        f"from {embedding_stats.get('total_processed', 0)} documents"
+                    )
+                except Exception as e:
+                    logger.warning(f"Auto-embedding failed (non-critical): {e}")
+
+            result = {
                 'job_id': job_id,
                 'status': 'completed',
                 **stats
             }
+
+            if embedding_stats:
+                result['embedding_stats'] = embedding_stats
+
+            return result
 
         except Exception as e:
             logger.error(f"Scraping job failed: {e}")
@@ -295,6 +313,12 @@ class ScraperScheduler:
                 error_message=str(e)
             )
 
+            # Send email alert to admin
+            try:
+                await self._send_failure_alert(job_id, str(e))
+            except Exception as email_error:
+                logger.error(f"Failed to send email alert: {email_error}")
+
             return {
                 'job_id': job_id,
                 'status': 'failed',
@@ -305,6 +329,28 @@ class ScraperScheduler:
             # Cleanup
             await self.history.close()
             await self.incremental.close()
+
+    async def _trigger_embeddings(self, job_id: str) -> Dict:
+        """
+        Trigger embeddings generation for documents from scraping job
+
+        Args:
+            job_id: Scraping job ID
+
+        Returns:
+            Embedding statistics
+        """
+        try:
+            # Import here to avoid circular dependencies
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../ai/embeddings'))
+            from pipeline import trigger_after_scrape
+
+            stats = await trigger_after_scrape(job_id)
+            return stats
+
+        except ImportError as e:
+            logger.warning(f"Embeddings pipeline not available: {e}")
+            return {'total_processed': 0, 'total_embeddings': 0, 'errors': 0}
 
     async def _run_spider(
         self,
@@ -356,6 +402,125 @@ class ScraperScheduler:
             return await self.history.get_recent_jobs(limit)
         finally:
             await self.history.close()
+
+    async def _send_failure_alert(self, job_id: str, error_message: str):
+        """
+        Send email alert to admin on scraper failure
+
+        Args:
+            job_id: Failed job ID
+            error_message: Error message
+        """
+        admin_email = os.getenv('ADMIN_EMAIL', 'admin@nabavkidata.com')
+
+        try:
+            # Import here to avoid circular dependencies
+            import aiosmtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+            smtp_port = int(os.getenv('SMTP_PORT', '587'))
+            smtp_user = os.getenv('SMTP_USER', '')
+            smtp_password = os.getenv('SMTP_PASSWORD', '')
+            from_email = os.getenv('FROM_EMAIL', smtp_user)
+
+            if not smtp_user or not smtp_password:
+                logger.warning("SMTP credentials not configured, skipping email alert")
+                return
+
+            # Create email
+            message = MIMEMultipart('alternative')
+            message['Subject'] = f"[ALERT] Scraper Job Failed - {job_id}"
+            message['From'] = f"Nabavkidata Scraper <{from_email}>"
+            message['To'] = admin_email
+
+            # Plain text version
+            text_content = f"""
+Scraper Job Failed
+
+Job ID: {job_id}
+Status: Failed
+Error: {error_message}
+
+Please investigate this issue and restart the scraper if necessary.
+
+View scraper status: https://nabavkidata.com/admin/scraper
+            """
+
+            # HTML version
+            html_content = f"""
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4;">
+    <table style="width: 100%; padding: 20px;">
+        <tr>
+            <td align="center">
+                <table style="width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 40px 30px; text-align: center; background-color: #dc3545; border-radius: 8px 8px 0 0;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Scraper Job Failed</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <div style="padding: 15px; background-color: #f8d7da; border-left: 4px solid #dc3545; color: #721c24; margin-bottom: 20px;">
+                                <strong>Alert:</strong> A scraping job has failed and requires attention.
+                            </div>
+                            <p style="margin-top: 20px;"><strong>Job Details:</strong></p>
+                            <ul style="color: #333333; font-size: 16px; line-height: 1.8;">
+                                <li><strong>Job ID:</strong> {job_id}</li>
+                                <li><strong>Status:</strong> Failed</li>
+                            </ul>
+                            <p style="margin-top: 20px;"><strong>Error Message:</strong></p>
+                            <pre style="padding: 15px; background-color: #f4f4f4; border-left: 3px solid #999; font-family: monospace; font-size: 14px; color: #333; white-space: pre-wrap; word-wrap: break-word;">{error_message}</pre>
+                            <p style="margin-top: 25px;">Please investigate this issue and restart the scraper if necessary.</p>
+                            <table style="margin: 30px auto;">
+                                <tr>
+                                    <td style="border-radius: 4px; background-color: #007bff;">
+                                        <a href="https://nabavkidata.com/admin/scraper" style="display: inline-block; padding: 12px 40px; font-family: Arial, sans-serif; font-size: 16px; color: #ffffff; text-decoration: none;">
+                                            View Scraper Status
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 20px 30px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; text-align: center;">
+                            <p style="margin: 0; color: #999999; font-size: 12px;">
+                                &copy; 2025 Nabavkidata. Automated System Alert.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+            """
+
+            text_part = MIMEText(text_content, 'plain', 'utf-8')
+            html_part = MIMEText(html_content, 'html', 'utf-8')
+
+            message.attach(text_part)
+            message.attach(html_part)
+
+            # Send email
+            await aiosmtplib.send(
+                message,
+                hostname=smtp_host,
+                port=smtp_port,
+                username=smtp_user,
+                password=smtp_password,
+                start_tls=True
+            )
+
+            logger.info(f"Failure alert sent to {admin_email}")
+
+        except Exception as e:
+            logger.error(f"Failed to send email alert: {e}")
 
 
 # CLI Commands

@@ -80,7 +80,7 @@ class Embedding(Base):
     tender_id = Column(String(100), ForeignKey("tenders.tender_id", ondelete="CASCADE"), index=True)
     chunk_text = Column(Text, nullable=False)
     chunk_index = Column(Integer)
-    vector = Column(Vector(1536))
+    vector = Column(Vector(768))
     chunk_metadata = Column(JSONB)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -159,3 +159,19 @@ class SystemConfig(Base):
     config_key = Column(String(255), primary_key=True)
     config_value = Column(Text)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class ScrapingJob(Base):
+    __tablename__ = "scraping_jobs"
+
+    job_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    completed_at = Column(DateTime)
+    status = Column(String(50), nullable=False, default="running", index=True)  # running, completed, failed
+    tenders_scraped = Column(Integer, default=0)
+    documents_scraped = Column(Integer, default=0)
+    errors_count = Column(Integer, default=0)
+    error_message = Column(Text)
+    spider_name = Column(String(100))
+    incremental = Column(Boolean, default=True)
+    last_scraped_date = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)

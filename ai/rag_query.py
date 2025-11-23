@@ -34,6 +34,38 @@ class SearchResult:
     chunk_metadata: Dict
     similarity: float
 
+    def format_source_link(self, base_url: str = "https://nabavkidata.com") -> str:
+        """
+        Format source as clickable link
+
+        Args:
+            base_url: Base URL for links
+
+        Returns:
+            Formatted markdown link
+        """
+        if self.tender_id:
+            return f"[{self.tender_id}]({base_url}/tenders/{self.tender_id})"
+        elif self.doc_id:
+            return f"[Document {self.doc_id}]({base_url}/documents/{self.doc_id})"
+        else:
+            return "Unknown Source"
+
+    def format_citation(self, index: int = 1) -> str:
+        """
+        Format as citation for academic/formal style
+
+        Args:
+            index: Citation number
+
+        Returns:
+            Formatted citation
+        """
+        title = self.chunk_metadata.get('tender_title', 'Untitled')
+        category = self.chunk_metadata.get('tender_category', 'General')
+
+        return f"[{index}] {title} ({category}) - Tender ID: {self.tender_id or 'N/A'}"
+
 
 @dataclass
 class RAGAnswer:
@@ -44,6 +76,42 @@ class RAGAnswer:
     confidence: str  # 'high', 'medium', 'low'
     generated_at: datetime
     model_used: str
+
+    def format_with_sources(self, citation_style: str = "markdown") -> str:
+        """
+        Format answer with source citations
+
+        Args:
+            citation_style: 'markdown', 'academic', or 'simple'
+
+        Returns:
+            Formatted answer with sources
+        """
+        formatted = self.answer + "\n\n"
+
+        if not self.sources:
+            return formatted
+
+        if citation_style == "markdown":
+            formatted += "**Sources:**\n"
+            for i, source in enumerate(self.sources, 1):
+                link = source.format_source_link()
+                similarity = f"{source.similarity:.0%}"
+                formatted += f"{i}. {link} (Relevance: {similarity})\n"
+
+        elif citation_style == "academic":
+            formatted += "**References:**\n"
+            for i, source in enumerate(self.sources, 1):
+                citation = source.format_citation(i)
+                formatted += f"{citation}\n"
+
+        else:  # simple
+            formatted += "**Sources:**\n"
+            for source in self.sources:
+                if source.tender_id:
+                    formatted += f"- Tender {source.tender_id}\n"
+
+        return formatted
 
 
 class ContextAssembler:
@@ -211,6 +279,191 @@ Guidelines:
         return "".join(prompt_parts)
 
 
+class PersonalizationScorer:
+    """
+    Score and re-rank search results based on user personalization
+
+    Uses user preferences and behavior to boost relevant results
+    """
+
+    def __init__(self, database_url: str):
+        self.database_url = database_url
+        self.conn = None
+
+    async def connect(self):
+        """Establish database connection"""
+        if not self.conn:
+            self.conn = await asyncpg.connect(self.database_url)
+
+    async def close(self):
+        """Close database connection"""
+        if self.conn:
+            await self.conn.close()
+            self.conn = None
+
+    async def get_user_interests(self, user_id: str) -> Dict:
+        """
+        Get user interest vector from database
+
+        Returns:
+            User interest data including categories, keywords, etc.
+        """
+        try:
+            result = await self.conn.fetchrow("""
+                SELECT
+                    interest_vector,
+                    top_categories,
+                    top_keywords,
+                    avg_tender_value,
+                    preferred_entities
+                FROM user_interests
+                WHERE user_id = $1
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """, user_id)
+
+            if not result:
+                return {}
+
+            return {
+                'interest_vector': result['interest_vector'] or {},
+                'top_categories': result['top_categories'] or [],
+                'top_keywords': result['top_keywords'] or [],
+                'avg_tender_value': result['avg_tender_value'],
+                'preferred_entities': result['preferred_entities'] or []
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get user interests: {e}")
+            return {}
+
+    def calculate_personalization_score(
+        self,
+        search_result: SearchResult,
+        user_interests: Dict
+    ) -> float:
+        """
+        Calculate personalization score for a search result
+
+        Args:
+            search_result: Search result to score
+            user_interests: User interest data
+
+        Returns:
+            Personalization score (0-1)
+        """
+        if not user_interests:
+            return 0.0
+
+        score = 0.0
+        weights_sum = 0.0
+
+        # 1. Category match (weight: 0.4)
+        category = search_result.chunk_metadata.get('tender_category')
+        top_categories = user_interests.get('top_categories', [])
+
+        if category and top_categories:
+            if category in top_categories:
+                category_index = top_categories.index(category)
+                # Higher score for top categories
+                category_score = 1.0 - (category_index / len(top_categories))
+                score += category_score * 0.4
+                weights_sum += 0.4
+
+        # 2. Keyword match (weight: 0.3)
+        chunk_text = search_result.chunk_text.lower()
+        top_keywords = user_interests.get('top_keywords', [])
+
+        if top_keywords:
+            keyword_matches = sum(
+                1 for keyword in top_keywords[:10]
+                if keyword.lower() in chunk_text
+            )
+            keyword_score = keyword_matches / len(top_keywords[:10])
+            score += keyword_score * 0.3
+            weights_sum += 0.3
+
+        # 3. Entity match (weight: 0.3)
+        tender_title = search_result.chunk_metadata.get('tender_title', '')
+        preferred_entities = user_interests.get('preferred_entities', [])
+
+        if preferred_entities:
+            entity_matches = sum(
+                1 for entity in preferred_entities[:5]
+                if entity.lower() in tender_title.lower()
+            )
+            entity_score = entity_matches / len(preferred_entities[:5])
+            score += entity_score * 0.3
+            weights_sum += 0.3
+
+        # Normalize score
+        if weights_sum > 0:
+            return score / weights_sum
+        return 0.0
+
+    async def rerank_results(
+        self,
+        search_results: List[SearchResult],
+        user_id: Optional[str],
+        personalization_weight: float = 0.3
+    ) -> List[SearchResult]:
+        """
+        Re-rank search results using personalization
+
+        Args:
+            search_results: Original search results
+            user_id: User ID for personalization
+            personalization_weight: Weight of personalization (0-1)
+
+        Returns:
+            Re-ranked search results
+        """
+        if not user_id or not search_results:
+            return search_results
+
+        # Get user interests
+        user_interests = await self.get_user_interests(user_id)
+
+        if not user_interests:
+            logger.info(f"No personalization data for user {user_id}")
+            return search_results
+
+        # Calculate combined scores
+        scored_results = []
+        for result in search_results:
+            # Original similarity score
+            similarity_score = result.similarity
+
+            # Personalization score
+            personalization_score = self.calculate_personalization_score(
+                result,
+                user_interests
+            )
+
+            # Combined score
+            combined_score = (
+                similarity_score * (1 - personalization_weight) +
+                personalization_score * personalization_weight
+            )
+
+            # Store personalization score in metadata
+            result.chunk_metadata['personalization_score'] = personalization_score
+            result.chunk_metadata['combined_score'] = combined_score
+
+            scored_results.append((combined_score, result))
+
+        # Sort by combined score
+        scored_results.sort(key=lambda x: x[0], reverse=True)
+
+        # Extract sorted results
+        reranked = [result for _, result in scored_results]
+
+        logger.info(
+            f"Personalized re-ranking applied (weight={personalization_weight:.2f})"
+        )
+
+        return reranked
+
+
 class RAGQueryPipeline:
     """
     Complete RAG query pipeline: search → retrieve → generate
@@ -225,7 +478,9 @@ class RAGQueryPipeline:
         model: str = "gemini-1.5-flash",
         fallback_model: str = "gemini-1.5-pro",
         top_k: int = 5,
-        max_context_tokens: int = 3000
+        max_context_tokens: int = 3000,
+        enable_personalization: bool = True,
+        personalization_weight: float = 0.3
     ):
         self.database_url = database_url or os.getenv('DATABASE_URL')
         if not self.database_url:
@@ -240,18 +495,22 @@ class RAGQueryPipeline:
         self.fallback_model = fallback_model
         self.top_k = top_k
         self.max_context_tokens = max_context_tokens
+        self.enable_personalization = enable_personalization
+        self.personalization_weight = personalization_weight
 
         # Initialize components
         self.embedder = EmbeddingGenerator(api_key=self.gemini_api_key)
         self.vector_store = VectorStore(self.database_url)
         self.context_assembler = ContextAssembler()
         self.prompt_builder = PromptBuilder()
+        self.personalization_scorer = PersonalizationScorer(self.database_url)
 
     async def generate_answer(
         self,
         question: str,
         tender_id: Optional[str] = None,
-        conversation_history: Optional[List[Dict]] = None
+        conversation_history: Optional[List[Dict]] = None,
+        user_id: Optional[str] = None
     ) -> RAGAnswer:
         """
         Generate answer to question using RAG
@@ -260,6 +519,7 @@ class RAGQueryPipeline:
             question: User's question
             tender_id: Optional filter by specific tender
             conversation_history: Optional previous Q&A pairs
+            user_id: Optional user ID for personalization
 
         Returns:
             RAGAnswer with answer and sources
@@ -268,6 +528,10 @@ class RAGQueryPipeline:
 
         # Connect to database
         await self.vector_store.connect()
+
+        # Connect personalization scorer if enabled
+        if self.enable_personalization and user_id:
+            await self.personalization_scorer.connect()
 
         try:
             # 1. Generate query embedding
@@ -295,6 +559,15 @@ class RAGQueryPipeline:
                 )
                 for r in raw_results
             ]
+
+            # 2.5. Apply personalization re-ranking if enabled
+            if self.enable_personalization and user_id and search_results:
+                logger.info("Applying personalization re-ranking...")
+                search_results = await self.personalization_scorer.rerank_results(
+                    search_results=search_results,
+                    user_id=user_id,
+                    personalization_weight=self.personalization_weight
+                )
 
             if not search_results:
                 logger.warning("No relevant documents found")
@@ -348,6 +621,8 @@ class RAGQueryPipeline:
 
         finally:
             await self.vector_store.close()
+            if self.enable_personalization:
+                await self.personalization_scorer.close()
 
     async def _generate_with_gemini(self, prompt: str, model: str) -> str:
         """

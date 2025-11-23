@@ -5,41 +5,57 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { api, type DashboardData } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight } from "lucide-react";
+import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Clock } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/lib/auth";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
-    loadDashboard();
-  }, []);
+    if (user) {
+      loadDashboard();
+    }
+  }, [user]);
 
   async function loadDashboard() {
-    try {
-      // Use tenders endpoint since personalization doesn't exist yet
-      const tenders = await api.searchTenders({ page: 1, page_size: 10 });
-      const stats = await api.getTenderStats();
+    if (!user) return;
 
-      // Create dashboard data from available endpoints
-      const mockData: DashboardData = {
-        stats: {
-          recommended_count: tenders.items?.length || 0,
-          competitor_activity_count: 0,
-          insights_count: 0,
-        },
-        recommended_tenders: (tenders.items || []).map(t => ({
-          ...t,
-          score: 0.85,
-          match_reasons: ['Релевантен сектор', 'Соодветна вредност']
-        })),
-        insights: [],
-        competitor_activity: []
-      };
-      setData(mockData);
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Try to get personalized dashboard data
+      const dashboardData = await api.getPersonalizedDashboard(user.user_id);
+      setData(dashboardData);
     } catch (error) {
-      console.error("Failed to load dashboard:", error);
+      console.error("Failed to load personalized dashboard:", error);
+
+      // Fallback to generic tenders if personalization fails
+      try {
+        const tenders = await api.searchTenders({ page: 1, page_size: 10 });
+        const fallbackData: DashboardData = {
+          stats: {
+            recommended_count: tenders.items?.length || 0,
+            competitor_activity_count: 0,
+            insights_count: 0,
+          },
+          recommended_tenders: (tenders.items || []).map(t => ({
+            ...t,
+            score: 0.75,
+            match_reasons: ['Нов тендер']
+          })),
+          insights: [],
+          competitor_activity: []
+        };
+        setData(fallbackData);
+      } catch (fallbackError) {
+        console.error("Failed to load fallback data:", fallbackError);
+        setError("Не можевме да ги вчитаме податоците. Ве молиме обидете се повторно.");
+      }
     } finally {
       setLoading(false);
     }
@@ -49,6 +65,21 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <Card className="max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+            <h3 className="text-lg font-semibold mb-2">Грешка при вчитување</h3>
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <Button onClick={loadDashboard}>Обиди се повторно</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -233,6 +264,12 @@ export default function DashboardPage() {
                           </span>
                         ))}
                       </div>
+                      {tender.created_at && (
+                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-2">
+                          <Clock className="h-3 w-3" />
+                          <span>Ажурирано: {formatDate(tender.created_at)}</span>
+                        </div>
+                      )}
                     </div>
                     <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
                       <ArrowRight className="h-4 w-4" />

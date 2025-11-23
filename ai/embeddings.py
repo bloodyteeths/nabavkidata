@@ -9,6 +9,7 @@ Features:
 - Macedonian language support
 """
 import os
+import sys
 import logging
 import asyncio
 import asyncpg
@@ -17,6 +18,14 @@ from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 import google.generativeai as genai
+
+# Import optimized chunker
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'embeddings'))
+try:
+    from embeddings.chunker import SemanticChunker, ChunkStrategy, TextChunk as OptimizedTextChunk
+    OPTIMIZED_CHUNKER_AVAILABLE = True
+except ImportError:
+    OPTIMIZED_CHUNKER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +58,8 @@ class TextChunker:
 
     Chunks text into semantic segments suitable for embeddings.
     Handles Macedonian language properly.
+
+    NOTE: This class now uses the optimized chunker if available.
     """
 
     def __init__(
@@ -58,6 +69,18 @@ class TextChunker:
     ):
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+
+        # Use optimized chunker if available
+        if OPTIMIZED_CHUNKER_AVAILABLE:
+            self.semantic_chunker = SemanticChunker(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                strategy=ChunkStrategy.SEMANTIC
+            )
+            logger.info("Using optimized semantic chunker")
+        else:
+            self.semantic_chunker = None
+            logger.info("Using legacy chunker (optimized chunker not available)")
 
     def _approximate_tokens(self, text: str) -> int:
         """
@@ -80,6 +103,27 @@ class TextChunker:
         if not text or not text.strip():
             return []
 
+        # Use optimized chunker if available
+        if self.semantic_chunker:
+            optimized_chunks = self.semantic_chunker.chunk_text(
+                text=text,
+                metadata=metadata
+            )
+
+            # Convert to legacy format
+            chunks = [
+                TextChunk(
+                    text=chunk.text,
+                    chunk_index=chunk.chunk_index,
+                    metadata=chunk.metadata or {}
+                )
+                for chunk in optimized_chunks
+            ]
+
+            logger.info(f"Split text into {len(chunks)} chunks (optimized)")
+            return chunks
+
+        # Legacy chunker (fallback)
         # Split into sentences first
         sentences = self._split_sentences(text)
 
@@ -121,7 +165,7 @@ class TextChunker:
                 metadata=metadata or {}
             ))
 
-        logger.info(f"Split text into {len(chunks)} chunks")
+        logger.info(f"Split text into {len(chunks)} chunks (legacy)")
         return chunks
 
     def _split_sentences(self, text: str) -> List[str]:

@@ -3,12 +3,15 @@ RAG/AI API endpoints
 Question answering and semantic search
 """
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import Optional, AsyncGenerator
 from datetime import datetime
 import time
 import sys
 import os
+import json
+import asyncio
 
 # Add AI module to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../ai'))
@@ -21,7 +24,9 @@ from schemas import (
     RAGSource,
     SemanticSearchRequest,
     SemanticSearchResponse,
-    SemanticSearchResult
+    SemanticSearchResult,
+    EmbeddingResponse,
+    BatchEmbeddingResponse
 )
 from api.auth import get_current_user
 
@@ -124,6 +129,173 @@ async def query_rag(
         )
 
 
+@router.post("/query/stream")
+async def query_rag_stream(
+    request: RAGQueryRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Ask question using RAG with streaming response
+
+    Request body:
+    - question: User question
+    - tender_id: Optional filter by specific tender
+    - top_k: Number of chunks to retrieve (1-20)
+    - conversation_history: Optional previous Q&A pairs
+
+    Returns:
+    - Server-Sent Events (SSE) stream with:
+      - sources: Source documents (sent first)
+      - tokens: Answer tokens as they're generated
+      - metadata: Confidence and timing info (sent last)
+    """
+    if not RAG_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="RAG service not available. Check configuration."
+        )
+
+    async def generate_stream() -> AsyncGenerator[str, None]:
+        """Generate SSE stream for RAG response"""
+        start_time = time.time()
+
+        try:
+            # Initialize RAG pipeline
+            pipeline = RAGQueryPipeline(top_k=request.top_k)
+
+            # Import here to access streaming generation
+            import google.generativeai as genai
+            from rag_query import ContextAssembler, PromptBuilder
+
+            # 1. Get query embedding and search
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Searching documents...'})}\n\n"
+
+            from embeddings import EmbeddingGenerator, VectorStore
+            embedder = EmbeddingGenerator()
+            vector_store = VectorStore(pipeline.database_url)
+            await vector_store.connect()
+
+            try:
+                # Generate query embedding
+                query_vector = await embedder.generate_embedding(request.question)
+
+                # Search for similar chunks
+                raw_results = await vector_store.similarity_search(
+                    query_vector=query_vector,
+                    limit=request.top_k,
+                    tender_id=request.tender_id
+                )
+
+                # Convert to SearchResult objects
+                from rag_query import SearchResult
+                search_results = [
+                    SearchResult(
+                        embed_id=str(r['embed_id']),
+                        chunk_text=r['chunk_text'],
+                        chunk_index=r['chunk_index'],
+                        tender_id=r.get('tender_id'),
+                        doc_id=r.get('doc_id'),
+                        chunk_metadata=r.get('metadata', {}),
+                        similarity=r['similarity']
+                    )
+                    for r in raw_results
+                ]
+
+                # Send sources
+                sources_data = [
+                    {
+                        'tender_id': s.tender_id,
+                        'doc_id': s.doc_id,
+                        'chunk_text': s.chunk_text[:200] + '...' if len(s.chunk_text) > 200 else s.chunk_text,
+                        'similarity': s.similarity,
+                        'chunk_metadata': s.chunk_metadata
+                    }
+                    for s in search_results
+                ]
+                yield f"data: {json.dumps({'type': 'sources', 'sources': sources_data})}\n\n"
+
+                # 2. Assemble context and build prompt
+                yield f"data: {json.dumps({'type': 'status', 'message': 'Generating answer...'})}\n\n"
+
+                context_assembler = ContextAssembler()
+                prompt_builder = PromptBuilder()
+
+                context, sources_used = context_assembler.assemble_context(
+                    search_results,
+                    max_tokens=pipeline.max_context_tokens
+                )
+
+                prompt = prompt_builder.build_query_prompt(
+                    question=request.question,
+                    context=context,
+                    conversation_history=request.conversation_history
+                )
+
+                # 3. Generate answer with streaming
+                model_obj = genai.GenerativeModel(pipeline.model)
+
+                # Stream response
+                full_answer = []
+                response = model_obj.generate_content(
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=1000
+                    ),
+                    stream=True
+                )
+
+                for chunk in response:
+                    if chunk.text:
+                        full_answer.append(chunk.text)
+                        yield f"data: {json.dumps({'type': 'token', 'content': chunk.text})}\n\n"
+                        await asyncio.sleep(0)  # Allow other tasks to run
+
+                # 4. Send metadata
+                answer_text = ''.join(full_answer)
+                confidence = context_assembler.determine_confidence(sources_used)
+                query_time_ms = int((time.time() - start_time) * 1000)
+
+                yield f"data: {json.dumps({'type': 'metadata', 'confidence': confidence, 'query_time_ms': query_time_ms, 'model': pipeline.model})}\n\n"
+
+                # 5. Send completion signal
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+                # Save to query history (async, non-blocking)
+                try:
+                    query_history = QueryHistory(
+                        user_id=current_user.user_id,
+                        question=request.question,
+                        answer=answer_text,
+                        confidence=confidence,
+                        query_time_ms=query_time_ms,
+                        created_at=datetime.utcnow()
+                    )
+                    db.add(query_history)
+                    await db.commit()
+                except Exception as e:
+                    # Log but don't fail the stream
+                    print(f"Warning: Failed to save query history: {e}")
+
+            finally:
+                await vector_store.close()
+
+        except Exception as e:
+            error_message = f"RAG streaming query failed: {str(e)}"
+            yield f"data: {json.dumps({'type': 'error', 'message': error_message})}\n\n"
+
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
+
+
 @router.post("/search", response_model=SemanticSearchResponse)
 async def semantic_search(
     request: SemanticSearchRequest,
@@ -188,7 +360,7 @@ async def semantic_search(
 # EMBEDDING ENDPOINTS
 # ============================================================================
 
-@router.post("/embed/document")
+@router.post("/embed/document", response_model=EmbeddingResponse)
 async def embed_document(
     tender_id: str,
     doc_id: str,
@@ -242,7 +414,7 @@ async def embed_document(
         )
 
 
-@router.post("/embed/batch")
+@router.post("/embed/batch", response_model=BatchEmbeddingResponse)
 async def embed_documents_batch(
     documents: list,
     db: AsyncSession = Depends(get_db),

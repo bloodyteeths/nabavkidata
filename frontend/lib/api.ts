@@ -138,6 +138,35 @@ class APIClient {
     return localStorage.getItem('auth_token');
   }
 
+  private getCSRFToken(): string | null {
+    if (typeof window === 'undefined') return null;
+
+    // Check if token exists and is valid
+    try {
+      const stored = sessionStorage.getItem('csrf_token');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Date.now() < parsed.expiry) {
+          return parsed.token;
+        }
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+
+    // Generate new token
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    const token = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    const tokenData = {
+      token,
+      expiry: Date.now() + 60 * 60 * 1000, // 1 hour
+    };
+
+    sessionStorage.setItem('csrf_token', JSON.stringify(tokenData));
+    return token;
+  }
+
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const token = this.getAuthToken();
     const headers: Record<string, string> = {
@@ -148,6 +177,18 @@ class APIClient {
     // Auto-attach Authorization header if token exists
     if (token && !headers['Authorization']) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Add CSRF token for state-changing operations on billing endpoints
+    if (
+      options?.method &&
+      ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method) &&
+      endpoint.includes('/billing')
+    ) {
+      const csrfToken = this.getCSRFToken();
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
     }
 
     const response = await fetch(`${this.baseURL}${endpoint}`, {
@@ -617,6 +658,37 @@ class APIClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // Digest Methods
+  async getDigests(userId: string, limit: number = 50, offset: number = 0) {
+    return this.request<{
+      total: number;
+      items: Array<{
+        id: string;
+        date: string;
+        tender_count: number;
+        competitor_activity_count: number;
+        sent: boolean;
+        sent_at: string | null;
+        preview: {
+          text: string;
+        };
+      }>;
+    }>(`/api/personalization/digests?user_id=${userId}&limit=${limit}&offset=${offset}`);
+  }
+
+  async getDigestDetail(digestId: string, userId: string) {
+    return this.request<{
+      id: string;
+      date: string;
+      tender_count: number;
+      competitor_activity_count: number;
+      html: string;
+      text: string;
+      sent: boolean;
+      sent_at: string | null;
+    }>(`/api/personalization/digests/${digestId}?user_id=${userId}`);
   }
 }
 

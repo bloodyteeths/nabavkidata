@@ -37,6 +37,9 @@ export default function TendersPage() {
       if (filters.minBudget) params.min_value = filters.minBudget;
       if (filters.maxBudget) params.max_value = filters.maxBudget;
       if (filters.cpvCode) params.cpv_code = filters.cpvCode;
+      if (filters.entity) params.entity = filters.entity;
+      if (filters.dateFrom) params.date_from = filters.dateFrom;
+      if (filters.dateTo) params.date_to = filters.dateTo;
 
       const result = await api.getTenders(params);
       setTenders(result.items);

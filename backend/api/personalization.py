@@ -250,3 +250,77 @@ async def refresh_interest_vector(
     await builder.update_user_vector(user_id)
 
     return {"message": "Interest vector updated"}
+
+
+# ============================================================================
+# EMAIL DIGESTS
+# ============================================================================
+
+@router.get("/digests")
+async def get_user_digests(
+    user_id: UUID,  # TODO: Get from auth
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get user's email digests"""
+    from models_user_personalization import EmailDigest
+
+    query = select(EmailDigest).where(
+        EmailDigest.user_id == user_id
+    ).order_by(
+        EmailDigest.digest_date.desc()
+    ).limit(limit).offset(offset)
+
+    result = await db.execute(query)
+    digests = result.scalars().all()
+
+    return {
+        "total": len(digests),
+        "items": [
+            {
+                "id": str(d.digest_id),
+                "date": d.digest_date.isoformat(),
+                "tender_count": d.tender_count,
+                "competitor_activity_count": d.competitor_activity_count,
+                "sent": d.sent,
+                "sent_at": d.sent_at.isoformat() if d.sent_at else None,
+                "preview": {
+                    "text": d.digest_text[:200] if d.digest_text else "",
+                }
+            }
+            for d in digests
+        ]
+    }
+
+
+@router.get("/digests/{digest_id}")
+async def get_digest_detail(
+    digest_id: UUID,
+    user_id: UUID,  # TODO: Get from auth
+    db: AsyncSession = Depends(get_db)
+):
+    """Get detailed digest content"""
+    from models_user_personalization import EmailDigest
+
+    query = select(EmailDigest).where(
+        EmailDigest.digest_id == digest_id,
+        EmailDigest.user_id == user_id
+    )
+
+    result = await db.execute(query)
+    digest = result.scalar_one_or_none()
+
+    if not digest:
+        raise HTTPException(status_code=404, detail="Digest not found")
+
+    return {
+        "id": str(digest.digest_id),
+        "date": digest.digest_date.isoformat(),
+        "tender_count": digest.tender_count,
+        "competitor_activity_count": digest.competitor_activity_count,
+        "html": digest.digest_html,
+        "text": digest.digest_text,
+        "sent": digest.sent,
+        "sent_at": digest.sent_at.isoformat() if digest.sent_at else None,
+    }

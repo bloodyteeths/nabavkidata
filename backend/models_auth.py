@@ -12,11 +12,16 @@ import enum
 from database import Base
 
 
-class UserRole(enum.Enum):
-    """User role enumeration"""
+class UserRole(str, enum.Enum):
+    """User role enumeration for RBAC"""
     user = "user"
     admin = "admin"
     superadmin = "superadmin"
+    # Legacy subscription-based roles (for compatibility)
+    free = "free"
+    starter = "starter"
+    professional = "professional"
+    enterprise = "enterprise"
 
 
 class UserAuth(Base):

@@ -172,6 +172,22 @@ class SemanticSearchResponse(BaseModel):
     results: List[SemanticSearchResult]
 
 
+class EmbeddingResponse(BaseModel):
+    """Response schema for document embedding"""
+    success: bool
+    tender_id: str
+    doc_id: str
+    embed_count: int
+    embed_ids: List[str]
+
+
+class BatchEmbeddingResponse(BaseModel):
+    """Response schema for batch document embedding"""
+    success: bool
+    total_documents: int
+    results: Dict[str, Any]
+
+
 # ============================================================================
 # USER & AUTH SCHEMAS
 # ============================================================================

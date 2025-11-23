@@ -13,6 +13,9 @@ export interface FilterState {
   minBudget?: number;
   maxBudget?: number;
   cpvCode?: string;
+  entity?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 interface TenderFiltersProps {
@@ -112,6 +115,35 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
             value={filters.cpvCode || ""}
             onChange={(e) => updateFilter("cpvCode", e.target.value)}
           />
+        </div>
+
+        {/* Entity */}
+        <div>
+          <label className="text-sm font-medium mb-2 block">Институција</label>
+          <Input
+            placeholder="Пребарај институција..."
+            value={filters.entity || ""}
+            onChange={(e) => updateFilter("entity", e.target.value)}
+          />
+        </div>
+
+        {/* Date Range */}
+        <div>
+          <label className="text-sm font-medium mb-2 block">Период</label>
+          <div className="space-y-2">
+            <Input
+              type="date"
+              placeholder="Од"
+              value={filters.dateFrom || ""}
+              onChange={(e) => updateFilter("dateFrom", e.target.value)}
+            />
+            <Input
+              type="date"
+              placeholder="До"
+              value={filters.dateTo || ""}
+              onChange={(e) => updateFilter("dateTo", e.target.value)}
+            />
+          </div>
         </div>
 
         {/* Actions */}

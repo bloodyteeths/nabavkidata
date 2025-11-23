@@ -120,7 +120,7 @@ class BillingService:
                 }],
                 success_url=success_url,
                 cancel_url=cancel_url,
-                locale='mk',  # Macedonian language
+                locale='auto',  # Auto-detect user's language (Stripe doesn't support Macedonian)
                 metadata={
                     'user_id': user_id,
                     'tier': tier,

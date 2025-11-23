@@ -37,6 +37,8 @@ const SUGGESTED_QUESTIONS = [
   "Која институција објавува најмногу тендери?",
 ];
 
+const STORAGE_KEY = 'nabavkidata_chat_messages';
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +49,29 @@ export default function ChatPage() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Load messages from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedMessages = localStorage.getItem(STORAGE_KEY);
+      if (storedMessages) {
+        try {
+          const parsedMessages = JSON.parse(storedMessages);
+          setMessages(parsedMessages);
+        } catch (error) {
+          console.error('Failed to parse stored messages:', error);
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+    }
+  }, []);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && messages.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    }
+  }, [messages]);
 
   useEffect(() => {
     scrollToBottom();
@@ -125,6 +150,9 @@ export default function ChatPage() {
 
   const handleClearChat = () => {
     setMessages([]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY);
+    }
   };
 
   const handleSuggestedQuestion = (question: string) => {

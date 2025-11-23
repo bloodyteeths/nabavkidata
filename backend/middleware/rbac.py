@@ -20,12 +20,16 @@ from database import get_db
 security = HTTPBearer()
 
 
-# User Role Enum
+# Import UserRole from models_auth for consistency
+from models_auth import UserRole as BaseUserRole
+
+# Create aliases for backward compatibility
 class UserRole(str, Enum):
-    """User roles for RBAC"""
+    """User roles for RBAC - uses subscription tiers"""
     ADMIN = "admin"
-    PREMIUM = "premium"
-    PRO = "pro"
+    ENTERPRISE = "enterprise"
+    PROFESSIONAL = "professional"
+    STARTER = "starter"
     FREE = "free"
     GUEST = "guest"
 

@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Calendar, Building2, Tag, ExternalLink } from "lucide-react";
+import { Calendar, Building2, Tag, ExternalLink, Clock } from "lucide-react";
 import type { Tender } from "@/lib/api";
 import Link from "next/link";
 
@@ -87,6 +87,14 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
                 </Badge>
               )}
             </div>
+
+            {/* Last Updated */}
+            {tender.created_at && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                <span>Последно ажурирано: {formatDate(tender.created_at)}</span>
+              </div>
+            )}
           </div>
 
           {/* Actions */}

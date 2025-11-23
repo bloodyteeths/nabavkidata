@@ -1223,6 +1223,134 @@ async def get_system_health(
     )
 
 
+class VectorHealthResponse(BaseModel):
+    """Vector database health response"""
+    status: str
+    total_embeddings: int
+    total_documents: int
+    documents_with_embeddings: int
+    documents_without_embeddings: int
+    coverage_percentage: float
+    avg_chunks_per_document: float
+    index_status: str
+    last_embedding_created: Optional[datetime]
+    storage_size_mb: Optional[float]
+
+
+@router.get("/vectors/health", response_model=VectorHealthResponse)
+async def get_vector_health(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get vector database health and statistics
+
+    Returns:
+    - Total embeddings count
+    - Document coverage (how many docs have embeddings)
+    - Index health status
+    - Storage metrics
+    - Last embedding timestamp
+    """
+    try:
+        # Get total embeddings
+        total_embeddings = await db.scalar(
+            text("SELECT COUNT(*) FROM embeddings")
+        ) or 0
+
+        # Get total documents
+        total_documents = await db.scalar(
+            text("SELECT COUNT(*) FROM documents WHERE extraction_status = 'success'")
+        ) or 0
+
+        # Get documents with embeddings (distinct)
+        documents_with_embeddings = await db.scalar(
+            text("""
+                SELECT COUNT(DISTINCT doc_id)
+                FROM embeddings
+                WHERE doc_id IS NOT NULL
+            """)
+        ) or 0
+
+        # Calculate coverage
+        documents_without_embeddings = total_documents - documents_with_embeddings
+        coverage_percentage = (
+            (documents_with_embeddings / total_documents * 100)
+            if total_documents > 0 else 0.0
+        )
+
+        # Get average chunks per document
+        avg_chunks = await db.scalar(
+            text("""
+                SELECT AVG(chunk_count)::float
+                FROM (
+                    SELECT doc_id, COUNT(*) as chunk_count
+                    FROM embeddings
+                    WHERE doc_id IS NOT NULL
+                    GROUP BY doc_id
+                ) AS counts
+            """)
+        ) or 0.0
+
+        # Get last embedding created
+        last_embedding = await db.scalar(
+            text("""
+                SELECT created_at
+                FROM embeddings
+                ORDER BY created_at DESC
+                LIMIT 1
+            """)
+        )
+
+        # Check index status
+        index_exists = await db.scalar(
+            text("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM pg_indexes
+                    WHERE tablename = 'embeddings'
+                    AND indexname LIKE '%vector%'
+                )
+            """)
+        )
+        index_status = "healthy" if index_exists else "missing"
+
+        # Estimate storage size (approximate)
+        storage_size = await db.scalar(
+            text("""
+                SELECT pg_total_relation_size('embeddings')::float / 1024 / 1024
+            """)
+        ) or 0.0
+
+        # Determine overall status
+        if coverage_percentage >= 90 and index_status == "healthy":
+            status = "healthy"
+        elif coverage_percentage >= 70:
+            status = "degraded"
+        else:
+            status = "unhealthy"
+
+        return VectorHealthResponse(
+            status=status,
+            total_embeddings=total_embeddings,
+            total_documents=total_documents,
+            documents_with_embeddings=documents_with_embeddings,
+            documents_without_embeddings=documents_without_embeddings,
+            coverage_percentage=round(coverage_percentage, 2),
+            avg_chunks_per_document=round(avg_chunks, 2),
+            index_status=index_status,
+            last_embedding_created=last_embedding,
+            storage_size_mb=round(storage_size, 2)
+        )
+
+    except Exception as e:
+        logger.error(f"Vector health check failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Vector health check failed: {str(e)}"
+        )
+
+
 # ============================================================================
 # BROADCAST NOTIFICATION ENDPOINTS
 # ============================================================================

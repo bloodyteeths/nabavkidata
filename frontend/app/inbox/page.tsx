@@ -1,22 +1,30 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Mail, Inbox, Bell, CheckCircle, Circle } from "lucide-react"
+import { Mail, Inbox, Bell, CheckCircle, Circle, AlertCircle } from "lucide-react"
 import { formatDate } from "@/lib/utils"
+import { useAuth } from "@/lib/auth"
+import { api } from "@/lib/api"
 
 interface EmailDigest {
   id: string
-  title: string
   date: string
-  type: "daily" | "weekly"
-  read: boolean
-  recommendedTenders: number
-  competitorActivities: number
-  preview: { tenders: string[]; competitors: string[] }
+  tender_count: number
+  competitor_activity_count: number
+  sent: boolean
+  sent_at: string | null
+  preview: {
+    text: string
+  }
+}
+
+interface EmailDigestDetail extends EmailDigest {
+  html: string
+  text: string
 }
 
 interface SystemAlert {
@@ -27,49 +35,7 @@ interface SystemAlert {
   severity: "info" | "warning" | "success"
 }
 
-const mockDigests: EmailDigest[] = [
-  {
-    id: "1", title: "Дневен преглед - 22 Ноември 2025", date: "2025-11-22", type: "daily", read: false,
-    recommendedTenders: 5, competitorActivities: 3,
-    preview: {
-      tenders: ["Набавка на компјутерска опрема - УКИМ", "Услуги за одржување на софтвер - Општина Скопје", "Набавка на канцелариски материјали - МОН"],
-      competitors: ["ТехКомпани победи на тендер за IT услуги", "СофтСолушнс учествува во 2 нови тендери", "ДигиталПро достави понуда за консалтинг"]
-    }
-  },
-  {
-    id: "2", title: "Дневен преглед - 21 Ноември 2025", date: "2025-11-21", type: "daily", read: true,
-    recommendedTenders: 8, competitorActivities: 5,
-    preview: {
-      tenders: ["Развој на веб платформа - МИОА", "Набавка на мрежна опрема - Телеком", "Услуги за одржување - БЈС"],
-      competitors: ["ТехКомпани достави понуда за мрежна опрема", "СофтСолушнс победи тендер за развој", "ДигиталПро учествува во 3 тендери"]
-    }
-  },
-  {
-    id: "3", title: "Неделен преглед - 15-21 Ноември 2025", date: "2025-11-21", type: "weekly", read: true,
-    recommendedTenders: 42, competitorActivities: 18,
-    preview: {
-      tenders: ["Модернизација на IT инфраструктура - МВР", "Набавка на серверска опрема - АВРМ", "Развој на мобилна апликација - ФЗОМ"],
-      competitors: ["ТехКомпани победи 4 тендери оваа недела", "СофтСолушнс активен во 12 тендери", "ДигиталПро нова понуда за консалтинг"]
-    }
-  },
-  {
-    id: "4", title: "Дневен преглед - 20 Ноември 2025", date: "2025-11-20", type: "daily", read: true,
-    recommendedTenders: 6, competitorActivities: 4,
-    preview: {
-      tenders: ["Набавка на лиценци - МФ", "Услуги за обука - ДАРМ", "Набавка на принтери - МЗ"],
-      competitors: ["ТехКомпани достави понуда за обука", "СофтСолушнс победи тендер за лиценци"]
-    }
-  },
-  {
-    id: "5", title: "Неделен преглед - 8-14 Ноември 2025", date: "2025-11-14", type: "weekly", read: false,
-    recommendedTenders: 38, competitorActivities: 15,
-    preview: {
-      tenders: ["Дигитализација на процеси - МЖСПП", "Набавка на софтвер за управување - АППРМ", "Развој на ERP систем - ЕЛЕМ"],
-      competitors: ["ТехКомпани победи 3 тендери", "СофтСолушнс учествува во 9 тендери", "ДигиталПро нови понуди за развој"]
-    }
-  }
-]
-
+// Mock alerts for now - will need backend endpoint
 const mockAlerts: SystemAlert[] = [
   { id: "1", message: "Нов тендер што одговара на вашите критериуми е објавен", date: "2025-11-22T10:30:00", read: false, severity: "info" },
   { id: "2", message: "Рокот за достава на понуда истекува за 2 дена", date: "2025-11-22T09:15:00", read: false, severity: "warning" },
@@ -79,19 +45,56 @@ const mockAlerts: SystemAlert[] = [
 ]
 
 export default function InboxPage() {
-  const [digests, setDigests] = useState<EmailDigest[]>(mockDigests)
+  const { user } = useAuth()
+  const [digests, setDigests] = useState<EmailDigest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [alerts, setAlerts] = useState<SystemAlert[]>(mockAlerts)
-  const [filterType, setFilterType] = useState<"all" | "daily" | "weekly">("all")
-  const [selectedDigest, setSelectedDigest] = useState<EmailDigest | null>(null)
+  const [selectedDigest, setSelectedDigest] = useState<EmailDigestDetail | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
-  const filteredDigests = digests.filter((d) => filterType === "all" || d.type === filterType)
-  const unreadDigestsCount = digests.filter((d) => !d.read).length
-  const unreadAlertsCount = alerts.filter((a) => !a.read).length
+  useEffect(() => {
+    if (user) {
+      loadDigests()
+    }
+  }, [user])
 
-  const toggleDigestRead = (id: string) => {
-    setDigests(digests.map((d) => (d.id === id ? { ...d, read: !d.read } : d)))
-    if (selectedDigest?.id === id) setSelectedDigest({ ...selectedDigest, read: !selectedDigest.read })
+  async function loadDigests() {
+    if (!user) return
+
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await api.getDigests(user.user_id, 50, 0)
+      setDigests(response.items)
+    } catch (err) {
+      console.error("Failed to load digests:", err)
+      setError("Не можевме да ги вчитаме дигестите. Ве молиме обидете се повторно.")
+    } finally {
+      setLoading(false)
+    }
   }
+
+  async function loadDigestDetail(digestId: string) {
+    if (!user) return
+
+    try {
+      setLoadingDetail(true)
+      const detail = await api.getDigestDetail(digestId, user.user_id)
+      setSelectedDigest(detail as EmailDigestDetail)
+    } catch (err) {
+      console.error("Failed to load digest detail:", err)
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  const handleDigestClick = async (digest: EmailDigest) => {
+    await loadDigestDetail(digest.id)
+  }
+
+  const unreadDigestsCount = digests.filter((d) => !d.sent).length
+  const unreadAlertsCount = alerts.filter((a) => !a.read).length
 
   const toggleAlertRead = (id: string) => {
     setAlerts(alerts.map((a) => (a.id === id ? { ...a, read: !a.read } : a)))
@@ -101,6 +104,29 @@ export default function InboxPage() {
     if (severity === "warning") return "bg-yellow-100 text-yellow-800 border-yellow-200"
     if (severity === "success") return "bg-green-100 text-green-800 border-green-200"
     return "bg-blue-100 text-blue-800 border-blue-200"
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <Card className="max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+            <h3 className="text-lg font-semibold mb-2">Грешка при вчитување</h3>
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <Button onClick={loadDigests}>Обиди се повторно</Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -149,81 +175,99 @@ export default function InboxPage() {
                   <CardDescription>Преглед на препорачани тендери и активности на конкуренти</CardDescription>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <Button variant={filterType === "all" ? "default" : "outline"} size="sm" onClick={() => setFilterType("all")}>Сите</Button>
-                  <Button variant={filterType === "daily" ? "default" : "outline"} size="sm" onClick={() => setFilterType("daily")}>Дневни</Button>
-                  <Button variant={filterType === "weekly" ? "default" : "outline"} size="sm" onClick={() => setFilterType("weekly")}>Неделни</Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDigests(digests.map((d) => ({ ...d, read: true })))}>Означи сè како прочитано</Button>
+                  <Button variant="ghost" size="sm" onClick={loadDigests}>Освежи</Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  {filteredDigests.map((digest) => (
-                    <Card key={digest.id} className={`cursor-pointer transition-colors hover:bg-accent ${selectedDigest?.id === digest.id ? "border-primary" : ""} ${!digest.read ? "bg-blue-50" : ""}`} onClick={() => setSelectedDigest(digest)}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              {digest.read ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Circle className="h-4 w-4 text-blue-600" />}
-                              <h3 className={`font-semibold text-sm ${!digest.read ? "font-bold" : ""}`}>{digest.title}</h3>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-2">{formatDate(digest.date)}</p>
-                            <div className="flex gap-2 flex-wrap">
-                              <Badge variant="secondary" className="text-xs">{digest.type === "daily" ? "Дневен" : "Неделен"}</Badge>
-                              <Badge variant="outline" className="text-xs">{digest.recommendedTenders} тендери</Badge>
-                              <Badge variant="outline" className="text-xs">{digest.competitorActivities} активности</Badge>
+              {digests.length === 0 ? (
+                <div className="text-center py-12">
+                  <Mail className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">Нема дигести</h3>
+                  <p className="text-muted-foreground">Дигестите ќе се појават овде кога системот ги генерира.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    {digests.map((digest) => (
+                      <Card
+                        key={digest.id}
+                        className={`cursor-pointer transition-colors hover:bg-accent ${selectedDigest?.id === digest.id ? "border-primary" : ""} ${!digest.sent ? "bg-blue-50" : ""}`}
+                        onClick={() => handleDigestClick(digest)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                {digest.sent ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Circle className="h-4 w-4 text-blue-600" />}
+                                <h3 className={`font-semibold text-sm ${!digest.sent ? "font-bold" : ""}`}>
+                                  Дигест - {new Date(digest.date).toLocaleDateString("mk-MK", { year: "numeric", month: "long", day: "numeric" })}
+                                </h3>
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-2">{formatDate(digest.date)}</p>
+                              <div className="flex gap-2 flex-wrap">
+                                <Badge variant="outline" className="text-xs">{digest.tender_count} тендери</Badge>
+                                <Badge variant="outline" className="text-xs">{digest.competitor_activity_count} активности</Badge>
+                                {digest.sent && <Badge variant="secondary" className="text-xs">Испратено</Badge>}
+                              </div>
                             </div>
                           </div>
-                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); toggleDigestRead(digest.id) }}>
-                            {digest.read ? "Непрочитано" : "Прочитано"}
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))}
                 </div>
 
-                <div>
-                  {selectedDigest ? (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">{selectedDigest.title}</CardTitle>
-                        <CardDescription>{formatDate(selectedDigest.date)}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <h4 className="font-semibold mb-2 flex items-center gap-2">
-                            <Inbox className="h-4 w-4" />Препорачани тендери ({selectedDigest.recommendedTenders})
-                          </h4>
-                          <ul className="space-y-2">
-                            {selectedDigest.preview.tenders.map((tender, idx) => (
-                              <li key={idx} className="text-sm pl-6 relative"><span className="absolute left-0 top-1">•</span>{tender}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <h4 className="font-semibold mb-2 flex items-center gap-2">
-                            <Bell className="h-4 w-4" />Активности на конкуренти ({selectedDigest.competitorActivities})
-                          </h4>
-                          <ul className="space-y-2">
-                            {selectedDigest.preview.competitors.map((activity, idx) => (
-                              <li key={idx} className="text-sm pl-6 relative"><span className="absolute left-0 top-1">•</span>{activity}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <Card className="h-full flex items-center justify-center">
-                      <CardContent className="text-center text-muted-foreground p-8">
-                        <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>Изберете дигест за преглед на детали</p>
-                      </CardContent>
-                    </Card>
-                  )}
+                  <div>
+                    {loadingDetail ? (
+                      <Card className="h-full flex items-center justify-center">
+                        <CardContent className="text-center p-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                          <p className="text-muted-foreground mt-4">Вчитување...</p>
+                        </CardContent>
+                      </Card>
+                    ) : selectedDigest ? (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">
+                            Дигест - {new Date(selectedDigest.date).toLocaleDateString("mk-MK", { year: "numeric", month: "long", day: "numeric" })}
+                          </CardTitle>
+                          <CardDescription>{formatDate(selectedDigest.date)}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div>
+                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                              <Inbox className="h-4 w-4" />Препорачани тендери ({selectedDigest.tender_count})
+                            </h4>
+                            {selectedDigest.text && (
+                              <p className="text-sm text-muted-foreground mb-3">{selectedDigest.text}</p>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                              <Bell className="h-4 w-4" />Активности на конкуренти ({selectedDigest.competitor_activity_count})
+                            </h4>
+                          </div>
+                          {selectedDigest.html && (
+                            <div className="mt-4 border-t pt-4">
+                              <div
+                                className="prose prose-sm max-w-none"
+                                dangerouslySetInnerHTML={{ __html: selectedDigest.html }}
+                              />
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="h-full flex items-center justify-center">
+                        <CardContent className="text-center text-muted-foreground p-8">
+                          <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>Изберете дигест за преглед на детали</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

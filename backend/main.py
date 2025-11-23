@@ -8,7 +8,9 @@ from datetime import datetime
 import os
 
 from database import init_db, close_db
-from api import tenders, documents, rag, auth, billing
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper
+from middleware.fraud import FraudPreventionMiddleware
+from middleware.rate_limit import RateLimitMiddleware
 
 app = FastAPI(
     title="nabavkidata.com API",
@@ -19,7 +21,7 @@ app = FastAPI(
     openapi_url="/api/openapi.json"
 )
 
-# CORS
+# CORS Middleware - must be first
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -33,6 +35,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security Middlewares
+# Rate Limiting - applied to all endpoints
+app.add_middleware(RateLimitMiddleware)
+
+# Fraud Prevention - checks for abuse patterns
+app.add_middleware(FraudPreventionMiddleware)
 
 
 # Startup/Shutdown Events
@@ -56,6 +65,10 @@ app.include_router(billing.router, prefix="/api")
 app.include_router(tenders.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
+app.include_router(scraper.router, prefix="/api")  # Scraper API
+app.include_router(admin.router)  # Admin router has its own prefix
+app.include_router(fraud_endpoints.router)  # Fraud router has its own prefix
+app.include_router(personalization.router)  # Personalization router has its own prefix
 
 
 # Root endpoints

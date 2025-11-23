@@ -107,6 +107,7 @@ DEFAULT_REQUEST_HEADERS = {
 ITEM_PIPELINES = {
     "scraper.pipelines.PDFDownloadPipeline": 100,  # Download PDFs first
     "scraper.pipelines.PDFExtractionPipeline": 200,  # Extract text from PDFs
+    "scraper.pipelines.DataValidationPipeline": 250,  # Validate data before DB
     "scraper.pipelines.DatabasePipeline": 300,  # Save to database last
 }
 

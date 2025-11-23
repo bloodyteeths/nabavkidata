@@ -307,6 +307,54 @@ class EmailService:
             html_content=html_content
         )
 
+    async def send_scraper_failure_alert(self, admin_email: str, job_id: str, error_message: str, tenders_scraped: int = 0) -> bool:
+        """
+        Send scraper failure alert to admin.
+
+        Args:
+            admin_email: Admin email address
+            job_id: Scraping job ID
+            error_message: Error message from scraper
+            tenders_scraped: Number of tenders scraped before failure
+
+        Returns:
+            bool: True if sent successfully
+        """
+        admin_link = f"{self.frontend_url}/admin/scraper"
+
+        content = f"""
+        <p style="padding: 15px; background-color: #f8d7da; border-left: 4px solid #dc3545; color: #721c24; font-size: 16px;">
+            <strong>Alert:</strong> A scraping job has failed and requires attention.
+        </p>
+        <p style="margin-top: 20px;"><strong>Job Details:</strong></p>
+        <ul style="color: #333333; font-size: 16px; line-height: 1.8; margin-top: 15px;">
+            <li><strong>Job ID:</strong> {job_id}</li>
+            <li><strong>Status:</strong> Failed</li>
+            <li><strong>Tenders Scraped:</strong> {tenders_scraped}</li>
+        </ul>
+        <p style="margin-top: 20px;"><strong>Error Message:</strong></p>
+        <p style="padding: 15px; background-color: #f4f4f4; border-left: 3px solid #999; font-family: monospace; font-size: 14px; color: #333;">
+            {error_message}
+        </p>
+        <p style="margin-top: 25px;">Please investigate this issue and restart the scraper if necessary.</p>
+        <p style="margin-top: 20px; padding: 15px; background-color: #fff3cd; border-left: 4px solid #ffc107; color: #856404; font-size: 14px;">
+            <strong>Note:</strong> Continuous scraper failures may indicate website structure changes or connectivity issues.
+        </p>
+        """
+
+        html_content = self._get_email_template(
+            title="Scraper Failure Alert",
+            content=content,
+            button_text="View Scraper Status",
+            button_link=admin_link
+        )
+
+        return await self._send_email(
+            to_email=admin_email,
+            subject="[ALERT] Scraper Job Failed - Nabavki Platform",
+            html_content=html_content
+        )
+
 
 # Global email service instance
 email_service = EmailService()
@@ -331,3 +379,8 @@ async def send_welcome_email(email: str, name: str) -> bool:
 async def send_password_changed_email(email: str, name: str) -> bool:
     """Send password changed confirmation email to user."""
     return await email_service.send_password_changed_email(email, name)
+
+
+async def send_scraper_failure_alert(admin_email: str, job_id: str, error_message: str, tenders_scraped: int = 0) -> bool:
+    """Send scraper failure alert to admin."""
+    return await email_service.send_scraper_failure_alert(admin_email, job_id, error_message, tenders_scraped)
