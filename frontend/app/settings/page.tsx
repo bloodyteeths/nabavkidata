@@ -55,8 +55,12 @@ export default function SettingsPage() {
         return;
       }
       setLoading(true);
-      const prefs = await api.getPreferences(userId);
-      setPreferences(prefs);
+      // TODO: Re-enable when personalization API is implemented
+      // const prefs = await api.getPreferences(userId);
+      // setPreferences(prefs);
+
+      // Use default preferences for now
+      setPreferences(DEFAULT_PREFERENCES);
     } catch (error) {
       console.error("Грешка при вчитување на преференци:", error);
     } finally {
