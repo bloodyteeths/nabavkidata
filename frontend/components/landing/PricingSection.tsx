@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { motion } from "framer-motion";
@@ -7,7 +8,10 @@ import { motion } from "framer-motion";
 const plans = [
     {
         name: "Старт",
-        price: "2,999",
+        price: {
+            monthly: "14.99",
+            yearly: "149.99"
+        },
         description: "За мали бизниси кои сакаат да започнат со тендери.",
         features: [
             "Пристап до сите тендери",
@@ -19,7 +23,10 @@ const plans = [
     },
     {
         name: "Про",
-        price: "5,999",
+        price: {
+            monthly: "39.99",
+            yearly: "399.99"
+        },
         popular: true,
         description: "За растечки компании кои сакаат конкурентска предност.",
         features: [
@@ -33,7 +40,10 @@ const plans = [
     },
     {
         name: "Ентерпрајз",
-        price: "Контакт",
+        price: {
+            monthly: "99.99",
+            yearly: "999.99"
+        },
         description: "За големи организации со специфични потреби.",
         features: [
             "Сè од Про пакетот",
@@ -47,16 +57,38 @@ const plans = [
 ];
 
 export default function PricingSection() {
+    const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+
     return (
         <section id="pricing" className="py-24 relative">
             <div className="container px-4 md:px-6">
-                <div className="text-center mb-16">
+                <div className="text-center mb-10">
                     <h2 className="text-3xl md:text-5xl font-bold mb-4">
                         Едноставни <span className="text-gradient">Цени</span>
                     </h2>
-                    <p className="text-gray-400 max-w-2xl mx-auto text-lg">
+                    <p className="text-gray-400 max-w-2xl mx-auto text-lg mb-8">
                         Изберете го планот кој најмногу одговара на вашите потреби. Без скриени трошоци.
                     </p>
+
+                    {/* Billing Toggle */}
+                    <div className="flex items-center justify-center gap-4">
+                        <span className={`text-sm font-medium ${billingCycle === "monthly" ? "text-white" : "text-gray-400"}`}>
+                            Месечно
+                        </span>
+                        <button
+                            onClick={() => setBillingCycle(billingCycle === "monthly" ? "yearly" : "monthly")}
+                            className="relative w-14 h-7 rounded-full bg-white/10 p-1 transition-colors hover:bg-white/20"
+                        >
+                            <motion.div
+                                className="w-5 h-5 rounded-full bg-primary shadow-sm"
+                                animate={{ x: billingCycle === "monthly" ? 0 : 28 }}
+                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                            />
+                        </button>
+                        <span className={`text-sm font-medium ${billingCycle === "yearly" ? "text-white" : "text-gray-400"}`}>
+                            Годишно <span className="text-primary text-xs ml-1">(Заштеди 20%)</span>
+                        </span>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -82,8 +114,10 @@ export default function PricingSection() {
                                 <h3 className="text-2xl font-bold mb-2 text-white">{plan.name}</h3>
                                 <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
                                 <div className="flex items-baseline gap-1">
-                                    <span className="text-4xl font-bold text-white">{plan.price}</span>
-                                    {plan.price !== "Контакт" && <span className="text-gray-400">МКД/мес</span>}
+                                    <span className="text-4xl font-bold text-white">
+                                        €{billingCycle === "monthly" ? plan.price.monthly : plan.price.yearly}
+                                    </span>
+                                    <span className="text-gray-400">/{billingCycle === "monthly" ? "мес" : "год"}</span>
                                 </div>
                             </div>
 
