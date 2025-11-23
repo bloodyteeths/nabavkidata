@@ -140,23 +140,20 @@ export function useAuth() {
         throw new Error(errorData.detail || 'Registration failed');
       }
 
+      // Registration successful - returns message, not tokens
+      // User needs to verify email (if enabled) and then login
       const data = await response.json();
-      storeTokens(data);
 
-      // Fetch user data
-      const userResponse = await fetch(`${API_URL}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${data.access_token}`,
-        },
-      });
+      // Return a placeholder user object since registration doesn't return user data
+      const placeholderUser: User = {
+        id: '',
+        email: email,
+        is_verified: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-      if (!userResponse.ok) {
-        throw new Error('Failed to fetch user data');
-      }
-
-      const user: User = await userResponse.json();
-      setUser(user);
-      return user;
+      return placeholderUser;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed';
       setError(message);
@@ -164,7 +161,7 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  }, [storeTokens]);
+  }, []);
 
   const logout = useCallback(async (): Promise<void> => {
     try {
