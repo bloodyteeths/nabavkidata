@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api, UserPreferences } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { billing, BillingPlan } from "@/lib/billing";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,15 +37,23 @@ export default function SettingsPage() {
   const [currentTier, setCurrentTier] = useState<string>("free");
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
   const [upgrading, setUpgrading] = useState<string | null>(null);
-  const userId = "demo-user";
+  const { user, isAuthenticated } = useAuth();
+  const userId = user?.id;
 
   useEffect(() => {
-    loadPreferences();
+    if (userId) {
+      loadPreferences();
+    }
     loadPlans();
-  }, []);
+  }, [userId]);
 
   const loadPreferences = async () => {
     try {
+      if (!userId) {
+        setLoading(false);
+        // router.push('/auth/login'); // Optional: redirect
+        return;
+      }
       setLoading(true);
       const prefs = await api.getPreferences(userId);
       setPreferences(prefs);
@@ -102,6 +111,7 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     try {
+      if (!userId) return;
       setSaving(true);
       await api.updatePreferences(userId, preferences);
       console.log("Преференциите се успешно зачувани");
@@ -163,21 +173,19 @@ export default function SettingsPage() {
               <div className="inline-flex rounded-lg border border-primary/20 p-1 bg-background/50">
                 <button
                   onClick={() => setInterval('monthly')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    interval === 'monthly'
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${interval === 'monthly'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
                 >
                   Месечно
                 </button>
                 <button
                   onClick={() => setInterval('yearly')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    interval === 'yearly'
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${interval === 'yearly'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
                 >
                   Годишно
                   <Badge variant="secondary" className="ml-2 bg-green-500/10 text-green-400 border-green-500/20">
