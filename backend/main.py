@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 
 from database import init_db, close_db
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook
 from middleware.fraud import FraudPreventionMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 
@@ -62,6 +62,7 @@ async def shutdown():
 # Include API routers
 app.include_router(auth.router, prefix="/api")
 app.include_router(billing.router, prefix="/api")
+app.include_router(stripe_webhook.router, prefix="/api")  # Stripe webhook handler
 app.include_router(tenders.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")

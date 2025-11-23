@@ -4,6 +4,7 @@ Tests for RAG query pipeline
 Tests context assembly, prompt building, and question answering
 """
 import pytest
+import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime
 
@@ -263,16 +264,15 @@ class TestPromptBuilder:
 
     def test_build_query_prompt_basic(self):
         """Test basic prompt building"""
-        messages = PromptBuilder.build_query_prompt(
+        prompt = PromptBuilder.build_query_prompt(
             question="What is the budget?",
             context="Budget: 500.000 МКД"
         )
 
-        assert len(messages) >= 2
-        assert messages[0]['role'] == 'system'
-        assert messages[-1]['role'] == 'user'
-        assert 'What is the budget?' in messages[-1]['content']
-        assert 'Budget: 500.000 МКД' in messages[-1]['content']
+        assert isinstance(prompt, str)
+        assert "What is the budget?" in prompt
+        assert "Budget: 500.000 МКД" in prompt
+        assert PromptBuilder.SYSTEM_PROMPT in prompt
 
     def test_build_query_prompt_with_history(self):
         """Test prompt building with conversation history"""
@@ -281,19 +281,15 @@ class TestPromptBuilder:
             {'question': 'Another question?', 'answer': 'Another answer.'}
         ]
 
-        messages = PromptBuilder.build_query_prompt(
+        prompt = PromptBuilder.build_query_prompt(
             question="Current question?",
             context="Context text",
             conversation_history=history
         )
 
-        # Should have system + history (2 msgs each) + current
-        # = 1 + 4 + 1 = 6 messages
-        assert len(messages) >= 6
-
-        # Check history is included
-        user_messages = [m['content'] for m in messages if m['role'] == 'user']
-        assert any('Previous question?' in msg for msg in user_messages)
+        assert "Previous question?" in prompt
+        assert "Previous answer." in prompt
+        assert "Current question?" in prompt
 
     def test_build_query_prompt_limits_history(self):
         """Test that only last 3 history turns are included"""
@@ -302,14 +298,16 @@ class TestPromptBuilder:
             for i in range(10)  # 10 turns
         ]
 
-        messages = PromptBuilder.build_query_prompt(
+        prompt = PromptBuilder.build_query_prompt(
             question="Current?",
             context="Context",
             conversation_history=history
         )
 
-        # Should have system + last 3 history (6 msgs) + current = 8
-        assert len(messages) == 8
+        # Should contain Q7, Q8, Q9 (last 3)
+        assert "Q9?" in prompt
+        assert "Q7?" in prompt
+        assert "Q6?" not in prompt
 
 
 class TestRAGQueryPipeline:
@@ -317,39 +315,30 @@ class TestRAGQueryPipeline:
 
     @patch.dict('os.environ', {
         'DATABASE_URL': 'postgresql://localhost/test',
-        'OPENAI_API_KEY': 'test-key'
+        'GEMINI_API_KEY': 'test-key'
     })
     def test_initialization(self):
         """Test pipeline initialization"""
         pipeline = RAGQueryPipeline()
 
-        assert pipeline.model == 'gpt-4'
+        assert pipeline.model == 'gemini-1.5-flash'
         assert pipeline.top_k == 5
         assert pipeline.embedder is not None
         assert pipeline.vector_store is not None
 
     @patch.dict('os.environ', {
         'DATABASE_URL': 'postgresql://localhost/test',
-        'OPENAI_API_KEY': 'test-key'
+        'GEMINI_API_KEY': 'test-key'
     })
-    @patch('openai.Embedding.create')
-    @patch('openai.ChatCompletion.create')
-    @pytest.mark.asyncio
-    async def test_generate_answer(self, mock_chat, mock_embed):
+    @patch('rag_query.RAGQueryPipeline._generate_with_gemini')
+    @patch('embeddings.EmbeddingGenerator.generate_embedding')
+    def test_generate_answer(self, mock_embed, mock_generate):
         """Test answer generation"""
         # Mock embedding generation
-        mock_embed.return_value = {
-            'data': [{'embedding': [0.1] * 1536}]
-        }
+        mock_embed.return_value = [0.1] * 768
 
-        # Mock chat completion
-        mock_chat.return_value = {
-            'choices': [{
-                'message': {
-                    'content': 'The budget is 500.000 МКД.'
-                }
-            }]
-        }
+        # Mock gemini generation
+        mock_generate.return_value = 'The budget is 500.000 МКД.'
 
         # Mock vector store
         mock_conn = AsyncMock()
@@ -368,26 +357,26 @@ class TestRAGQueryPipeline:
         pipeline = RAGQueryPipeline()
         pipeline.vector_store.conn = mock_conn
 
-        answer = await pipeline.generate_answer("What is the budget?")
+        async def run_test():
+            return await pipeline.generate_answer("What is the budget?")
+
+        answer = asyncio.run(run_test())
 
         assert answer.question == "What is the budget?"
         assert answer.answer == 'The budget is 500.000 МКД.'
         assert len(answer.sources) > 0
         assert answer.confidence in ['high', 'medium', 'low']
-        assert answer.model_used == 'gpt-4'
+        assert answer.model_used == 'gemini-1.5-flash'
 
     @patch.dict('os.environ', {
         'DATABASE_URL': 'postgresql://localhost/test',
-        'OPENAI_API_KEY': 'test-key'
+        'GEMINI_API_KEY': 'test-key'
     })
-    @patch('openai.Embedding.create')
-    @pytest.mark.asyncio
-    async def test_generate_answer_no_results(self, mock_embed):
+    @patch('embeddings.EmbeddingGenerator.generate_embedding')
+    def test_generate_answer_no_results(self, mock_embed):
         """Test answer when no relevant documents found"""
         # Mock embedding generation
-        mock_embed.return_value = {
-            'data': [{'embedding': [0.1] * 1536}]
-        }
+        mock_embed.return_value = [0.1] * 768
 
         # Mock vector store with no results
         mock_conn = AsyncMock()
@@ -396,7 +385,10 @@ class TestRAGQueryPipeline:
         pipeline = RAGQueryPipeline()
         pipeline.vector_store.conn = mock_conn
 
-        answer = await pipeline.generate_answer("What is XYZ?")
+        async def run_test():
+            return await pipeline.generate_answer("What is XYZ?")
+
+        answer = asyncio.run(run_test())
 
         assert answer.confidence == 'low'
         assert len(answer.sources) == 0
@@ -404,22 +396,17 @@ class TestRAGQueryPipeline:
 
     @patch.dict('os.environ', {
         'DATABASE_URL': 'postgresql://localhost/test',
-        'OPENAI_API_KEY': 'test-key'
+        'GEMINI_API_KEY': 'test-key'
     })
-    @patch('openai.Embedding.create')
-    @patch('openai.ChatCompletion.create')
-    @pytest.mark.asyncio
-    async def test_generate_answer_with_tender_filter(self, mock_chat, mock_embed):
+    @patch('rag_query.RAGQueryPipeline._generate_with_gemini')
+    @patch('embeddings.EmbeddingGenerator.generate_embedding')
+    def test_generate_answer_with_tender_filter(self, mock_embed, mock_generate):
         """Test answer generation filtered by tender_id"""
         # Mock embedding
-        mock_embed.return_value = {
-            'data': [{'embedding': [0.1] * 1536}]
-        }
+        mock_embed.return_value = [0.1] * 768
 
-        # Mock chat
-        mock_chat.return_value = {
-            'choices': [{'message': {'content': 'Answer'}}]
-        }
+        # Mock gemini
+        mock_generate.return_value = 'Answer'
 
         # Mock vector store
         mock_conn = AsyncMock()
@@ -438,10 +425,13 @@ class TestRAGQueryPipeline:
         pipeline = RAGQueryPipeline()
         pipeline.vector_store.conn = mock_conn
 
-        answer = await pipeline.generate_answer(
-            "Question?",
-            tender_id='T-001'
-        )
+        async def run_test():
+            return await pipeline.generate_answer(
+                "Question?",
+                tender_id='T-001'
+            )
+
+        answer = asyncio.run(run_test())
 
         # Verify tender_id was passed to similarity_search
         call_args = mock_conn.fetch.call_args

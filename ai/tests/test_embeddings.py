@@ -174,8 +174,9 @@ class TestEmbeddingGenerator:
 
     def test_missing_api_key(self):
         """Should raise error if API key missing"""
-        with pytest.raises(ValueError, match="GEMINI_API_KEY"):
-            EmbeddingGenerator(api_key=None)
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+                EmbeddingGenerator(api_key=None)
 
     @pytest.mark.asyncio
     async def test_api_error_handling(self):
@@ -276,9 +277,11 @@ class TestEmbeddingsPipeline:
         """Test complete document processing pipeline with Gemini"""
         mock_conn = AsyncMock()
         mock_conn.fetchrow = AsyncMock(return_value={'embed_id': 'test-id'})
-        mock_conn.transaction = AsyncMock()
-        mock_conn.transaction.return_value.__aenter__ = AsyncMock()
-        mock_conn.transaction.return_value.__aexit__ = AsyncMock()
+        mock_conn.transaction = Mock()
+        mock_transaction = AsyncMock()
+        mock_transaction.__aenter__ = AsyncMock()
+        mock_transaction.__aexit__ = AsyncMock()
+        mock_conn.transaction.return_value = mock_transaction
 
         with patch('asyncpg.connect', return_value=mock_conn):
             with patch.object(genai, 'embed_content', return_value=mock_gemini_batch_response):

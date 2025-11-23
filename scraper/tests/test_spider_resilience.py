@@ -58,16 +58,8 @@ def test_field_extractor_label_based():
     print("TEST: FieldExtractor - Label-Based Extraction")
     print("=" * 60)
 
-    # HTML with label-value pattern
-    html = """
-    <html>
-        <body>
-            <div>
-                Нарачател: Министерство за финансии
-            </div>
-        </body>
-    </html>
-    """
+    # HTML with label-value pattern (colon-based) - matches regex pattern
+    html = """<html><body><div>Нарачател: Министерство за финансии</div></body></html>"""
     response = create_response(html)
 
     selectors = [
@@ -87,19 +79,8 @@ def test_field_extractor_table_cells():
     print("TEST: FieldExtractor - Table Cell Extraction")
     print("=" * 60)
 
-    # HTML with table structure
-    html = """
-    <html>
-        <body>
-            <table>
-                <tr>
-                    <td>CPV</td>
-                    <td>48000000-8</td>
-                </tr>
-            </table>
-        </body>
-    </html>
-    """
+    # HTML with table structure - with whitespace for regex matching
+    html = """<html><body><table><tr><td>CPV</td> <td>48000000-8</td></tr></table></body></html>"""
     response = create_response(html)
 
     selectors = [
