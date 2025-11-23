@@ -25,7 +25,9 @@ interface AuthState {
   user: User | null;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = (typeof window !== 'undefined')
+  ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://api.nabavkidata.com')
+  : (process.env.NEXT_PUBLIC_API_URL || 'https://api.nabavkidata.com');
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 

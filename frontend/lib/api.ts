@@ -1,5 +1,5 @@
 const API_URL = (typeof window !== 'undefined')
-  ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '')
+  ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://api.nabavkidata.com')
   : 'https://api.nabavkidata.com';
 
 export interface Tender {
