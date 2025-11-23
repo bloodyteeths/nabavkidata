@@ -361,7 +361,7 @@ class APIClient {
   }
 
   async createCheckoutSession(tier: string, interval: 'monthly' | 'yearly' = 'monthly') {
-    return this.request<{ url: string; session_id: string }>('/api/billing/checkout', {
+    return this.request<{ checkout_url: string; session_id: string }>('/api/billing/checkout', {
       method: 'POST',
       body: JSON.stringify({ tier, interval }),
     });

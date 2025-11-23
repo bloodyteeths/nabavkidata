@@ -90,7 +90,7 @@ export default function SettingsPage() {
       const session = await api.createCheckoutSession(tier, interval);
 
       // Redirect to Stripe checkout
-      window.location.href = session.url;
+      window.location.href = session.checkout_url;
     } catch (error) {
       console.error("Failed to create checkout session:", error);
       alert("Грешка при креирање на сесија за плаќање. Ве молиме обидете се повторно.");

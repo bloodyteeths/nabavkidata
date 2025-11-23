@@ -47,8 +47,8 @@ export default function PlansPage() {
       setSubscribing(true);
       setError(null);
 
-      const { url } = await api.createCheckoutSession(planId);
-      window.location.href = url;
+      const { checkout_url } = await api.createCheckoutSession(planId);
+      window.location.href = checkout_url;
     } catch (err: any) {
       setError(err.message || 'Грешка при креирање на сесија');
       setSubscribing(false);
