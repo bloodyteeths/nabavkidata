@@ -43,10 +43,10 @@ function isPublicRoute(path: string): boolean {
 }
 
 // Helper function to get required roles for a route
-function getRequiredRoles(path: string): readonly string[] | null {
+function getRequiredRoles(path: string): string[] | null {
   for (const [route, roles] of Object.entries(PROTECTED_ROUTES)) {
     if (matchesRoute(path, route)) {
-      return roles;
+      return [...roles]; // Convert readonly array to mutable array
     }
   }
   return null;
