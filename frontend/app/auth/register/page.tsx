@@ -98,8 +98,8 @@ export default function RegisterPage() {
       setTimeout(() => {
         router.push('/auth/verify-email');
       }, 3000);
-    } catch (error) {
-      setErrors({ general: 'Грешка при регистрација. Е-поштата можеби веќе постои.' });
+    } catch (error: any) {
+      setErrors({ general: error.message || 'Грешка при регистрација.' });
     } finally {
       setLoading(false);
     }
@@ -181,9 +181,8 @@ export default function RegisterPage() {
                     {[...Array(5)].map((_, i) => (
                       <div
                         key={i}
-                        className={`h-1 flex-1 rounded ${
-                          i < passwordStrength.strength ? passwordStrength.color : 'bg-gray-200 dark:bg-gray-700'
-                        }`}
+                        className={`h-1 flex-1 rounded ${i < passwordStrength.strength ? passwordStrength.color : 'bg-gray-200 dark:bg-gray-700'
+                          }`}
                       />
                     ))}
                   </div>

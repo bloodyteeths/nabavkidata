@@ -51,8 +51,8 @@ export default function LoginPage() {
     try {
       await login(formData.email, formData.password);
       router.push('/');
-    } catch (error) {
-      setErrors({ general: 'Погрешна е-пошта или лозинка' });
+    } catch (error: any) {
+      setErrors({ general: error.message || 'Погрешна е-пошта или лозинка' });
     } finally {
       setLoading(false);
     }
