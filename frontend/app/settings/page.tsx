@@ -73,16 +73,19 @@ export default function SettingsPage() {
       const allPlans = await billing.getPlans();
       setPlans(allPlans);
 
-      // Try to get current subscription status
+      // Try to get current subscription status using billing service
       try {
-        const status = await api.getSubscriptionStatus();
+        const status = await billing.getSubscriptionStatus();
         setCurrentTier(status.tier);
       } catch (err) {
-        // User not logged in or no subscription
+        // User not logged in or no subscription - default to free
+        console.log('No subscription found, defaulting to free tier');
         setCurrentTier('free');
       }
     } catch (error) {
       console.error("Failed to load plans:", error);
+      // Still set free tier as fallback
+      setCurrentTier('free');
     }
   };
 
