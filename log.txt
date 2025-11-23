@@ -1,0 +1,56 @@
+03:11:53.915 Running build in Portland, USA (West) – pdx1
+03:11:53.916 Build machine configuration: 2 cores, 8 GB
+03:11:54.027 Cloning github.com/bloodyteeths/nabavkidata (Branch: main, Commit: 35a29a1)
+03:11:54.028 Previous build caches not available.
+03:11:54.480 Cloning completed: 452.000ms
+03:11:54.910 Running "vercel build"
+03:11:55.315 Vercel CLI 48.10.5
+03:11:55.714 Running "install" command: `npm install`...
+03:12:05.536 
+03:12:05.537 added 238 packages, and audited 239 packages in 10s
+03:12:05.537 
+03:12:05.537 26 packages are looking for funding
+03:12:05.537   run `npm fund` for details
+03:12:05.538 
+03:12:05.538 found 0 vulnerabilities
+03:12:05.592 Detected Next.js version: 14.2.33
+03:12:05.593 Running "npm run build"
+03:12:05.717 
+03:12:05.718 > nabavkidata-frontend@1.0.0 build
+03:12:05.718 > next build
+03:12:05.718 
+03:12:06.330   ▲ Next.js 14.2.33
+03:12:06.331   - Experiments (use with caution):
+03:12:06.331     · missingSuspenseWithCSRBailout
+03:12:06.331 
+03:12:06.345    Creating an optimized production build ...
+03:12:18.236 Failed to compile.
+03:12:18.237 
+03:12:18.237 ./app/admin/layout.tsx
+03:12:18.237 Module not found: Can't resolve '@/lib/api'
+03:12:18.238 
+03:12:18.238 https://nextjs.org/docs/messages/module-not-found
+03:12:18.239 
+03:12:18.239 ./app/billing/page.tsx
+03:12:18.240 Module not found: Can't resolve '@/lib/api'
+03:12:18.240 
+03:12:18.240 https://nextjs.org/docs/messages/module-not-found
+03:12:18.240 
+03:12:18.240 ./app/billing/plans/page.tsx
+03:12:18.240 Module not found: Can't resolve '@/lib/api'
+03:12:18.241 
+03:12:18.241 https://nextjs.org/docs/messages/module-not-found
+03:12:18.241 
+03:12:18.241 ./app/billing/success/page.tsx
+03:12:18.241 Module not found: Can't resolve '@/lib/api'
+03:12:18.241 
+03:12:18.241 https://nextjs.org/docs/messages/module-not-found
+03:12:18.242 
+03:12:18.242 ./app/chat/page.tsx
+03:12:18.242 Module not found: Can't resolve '@/lib/api'
+03:12:18.242 
+03:12:18.242 https://nextjs.org/docs/messages/module-not-found
+03:12:18.242 
+03:12:18.251 
+03:12:18.254 > Build failed because of webpack errors
+03:12:18.279 Error: Command "npm run build" exited with 1
