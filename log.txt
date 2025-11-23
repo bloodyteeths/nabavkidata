@@ -1,112 +1,42 @@
-03:40:41.480 Running build in Portland, USA (West) – pdx1
-03:40:41.480 Build machine configuration: 2 cores, 8 GB
-03:40:41.598 Cloning github.com/bloodyteeths/nabavkidata (Branch: main, Commit: 1603857)
-03:40:42.100 Cloning completed: 502.000ms
-03:40:43.188 Restored build cache from previous deployment (2XXWqzqTFQvHCe9X7GwEzzrvbXN5)
-03:40:43.666 Running "vercel build"
-03:40:44.069 Vercel CLI 48.10.5
-03:40:44.391 Running "install" command: `npm install`...
-03:40:45.398 
-03:40:45.399 up to date, audited 239 packages in 799ms
-03:40:45.399 
-03:40:45.400 26 packages are looking for funding
-03:40:45.400   run `npm fund` for details
-03:40:45.400 
-03:40:45.401 found 0 vulnerabilities
-03:40:45.429 Detected Next.js version: 14.2.33
-03:40:45.430 Running "npm run build"
-03:40:45.539 
-03:40:45.539 > nabavkidata-frontend@1.0.0 build
-03:40:45.540 > next build
-03:40:45.540 
-03:40:46.239   ▲ Next.js 14.2.33
-03:40:46.240   - Experiments (use with caution):
-03:40:46.240     · missingSuspenseWithCSRBailout
-03:40:46.240 
-03:40:46.256    Creating an optimized production build ...
-03:40:53.356  ✓ Compiled successfully
-03:40:53.357    Linting and checking validity of types ...
-03:41:01.962    Collecting page data ...
-03:41:03.633    Generating static pages (0/23) ...
-03:41:04.332    Generating static pages (5/23) 
-03:41:04.577    Generating static pages (11/23) 
-03:41:05.032    Generating static pages (17/23) 
-03:41:05.188  ⚠ Entire page "/auth/reset-password" deopted into client-side rendering due to "useSearchParams()". Read more: https://nextjs.org/docs/messages/deopted-into-client-rendering
-03:41:05.189     at a (/vercel/path0/frontend/.next/server/chunks/677.js:1:16194)
-03:41:05.189     at c (/vercel/path0/frontend/.next/server/chunks/677.js:1:27177)
-03:41:05.190     at h (/vercel/path0/frontend/.next/server/app/auth/reset-password/page.js:1:1907)
-03:41:05.190     at nj (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46252)
-03:41:05.190     at nM (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47572)
-03:41:05.190     at nN (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
-03:41:05.191     at nI (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47011)
-03:41:05.191     at nM (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47718)
-03:41:05.191     at nM (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:61547)
-03:41:05.191     at nN (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
-03:41:05.218  ⚠ Entire page "/auth/verify-email" deopted into client-side rendering due to "useSearchParams()". Read more: https://nextjs.org/docs/messages/deopted-into-client-rendering
-03:41:05.219     at a (/vercel/path0/frontend/.next/server/chunks/677.js:1:16194)
-03:41:05.219     at c (/vercel/path0/frontend/.next/server/chunks/677.js:1:27177)
-03:41:05.219     at u (/vercel/path0/frontend/.next/server/app/auth/verify-email/page.js:1:1868)
-03:41:05.219     at nj (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46252)
-03:41:05.219     at nM (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47572)
-03:41:05.220     at nN (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
-03:41:05.220     at nI (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47011)
-03:41:05.220     at nM (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47718)
-03:41:05.221     at nM (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:61547)
-03:41:05.222     at nN (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
-03:41:05.262  ⚠ Entire page "/billing/success" deopted into client-side rendering due to "useSearchParams()". Read more: https://nextjs.org/docs/messages/deopted-into-client-rendering
-03:41:05.263     at a (/vercel/path0/frontend/.next/server/chunks/677.js:1:16194)
-03:41:05.263     at c (/vercel/path0/frontend/.next/server/chunks/677.js:1:27177)
-03:41:05.263     at u (/vercel/path0/frontend/.next/server/app/billing/success/page.js:1:1974)
-03:41:05.264     at nj (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46252)
-03:41:05.264     at nM (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47572)
-03:41:05.264     at nN (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
-03:41:05.264     at nI (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47011)
-03:41:05.265     at nM (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47718)
-03:41:05.265     at nM (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:61547)
-03:41:05.265     at nN (/vercel/path0/frontend/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64547)
-03:41:05.281  ✓ Generating static pages (23/23)
-03:41:05.458    Finalizing page optimization ...
-03:41:05.459    Collecting build traces ...
-03:41:09.733 
-03:41:09.743 Route (app)                              Size     First Load JS
-03:41:09.744 ┌ ○ /                                    4.6 kB          100 kB
-03:41:09.744 ├ ○ /_not-found                          876 B          88.4 kB
-03:41:09.745 ├ ○ /403                                 1.08 kB        88.6 kB
-03:41:09.745 ├ ○ /admin                               9.03 kB         208 kB
-03:41:09.745 ├ ○ /admin/analytics                     9.25 kB         237 kB
-03:41:09.745 ├ ○ /admin/tenders                       6.8 kB          135 kB
-03:41:09.745 ├ ○ /admin/users                         7.01 kB         145 kB
-03:41:09.745 ├ ○ /auth/forgot-password                3.98 kB         108 kB
-03:41:09.745 ├ ○ /auth/login                          4.86 kB         109 kB
-03:41:09.745 ├ ○ /auth/register                       4.65 kB         109 kB
-03:41:09.745 ├ ○ /auth/reset-password                 4.5 kB          109 kB
-03:41:09.745 ├ ○ /auth/verify-email                   3.94 kB         108 kB
-03:41:09.746 ├ ○ /billing                             5.7 kB          101 kB
-03:41:09.746 ├ ○ /billing/cancelled                   2.74 kB        98.2 kB
-03:41:09.746 ├ ○ /billing/plans                       5.3 kB          101 kB
-03:41:09.746 ├ ○ /billing/success                     4.21 kB        99.7 kB
-03:41:09.746 ├ ○ /chat                                4.52 kB         103 kB
-03:41:09.746 ├ ○ /competitors                         5.85 kB         101 kB
-03:41:09.746 ├ ○ /inbox                               6.96 kB         108 kB
-03:41:09.746 ├ ○ /settings                            5.61 kB         130 kB
-03:41:09.746 ├ ○ /tenders                             6.96 kB         140 kB
-03:41:09.746 └ ƒ /tenders/[id]                        7.3 kB          121 kB
-03:41:09.746 + First Load JS shared by all            87.5 kB
-03:41:09.746   ├ chunks/117-3c28d6be1addd051.js       31.9 kB
-03:41:09.746   ├ chunks/fd9d1056-fb0b8c8f080b81a3.js  53.6 kB
-03:41:09.747   └ other shared chunks (total)          2.01 kB
-03:41:09.747 
-03:41:09.747 
-03:41:09.747 ○  (Static)   prerendered as static content
-03:41:09.747 ƒ  (Dynamic)  server-rendered on demand
-03:41:09.747 
-03:41:09.865 Traced Next.js server files in: 32.919ms
-03:41:09.967 Created all serverless functions in: 101.571ms
-03:41:09.993 Collected static files (public/, static/, .next/static): 15.812ms
-03:41:10.090 Build Completed in /vercel/output [26s]
-03:41:10.281 Deploying outputs...
-03:41:17.213 Deployment completed
-03:41:17.834 Creating build cache...
-03:41:31.705 Created build cache: 13.865s
-03:41:31.705 Uploading build cache [136.56 MB]
-03:41:33.450 Build cache uploaded: 1.749s
+18:55:02.780 Running build in Portland, USA (West) – pdx1
+18:55:02.781 Build machine configuration: 2 cores, 8 GB
+18:55:02.894 Cloning github.com/bloodyteeths/nabavkidata (Branch: main, Commit: e1264f1)
+18:55:03.685 Cloning completed: 791.000ms
+18:55:03.872 Restored build cache from previous deployment (BzZZatbUYVDFcDELPM4sPb7utbWt)
+18:55:04.386 Running "vercel build"
+18:55:04.768 Vercel CLI 48.10.5
+18:55:05.086 Running "install" command: `npm ci --legacy-peer-deps=false`...
+18:55:15.084 
+18:55:15.085 added 241 packages, and audited 242 packages in 10s
+18:55:15.085 
+18:55:15.085 26 packages are looking for funding
+18:55:15.086   run `npm fund` for details
+18:55:15.086 
+18:55:15.086 found 0 vulnerabilities
+18:55:15.134 Detected Next.js version: 14.2.33
+18:55:15.135 Running "npm run build"
+18:55:15.939 
+18:55:15.939 > nabavkidata-frontend@1.0.0 build
+18:55:15.939 > next build
+18:55:15.939 
+18:55:16.550   ▲ Next.js 14.2.33
+18:55:16.551   - Experiments (use with caution):
+18:55:16.552     · missingSuspenseWithCSRBailout
+18:55:16.552 
+18:55:16.565    Creating an optimized production build ...
+18:55:27.925  ✓ Compiled successfully
+18:55:27.926    Linting and checking validity of types ...
+18:55:37.508 Failed to compile.
+18:55:37.508 
+18:55:37.508 ./app/dashboard/page.tsx:28:38
+18:55:37.508 Type error: Property 'results' does not exist on type '{ total: number; items: Tender[]; }'.
+18:55:37.508 
+18:55:37.508 [0m [90m 26 |[39m       [36mconst[39m mockData[33m:[39m [33mDashboardData[39m [33m=[39m {[0m
+18:55:37.508 [0m [90m 27 |[39m         stats[33m:[39m {[0m
+18:55:37.509 [0m[31m[1m>[22m[39m[90m 28 |[39m           recommended_count[33m:[39m tenders[33m.[39mresults[33m?[39m[33m.[39mlength [33m||[39m [35m0[39m[33m,[39m[0m
+18:55:37.509 [0m [90m    |[39m                                      [31m[1m^[22m[39m[0m
+18:55:37.509 [0m [90m 29 |[39m           competitor_activity_count[33m:[39m [35m0[39m[33m,[39m[0m
+18:55:37.509 [0m [90m 30 |[39m           insights_count[33m:[39m [35m0[39m[33m,[39m[0m
+18:55:37.509 [0m [90m 31 |[39m         }[33m,[39m[0m
+18:55:37.539 Next.js build worker exited with code: 1 and signal: null
+18:55:37.558 Error: Command "npm run build" exited with 1

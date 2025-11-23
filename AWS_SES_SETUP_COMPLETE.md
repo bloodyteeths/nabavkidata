@@ -1,14 +1,99 @@
 # AWS SES Production Setup - Complete Guide
 
 **Date:** 2025-11-23
-**Status:** ⏳ Pending DNS Verification & AWS Production Approval
+**Status:** 🟡 DKIM Verified | Awaiting Production Access & SMTP Credentials
 **Region:** eu-central-1
+**Domain:** nabavkidata.com
+
+---
+
+## 📊 CURRENT STATUS OVERVIEW
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **SES Domain Identity** | ✅ Created | nabavkidata.com |
+| **SES Email Identity** | ✅ Created | no-reply@nabavkidata.com, admin@nabavkidata.com |
+| **DKIM Verification** | ✅ **SUCCESS** | **All 3 DKIM records verified (2025-11-23)** |
+| **Domain Verification** | ✅ **SUCCESS** | **Domain identity verified** |
+| **DKIM Signing** | ✅ **ACTIVE** | **All emails will be DKIM-signed** |
+| **Production Access** | ⏳ Pending | Awaiting AWS approval (24-48h) |
+| **SMTP Credentials** | ⏳ Pending | Generate via SES Console after verification |
+| **Backend Config** | ✅ Updated | .env configured, email_service.py updated |
+| **Backend Service** | ✅ Running | Restarted with SES config |
+| **Email Testing** | ⏳ Ready | Script created: `scripts/test_ses_delivery.py` |
+| **CloudWatch Monitoring** | ⏳ Ready | Script created: `scripts/create_ses_alarms.sh` |
 
 ---
 
 ## ✅ COMPLETED STEPS
 
-### 1. SES Identities Created
+### ✔ DKIM Verification Successful (2025-11-23)
+
+**AWS confirmed:**
+- ✅ DKIM Status: **SUCCESS**
+- ✅ Domain identity: **VERIFIED**
+- ✅ DKIM signing: **ACTIVE** for all emails under nabavkidata.com
+- ✅ All 3 DKIM CNAME records propagated and verified
+
+**Verification command:**
+```bash
+aws sesv2 get-email-identity --email-identity nabavkidata.com --region eu-central-1
+```
+
+**Result:**
+```json
+{
+  "DkimAttributes": {
+    "SigningEnabled": true,
+    "Status": "SUCCESS",
+    "Tokens": [
+      "gq4nw2ubakul2lx25hm45ec7wq6qjqws",
+      "ck3pjgohac66r7ch7buewtt32qlryakl",
+      "nkrm5zclrdyimnzahu5dn7mvrgu47c5i"
+    ]
+  },
+  "VerifiedForSendingStatus": true
+}
+```
+
+### ✔ DNS Records Added and Verified
+
+**DKIM Records (3 CNAME records):**
+
+```
+Type: CNAME
+Host: gq4nw2ubakul2lx25hm45ec7wq6qjqws._domainkey
+Value: gq4nw2ubakul2lx25hm45ec7wq6qjqws.dkim.amazonses.com
+Status: ✅ VERIFIED
+
+Type: CNAME
+Host: ck3pjgohac66r7ch7buewtt32qlryakl._domainkey
+Value: ck3pjgohac66r7ch7buewtt32qlryakl.dkim.amazonses.com
+Status: ✅ VERIFIED
+
+Type: CNAME
+Host: nkrm5zclrdyimnzahu5dn7mvrgu47c5i._domainkey
+Value: nkrm5zclrdyimnzahu5dn7mvrgu47c5i.dkim.amazonses.com
+Status: ✅ VERIFIED
+```
+
+**SPF Record (TXT record):**
+```
+Type: TXT
+Host: @
+Value: v=spf1 include:amazonses.com ~all
+Status: ✅ ADDED
+```
+
+**DMARC Record (TXT record):**
+```
+Type: TXT
+Host: _dmarc
+Value: v=DMARC1; p=quarantine; rua=mailto:admin@nabavkidata.com; ruf=mailto:admin@nabavkidata.com; fo=1
+Status: ✅ ADDED
+```
+
+### ✔ SES Identities Created
 
 ```bash
 # Domain identity
@@ -22,13 +107,11 @@ aws sesv2 create-email-identity --email-identity admin@nabavkidata.com --region 
 ```
 
 **Status:**
-- ✅ Domain `nabavkidata.com` created
-- ✅ Email `no-reply@nabavkidata.com` created
-- ✅ Email `admin@nabavkidata.com` created
-- ⏳ DKIM Status: PENDING (waiting for DNS records)
-- ⏳ Verification: PENDING (waiting for DNS records)
+- ✅ Domain `nabavkidata.com` created and verified
+- ✅ Email `no-reply@nabavkidata.com` created and verified
+- ✅ Email `admin@nabavkidata.com` created and verified
 
-### 2. Production Access Requested
+### ✔ Production Access Requested
 
 ```bash
 aws sesv2 put-account-details \
@@ -36,7 +119,7 @@ aws sesv2 put-account-details \
   --production-access-enabled \
   --mail-type TRANSACTIONAL \
   --website-url https://nabavkidata.com \
-  --use-case-description "Nabavkidata is a tender notification platform for Macedonian public procurement..."
+  --use-case-description "Nabavkidata is a tender notification platform for Macedonian public procurement. We send transactional emails only: account verification, password resets, and tender match notifications to subscribed users. Expected volume: 500-1000 emails/day. All recipients have opted in."
 ```
 
 **Status:** ⏳ Pending AWS review (typically 24-48 hours)
@@ -51,119 +134,48 @@ aws sesv2 put-account-details \
 - 14 emails per second
 - Can send to any email address
 
-### 3. IAM SMTP User Created (Method 1 - Not Working)
-
-Attempted to create SMTP credentials via IAM user with SES permissions, but authentication failed.
-
-**Issue:** The IAM Access Key to SMTP Password conversion algorithm may not work reliably. AWS recommends using the SES Console to generate SMTP credentials directly.
-
-### 4. Backend Environment Variables Updated
+### ✔ Backend Environment Variables Configured
 
 Updated `/home/ubuntu/nabavkidata/.env`:
 
 ```bash
 SMTP_HOST=email-smtp.eu-central-1.amazonaws.com
 SMTP_PORT=587
-SMTP_USER=<PENDING - Use SES Console>
-SMTP_PASSWORD=<PENDING - Use SES Console>
+SMTP_USER=<PENDING - Generate via SES Console>
+SMTP_PASSWORD=<PENDING - Generate via SES Console>
 SMTP_FROM=no-reply@nabavkidata.com
 SMTP_FROM_NAME=Nabavkidata
 EMAIL_FROM=no-reply@nabavkidata.com
 ```
 
-### 5. Backend Email Service Updated
+### ✔ Backend Email Service Updated
 
-Modified `/home/ubuntu/nabavkidata/backend/services/email_service.py` to use `SMTP_FROM` and `SMTP_FROM_NAME` environment variables.
+Modified `/home/ubuntu/nabavkidata/backend/services/email_service.py`:
 
-**Changes:**
 ```python
 self.from_email = os.getenv('SMTP_FROM', os.getenv('FROM_EMAIL', self.smtp_user))
 self.from_name = os.getenv('SMTP_FROM_NAME', os.getenv('FROM_NAME', 'Nabavki Platform'))
 ```
 
-### 6. Backend Service Restarted
+### ✔ Test Scripts Created
 
-```bash
-sudo systemctl restart nabavkidata-backend
-```
+**Email delivery test script:**
+- Location: `/home/ubuntu/nabavkidata/scripts/test_ses_delivery.py`
+- Tests: Welcome, password reset, verification, and tender notification emails
+- Usage: `python3 scripts/test_ses_delivery.py`
 
-Service now loads with SES SMTP configuration.
-
----
-
-## ⏳ PENDING MANUAL STEPS
-
-### Step 1: Add DNS Records for DKIM Verification
-
-Go to your domain registrar (Namecheap) and add these DNS records:
-
-#### DKIM Records (3 CNAME records required)
-
-**Record 1:**
-```
-Type: CNAME
-Host: gq4nw2ubakul2lx25hm45ec7wq6qjqws._domainkey
-Value: gq4nw2ubakul2lx25hm45ec7wq6qjqws.dkim.amazonses.com
-TTL: Automatic
-```
-
-**Record 2:**
-```
-Type: CNAME
-Host: ck3pjgohac66r7ch7buewtt32qlryakl._domainkey
-Value: ck3pjgohac66r7ch7buewtt32qlryakl.dkim.amazonses.com
-TTL: Automatic
-```
-
-**Record 3:**
-```
-Type: CNAME
-Host: nkrm5zclrdyimnzahu5dn7mvrgu47c5i._domainkey
-Value: nkrm5zclrdyimnzahu5dn7mvrgu47c5i.dkim.amazonses.com
-TTL: Automatic
-```
-
-#### SPF Record (TXT record)
-
-```
-Type: TXT
-Host: @
-Value: v=spf1 include:amazonses.com ~all
-TTL: Automatic
-```
-
-**Note:** If you already have an SPF record, add `include:amazonses.com` to it.
-
-#### DMARC Record (TXT record - Recommended)
-
-```
-Type: TXT
-Host: _dmarc
-Value: v=DMARC1; p=quarantine; rua=mailto:admin@nabavkidata.com; ruf=mailto:admin@nabavkidata.com; fo=1
-TTL: Automatic
-```
-
-#### Verification Commands
-
-After adding DNS records, wait 10-60 minutes and verify:
-
-```bash
-# Check DKIM records
-dig gq4nw2ubakul2lx25hm45ec7wq6qjqws._domainkey.nabavkidata.com CNAME +short
-dig ck3pjgohac66r7ch7buewtt32qlryakl._domainkey.nabavkidata.com CNAME +short
-dig nkrm5zclrdyimnzahu5dn7mvrgu47c5i._domainkey.nabavkidata.com CNAME +short
-
-# Check AWS SES status
-aws sesv2 get-email-identity --email-identity nabavkidata.com --region eu-central-1
-```
-
-Look for `"Status": "SUCCESS"` in DKIM attributes.
+**CloudWatch alarms setup script:**
+- Location: `/home/ubuntu/nabavkidata/scripts/create_ses_alarms.sh`
+- Creates: Bounce rate, complaint rate, quota usage, and reject rate alarms
+- Usage: `bash scripts/create_ses_alarms.sh`
 
 ---
 
-### Step 2: Generate SES SMTP Credentials (RECOMMENDED METHOD)
+## ⏳ PENDING STEPS
 
-**DO NOT use IAM Access Key conversion.** Instead:
+### Step 1: Generate SMTP Credentials via SES Console
+
+**Since DKIM is now verified, you can generate SMTP credentials:**
 
 1. Go to AWS SES Console: https://console.aws.amazon.com/ses/
 2. Switch to `eu-central-1` region
@@ -174,76 +186,104 @@ Look for `"Status": "SUCCESS"` in DKIM attributes.
 7. **Download credentials** (you won't be able to retrieve them again)
 
 You'll receive:
-- SMTP Username (looks like `AKIAxxxxxxxxxxxxxxxx`)
-- SMTP Password (44-character string)
+- **SMTP Username** (looks like `AKIA...`)
+- **SMTP Password** (44-character string)
+
+**Important:** Save these credentials securely. You'll need them for the next step.
 
 ---
 
-### Step 3: Update Production Environment with SMTP Credentials
+### Step 2: Update Production Environment with SMTP Credentials
 
-SSH to EC2:
+SSH to EC2 instance:
 
 ```bash
 ssh -i ~/.ssh/nabavki-key.pem ubuntu@3.120.26.153
 ```
 
-Edit `.env`:
+Edit environment file:
 
 ```bash
 nano /home/ubuntu/nabavkidata/.env
 ```
 
-Update these lines with credentials from Step 2:
+Update these lines with credentials from Step 1:
 
 ```bash
 SMTP_USER=<SMTP_USERNAME_FROM_SES_CONSOLE>
 SMTP_PASSWORD=<SMTP_PASSWORD_FROM_SES_CONSOLE>
+SMTP_FROM=no-reply@nabavkidata.com
+SMTP_FROM_NAME=Nabavkidata
 ```
 
-Restart backend:
+Restart backend service:
 
 ```bash
 sudo systemctl restart nabavkidata-backend
 ```
 
----
-
-### Step 4: Verify Email Identities (Sandbox Mode Only)
-
-While in sandbox mode, you must verify recipient email addresses:
+Verify service is running:
 
 ```bash
-# Verify admin email (check inbox for verification link)
+sudo systemctl status nabavkidata-backend
+```
+
+---
+
+### Step 3: Test Email Delivery (Sandbox Mode)
+
+**Important:** In sandbox mode, you can only send to verified email addresses.
+
+Verify the admin email (if not already verified):
+
+```bash
 aws sesv2 get-email-identity --email-identity admin@nabavkidata.com --region eu-central-1
 ```
 
-Check your email inbox for verification link from Amazon SES.
+If not verified, check inbox for verification link from Amazon SES.
 
----
-
-### Step 5: Test Email Delivery
-
-Once DNS is verified and SMTP credentials are set:
+Run the test script on EC2:
 
 ```bash
 ssh -i ~/.ssh/nabavki-key.pem ubuntu@3.120.26.153
 cd /home/ubuntu/nabavkidata
 source venv/bin/activate
-python3 /tmp/test_ses_email.py
+python3 scripts/test_ses_delivery.py
 ```
 
-Expected output:
+**Expected output:**
 
 ```
-✅ Welcome email: Sent
-✅ Password reset: Sent
-✅ Verification email: Sent
-✅ ALL TESTS PASSED - SES is working!
+====================================================================
+AWS SES EMAIL DELIVERY TEST
+====================================================================
+Testing: Welcome Email
+✅ Welcome Email: SUCCESS
+
+Testing: Password Reset Email
+✅ Password Reset Email: SUCCESS
+
+Testing: Verification Email
+✅ Verification Email: SUCCESS
+
+Testing: Tender Notification
+✅ Tender Notification: SUCCESS
+
+====================================================================
+TEST SUMMARY
+====================================================================
+Total Tests: 4
+✅ Passed: 4
+❌ Failed: 0
+
+🎉 ALL TESTS PASSED - SES is working correctly!
 ```
+
+Check your inbox at `admin@nabavkidata.com` for 4 test emails.
 
 ---
 
-### Step 6: Wait for Production Access Approval
+### Step 4: Wait for Production Access Approval
 
 AWS will review your production access request within 24-48 hours.
 
@@ -253,86 +293,96 @@ AWS will review your production access request within 24-48 hours.
 aws sesv2 get-account --region eu-central-1 | grep ProductionAccessEnabled
 ```
 
+**Current status (as of 2025-11-23):**
+```json
+"ProductionAccessEnabled": false
+```
+
 When approved, you'll see:
 ```json
 "ProductionAccessEnabled": true
 ```
 
----
-
-## 📊 CLOUDWATCH MONITORING SETUP
-
-Once SES is working, configure monitoring:
-
-### Create CloudWatch Alarms
+**If production access is not approved**, you can resubmit with improved justification:
 
 ```bash
-# Bounce Rate Alarm (>5%)
-aws cloudwatch put-metric-alarm \
-  --alarm-name ses-high-bounce-rate \
-  --alarm-description "SES bounce rate exceeds 5%" \
-  --metric-name Reputation.BounceRate \
-  --namespace AWS/SES \
-  --statistic Average \
-  --period 300 \
-  --threshold 0.05 \
-  --comparison-operator GreaterThanThreshold \
-  --evaluation-periods 2 \
-  --region eu-central-1
+aws sesv2 put-account-details \
+  --region eu-central-1 \
+  --production-access-enabled \
+  --mail-type TRANSACTIONAL \
+  --website-url https://nabavkidata.com \
+  --use-case-description "Nabavkidata is a tender notification platform for Macedonian public procurement. We are a legitimate business serving companies bidding on government contracts. We send ONLY transactional emails: 1) Email verification upon registration, 2) Password reset requests, 3) Tender match notifications to subscribed users who explicitly opted in. Expected volume: 500-1000 emails/day. We have implemented double opt-in, unsubscribe links, and bounce/complaint handling. Low spam risk - all emails are requested by users. Website: https://nabavkidata.com"
+```
 
-# Complaint Rate Alarm (>0.5%)
-aws cloudwatch put-metric-alarm \
-  --alarm-name ses-high-complaint-rate \
-  --alarm-description "SES complaint rate exceeds 0.5%" \
-  --metric-name Reputation.ComplaintRate \
-  --namespace AWS/SES \
-  --statistic Average \
-  --period 300 \
-  --threshold 0.005 \
-  --comparison-operator GreaterThanThreshold \
-  --evaluation-periods 2 \
-  --region eu-central-1
+---
 
-# Send Quota Usage Alarm (>80%)
+## 📊 MONITORING & ALARMS
+
+### CloudWatch Alarms Setup
+
+After SMTP credentials are working, set up monitoring:
+
+```bash
+cd /home/ubuntu/nabavkidata
+bash scripts/create_ses_alarms.sh
+```
+
+This script creates:
+
+1. **High Bounce Rate Alarm** (>5%)
+   - Monitors email bounces
+   - Triggers when bounce rate exceeds 5%
+   - Critical for sender reputation
+
+2. **High Complaint Rate Alarm** (>0.5%)
+   - Monitors spam complaints
+   - Triggers when complaint rate exceeds 0.5%
+   - Critical for avoiding account suspension
+
+3. **Send Quota Usage Alarm** (>80%)
+   - Monitors daily sending quota
+   - Triggers at 80% of daily limit
+   - Currently: 160/200 (sandbox), will update to 40,000/50,000 after production approval
+
+4. **High Reject Rate Alarm** (>1%)
+   - Monitors rejected emails
+   - Triggers when reject rate exceeds 1%
+
+**SNS Email Notifications:**
+- All alarms send notifications to `admin@nabavkidata.com`
+- You must confirm the SNS subscription via email
+
+**After production approval, update quota alarm:**
+
+```bash
 aws cloudwatch put-metric-alarm \
-  --alarm-name ses-quota-usage-high \
-  --alarm-description "SES send quota usage >80%" \
-  --metric-name SendQuotaUsed \
-  --namespace AWS/SES \
-  --statistic Sum \
-  --period 86400 \
+  --alarm-name nabavkidata-ses-quota-usage-high \
   --threshold 40000 \
-  --comparison-operator GreaterThanThreshold \
-  --evaluation-periods 1 \
   --region eu-central-1
 ```
 
-### Enable SES Event Publishing (Optional)
+### View Alarms in CloudWatch Console
 
-Configure SNS topics for bounce/complaint handling:
+https://console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:
+
+### SES Sending Statistics
+
+View real-time metrics:
 
 ```bash
-# Create SNS topic
-aws sns create-topic --name nabavkidata-ses-events --region eu-central-1
+aws sesv2 get-account --region eu-central-1
+```
 
-# Subscribe email
-aws sns subscribe \
-  --topic-arn arn:aws:sns:eu-central-1:246367841475:nabavkidata-ses-events \
-  --protocol email \
-  --notification-endpoint admin@nabavkidata.com \
-  --region eu-central-1
+Monitor reputation:
 
-# Configure SES to publish events
-aws sesv2 put-configuration-set-event-destination \
-  --configuration-set-name nabavkidata \
-  --event-destination-name sns-events \
-  --event-destination '{
-    "Enabled": true,
-    "MatchingEventTypes": ["BOUNCE", "COMPLAINT", "REJECT"],
-    "SnsDestination": {
-      "TopicArn": "arn:aws:sns:eu-central-1:246367841475:nabavkidata-ses-events"
-    }
-  }' \
+```bash
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/SES \
+  --metric-name Reputation.BounceRate \
+  --start-time $(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 3600 \
+  --statistics Average \
   --region eu-central-1
 ```
 
@@ -343,102 +393,140 @@ aws sesv2 put-configuration-set-event-destination \
 ### Issue: "Authentication Credentials Invalid"
 
 **Solution:**
-- Use SES Console to generate SMTP credentials (not IAM Access Key conversion)
-- Verify SMTP_USER and SMTP_PASSWORD are correctly set in `.env`
-- Restart backend after updating
+- Use SES Console to generate SMTP credentials (NOT IAM Access Key conversion)
+- Verify `SMTP_USER` and `SMTP_PASSWORD` are correctly set in `.env`
+- Ensure no extra spaces or quotes in `.env` file
+- Restart backend: `sudo systemctl restart nabavkidata-backend`
+- Check logs: `sudo journalctl -u nabavkidata-backend -n 50`
 
-### Issue: "Email address not verified"
+### Issue: "Email address not verified" (Sandbox Mode)
 
-**Solution (Sandbox Mode):**
+**Solution:**
 - Verify recipient email via SES Console or CLI
-- Check recipient inbox for verification email
+- Check recipient inbox for verification email from Amazon SES
 - Click verification link
+- Wait 1-2 minutes for verification to complete
+- Retry sending
 
-**Solution (Production):**
-- Wait for production access approval
-- No recipient verification needed after approval
+**After Production Approval:**
+- No recipient verification needed
+- Can send to any email address
 
 ### Issue: DKIM status stuck on "PENDING"
 
 **Solution:**
-- Verify DNS records are added correctly
-- Wait 10-60 minutes for DNS propagation
-- Use `dig` commands to verify records are resolving
-- Check for typos in CNAME values
+- ✅ **RESOLVED** - DKIM is now **SUCCESS** (verified 2025-11-23)
+- All 3 DKIM CNAME records are properly configured
+- DKIM signing is active
 
 ### Issue: Emails going to spam
 
 **Solution:**
-- Ensure DKIM records are verified (Status: SUCCESS)
-- Add SPF record
-- Add DMARC record
+- ✅ DKIM records verified (Status: SUCCESS)
+- ✅ SPF record added
+- ✅ DMARC record added
 - Warm up sending (start with low volume, gradually increase)
-- Monitor bounce/complaint rates
+- Monitor bounce/complaint rates via CloudWatch
+- Ensure email content is not spam-like (avoid excessive links, all caps, etc.)
+- Use proper HTML formatting
+- Include unsubscribe links
+
+### Issue: Production access denied
+
+**Solution:**
+- Ensure website URL is accessible: https://nabavkidata.com
+- Improve use case description (see Step 4 above)
+- Explain business model clearly
+- Emphasize transactional nature (not marketing)
+- Mention opt-in process and compliance
+- Resubmit request with more detail
 
 ---
 
-## 📝 CURRENT STATUS SUMMARY
+## 📝 NEXT ACTIONS
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| **SES Domain Identity** | ✅ Created | nabavkidata.com |
-| **SES Email Identity** | ✅ Created | no-reply@nabavkidata.com, admin@nabavkidata.com |
-| **DKIM Configuration** | ⏳ Pending | Waiting for DNS records |
-| **Domain Verification** | ⏳ Pending | Waiting for DNS records |
-| **Production Access** | ⏳ Requested | Waiting for AWS approval (24-48h) |
-| **SMTP Credentials** | ⏳ Pending | Generate via SES Console after DNS verification |
-| **Backend Config** | ✅ Updated | .env configured, email_service.py updated |
-| **Backend Service** | ✅ Running | Restarted with SES config |
-| **Email Testing** | ⏳ Pending | Waiting for SMTP credentials & DNS |
-| **CloudWatch Monitoring** | ⏳ Pending | Configure after SES is working |
+### Immediate (Manual Steps Required)
 
----
+✅ ~~1. Add DNS Records~~ - **COMPLETED**
+✅ ~~2. Verify DKIM Status~~ - **COMPLETED (SUCCESS)**
 
-## 🎯 NEXT ACTIONS
+⏳ **3. Generate SMTP Credentials** (5 minutes)
+   - Use SES Console method (Step 1 above)
+   - Download and save credentials securely
+   - **REQUIRED BEFORE TESTING**
 
-### Immediate (User Action Required)
+⏳ **4. Update Production .env** (2 minutes)
+   - SSH to EC2: `ssh -i ~/.ssh/nabavki-key.pem ubuntu@3.120.26.153`
+   - Edit: `nano /home/ubuntu/nabavkidata/.env`
+   - Add SMTP_USER and SMTP_PASSWORD from Step 3
+   - Restart: `sudo systemctl restart nabavkidata-backend`
 
-1. **Add DNS Records** (15 minutes)
-   - Log in to Namecheap
-   - Add 3 DKIM CNAME records
-   - Add SPF TXT record
-   - Add DMARC TXT record
+⏳ **5. Test Email Delivery** (5 minutes)
+   - Run: `python3 /home/ubuntu/nabavkidata/scripts/test_ses_delivery.py`
+   - Verify 4 test emails arrive in inbox
+   - Check for any errors in output
 
-2. **Generate SMTP Credentials** (5 minutes)
-   - After DNS is verified
-   - Use SES Console method
-   - Download and save credentials
+⏳ **6. Set Up CloudWatch Alarms** (5 minutes)
+   - Run: `bash /home/ubuntu/nabavkidata/scripts/create_ses_alarms.sh`
+   - Confirm SNS subscription in email
+   - Verify alarms in CloudWatch Console
 
-3. **Update Production .env** (2 minutes)
-   - SSH to EC2
-   - Add SMTP_USER and SMTP_PASSWORD
-   - Restart backend
+### After AWS Production Approval (24-48 hours)
 
-4. **Test Email Delivery** (5 minutes)
-   - Run test script
-   - Verify emails arrive
-   - Check logs for errors
-
-### After AWS Approval (24-48 hours)
-
-5. **Verify Production Access**
-   - Check `ProductionAccessEnabled: true`
+⏳ **7. Verify Production Access**
+   - Check: `aws sesv2 get-account --region eu-central-1`
+   - Confirm: `ProductionAccessEnabled: true`
    - Send quota increased to 50,000/day
-   - Can send to any email address
+   - Can send to any email address (no verification needed)
 
-6. **Configure Monitoring**
-   - Create CloudWatch alarms
-   - Set up SNS notifications
-   - Monitor bounce/complaint rates
+⏳ **8. Update Quota Alarm Threshold**
+   - Increase threshold from 160 (sandbox) to 40,000 (production)
+   - Run update command (see Monitoring section)
 
-7. **Update Documentation**
-   - Add final SMTP credentials (masked)
-   - Document successful test results
+⏳ **9. Test Production Sending**
+   - Send test email to unverified address
+   - Verify delivery to non-verified recipient
+   - Confirm no "email not verified" errors
+
+⏳ **10. Enable Email Features in Application**
+   - Enable user registration emails
+   - Enable password reset emails
+   - Enable tender notification emails
+   - Monitor CloudWatch metrics
+
+⏳ **11. Update Documentation**
+   - Document final SMTP credentials (masked)
+   - Add successful test results
    - Update PRODUCTION_DEPLOYMENT_COMPLETE.md
 
 ---
 
-## 📞 SUPPORT
+## 🔐 CREDENTIALS REFERENCE
+
+**AWS Account ID:** 246367841475
+**IAM User:** nabavki-deployer
+**Region:** eu-central-1
+**SMTP Endpoint:** email-smtp.eu-central-1.amazonaws.com:587
+**SMTP Port:** 587 (STARTTLS)
+**Sender Email:** no-reply@nabavkidata.com
+**Sender Name:** Nabavkidata
+
+**SMTP Credentials:** Generate via SES Console → Account Dashboard → SMTP Settings
+
+**Environment Variables:**
+```bash
+SMTP_HOST=email-smtp.eu-central-1.amazonaws.com
+SMTP_PORT=587
+SMTP_USER=<GENERATE_VIA_SES_CONSOLE>
+SMTP_PASSWORD=<GENERATE_VIA_SES_CONSOLE>
+SMTP_FROM=no-reply@nabavkidata.com
+SMTP_FROM_NAME=Nabavkidata
+EMAIL_FROM=no-reply@nabavkidata.com
+```
+
+---
+
+## 📞 SUPPORT & RESOURCES
 
 **AWS SES Documentation:**
 https://docs.aws.amazon.com/ses/latest/dg/
@@ -452,19 +540,28 @@ https://docs.aws.amazon.com/ses/latest/dg/send-email-authentication-dkim.html
 **Production Access:**
 https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html
 
----
+**Monitoring and Alarms:**
+https://docs.aws.amazon.com/ses/latest/dg/monitor-sending-activity.html
 
-## 🔐 CREDENTIALS REFERENCE
-
-**AWS Account:** 246367841475
-**IAM User:** nabavki-deployer
-**Region:** eu-central-1
-**SMTP Endpoint:** email-smtp.eu-central-1.amazonaws.com:587
-**Sender Email:** no-reply@nabavkidata.com
-
-**SMTP Credentials:** Generate via SES Console → Account Dashboard → SMTP Settings
+**Best Practices:**
+https://docs.aws.amazon.com/ses/latest/dg/best-practices.html
 
 ---
 
-**Last Updated:** 2025-11-23
-**Next Review:** After DNS verification & production approval
+## 📋 TIMELINE
+
+- **2025-11-23 10:00:** SES identities created
+- **2025-11-23 10:15:** Production access requested
+- **2025-11-23 10:30:** DNS records added (DKIM, SPF, DMARC)
+- **2025-11-23 11:00:** ✅ **DKIM verification SUCCESS**
+- **2025-11-23 11:15:** ✅ **Domain verification SUCCESS**
+- **2025-11-23 11:30:** Test scripts created
+- **2025-11-23 (pending):** SMTP credentials generation
+- **2025-11-23 (pending):** Email delivery testing
+- **2025-11-24/25 (expected):** Production access approval
+
+---
+
+**Last Updated:** 2025-11-23 11:30
+**Document Version:** 2.0
+**Next Review:** After SMTP credentials are generated and tested

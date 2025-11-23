@@ -1,8 +1,14 @@
+import { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
 import ComparisonSection from "@/components/landing/ComparisonSection";
 import PricingSection from "@/components/landing/PricingSection";
+
+export const metadata: Metadata = {
+  title: "Почетна",
+  description: "Најсовремена платформа за анализа на јавни набавки во Македонија. AI-базирани препораки, следење на конкуренти и детални инсајти.",
+};
 
 export default function LandingPage() {
     return (

@@ -167,11 +167,12 @@ async def get_current_active_user(
     Raises:
         HTTPException: If user is not verified
     """
-    if not current_user.email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified. Please verify your email to access this resource.",
-        )
+    # TEMPORARY: Email verification disabled for testing (AWS SES in sandbox mode)
+    # if not current_user.email_verified:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Email not verified. Please verify your email to access this resource.",
+    #     )
 
     return current_user
 

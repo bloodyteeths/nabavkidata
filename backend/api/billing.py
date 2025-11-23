@@ -19,8 +19,7 @@ import logging
 
 from database import get_db
 from models import User, Subscription, UsageTracking, AuditLog
-from middleware.rbac import get_current_user
-from api.auth import get_current_active_user  # Use auth version with email verification disabled
+from api.auth import get_current_user, get_current_active_user
 from services.billing_service import billing_service, PLAN_LIMITS, PRICE_IDS
 
 # ============================================================================
