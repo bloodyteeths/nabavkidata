@@ -2,7 +2,7 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install",
+  "installCommand": "npm ci --legacy-peer-deps=false",
   "outputDirectory": ".next",
   "regions": ["fra1"],
   "env": {
