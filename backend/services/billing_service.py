@@ -120,6 +120,7 @@ class BillingService:
                 }],
                 success_url=success_url,
                 cancel_url=cancel_url,
+                locale='mk',  # Macedonian language
                 metadata={
                     'user_id': user_id,
                     'tier': tier,
