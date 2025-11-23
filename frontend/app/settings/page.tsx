@@ -41,10 +41,15 @@ export default function SettingsPage() {
   const userId = user?.id;
 
   useEffect(() => {
-    if (userId) {
-      loadPreferences();
-    }
-    loadPlans();
+    const init = async () => {
+      if (userId) {
+        await loadPreferences();
+      } else {
+        setLoading(false);
+      }
+      await loadPlans();
+    };
+    init();
   }, [userId]);
 
   const loadPreferences = async () => {
@@ -70,8 +75,58 @@ export default function SettingsPage() {
 
   const loadPlans = async () => {
     try {
-      const allPlans = await billing.getPlans();
-      setPlans(allPlans);
+      // Use hardcoded plans for now - no API call needed
+      const hardcodedPlans: BillingPlan[] = [
+        {
+          tier: 'free',
+          name: 'Free',
+          price_monthly_eur: 0,
+          price_yearly_eur: 0,
+          price_monthly_id: '',
+          price_yearly_id: '',
+          daily_queries: 3,
+          trial_days: 14,
+          allow_vpn: false,
+          features: ['3 AI queries per day', '14-day trial', 'Basic search', 'Email support']
+        },
+        {
+          tier: 'starter',
+          name: 'Starter',
+          price_monthly_eur: 14.99,
+          price_yearly_eur: 149.99,
+          price_monthly_id: 'price_1SWeAsHkVI5icjTl9GZ8Ciui',
+          price_yearly_id: 'price_1SWeAsHkVI5icjTlGRvOP17d',
+          daily_queries: 5,
+          trial_days: 14,
+          allow_vpn: true,
+          features: ['5 AI queries per day', '14-day trial', 'Advanced filters', 'CSV/PDF export', 'Priority support']
+        },
+        {
+          tier: 'professional',
+          name: 'Professional',
+          price_monthly_eur: 39.99,
+          price_yearly_eur: 399.99,
+          price_monthly_id: 'price_1SWeAtHkVI5icjTl8UxSYNYX',
+          price_yearly_id: 'price_1SWeAuHkVI5icjTlrbC5owFk',
+          daily_queries: 20,
+          trial_days: 14,
+          allow_vpn: true,
+          features: ['20 AI queries per day', '14-day trial', 'Analytics', 'Integrations', 'Dedicated support']
+        },
+        {
+          tier: 'enterprise',
+          name: 'Enterprise',
+          price_monthly_eur: 99.99,
+          price_yearly_eur: 999.99,
+          price_monthly_id: 'price_1SWeAvHkVI5icjTlF8eFK8kh',
+          price_yearly_id: 'price_1SWeAvHkVI5icjTlcKi7RFu7',
+          daily_queries: -1,
+          trial_days: 14,
+          allow_vpn: true,
+          features: ['Unlimited queries', '14-day trial', 'White-label', 'API access', '24/7 support']
+        }
+      ];
+      setPlans(hardcodedPlans);
 
       // Try to get current subscription status using billing service
       try {
