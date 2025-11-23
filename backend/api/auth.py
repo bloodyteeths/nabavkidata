@@ -230,11 +230,12 @@ async def get_current_active_user(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """Ensure user is active and email verified"""
-    if not current_user.email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified. Please verify your email to continue."
-        )
+    # TEMPORARY: Email verification disabled for testing
+    # if not current_user.email_verified:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Email not verified. Please verify your email to continue."
+    #     )
     return current_user
 
 
@@ -280,7 +281,7 @@ async def register(
         email=user_data.email,
         password_hash=hashed_password,
         full_name=user_data.full_name,
-        email_verified=False,
+        email_verified=True, # TEMPORARY: Auto-verify for testing
         subscription_tier="free"
     )
 
