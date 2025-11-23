@@ -20,8 +20,8 @@ from services.fraud_prevention import (
     is_email_allowed, is_ip_blocked, block_ip, TIER_LIMITS
 )
 
-# You'll need to import your auth dependency
-# from api.auth import get_current_user
+# Import auth dependency
+from middleware.rbac import get_current_active_user as get_current_user
 
 router = APIRouter(prefix="/api/fraud", tags=["Fraud Prevention"])
 

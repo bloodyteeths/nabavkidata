@@ -190,12 +190,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setError(null);
 
+      // Login endpoint expects OAuth2 form data (username + password), not JSON
+      const formData = new URLSearchParams();
+      formData.append('username', email);  // OAuth2 uses 'username' field for email
+      formData.append('password', password);
+
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({ email, password }),
+        body: formData.toString(),
       });
 
       if (!response.ok) {
@@ -203,9 +208,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(errorData.detail || 'Login failed');
       }
 
-      const tokens: AuthTokens = await response.json();
-      storeTokens(tokens);
-      await fetchUser();
+      const data = await response.json();
+      // Backend returns { access_token, refresh_token, token_type, user }
+      storeTokens({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        token_type: data.token_type
+      });
+      // Set user from response instead of fetching again
+      setUser(data.user);
+      scheduleTokenRefresh();
       router.push('/');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';

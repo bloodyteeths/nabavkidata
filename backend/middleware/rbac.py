@@ -196,7 +196,7 @@ def map_subscription_to_role(subscription_tier: str) -> UserRole:
         UserRole enum value
     """
     role_mapping = {
-        "admin": UserRole.ADMIN,
+        "admin": UserRole.admin,
         "premium": UserRole.PREMIUM,
         "pro": UserRole.PRO,
         "free": UserRole.FREE,
@@ -209,7 +209,7 @@ class RoleChecker:
     Callable dependency class for role-based access control
 
     Usage:
-        @router.get("/admin", dependencies=[Depends(RoleChecker([UserRole.ADMIN]))])
+        @router.get("/admin", dependencies=[Depends(RoleChecker([UserRole.admin]))])
         async def admin_endpoint():
             pass
     """
@@ -258,7 +258,7 @@ def require_role(*roles: UserRole) -> Callable:
         RoleChecker instance
 
     Usage:
-        @router.get("/admin", dependencies=[Depends(require_role(UserRole.ADMIN))])
+        @router.get("/admin", dependencies=[Depends(require_role(UserRole.admin))])
         async def admin_endpoint():
             pass
 
@@ -288,7 +288,7 @@ async def require_admin(current_user: User = Depends(get_current_active_user)) -
     """
     user_role = map_subscription_to_role(current_user.subscription_tier)
 
-    if user_role != UserRole.ADMIN:
+    if user_role != UserRole.admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",

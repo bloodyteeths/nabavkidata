@@ -14,7 +14,7 @@ Features:
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select, func, and_, desc, text
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from uuid import UUID
@@ -129,12 +129,12 @@ async def get_scraper_health(
     issues = []
 
     # Check if scraping_jobs table exists
-    table_exists = await db.execute("""
+    table_exists = await db.execute(text("""
         SELECT EXISTS (
             SELECT FROM information_schema.tables
             WHERE table_name = 'scraping_jobs'
         )
-    """)
+    """))
     if not table_exists.scalar():
         return ScraperHealthResponse(
             status="warning",
@@ -238,7 +238,7 @@ async def get_scraper_health(
 @router.get(
     "/jobs",
     response_model=ScrapingJobListResponse,
-    dependencies=[Depends(require_role(UserRole.ADMIN))]
+    dependencies=[Depends(require_role(UserRole.admin))]
 )
 async def get_scraping_jobs(
     skip: int = Query(0, ge=0),
@@ -306,7 +306,7 @@ async def get_scraping_jobs(
 @router.post(
     "/trigger",
     response_model=ScraperTriggerResponse,
-    dependencies=[Depends(require_role(UserRole.ADMIN))]
+    dependencies=[Depends(require_role(UserRole.admin))]
 )
 async def trigger_scraper(
     trigger_request: ScraperTriggerRequest,
@@ -350,7 +350,7 @@ async def trigger_scraper(
 
 @router.get(
     "/status",
-    dependencies=[Depends(require_role(UserRole.ADMIN))]
+    dependencies=[Depends(require_role(UserRole.admin))]
 )
 async def get_scraper_status(
     db: AsyncSession = Depends(get_db)

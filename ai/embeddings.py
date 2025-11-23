@@ -346,7 +346,9 @@ class VectorStore:
     """
 
     def __init__(self, database_url: str):
-        self.database_url = database_url
+        # Convert SQLAlchemy URL format to asyncpg format
+        # asyncpg doesn't understand postgresql+asyncpg://
+        self.database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
         self.conn = None
 
     async def connect(self):

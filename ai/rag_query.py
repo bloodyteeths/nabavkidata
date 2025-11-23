@@ -287,7 +287,9 @@ class PersonalizationScorer:
     """
 
     def __init__(self, database_url: str):
-        self.database_url = database_url
+        # Convert SQLAlchemy URL format to asyncpg format
+        # asyncpg doesn't understand postgresql+asyncpg://
+        self.database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
         self.conn = None
 
     async def connect(self):
@@ -684,7 +686,10 @@ class ConversationManager:
     """
 
     def __init__(self, database_url: Optional[str] = None):
-        self.database_url = database_url or os.getenv('DATABASE_URL')
+        database_url = database_url or os.getenv('DATABASE_URL')
+        # Convert SQLAlchemy URL format to asyncpg format
+        # asyncpg doesn't understand postgresql+asyncpg://
+        self.database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
         self.conn = None
 
     async def connect(self):

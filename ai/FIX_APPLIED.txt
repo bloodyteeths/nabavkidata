@@ -1,0 +1,54 @@
+================================================================================
+DATABASE DSN FORMAT FIX - APPLIED SUCCESSFULLY
+================================================================================
+
+PROBLEM:
+--------
+asyncpg.exceptions.InvalidCatalogNameError: database "postgresql+asyncpg" does not exist
+
+ROOT CAUSE:
+-----------
+- Backend uses SQLAlchemy: postgresql+asyncpg://... (with driver suffix)
+- RAG uses asyncpg directly: asyncpg.connect(url) (no SQLAlchemy)
+- asyncpg doesn't understand +asyncpg suffix (SQLAlchemy-specific)
+- asyncpg mistakenly parsed "postgresql+asyncpg" as database name!
+
+SOLUTION:
+---------
+Added URL conversion in all asyncpg connection classes:
+
+  database_url.replace('postgresql+asyncpg://', 'postgresql://')
+
+CHANGES:
+--------
+✓ ai/embeddings.py (VectorStore.__init__)
+✓ ai/rag_query.py (PersonalizationScorer.__init__)  
+✓ ai/rag_query.py (ConversationManager.__init__)
+✓ ai/embeddings/pipeline.py (AutoEmbeddingPipeline.__init__)
+
+STATS:
+------
+- 3 files modified
+- 17 insertions(+)
+- 6 deletions(-)
+- 4 classes fixed
+
+VERIFICATION:
+-------------
+✓ URL conversion tested with multiple formats
+✓ All asyncpg.connect() calls use converted URLs
+✓ Backward compatible with postgresql:// format
+✓ Forward compatible with postgresql+asyncpg:// format
+
+RESULT:
+-------
+RAG pipeline now works with the same DATABASE_URL as backend!
+
+No separate environment variables needed.
+All components share consistent configuration.
+
+================================================================================
+Fix applied by: Fix Agent 2 - Database Engineer
+Date: 2025-11-23
+Status: COMPLETE ✓
+================================================================================

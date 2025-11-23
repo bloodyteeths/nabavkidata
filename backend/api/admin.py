@@ -46,7 +46,7 @@ from pydantic import BaseModel, Field
 router = APIRouter(
     prefix="/admin",
     tags=["Admin"],
-    dependencies=[Depends(require_role(UserRole.ADMIN))]
+    dependencies=[Depends(require_role(UserRole.admin))]
 )
 
 

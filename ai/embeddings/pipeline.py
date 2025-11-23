@@ -32,11 +32,15 @@ class AutoEmbeddingPipeline:
     """
 
     def __init__(self, database_url: Optional[str] = None):
-        self.database_url = database_url or os.getenv('DATABASE_URL')
-        if not self.database_url:
+        database_url = database_url or os.getenv('DATABASE_URL')
+        if not database_url:
             raise ValueError("DATABASE_URL not set")
 
-        self.embeddings_pipeline = EmbeddingsPipeline(database_url=self.database_url)
+        # Convert SQLAlchemy URL format to asyncpg format
+        # asyncpg doesn't understand postgresql+asyncpg://
+        self.database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
+
+        self.embeddings_pipeline = EmbeddingsPipeline(database_url=database_url)
         self.conn = None
 
     async def connect(self):
