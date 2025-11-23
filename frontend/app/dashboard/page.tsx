@@ -25,11 +25,11 @@ export default function DashboardPage() {
       // Create dashboard data from available endpoints
       const mockData: DashboardData = {
         stats: {
-          recommended_count: tenders.results?.length || 0,
+          recommended_count: tenders.items?.length || 0,
           competitor_activity_count: 0,
           insights_count: 0,
         },
-        recommended_tenders: (tenders.results || []).map(t => ({
+        recommended_tenders: (tenders.items || []).map(t => ({
           ...t,
           score: 0.85,
           match_reasons: ['Релевантен сектор', 'Соодветна вредност']
