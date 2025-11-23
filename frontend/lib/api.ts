@@ -194,7 +194,7 @@ class APIClient {
           if (typeof window !== 'undefined') {
             localStorage.removeItem('auth_token');
             localStorage.removeItem('refresh_token');
-            window.location.href = '/login';
+            window.location.href = '/auth/login';
           }
           throw new Error('Authentication failed. Please login again.');
         }
@@ -204,7 +204,7 @@ class APIClient {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        window.location.href = '/auth/login';
       }
       throw new Error('Unauthorized. Please login again.');
     }

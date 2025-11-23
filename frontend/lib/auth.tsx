@@ -274,7 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (refreshTimer) {
         clearTimeout(refreshTimer);
       }
-      router.push('/login');
+      router.push('/auth/login');
     }
   };
 
@@ -384,7 +384,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(errorData.detail || 'Password reset failed');
       }
 
-      router.push('/login');
+      router.push('/auth/login');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Password reset failed';
       setError(message);
