@@ -23,6 +23,7 @@ from schemas import (
     SemanticSearchResponse,
     SemanticSearchResult
 )
+from api.auth import get_current_user
 
 # Import RAG components
 try:
@@ -44,7 +45,7 @@ router = APIRouter(prefix="/rag", tags=["rag"])
 async def query_rag(
     request: RAGQueryRequest,
     db: AsyncSession = Depends(get_db),
-    # current_user: User = Depends(get_current_user)  # TODO: Add auth
+    current_user: User = Depends(get_current_user)
 ):
     """
     Ask question using RAG
@@ -84,17 +85,16 @@ async def query_rag(
         query_time_ms = int((time.time() - start_time) * 1000)
 
         # Save to query history
-        # TODO: Add user_id from auth
-        # query_history = QueryHistory(
-        #     user_id=current_user.user_id,
-        #     question=request.question,
-        #     answer=answer.answer,
-        #     sources=[...],
-        #     confidence=answer.confidence,
-        #     query_time_ms=query_time_ms
-        # )
-        # db.add(query_history)
-        # await db.commit()
+        query_history = QueryHistory(
+            user_id=current_user.user_id,
+            question=request.question,
+            answer=answer.answer,
+            confidence=answer.confidence,
+            query_time_ms=query_time_ms,
+            created_at=datetime.utcnow()
+        )
+        db.add(query_history)
+        await db.commit()
 
         # Convert sources to response format
         sources_response = [
@@ -127,7 +127,8 @@ async def query_rag(
 @router.post("/search", response_model=SemanticSearchResponse)
 async def semantic_search(
     request: SemanticSearchRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Semantic search without answer generation
@@ -193,7 +194,8 @@ async def embed_document(
     doc_id: str,
     text: str,
     metadata: Optional[dict] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Embed document text
@@ -243,7 +245,8 @@ async def embed_document(
 @router.post("/embed/batch")
 async def embed_documents_batch(
     documents: list,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Embed multiple documents in batch
