@@ -130,6 +130,7 @@ export function useAuth() {
         body: JSON.stringify({
           email,
           password,
+          confirm_password: password,  // Backend requires this field
           full_name: fullName,
         }),
       });
