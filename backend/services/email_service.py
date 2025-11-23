@@ -20,14 +20,15 @@ class EmailService:
         self.from_email = os.getenv('FROM_EMAIL', self.smtp_user)
         self.from_name = os.getenv('FROM_NAME', 'Nabavki Platform')
 
-    async def _send_email(self, to_email: str, subject: str, html_content: str) -> bool:
+    async def _send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None) -> bool:
         """
-        Send an email using aiosmtplib.
+        Send an email using aiosmtplib with both HTML and plain text versions.
 
         Args:
             to_email: Recipient email address
             subject: Email subject
             html_content: HTML content of the email
+            text_content: Plain text version (optional, will be auto-generated if not provided)
 
         Returns:
             bool: True if email sent successfully, False otherwise
@@ -37,8 +38,22 @@ class EmailService:
             message['Subject'] = subject
             message['From'] = f"{self.from_name} <{self.from_email}>"
             message['To'] = to_email
+            message['Reply-To'] = 'support@nabavkidata.com'
+            message['List-Unsubscribe'] = f'<{self.frontend_url}/unsubscribe>'
+            message['X-Auto-Response-Suppress'] = 'OOF, DR, RN, NRN, AutoReply'
 
-            html_part = MIMEText(html_content, 'html')
+            # Add plain text version (important for deliverability)
+            if not text_content:
+                # Simple HTML to text conversion
+                import re
+                text_content = re.sub('<[^<]+?>', '', html_content)
+                text_content = re.sub(r'\s+', ' ', text_content).strip()
+
+            text_part = MIMEText(text_content, 'plain', 'utf-8')
+            html_part = MIMEText(html_content, 'html', 'utf-8')
+
+            # Attach in order of increasing preference (text first, then HTML)
+            message.attach(text_part)
             message.attach(html_part)
 
             await aiosmtplib.send(
@@ -118,8 +133,16 @@ class EmailService:
                             </tr>
                             <tr>
                                 <td style="padding: 20px 30px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; text-align: center;">
-                                    <p style="margin: 0; color: #999999; font-size: 12px;">
-                                        &copy; 2025 Nabavki Platform. All rights reserved.
+                                    <p style="margin: 0 0 10px 0; color: #999999; font-size: 12px;">
+                                        &copy; 2025 Nabavkidata. All rights reserved.
+                                    </p>
+                                    <p style="margin: 0 0 10px 0; color: #999999; font-size: 12px;">
+                                        Nabavkidata | Skopje, North Macedonia
+                                    </p>
+                                    <p style="margin: 0; color: #999999; font-size: 11px;">
+                                        <a href="{self.frontend_url}/unsubscribe" style="color: #007bff; text-decoration: none;">Unsubscribe</a> |
+                                        <a href="{self.frontend_url}/privacy" style="color: #007bff; text-decoration: none;">Privacy Policy</a> |
+                                        <a href="mailto:support@nabavkidata.com" style="color: #007bff; text-decoration: none;">Contact Support</a>
                                     </p>
                                 </td>
                             </tr>
