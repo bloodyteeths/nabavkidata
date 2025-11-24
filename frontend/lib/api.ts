@@ -10,10 +10,24 @@ export interface Tender {
   procuring_entity?: string;
   opening_date?: string;
   closing_date?: string;
+  publication_date?: string;
   estimated_value_mkd?: number;
   estimated_value_eur?: number;
+  actual_value_mkd?: number;
+  actual_value_eur?: number;
   cpv_code?: string;
   status?: string;
+  winner?: string;
+  source_url?: string;
+  language?: string;
+  procedure_type?: string;
+  contract_signing_date?: string;
+  contract_duration?: string;
+  contracting_entity_category?: string;
+  procurement_holder?: string;
+  bureau_delivery_date?: string;
+  scraped_at?: string;
+  updated_at?: string;
   created_at: string;
 }
 
@@ -264,7 +278,8 @@ class APIClient {
   }
 
   async getTender(id: string) {
-    return this.request<Tender>(`/api/tenders/${id}`);
+    const encodedId = encodeURIComponent(id);
+    return this.request<Tender>(`/api/tenders/${encodedId}`);
   }
 
   async searchTenders(query: any) {
@@ -550,13 +565,15 @@ class APIClient {
   }
 
   async approveTender(tenderId: string) {
-    return this.request<{ message: string }>(`/api/admin/tenders/${tenderId}/approve`, {
+    const encodedId = encodeURIComponent(tenderId);
+    return this.request<{ message: string }>(`/api/admin/tenders/${encodedId}/approve`, {
       method: 'POST',
     });
   }
 
   async deleteTender(tenderId: string) {
-    return this.request<{ message: string }>(`/api/admin/tenders/${tenderId}`, {
+    const encodedId = encodeURIComponent(tenderId);
+    return this.request<{ message: string }>(`/api/admin/tenders/${encodedId}`, {
       method: 'DELETE',
     });
   }

@@ -70,6 +70,8 @@ export default function AdminTendersPage() {
     applyFilters();
   }, [tenders, filters]);
 
+  const encodeTenderId = (id: string) => encodeURIComponent(id);
+
   const fetchTenders = async () => {
     try {
       setLoading(true);
@@ -113,7 +115,7 @@ export default function AdminTendersPage() {
   const handleTenderAction = async (tenderId: string, action: 'approve' | 'reject', needsConfirm = false) => {
     if (needsConfirm && !confirm(`Дали сте сигурни дека сакате да го ${action === 'approve' ? 'одобрите' : 'одбиете'} тендерот?`)) return;
     try {
-      const response = await fetch(`/api/admin/tenders/${tenderId}/${action}`, {
+      const response = await fetch(`/api/admin/tenders/${encodeTenderId(tenderId)}/${action}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -141,7 +143,7 @@ export default function AdminTendersPage() {
     if (!selectedTender) return;
 
     try {
-      const response = await fetch(`/api/admin/tenders/${selectedTender.id}`, {
+      const response = await fetch(`/api/admin/tenders/${encodeTenderId(selectedTender.id)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -169,7 +171,7 @@ export default function AdminTendersPage() {
       return;
 
     try {
-      const response = await fetch(`/api/admin/tenders/${tenderId}`, {
+      const response = await fetch(`/api/admin/tenders/${encodeTenderId(tenderId)}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,

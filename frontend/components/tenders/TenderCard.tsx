@@ -25,6 +25,9 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
     }
   };
 
+  const tenderPath = encodeURIComponent(tender.tender_id);
+  const sourceUrl = tender.source_url;
+
   return (
     <Card className="hover:bg-accent/50 transition-colors">
       <CardContent className="p-6">
@@ -33,7 +36,7 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
             {/* Title */}
             <div>
               <Link
-                href={`/tenders/${tender.tender_id}`}
+                href={`/tenders/${tenderPath}`}
                 className="font-semibold text-lg hover:text-primary transition-colors"
               >
                 {tender.title}
@@ -104,13 +107,21 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
               variant="default"
               asChild
             >
-              <Link href={`/tenders/${tender.tender_id}`}>
+              <Link href={`/tenders/${tenderPath}`}>
                 Детали
               </Link>
             </Button>
-            <Button size="sm" variant="outline">
-              <ExternalLink className="h-4 w-4" />
-            </Button>
+            {sourceUrl ? (
+              <Button size="sm" variant="outline" asChild>
+                <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" disabled title="Нема изворна врска">
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>

@@ -113,6 +113,12 @@ export default function TenderDetailPage() {
     }
   };
 
+  const handleOpenSource = () => {
+    if (!tender?.source_url) return;
+    void logBehavior("open_source");
+    window.open(tender.source_url, "_blank", "noopener,noreferrer");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -160,9 +166,13 @@ export default function TenderDetailPage() {
             <Bookmark className="h-4 w-4 mr-2" />
             Зачувај
           </Button>
-          <Button>
+          <Button
+            onClick={handleOpenSource}
+            disabled={!tender.source_url}
+            variant={tender.source_url ? "default" : "outline"}
+          >
             <ExternalLink className="h-4 w-4 mr-2" />
-            Отвори
+            {tender.source_url ? "Отвори извор" : "Нема извор"}
           </Button>
         </div>
       </div>
