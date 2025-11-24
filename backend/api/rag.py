@@ -83,23 +83,28 @@ async def query_rag(
         answer = await pipeline.generate_answer(
             question=request.question,
             tender_id=request.tender_id,
-            conversation_history=request.conversation_history
+            conversation_history=request.conversation_history,
+            user_id=str(current_user.user_id)
         )
 
         # Calculate query time
         query_time_ms = int((time.time() - start_time) * 1000)
 
         # Save to query history
-        query_history = QueryHistory(
-            user_id=current_user.user_id,
-            question=request.question,
-            answer=answer.answer,
-            confidence=answer.confidence,
-            query_time_ms=query_time_ms,
-            created_at=datetime.utcnow()
-        )
-        db.add(query_history)
-        await db.commit()
+        try:
+            query_history = QueryHistory(
+                user_id=current_user.user_id,
+                question=request.question,
+                answer=answer.answer,
+                confidence=answer.confidence,
+                query_time_ms=query_time_ms,
+                created_at=datetime.utcnow()
+            )
+            db.add(query_history)
+            await db.commit()
+        except Exception as db_error:
+            # Log but don't fail the request if history save fails
+            print(f"Warning: Failed to save query history: {db_error}")
 
         # Convert sources to response format
         sources_response = [
@@ -123,6 +128,10 @@ async def query_rag(
         )
 
     except Exception as e:
+        # Log the full error for debugging
+        import traceback
+        print(f"RAG query error: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"RAG query failed: {str(e)}"

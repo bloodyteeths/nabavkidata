@@ -573,9 +573,10 @@ class RAGQueryPipeline:
 
             if not search_results:
                 logger.warning("No relevant documents found")
+                # Return message in Macedonian
                 return RAGAnswer(
                     question=question,
-                    answer="I couldn't find any relevant documents to answer this question.",
+                    answer="Моментално немаме документи во базата што можат да го одговорат вашето прашање. Обидете се повторно кога ќе имаме повеќе тендери во системот.",
                     sources=[],
                     confidence='low',
                     generated_at=datetime.utcnow(),

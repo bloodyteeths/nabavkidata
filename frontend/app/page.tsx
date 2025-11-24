@@ -23,8 +23,30 @@ export default function LandingPage() {
 
             {/* Footer */}
             <footer className="py-12 border-t border-white/10 bg-black/20">
-                <div className="container px-4 md:px-6 text-center text-gray-400">
-                    <p>&copy; 2024 Nabavkidata. Сите права се задржани.</p>
+                <div className="container px-4 md:px-6">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-gray-400">
+                        <p className="text-sm">&copy; 2024 Nabavkidata. Сите права се задржани.</p>
+                        <nav className="flex gap-6 text-sm">
+                            <a
+                                href="/privacy"
+                                className="hover:text-primary transition-colors"
+                            >
+                                Политика за приватност
+                            </a>
+                            <a
+                                href="/terms"
+                                className="hover:text-primary transition-colors"
+                            >
+                                Услови за користење
+                            </a>
+                            <a
+                                href="mailto:support@nabavkidata.com"
+                                className="hover:text-primary transition-colors"
+                            >
+                                Контакт
+                            </a>
+                        </nav>
+                    </div>
                 </div>
             </footer>
         </main>
