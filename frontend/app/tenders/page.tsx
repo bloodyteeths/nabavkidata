@@ -7,6 +7,7 @@ import { TenderStats } from "@/components/tenders/TenderStats";
 import { Button } from "@/components/ui/button";
 import { api, type Tender } from "@/lib/api";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 
 export default function TendersPage() {
   const [tenders, setTenders] = useState<Tender[]>([]);
@@ -15,21 +16,37 @@ export default function TendersPage() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({});
   const [stats, setStats] = useState({ total: 0, open: 0, closed: 0, awarded: 0 });
+  const [dataset, setDataset] = useState<"active" | "awarded" | "cancelled" | "historical">(
+    "active"
+  );
+  const [error, setError] = useState<string | null>(null);
 
   const limit = 20;
 
   useEffect(() => {
     loadTenders();
     loadStats();
-  }, [page, filters]);
+  }, [page, filters, dataset]);
 
   async function loadTenders() {
+    // For Phase 8 we only surface ACTIVE tenders; other datasets are placeholders
+    if (dataset !== "active") {
+      setTenders([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
+      setError(null);
       const params: Record<string, any> = {
         page: page,
         page_size: limit,
       };
+
+      // Force active/open status when browsing the active dataset
+      params.status = "open";
 
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
@@ -46,6 +63,8 @@ export default function TendersPage() {
       setTotal(result.total);
     } catch (error) {
       console.error("Failed to load tenders:", error);
+      setError("Не успеавме да ги вчитаме тендерите. Обидете се повторно.");
+      toast.error("Грешка при вчитување на тендери");
     } finally {
       setLoading(false);
     }
@@ -91,9 +110,50 @@ export default function TendersPage() {
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Истражувач на Тендери</h1>
         <p className="text-sm md:text-base text-muted-foreground">
-          Пребарувајте и филтрирајте тендери од целата база
+          Пребарувајте и филтрирајте активни тендери (други категории ќе се додадат кога ќе се
+          отклучи пристапот)
         </p>
       </div>
+
+      {/* Dataset Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {(["active", "awarded", "cancelled", "historical"] as const).map((key) => {
+          const labels: Record<typeof key, string> = {
+            active: "Активни",
+            awarded: "Доделени (во подготовка)",
+            cancelled: "Поништени (во подготовка)",
+            historical: "Архива (во подготовка)",
+          };
+          const isActive = dataset === key;
+          const disabled = key !== "active";
+          return (
+            <Button
+              key={key}
+              variant={isActive ? "default" : "outline"}
+              size="sm"
+              disabled={disabled}
+              onClick={() => {
+                if (disabled) {
+                  toast.info("Овие категории ќе се вклучат кога ќе се овозможи јавен пристап.");
+                  return;
+                }
+                setDataset(key);
+                setPage(1);
+              }}
+            >
+              {labels[key]}
+            </Button>
+          );
+        })}
+      </div>
+
+      {/* Placeholder notice for future categories */}
+      {dataset !== "active" && (
+        <div className="rounded-md border border-dashed border-muted-foreground/30 p-4 text-sm text-muted-foreground">
+          Оваа категорија ќе биде активирана кога ќе се обезбеди автентикација за порталот. Кодот е
+          подготвен за приклучување без препишување на Phase 8.
+        </div>
+      )}
 
       {/* Stats */}
       <TenderStats
@@ -120,11 +180,18 @@ export default function TendersPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <p className="text-xs md:text-sm text-muted-foreground">
               {total} резултати {filters.search && `за "${filters.search}"`}
+              {dataset === "active" && " · само активни тендери"}
             </p>
             <p className="text-xs md:text-sm text-muted-foreground">
               Страна {page} од {totalPages}
             </p>
           </div>
+
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 text-destructive p-3 text-sm">
+              {error}
+            </div>
+          )}
 
           {/* Tenders */}
           {loading ? (

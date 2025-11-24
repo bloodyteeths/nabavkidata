@@ -22,6 +22,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -39,10 +40,12 @@ export default function TenderDetailPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const [aiSummary, setAiSummary] = useState<string>("");
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [notifyEnabled, setNotifyEnabled] = useState(false);
 
   useEffect(() => {
     loadTender();
     generateSummary();
+    loadNotifyPreference();
   }, [tenderId]);
 
   async function loadTender() {
@@ -52,6 +55,7 @@ export default function TenderDetailPage() {
       setTender(result);
     } catch (error) {
       console.error("Failed to load tender:", error);
+      toast.error("Не успеавме да го вчитаме тендерот.");
     } finally {
       setLoading(false);
     }
@@ -68,6 +72,7 @@ export default function TenderDetailPage() {
     } catch (error) {
       console.error("Failed to generate summary:", error);
       setAiSummary("Неможе да се генерира резиме.");
+      toast.error("AI резимето не може да се генерира моментално.");
     } finally {
       setSummaryLoading(false);
     }
@@ -96,6 +101,7 @@ export default function TenderDetailPage() {
           content: "Грешка при добивање одговор. Ве молиме обидете се повторно.",
         },
       ]);
+      toast.error("AI одговорот не успеа. Обидете се повторно.");
     } finally {
       setChatLoading(false);
     }
@@ -112,6 +118,44 @@ export default function TenderDetailPage() {
       console.error("Failed to log behavior:", error);
     }
   };
+
+  const loadNotifyPreference = () => {
+    try {
+      const stored = localStorage.getItem("followed_tenders");
+      if (!stored) return;
+      const parsed: string[] = JSON.parse(stored);
+      setNotifyEnabled(parsed.includes(tenderId));
+    } catch {
+      // ignore
+    }
+  };
+
+  const toggleNotify = () => {
+    try {
+      const stored = localStorage.getItem("followed_tenders");
+      const parsed: string[] = stored ? JSON.parse(stored) : [];
+      let updated: string[];
+      if (parsed.includes(tenderId)) {
+        updated = parsed.filter((id) => id !== tenderId);
+        setNotifyEnabled(false);
+        toast.success("Известувањата се исклучени за овој тендер.");
+      } else {
+        updated = [...parsed, tenderId];
+        setNotifyEnabled(true);
+        toast.success("Ќе добивате известувања за овој тендер (само активни).");
+      }
+      localStorage.setItem("followed_tenders", JSON.stringify(updated));
+      void logBehavior("notify_toggle");
+    } catch {
+      toast.error("Не може да се зачува поставката за известувања.");
+    }
+  };
+
+  const quickPrompts = [
+    "Кои се главните услови и документи?",
+    "Какви се критериумите за евалуација?",
+    "Постојат ли гаранции или депозити?",
+  ];
 
   const handleOpenSource = () => {
     if (!tender?.source_url) return;
@@ -165,6 +209,13 @@ export default function TenderDetailPage() {
           >
             <Bookmark className="h-4 w-4 mr-2" />
             Зачувај
+          </Button>
+          <Button
+            variant={notifyEnabled ? "default" : "outline"}
+            onClick={toggleNotify}
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {notifyEnabled ? "Известувања вклучени" : "Вклучи известувања"}
           </Button>
           <Button
             onClick={handleOpenSource}
@@ -291,6 +342,20 @@ export default function TenderDetailPage() {
                     {chatLoading && (
                       <div className="text-sm text-muted-foreground">AI пишува...</div>
                     )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {quickPrompts.map((prompt) => (
+                      <Button
+                        key={prompt}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChatSend(prompt)}
+                        disabled={chatLoading}
+                      >
+                        {prompt}
+                      </Button>
+                    ))}
                   </div>
 
                   {/* Chat Input */}
