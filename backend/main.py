@@ -2,13 +2,17 @@
 nabavkidata.com Backend API
 FastAPI REST server
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
+from pathlib import Path
+import json
 import os
 
-from database import init_db, close_db
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook
+from database import init_db, close_db, get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details
 from middleware.fraud import FraudPreventionMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 
@@ -64,9 +68,13 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(billing.router, prefix="/api")
 app.include_router(stripe_webhook.router, prefix="/api")  # Stripe webhook handler
 app.include_router(tenders.router, prefix="/api")
+app.include_router(tender_details.router, prefix="/api")  # Tender bidders/lots/amendments/documents
 app.include_router(documents.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
 app.include_router(scraper.router, prefix="/api")  # Scraper API
+app.include_router(entities.router, prefix="/api")  # Entity profiles
+app.include_router(analytics.router, prefix="/api")  # Analytics & trends
+app.include_router(suppliers.router, prefix="/api")  # Supplier profiles
 app.include_router(admin.router)  # Admin router has its own prefix
 app.include_router(fraud_endpoints.router)  # Fraud router has its own prefix
 app.include_router(personalization.router)  # Personalization router has its own prefix
@@ -85,13 +93,58 @@ async def root():
     }
 
 
+def _read_scraper_health():
+    health_path = Path("/var/log/nabavkidata/health.json")
+    if not health_path.exists():
+        return None
+    try:
+        return json.loads(health_path.read_text())
+    except Exception:
+        return None
+
+
+async def _database_health(db: AsyncSession):
+    db_status = "ok"
+    tender_count = None
+    try:
+        res = await db.execute(text("SELECT COUNT(*) FROM tenders"))
+        tender_count = res.scalar()
+    except Exception as e:
+        db_status = f"error: {e}"
+    return db_status, tender_count
+
+
 @app.get("/health")
-async def health_check():
+async def health_check(db: AsyncSession = Depends(get_db)):
     """Health check endpoint"""
+    db_status, tender_count = await _database_health(db)
+    scraper_health = _read_scraper_health()
     return {
-        "status": "healthy",
+        "status": "healthy" if db_status == "ok" else "degraded",
         "service": "backend-api",
         "timestamp": datetime.utcnow().isoformat(),
-        "database": "connected" if os.getenv('DATABASE_URL') else "not configured",
+        "database": db_status,
+        "tenders": tender_count,
+        "rag": "enabled" if os.getenv('OPENAI_API_KEY') else "disabled",
+        "scraper": scraper_health,
+    }
+
+
+@app.get("/api/health")
+async def api_health(db: AsyncSession = Depends(get_db)):
+    db_status, tender_count = await _database_health(db)
+    scraper_health = _read_scraper_health()
+    cron_status = "unknown"
+    if scraper_health:
+        cron_status = f"last run {scraper_health.get('finished_at')} status {scraper_health.get('status')}"
+    return {
+        "status": "healthy" if db_status == "ok" else "degraded",
+        "timestamp": datetime.utcnow().isoformat(),
+        "database": {
+            "status": db_status,
+            "tenders": tender_count
+        },
+        "scraper": scraper_health,
+        "cron": cron_status,
         "rag": "enabled" if os.getenv('OPENAI_API_KEY') else "disabled"
     }
