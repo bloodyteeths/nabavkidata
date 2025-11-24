@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { motion } from "framer-motion";
@@ -58,6 +59,7 @@ const plans = [
 
 export default function PricingSection() {
     const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+    const router = useRouter();
 
     return (
         <section id="pricing" className="py-24 relative">
@@ -131,6 +133,7 @@ export default function PricingSection() {
                             </ul>
 
                             <Button
+                                onClick={() => router.push('/auth/register')}
                                 className={`w-full ${plan.popular
                                         ? "bg-primary hover:bg-primary/90 text-white"
                                         : "bg-white/10 hover:bg-white/20 text-white"
