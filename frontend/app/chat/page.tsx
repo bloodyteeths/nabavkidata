@@ -135,11 +135,12 @@ export default function ChatPage() {
 
       // Reload usage status after successful query
       await loadUsageStatus();
-    } catch (error) {
+    } catch (error: any) {
+      console.error("RAG query error:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "Се случи грешка при обработката на вашето прашање. Ве молиме обидете се повторно.",
+        content: `Се случи грешка: ${error?.message || error?.detail || 'Непозната грешка'}. Ве молиме обидете се повторно.`,
       };
 
       setMessages((prev) => [...prev, errorMessage]);
