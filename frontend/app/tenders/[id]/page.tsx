@@ -196,9 +196,9 @@ export default function TenderDetailPage() {
               Назад
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold">{tender.title}</h1>
+          <h1 className="text-3xl font-bold">{tender.title || "Без наслов"}</h1>
           <div className="flex items-center gap-2 mt-2">
-            {tender.status && <Badge>{tender.status}</Badge>}
+            {tender.status ? <Badge>{tender.status}</Badge> : <Badge variant="outline">активен</Badge>}
             {tender.category && <Badge variant="outline">{tender.category}</Badge>}
           </div>
         </div>

@@ -106,18 +106,21 @@ def _read_scraper_health():
 async def _database_health(db: AsyncSession):
     db_status = "ok"
     tender_count = None
+    doc_count = None
     try:
         res = await db.execute(text("SELECT COUNT(*) FROM tenders"))
         tender_count = res.scalar()
+        res_docs = await db.execute(text("SELECT COUNT(*) FROM documents"))
+        doc_count = res_docs.scalar()
     except Exception as e:
         db_status = f"error: {e}"
-    return db_status, tender_count
+    return db_status, tender_count, doc_count
 
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
     """Health check endpoint"""
-    db_status, tender_count = await _database_health(db)
+    db_status, tender_count, doc_count = await _database_health(db)
     scraper_health = _read_scraper_health()
     return {
         "status": "healthy" if db_status == "ok" else "degraded",
@@ -125,6 +128,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         "timestamp": datetime.utcnow().isoformat(),
         "database": db_status,
         "tenders": tender_count,
+        "documents": doc_count,
         "rag": "enabled" if os.getenv('OPENAI_API_KEY') else "disabled",
         "scraper": scraper_health,
     }
@@ -132,7 +136,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/health")
 async def api_health(db: AsyncSession = Depends(get_db)):
-    db_status, tender_count = await _database_health(db)
+    db_status, tender_count, doc_count = await _database_health(db)
     scraper_health = _read_scraper_health()
     cron_status = "unknown"
     if scraper_health:
@@ -142,7 +146,8 @@ async def api_health(db: AsyncSession = Depends(get_db)):
         "timestamp": datetime.utcnow().isoformat(),
         "database": {
             "status": db_status,
-            "tenders": tender_count
+            "tenders": tender_count,
+            "documents": doc_count,
         },
         "scraper": scraper_health,
         "cron": cron_status,
