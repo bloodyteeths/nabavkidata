@@ -3,7 +3,7 @@ import { LayoutDashboard, Search, TrendingUp, Mail, MessageSquare, Settings } fr
 export const navigation = [
   {
     name: 'Табла',
-    href: '/',
+    href: '/dashboard',
     icon: LayoutDashboard,
   },
   {

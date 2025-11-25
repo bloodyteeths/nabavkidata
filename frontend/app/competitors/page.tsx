@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { api, type DashboardData, type CompetitorActivity } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 import { Building2, TrendingUp, Trophy, Plus, X, Search, Calendar } from "lucide-react";
 
 interface CompetitorStats {
@@ -17,6 +18,7 @@ interface CompetitorStats {
 }
 
 export default function CompetitorsPage() {
+  const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterName, setFilterName] = useState("");
@@ -24,16 +26,19 @@ export default function CompetitorsPage() {
   const [trackedCompetitors, setTrackedCompetitors] = useState<string[]>([]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user?.user_id) {
+      loadData();
+    }
+  }, [user?.user_id]);
 
   async function loadData() {
+    if (!user?.user_id) return;
+
     try {
-      const userId = "demo-user-id";
-      const result = await api.getPersonalizedDashboard(userId);
+      const result = await api.getPersonalizedDashboard(user.user_id);
       setData(result);
 
-      const prefs = await api.getPreferences(userId);
+      const prefs = await api.getPreferences(user.user_id);
       setTrackedCompetitors(prefs.competitor_companies || []);
     } catch (error) {
       console.error("Failed to load data:", error);
@@ -43,12 +48,11 @@ export default function CompetitorsPage() {
   }
 
   async function addCompetitor() {
-    if (!newCompetitor.trim()) return;
+    if (!newCompetitor.trim() || !user?.user_id) return;
 
     try {
-      const userId = "demo-user-id";
       const updated = [...trackedCompetitors, newCompetitor.trim()];
-      await api.updatePreferences(userId, { competitor_companies: updated });
+      await api.updatePreferences(user.user_id, { competitor_companies: updated });
       setTrackedCompetitors(updated);
       setNewCompetitor("");
     } catch (error) {
@@ -57,10 +61,11 @@ export default function CompetitorsPage() {
   }
 
   async function removeCompetitor(name: string) {
+    if (!user?.user_id) return;
+
     try {
-      const userId = "demo-user-id";
       const updated = trackedCompetitors.filter(c => c !== name);
-      await api.updatePreferences(userId, { competitor_companies: updated });
+      await api.updatePreferences(user.user_id, { competitor_companies: updated });
       setTrackedCompetitors(updated);
     } catch (error) {
       console.error("Failed to remove competitor:", error);
