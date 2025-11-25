@@ -225,7 +225,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-white">
-                {data?.recommended_tenders.filter(t => t.status === 'open').length || 0}
+                {data?.recommended_tenders?.filter(t => t.status === 'open').length || 0}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Активни тендери</p>
             </CardContent>
@@ -243,7 +243,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {data?.recommended_tenders.slice(0, 5).map((tender, idx) => (
+                {(data?.recommended_tenders || []).slice(0, 5).map((tender, idx) => (
                   <motion.div
                     key={tender.tender_id}
                     initial={{ opacity: 0, x: -20 }}
