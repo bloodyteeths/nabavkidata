@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { api, type Tender, type RAGQueryResponse } from "@/lib/api";
+import { api, type Tender, type TenderDocument, type RAGQueryResponse } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -20,6 +20,12 @@ import {
   Bookmark,
   ExternalLink,
   Sparkles,
+  Download,
+  File,
+  User,
+  Mail,
+  Phone,
+  Briefcase,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -41,11 +47,14 @@ export default function TenderDetailPage() {
   const [aiSummary, setAiSummary] = useState<string>("");
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(false);
+  const [documents, setDocuments] = useState<TenderDocument[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
 
   useEffect(() => {
     loadTender();
     generateSummary();
     loadNotifyPreference();
+    loadDocuments();
   }, [tenderId]);
 
   async function loadTender() {
@@ -76,6 +85,26 @@ export default function TenderDetailPage() {
     } finally {
       setSummaryLoading(false);
     }
+  }
+
+  async function loadDocuments() {
+    try {
+      setDocumentsLoading(true);
+      const result = await api.getTenderDocuments(tenderId);
+      setDocuments(result.documents || []);
+    } catch (error) {
+      console.error("Failed to load documents:", error);
+      setDocuments([]);
+    } finally {
+      setDocumentsLoading(false);
+    }
+  }
+
+  function formatFileSize(bytes?: number): string {
+    if (!bytes) return "";
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
   }
 
   async function handleChatSend(message: string) {
@@ -109,7 +138,9 @@ export default function TenderDetailPage() {
 
   const logBehavior = async (action: string) => {
     try {
-      await api.logBehavior("demo-user-id", {
+      // Get user ID from localStorage if authenticated
+      const userId = typeof window !== 'undefined' ? localStorage.getItem('user_id') || 'anonymous' : 'anonymous';
+      await api.logBehavior(userId, {
         tender_id: tenderId,
         action,
         duration_seconds: 0,
@@ -255,6 +286,10 @@ export default function TenderDetailPage() {
                 <FileText className="h-4 w-4 mr-2" />
                 Детали
               </TabsTrigger>
+              <TabsTrigger value="documents">
+                <File className="h-4 w-4 mr-2" />
+                Документи ({documents.length})
+              </TabsTrigger>
               <TabsTrigger value="chat">
                 <MessageSquare className="h-4 w-4 mr-2" />
                 AI Асистент
@@ -307,6 +342,125 @@ export default function TenderDetailPage() {
                         <p className="text-sm font-medium">CPV Код</p>
                         <p className="text-sm text-muted-foreground">{tender.cpv_code}</p>
                       </div>
+                    </div>
+                  )}
+                  {tender.procedure_type && (
+                    <div className="flex items-start gap-3">
+                      <Briefcase className="h-5 w-5 text-muted-foreground mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Тип на постапка</p>
+                        <p className="text-sm text-muted-foreground">{tender.procedure_type}</p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Contact Information */}
+              {(tender.contact_person || tender.contact_email || tender.contact_phone) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Контакт информации</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {tender.contact_person && (
+                      <div className="flex items-start gap-3">
+                        <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Контакт лице</p>
+                          <p className="text-sm text-muted-foreground">{tender.contact_person}</p>
+                        </div>
+                      </div>
+                    )}
+                    {tender.contact_email && (
+                      <div className="flex items-start gap-3">
+                        <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Е-пошта</p>
+                          <a
+                            href={`mailto:${tender.contact_email}`}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            {tender.contact_email}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    {tender.contact_phone && (
+                      <div className="flex items-start gap-3">
+                        <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Телефон</p>
+                          <a
+                            href={`tel:${tender.contact_phone}`}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            {tender.contact_phone}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="documents" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Тендерска документација</CardTitle>
+                  <CardDescription>
+                    Преземете ги документите поврзани со овој тендер
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {documentsLoading ? (
+                    <p className="text-sm text-muted-foreground">Се вчитуваат документи...</p>
+                  ) : documents.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                      <File className="h-12 w-12 mb-2 opacity-20" />
+                      <p className="text-sm">Нема достапни документи</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {documents.map((doc) => (
+                        <div
+                          key={doc.doc_id}
+                          className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {doc.file_name || "Непознат документ"}
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                {doc.doc_type && <span>{doc.doc_type}</span>}
+                                {doc.file_size_bytes && (
+                                  <span>{formatFileSize(doc.file_size_bytes)}</span>
+                                )}
+                                {doc.page_count && <span>{doc.page_count} страници</span>}
+                              </div>
+                            </div>
+                          </div>
+                          {doc.file_url && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild
+                            >
+                              <a
+                                href={doc.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Download className="h-4 w-4 mr-1" />
+                                Преземи
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </CardContent>

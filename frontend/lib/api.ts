@@ -26,9 +26,31 @@ export interface Tender {
   contracting_entity_category?: string;
   procurement_holder?: string;
   bureau_delivery_date?: string;
+  // Contact Information
+  contact_person?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  // Additional Fields
+  num_bidders?: number;
+  evaluation_method?: string;
   scraped_at?: string;
   updated_at?: string;
   created_at: string;
+}
+
+export interface TenderDocument {
+  doc_id: string;
+  tender_id: string;
+  doc_type?: string;
+  file_name?: string;
+  file_path?: string;
+  file_url?: string;
+  content_text?: string;
+  extraction_status: string;
+  file_size_bytes?: number;
+  page_count?: number;
+  mime_type?: string;
+  uploaded_at: string;
 }
 
 export interface RecommendedTender extends Tender {
@@ -329,6 +351,15 @@ class APIClient {
     return this.request<any>('/api/tenders/stats/overview');
   }
 
+  async getTenderDocuments(tenderId: string) {
+    const encodedId = encodeURIComponent(tenderId);
+    return this.request<{
+      tender_id: string;
+      total: number;
+      documents: TenderDocument[];
+    }>(`/api/tenders/${encodedId}/documents`);
+  }
+
   // Personalization
   async getPersonalizedDashboard(userId: string) {
     return this.request<DashboardData>(`/api/personalization/dashboard?user_id=${userId}`);
@@ -540,7 +571,7 @@ class APIClient {
       total_tenders: number;
       active_subscriptions: number;
       pending_approvals: number;
-    }>('/api/admin/stats');
+    }>('/api/admin/dashboard');
   }
 
   async getUsers(filters?: {

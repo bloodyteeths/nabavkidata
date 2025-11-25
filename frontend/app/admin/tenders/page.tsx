@@ -96,7 +96,7 @@ export default function AdminTendersPage() {
 
       const response = await fetch(`/api/admin/tenders?${params}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 
@@ -142,7 +142,7 @@ export default function AdminTendersPage() {
     try {
       const response = await fetch(`/api/admin/tenders/${encodeTenderId(tenderId)}/${action}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
       });
       if (response.ok) {
         fetchTenders();
@@ -172,7 +172,7 @@ export default function AdminTendersPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify(selectedTender),
       });
@@ -199,7 +199,7 @@ export default function AdminTendersPage() {
       const response = await fetch(`/api/admin/tenders/${encodeTenderId(tenderId)}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 

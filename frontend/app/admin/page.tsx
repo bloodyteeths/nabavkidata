@@ -116,9 +116,9 @@ export default function AdminDashboard() {
       setLoading(true);
 
       // Fetch stats
-      const statsResponse = await fetch('/api/admin/stats', {
+      const statsResponse = await fetch('/api/admin/dashboard', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 
@@ -137,22 +137,22 @@ export default function AdminDashboard() {
         });
       }
 
-      // Fetch recent activity
-      const activityResponse = await fetch('/api/admin/activity?limit=10', {
+      // Fetch recent activity from audit logs
+      const activityResponse = await fetch('/api/admin/logs?limit=10', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 
       if (activityResponse.ok) {
         const activityData = await activityResponse.json();
-        // Map backend activity format to frontend format
-        const activities = (activityData.activities || []).map((item: BackendActivity, index: number) => ({
-          id: `activity-${index}`,
-          type: item.type === 'user_registered' ? 'user' : item.type,
-          user: item.description.replace('New user registered: ', ''),
-          action: item.description,
-          timestamp: item.timestamp,
+        // Map backend logs format to frontend activity format
+        const activities = (activityData.logs || []).map((log: any, index: number) => ({
+          id: log.audit_id || `activity-${index}`,
+          type: log.action?.includes('user') ? 'user' : log.action?.includes('subscription') ? 'subscription' : 'tender',
+          user: log.user_email || 'System',
+          action: log.action,
+          timestamp: log.created_at,
         }));
         setRecentActivity(activities);
       }
@@ -168,7 +168,7 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/scraper/trigger', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 

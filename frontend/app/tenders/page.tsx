@@ -29,8 +29,8 @@ export default function TendersPage() {
   }, [page, filters, dataset]);
 
   async function loadTenders() {
-    // For Phase 8 we only surface ACTIVE tenders; other datasets are placeholders
-    if (dataset !== "active") {
+    // Historical dataset not yet available
+    if (dataset === "historical") {
       setTenders([]);
       setTotal(0);
       setLoading(false);
@@ -43,18 +43,21 @@ export default function TendersPage() {
       const params: Record<string, any> = {
         page: page,
         page_size: limit,
+        source_category: dataset, // Filter by source_category (active, awarded, cancelled)
       };
 
-      // Force active/open status when browsing the active dataset
-      params.status = "open";
+      // Force open status only when browsing the active dataset
+      if (dataset === "active") {
+        params.status = "open";
+      }
 
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
       if (filters.category) params.category = filters.category;
-      if (filters.minBudget) params.min_value = filters.minBudget;
-      if (filters.maxBudget) params.max_value = filters.maxBudget;
+      if (filters.minBudget) params.min_estimated_mkd = filters.minBudget;
+      if (filters.maxBudget) params.max_estimated_mkd = filters.maxBudget;
       if (filters.cpvCode) params.cpv_code = filters.cpvCode;
-      if (filters.entity) params.entity = filters.entity;
+      if (filters.entity) params.procuring_entity = filters.entity;
       if (filters.dateFrom) params.date_from = filters.dateFrom;
       if (filters.dateTo) params.date_to = filters.dateTo;
 
@@ -110,8 +113,7 @@ export default function TendersPage() {
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Истражувач на Тендери</h1>
         <p className="text-sm md:text-base text-muted-foreground">
-          Пребарувајте и филтрирајте активни тендери (други категории ќе се додадат кога ќе се
-          отклучи пристапот)
+          Пребарувајте и филтрирајте тендери по категорија: активни, доделени или поништени
         </p>
       </div>
 
@@ -120,12 +122,13 @@ export default function TendersPage() {
         {(["active", "awarded", "cancelled", "historical"] as const).map((key) => {
           const labels: Record<typeof key, string> = {
             active: "Активни",
-            awarded: "Доделени (во подготовка)",
-            cancelled: "Поништени (во подготовка)",
+            awarded: "Доделени",
+            cancelled: "Поништени",
             historical: "Архива (во подготовка)",
           };
           const isActive = dataset === key;
-          const disabled = key !== "active";
+          // Only historical is disabled now
+          const disabled = key === "historical";
           return (
             <Button
               key={key}
@@ -134,7 +137,7 @@ export default function TendersPage() {
               disabled={disabled}
               onClick={() => {
                 if (disabled) {
-                  toast.info("Овие категории ќе се вклучат кога ќе се овозможи јавен пристап.");
+                  toast.info("Архивата ќе се вклучи наскоро.");
                   return;
                 }
                 setDataset(key);
@@ -147,11 +150,10 @@ export default function TendersPage() {
         })}
       </div>
 
-      {/* Placeholder notice for future categories */}
-      {dataset !== "active" && (
+      {/* Placeholder notice for historical (not yet available) */}
+      {dataset === "historical" && (
         <div className="rounded-md border border-dashed border-muted-foreground/30 p-4 text-sm text-muted-foreground">
-          Оваа категорија ќе биде активирана кога ќе се обезбеди автентикација за порталот. Кодот е
-          подготвен за приклучување без препишување на Phase 8.
+          Архивата на договори ќе биде активирана наскоро.
         </div>
       )}
 
@@ -180,7 +182,9 @@ export default function TendersPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <p className="text-xs md:text-sm text-muted-foreground">
               {total} резултати {filters.search && `за "${filters.search}"`}
-              {dataset === "active" && " · само активни тендери"}
+              {dataset === "active" && " · активни тендери"}
+              {dataset === "awarded" && " · доделени договори"}
+              {dataset === "cancelled" && " · поништени тендери"}
             </p>
             <p className="text-xs md:text-sm text-muted-foreground">
               Страна {page} од {totalPages}

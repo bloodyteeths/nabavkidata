@@ -62,7 +62,7 @@ export default function AdminScraperPage() {
       setLoading(true);
 
       const statusRes = await fetch('/api/admin/scraper/status', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
       });
 
       if (statusRes.ok) {
@@ -93,7 +93,7 @@ export default function AdminScraperPage() {
     try {
       const response = await fetch('/api/admin/scraper/trigger', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
       });
 
       if (response.ok) {

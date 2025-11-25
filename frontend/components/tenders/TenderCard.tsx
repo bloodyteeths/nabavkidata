@@ -89,6 +89,11 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
                   CPV: {tender.cpv_code}
                 </Badge>
               )}
+              {tender.procedure_type && (
+                <Badge variant="outline" className="text-xs">
+                  {tender.procedure_type}
+                </Badge>
+              )}
             </div>
 
             {/* Last Updated */}

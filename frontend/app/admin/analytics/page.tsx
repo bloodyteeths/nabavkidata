@@ -74,7 +74,7 @@ export default function AdminAnalyticsPage() {
         `/api/admin/analytics?range=${timeRange}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
           },
         }
       );
@@ -93,7 +93,7 @@ export default function AdminAnalyticsPage() {
   const handleExportData = async (type: string) => {
     try {
       const response = await fetch(`/api/admin/analytics/export?type=${type}&range=${timeRange}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
       });
       if (response.ok) {
         const blob = await response.blob();

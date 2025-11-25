@@ -84,7 +84,7 @@ export default function AdminUsersPage() {
 
       const response = await fetch(`/api/admin/users?${params}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 
@@ -130,7 +130,7 @@ export default function AdminUsersPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify(selectedUser),
       });
@@ -157,7 +157,7 @@ export default function AdminUsersPage() {
       const endpoint = action === 'delete' ? `/api/admin/users/${userId}` : `/api/admin/users/${userId}/${action}`;
       const response = await fetch(endpoint, {
         method: action === 'delete' ? 'DELETE' : method,
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
       });
       if (response.ok) {
         fetchUsers();
@@ -189,7 +189,7 @@ export default function AdminUsersPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           action,
@@ -213,7 +213,7 @@ export default function AdminUsersPage() {
   const handleExport = async () => {
     try {
       const response = await fetch('/api/admin/users/export', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
       });
       if (response.ok) {
         const blob = await response.blob();

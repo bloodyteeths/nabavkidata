@@ -9,7 +9,12 @@ import { AlertCircle, CheckCircle, RefreshCcw } from "lucide-react";
 interface HealthResponse {
   status: string;
   timestamp: string;
-  database?: { status: string; tenders?: number } | string;
+  database?: {
+    status: string;
+    tenders?: number;
+    documents?: number;
+    tenders_by_category?: Record<string, number>;
+  } | string;
   scraper?: any;
   cron?: string;
   rag?: string;
@@ -95,7 +100,19 @@ export default function MonitorPage() {
             <div>
               Статус: {typeof health?.database === "string" ? health?.database : statusBadge(health?.database?.status as string)}
             </div>
-            <div>Тендери: {typeof health?.database === "string" ? "n/a" : health?.database?.tenders ?? "n/a"}</div>
+            <div>Вкупно тендери: {typeof health?.database === "string" ? "n/a" : health?.database?.tenders ?? "n/a"}</div>
+            <div>Документи: {typeof health?.database === "string" ? "n/a" : health?.database?.documents ?? "n/a"}</div>
+            {typeof health?.database !== "string" && health?.database?.tenders_by_category && (
+              <div className="pt-2 border-t">
+                <div className="text-sm font-medium mb-1">По категорија:</div>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  <div>Активни: <span className="font-mono">{health.database.tenders_by_category.active ?? 0}</span></div>
+                  <div>Доделени: <span className="font-mono">{health.database.tenders_by_category.awarded ?? 0}</span></div>
+                  <div>Поништени: <span className="font-mono">{health.database.tenders_by_category.cancelled ?? 0}</span></div>
+                  <div>Архива: <span className="font-mono">{health.database.tenders_by_category.historical ?? 0}</span></div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

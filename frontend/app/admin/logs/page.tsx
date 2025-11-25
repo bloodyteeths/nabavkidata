@@ -106,7 +106,7 @@ export default function AdminLogsPage() {
 
       const response = await fetch(`/api/admin/logs?${params}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 
@@ -160,7 +160,7 @@ export default function AdminLogsPage() {
     try {
       const response = await fetch('/api/admin/logs/export', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
 
