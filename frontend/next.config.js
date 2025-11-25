@@ -17,3 +17,4 @@ const nextConfig = {
 }
 
 module.exports = nextConfig
+// Build trigger: 1764115009
