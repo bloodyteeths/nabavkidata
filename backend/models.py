@@ -18,6 +18,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(255))
+    role = Column(String(20), default="user")  # admin, moderator, user
     subscription_tier = Column(String(50), default="free")
     stripe_customer_id = Column(String(255))
     email_verified = Column(Boolean, default=False)
@@ -53,6 +54,31 @@ class Tender(Base):
     source_url = Column(Text)
     language = Column(String(10), default="mk")
     scraped_at = Column(DateTime)
+    source_category = Column(String(50), default="active", index=True)  # active, awarded, cancelled, opendata_*
+
+    # EXTENDED FIELDS - Added 2025-11-24
+    procedure_type = Column(String(200), nullable=True, index=True)
+    contract_signing_date = Column(Date, nullable=True)
+    contract_duration = Column(String(100), nullable=True)
+    contracting_entity_category = Column(String(200), nullable=True, index=True)
+    procurement_holder = Column(String(500), nullable=True)
+    bureau_delivery_date = Column(Date, nullable=True)
+
+    # PHASE 3 ADDITIONS - Contact & Financial Data
+    contact_person = Column(String(255), nullable=True)
+    contact_email = Column(String(255), nullable=True)
+    contact_phone = Column(String(100), nullable=True)
+    num_bidders = Column(Integer, nullable=True)
+    security_deposit_mkd = Column(Numeric(15, 2), nullable=True)
+    performance_guarantee_mkd = Column(Numeric(15, 2), nullable=True)
+    payment_terms = Column(Text, nullable=True)
+    evaluation_method = Column(String(200), nullable=True)
+    award_criteria = Column(JSONB, nullable=True)
+    has_lots = Column(Boolean, default=False)
+    num_lots = Column(Integer, nullable=True)
+    amendment_count = Column(Integer, default=0)
+    last_amendment_date = Column(Date, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -174,4 +200,147 @@ class ScrapingJob(Base):
     spider_name = Column(String(100))
     incremental = Column(Boolean, default=True)
     last_scraped_date = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# PHASE 3: COMPREHENSIVE PROCUREMENT DATA MODELS
+
+class TenderLot(Base):
+    """Individual lots/items within a tender"""
+    __tablename__ = "tender_lots"
+
+    lot_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tender_id = Column(String(100), ForeignKey("tenders.tender_id", ondelete="CASCADE"), nullable=False, index=True)
+    lot_number = Column(String(50))
+    lot_title = Column(Text)
+    lot_description = Column(Text)
+    estimated_value_mkd = Column(Numeric(15, 2))
+    estimated_value_eur = Column(Numeric(15, 2))
+    actual_value_mkd = Column(Numeric(15, 2))
+    actual_value_eur = Column(Numeric(15, 2))
+    cpv_code = Column(String(50))
+    winner = Column(String(500))
+    quantity = Column(String(200))
+    unit = Column(String(100))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class TenderBidder(Base):
+    """Bidder/participant information for tenders"""
+    __tablename__ = "tender_bidders"
+
+    bidder_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tender_id = Column(String(100), ForeignKey("tenders.tender_id", ondelete="CASCADE"), nullable=False, index=True)
+    lot_id = Column(UUID(as_uuid=True), ForeignKey("tender_lots.lot_id", ondelete="CASCADE"), nullable=True)
+    company_name = Column(String(500), nullable=False, index=True)
+    company_tax_id = Column(String(100))
+    company_address = Column(Text)
+    bid_amount_mkd = Column(Numeric(15, 2))
+    bid_amount_eur = Column(Numeric(15, 2))
+    is_winner = Column(Boolean, default=False, index=True)
+    rank = Column(Integer)  # Ranking in evaluation
+    disqualified = Column(Boolean, default=False)
+    disqualification_reason = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class TenderAmendment(Base):
+    """Tender modifications/amendments"""
+    __tablename__ = "tender_amendments"
+
+    amendment_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tender_id = Column(String(100), ForeignKey("tenders.tender_id", ondelete="CASCADE"), nullable=False, index=True)
+    amendment_date = Column(Date, nullable=False, index=True)
+    amendment_type = Column(String(100))  # deadline_extension, value_change, clarification, etc.
+    field_changed = Column(String(100))
+    old_value = Column(Text)
+    new_value = Column(Text)
+    reason = Column(Text)
+    announcement_url = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class ProcuringEntity(Base):
+    """Procuring entity/institution profiles"""
+    __tablename__ = "procuring_entities"
+
+    entity_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    entity_name = Column(String(500), nullable=False, unique=True, index=True)
+    entity_type = Column(String(200))  # ministry, municipality, public company, etc.
+    category = Column(String(200), index=True)
+    tax_id = Column(String(100))
+    address = Column(Text)
+    city = Column(String(200), index=True)
+    contact_person = Column(String(255))
+    contact_email = Column(String(255))
+    contact_phone = Column(String(100))
+    website = Column(Text)
+    total_tenders = Column(Integer, default=0)
+    total_value_mkd = Column(Numeric(20, 2))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Supplier(Base):
+    """Supplier/contractor profiles"""
+    __tablename__ = "suppliers"
+
+    supplier_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_name = Column(String(500), nullable=False, unique=True, index=True)
+    tax_id = Column(String(100), unique=True, index=True)
+    company_type = Column(String(200))
+    address = Column(Text)
+    city = Column(String(200), index=True)
+    contact_person = Column(String(255))
+    contact_email = Column(String(255))
+    contact_phone = Column(String(100))
+    website = Column(Text)
+    total_wins = Column(Integer, default=0)
+    total_bids = Column(Integer, default=0)
+    win_rate = Column(Numeric(5, 2))  # Percentage
+    total_contract_value_mkd = Column(Numeric(20, 2))
+    industries = Column(JSONB)  # Array of CPV codes or categories
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class TenderClarification(Base):
+    """Clarifications and Q&A for tenders"""
+    __tablename__ = "tender_clarifications"
+
+    clarification_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tender_id = Column(String(100), ForeignKey("tenders.tender_id", ondelete="CASCADE"), nullable=False, index=True)
+    question_date = Column(Date)
+    question_text = Column(Text, nullable=False)
+    answer_date = Column(Date)
+    answer_text = Column(Text)
+    is_public = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class OpenDataStats(Base):
+    """Aggregated statistics from e-nabavki OpenData PowerBI reports"""
+    __tablename__ = "opendata_stats"
+
+    stat_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    category = Column(String(50), nullable=False, index=True)  # announcements, contracts, auctions, cancellations, users
+    stat_key = Column(String(200), nullable=False)  # e.g., "total", "by_entity_category", "by_procedure_type"
+    stat_value = Column(JSONB, nullable=False)  # Flexible storage for different stat types
+    source_report_id = Column(String(100))  # PowerBI report ID
+    fetched_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ProductItem(Base):
+    """Product items extracted from tender documents for granular search"""
+    __tablename__ = "product_items"
+
+    id = Column(Integer, primary_key=True)
+    tender_id = Column(String(100), ForeignKey("tenders.tender_id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.doc_id", ondelete="SET NULL"), nullable=True)
+    item_number = Column(Integer)
+    lot_number = Column(String(50))
+    name = Column(Text, nullable=False, index=True)
+    quantity = Column(Numeric(15, 4))
+    unit = Column(String(50))
+    unit_price = Column(Numeric(15, 2))
+    total_price = Column(Numeric(15, 2))
+    specifications = Column(JSONB)
+    cpv_code = Column(String(20), index=True)
+    raw_text = Column(Text)
+    extraction_confidence = Column(Numeric(3, 2))
     created_at = Column(DateTime, default=datetime.utcnow)

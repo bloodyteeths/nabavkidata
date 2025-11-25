@@ -30,6 +30,15 @@ class TenderBase(BaseModel):
     winner: Optional[str] = None
     source_url: Optional[str] = None
     language: str = "mk"
+    source_category: Optional[str] = Field("active", description="Source category: active, awarded, cancelled, historical")
+
+    # NEW FIELDS - Added 2025-11-24
+    procedure_type: Optional[str] = None
+    contract_signing_date: Optional[date] = None
+    contract_duration: Optional[str] = None
+    contracting_entity_category: Optional[str] = None
+    procurement_holder: Optional[str] = None
+    bureau_delivery_date: Optional[date] = None
 
 
 class TenderCreate(TenderBase):
@@ -55,6 +64,14 @@ class TenderUpdate(BaseModel):
     winner: Optional[str] = None
     source_url: Optional[str] = None
     language: Optional[str] = None
+
+    # NEW FIELDS - Added 2025-11-24
+    procedure_type: Optional[str] = None
+    contract_signing_date: Optional[date] = None
+    contract_duration: Optional[str] = None
+    contracting_entity_category: Optional[str] = None
+    procurement_holder: Optional[str] = None
+    bureau_delivery_date: Optional[date] = None
 
 
 class TenderResponse(TenderBase):
@@ -222,6 +239,7 @@ class UserResponse(BaseModel):
     user_id: UUID
     email: str
     full_name: Optional[str]
+    role: Optional[str] = "user"
     subscription_tier: str
     email_verified: bool
     created_at: datetime
@@ -249,12 +267,24 @@ class TenderSearchRequest(BaseModel):
     procuring_entity: Optional[str] = None
     status: Optional[str] = None
     cpv_code: Optional[str] = None
-    min_value_mkd: Optional[Decimal] = None
-    max_value_mkd: Optional[Decimal] = None
+    source_category: Optional[str] = Field(None, description="Source category: active, awarded, cancelled, historical")
+    # Estimated value filters (MKD)
+    min_value_mkd: Optional[Decimal] = Field(None, description="Minimum estimated value in MKD")
+    max_value_mkd: Optional[Decimal] = Field(None, description="Maximum estimated value in MKD")
+    # Estimated value filters (EUR)
+    min_value_eur: Optional[Decimal] = Field(None, description="Minimum estimated value in EUR")
+    max_value_eur: Optional[Decimal] = Field(None, description="Maximum estimated value in EUR")
     opening_date_from: Optional[date] = None
     opening_date_to: Optional[date] = None
     closing_date_from: Optional[date] = None
     closing_date_to: Optional[date] = None
+
+    # NEW FILTER FIELDS - Added 2025-11-24
+    procedure_type: Optional[str] = None
+    contracting_entity_category: Optional[str] = None
+    contract_signing_date_from: Optional[date] = None
+    contract_signing_date_to: Optional[date] = None
+
     page: int = Field(1, ge=1)
     page_size: int = Field(20, ge=1, le=100)
     sort_by: Optional[str] = Field("created_at", description="Field to sort by")
@@ -392,3 +422,292 @@ class HealthResponse(BaseModel):
     timestamp: datetime
     database: Optional[str] = None
     version: str = "1.0.0"
+
+
+# ============================================================================
+# PRODUCT SEARCH SCHEMAS
+# ============================================================================
+
+class ProductItemResponse(BaseModel):
+    """Schema for product item response"""
+    id: int
+    tender_id: str
+    document_id: Optional[UUID] = None
+    item_number: Optional[int] = None
+    lot_number: Optional[str] = None
+    name: str
+    quantity: Optional[Decimal] = None
+    unit: Optional[str] = None
+    unit_price: Optional[Decimal] = None
+    total_price: Optional[Decimal] = None
+    specifications: Optional[Dict[str, Any]] = None
+    cpv_code: Optional[str] = None
+    extraction_confidence: Optional[Decimal] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ProductSearchRequest(BaseModel):
+    """Request schema for product search"""
+    query: str = Field(..., min_length=1, max_length=500, description="Search query for product names")
+    year: Optional[int] = Field(None, description="Filter by year (based on tender opening date)")
+    cpv_code: Optional[str] = Field(None, description="Filter by CPV code prefix")
+    min_quantity: Optional[Decimal] = Field(None, description="Minimum quantity filter")
+    max_quantity: Optional[Decimal] = Field(None, description="Maximum quantity filter")
+    min_price: Optional[Decimal] = Field(None, description="Minimum unit price filter")
+    max_price: Optional[Decimal] = Field(None, description="Maximum unit price filter")
+    procuring_entity: Optional[str] = Field(None, description="Filter by procuring entity")
+    page: int = Field(1, ge=1)
+    page_size: int = Field(20, ge=1, le=100)
+
+
+class ProductSearchResult(BaseModel):
+    """Single product search result with tender context"""
+    id: int
+    name: str
+    quantity: Optional[Decimal] = None
+    unit: Optional[str] = None
+    unit_price: Optional[Decimal] = None
+    total_price: Optional[Decimal] = None
+    specifications: Optional[Dict[str, Any]] = None
+    cpv_code: Optional[str] = None
+    extraction_confidence: Optional[Decimal] = None
+    # Tender context
+    tender_id: str
+    tender_title: Optional[str] = None
+    procuring_entity: Optional[str] = None
+    opening_date: Optional[date] = None
+    status: Optional[str] = None
+    winner: Optional[str] = None
+
+
+class ProductSearchResponse(BaseModel):
+    """Response schema for product search"""
+    query: str
+    total: int
+    page: int
+    page_size: int
+    items: List[ProductSearchResult]
+
+
+class ProductAggregation(BaseModel):
+    """Aggregated product statistics"""
+    product_name: str
+    total_quantity: Optional[Decimal] = None
+    avg_unit_price: Optional[Decimal] = None
+    min_unit_price: Optional[Decimal] = None
+    max_unit_price: Optional[Decimal] = None
+    tender_count: int
+    years: List[int] = []
+
+
+class ProductAggregationResponse(BaseModel):
+    """Response schema for product aggregation"""
+    query: str
+    aggregations: List[ProductAggregation]
+
+
+# ============================================================================
+# E-PAZAR SCHEMAS
+# ============================================================================
+
+class EPazarTenderBase(BaseModel):
+    """Base e-Pazar tender schema"""
+    title: str
+    description: Optional[str] = None
+    contracting_authority: Optional[str] = None
+    contracting_authority_id: Optional[str] = None
+    estimated_value_mkd: Optional[Decimal] = None
+    estimated_value_eur: Optional[Decimal] = None
+    awarded_value_mkd: Optional[Decimal] = None
+    awarded_value_eur: Optional[Decimal] = None
+    procedure_type: Optional[str] = None
+    status: str = "active"
+    publication_date: Optional[date] = None
+    closing_date: Optional[date] = None
+    award_date: Optional[date] = None
+    contract_date: Optional[date] = None
+    contract_number: Optional[str] = None
+    contract_duration: Optional[str] = None
+    cpv_code: Optional[str] = None
+    category: Optional[str] = None
+    source_url: Optional[str] = None
+    source_category: str = "epazar"
+    language: str = "mk"
+
+
+class EPazarTenderResponse(EPazarTenderBase):
+    """Response schema for e-Pazar tender"""
+    tender_id: str
+    scraped_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    items: Optional[List[Dict[str, Any]]] = None
+    offers: Optional[List[Dict[str, Any]]] = None
+    awarded_items: Optional[List[Dict[str, Any]]] = None
+    documents: Optional[List[Dict[str, Any]]] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EPazarTenderListResponse(BaseModel):
+    """Schema for paginated e-Pazar tender list"""
+    total: int
+    page: int
+    page_size: int
+    items: List[Dict[str, Any]]
+
+
+class EPazarItemResponse(BaseModel):
+    """Response schema for e-Pazar BOQ item"""
+    item_id: Optional[UUID] = None
+    tender_id: str
+    line_number: int
+    item_name: str
+    item_description: Optional[str] = None
+    item_code: Optional[str] = None
+    cpv_code: Optional[str] = None
+    quantity: Decimal
+    unit: Optional[str] = None
+    estimated_unit_price_mkd: Optional[Decimal] = None
+    estimated_unit_price_eur: Optional[Decimal] = None
+    estimated_total_price_mkd: Optional[Decimal] = None
+    estimated_total_price_eur: Optional[Decimal] = None
+    specifications: Optional[Dict[str, Any]] = None
+    delivery_date: Optional[date] = None
+    delivery_location: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EPazarOfferResponse(BaseModel):
+    """Response schema for e-Pazar offer/bid"""
+    offer_id: Optional[UUID] = None
+    tender_id: str
+    supplier_name: str
+    supplier_tax_id: Optional[str] = None
+    supplier_address: Optional[str] = None
+    supplier_city: Optional[str] = None
+    supplier_contact_email: Optional[str] = None
+    supplier_contact_phone: Optional[str] = None
+    offer_number: Optional[str] = None
+    offer_date: Optional[datetime] = None
+    total_bid_mkd: Decimal
+    total_bid_eur: Optional[Decimal] = None
+    evaluation_score: Optional[Decimal] = None
+    ranking: Optional[int] = None
+    is_winner: bool = False
+    offer_status: str = "submitted"
+    rejection_reason: Optional[str] = None
+    disqualified: bool = False
+    disqualification_date: Optional[date] = None
+    documents_submitted: Optional[Dict[str, Any]] = None
+    notes: Optional[Dict[str, Any]] = None
+    items_count: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EPazarAwardedItemResponse(BaseModel):
+    """Response schema for e-Pazar awarded contract item"""
+    awarded_item_id: Optional[UUID] = None
+    tender_id: str
+    item_id: Optional[UUID] = None
+    offer_id: Optional[UUID] = None
+    supplier_name: str
+    supplier_tax_id: Optional[str] = None
+    contract_item_number: Optional[str] = None
+    contracted_quantity: Decimal
+    contracted_unit_price_mkd: Decimal
+    contracted_total_mkd: Decimal
+    contracted_unit_price_eur: Optional[Decimal] = None
+    contracted_total_eur: Optional[Decimal] = None
+    planned_delivery_date: Optional[date] = None
+    actual_delivery_date: Optional[date] = None
+    delivery_location: Optional[str] = None
+    received_quantity: Optional[Decimal] = None
+    quality_score: Optional[Decimal] = None
+    quality_notes: Optional[str] = None
+    on_time: Optional[bool] = None
+    billed_amount_mkd: Optional[Decimal] = None
+    paid_amount_mkd: Optional[Decimal] = None
+    payment_date: Optional[date] = None
+    status: str = "pending"
+    completion_date: Optional[date] = None
+    item_name: Optional[str] = None
+    item_description: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EPazarDocumentResponse(BaseModel):
+    """Response schema for e-Pazar document"""
+    doc_id: Optional[UUID] = None
+    tender_id: str
+    doc_type: Optional[str] = None
+    doc_category: Optional[str] = None
+    file_name: Optional[str] = None
+    file_path: Optional[str] = None
+    file_url: Optional[str] = None
+    content_text: Optional[str] = None
+    extraction_status: str = "pending"
+    file_size_bytes: Optional[int] = None
+    page_count: Optional[int] = None
+    mime_type: Optional[str] = None
+    file_hash: Optional[str] = None
+    upload_date: Optional[date] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EPazarSupplierResponse(BaseModel):
+    """Response schema for e-Pazar supplier"""
+    supplier_id: Optional[UUID] = None
+    company_name: str
+    tax_id: Optional[str] = None
+    company_type: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    website: Optional[str] = None
+    total_offers: int = 0
+    total_wins: int = 0
+    win_rate: Optional[Decimal] = None
+    total_contract_value_mkd: Optional[Decimal] = None
+    avg_bid_amount_mkd: Optional[Decimal] = None
+    industries: Optional[Dict[str, Any]] = None
+    recent_offers: Optional[List[Dict[str, Any]]] = None
+    recent_wins: Optional[List[Dict[str, Any]]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EPazarStatsResponse(BaseModel):
+    """Response schema for e-Pazar statistics"""
+    total_tenders: int
+    total_items: int
+    total_offers: int
+    total_suppliers: int
+    total_documents: int
+    total_value_mkd: Decimal
+    awarded_value_mkd: Decimal
+    status_breakdown: Dict[str, Dict[str, Any]]
+    recent_tenders: List[Dict[str, Any]]
+    top_suppliers: List[Dict[str, Any]]

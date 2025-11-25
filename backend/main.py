@@ -12,7 +12,7 @@ import os
 from database import init_db, close_db, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar
 from middleware.fraud import FraudPreventionMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 
@@ -75,6 +75,8 @@ app.include_router(scraper.router, prefix="/api")  # Scraper API
 app.include_router(entities.router, prefix="/api")  # Entity profiles
 app.include_router(analytics.router, prefix="/api")  # Analytics & trends
 app.include_router(suppliers.router, prefix="/api")  # Supplier profiles
+app.include_router(products.router, prefix="/api")  # Product search
+app.include_router(epazar.router)  # e-Pazar marketplace data
 app.include_router(admin.router)  # Admin router has its own prefix
 app.include_router(fraud_endpoints.router)  # Fraud router has its own prefix
 app.include_router(personalization.router)  # Personalization router has its own prefix
@@ -107,20 +109,28 @@ async def _database_health(db: AsyncSession):
     db_status = "ok"
     tender_count = None
     doc_count = None
+    category_counts = {}
     try:
         res = await db.execute(text("SELECT COUNT(*) FROM tenders"))
         tender_count = res.scalar()
         res_docs = await db.execute(text("SELECT COUNT(*) FROM documents"))
         doc_count = res_docs.scalar()
+        # Get counts by source_category
+        res_cats = await db.execute(text("""
+            SELECT COALESCE(source_category, 'unknown') as cat, COUNT(*) as cnt
+            FROM tenders GROUP BY source_category ORDER BY cnt DESC
+        """))
+        for row in res_cats:
+            category_counts[row[0]] = row[1]
     except Exception as e:
         db_status = f"error: {e}"
-    return db_status, tender_count, doc_count
+    return db_status, tender_count, doc_count, category_counts
 
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
     """Health check endpoint"""
-    db_status, tender_count, doc_count = await _database_health(db)
+    db_status, tender_count, doc_count, category_counts = await _database_health(db)
     scraper_health = _read_scraper_health()
     return {
         "status": "healthy" if db_status == "ok" else "degraded",
@@ -129,6 +139,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         "database": db_status,
         "tenders": tender_count,
         "documents": doc_count,
+        "tenders_by_category": category_counts,
         "rag": "enabled" if os.getenv('OPENAI_API_KEY') else "disabled",
         "scraper": scraper_health,
     }
@@ -136,7 +147,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/health")
 async def api_health(db: AsyncSession = Depends(get_db)):
-    db_status, tender_count, doc_count = await _database_health(db)
+    db_status, tender_count, doc_count, category_counts = await _database_health(db)
     scraper_health = _read_scraper_health()
     cron_status = "unknown"
     if scraper_health:
@@ -148,6 +159,7 @@ async def api_health(db: AsyncSession = Depends(get_db)):
             "status": db_status,
             "tenders": tender_count,
             "documents": doc_count,
+            "tenders_by_category": category_counts,
         },
         "scraper": scraper_health,
         "cron": cron_status,

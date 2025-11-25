@@ -1,4 +1,4 @@
-import { LayoutDashboard, Search, TrendingUp, Mail, MessageSquare, Settings } from 'lucide-react';
+import { LayoutDashboard, Search, TrendingUp, Mail, MessageSquare, Settings, Package, ShoppingCart } from 'lucide-react';
 
 export const navigation = [
   {
@@ -10,6 +10,16 @@ export const navigation = [
     name: 'Тендери',
     href: '/tenders',
     icon: Search,
+  },
+  {
+    name: 'e-Пазар',
+    href: '/epazar',
+    icon: ShoppingCart,
+  },
+  {
+    name: 'Производи',
+    href: '/products',
+    icon: Package,
   },
   {
     name: 'Конкуренти',
