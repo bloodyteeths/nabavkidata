@@ -16,8 +16,12 @@ Features:
 - Scraper control
 - Broadcast notifications
 """
+import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import select, update, delete, func, and_, or_, desc, asc
 from sqlalchemy.sql import text
 from datetime import datetime, timedelta
@@ -231,6 +235,15 @@ class BroadcastRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=1000)
     target_tier: Optional[str] = None
     target_verified_only: bool = False
+
+
+class EmailBroadcastRequest(BaseModel):
+    """Email broadcast request"""
+    subject: str = Field(..., min_length=1, max_length=200)
+    message: str = Field(..., min_length=1, max_length=5000)
+    target_tier: Optional[str] = None
+    target_verified_only: bool = False
+    send_notification: bool = True  # Also send in-app notification
 
 
 class MessageResponse(BaseModel):
@@ -622,6 +635,26 @@ async def delete_user(
         db, current_user.user_id, "delete_user",
         {"user_id": str(user_id), "email": user.email}
     )
+
+    # Delete related records first (FK constraints)
+    # Order matters - delete from child tables first
+    related_tables = [
+        "alerts",
+        "notifications",
+        "query_history",
+        "subscriptions",
+        "usage_tracking",
+        "rate_limits",
+        "payment_fingerprints",
+        "fraud_detection",
+        "suspicious_activities",
+    ]
+
+    for table in related_tables:
+        await db.execute(text(f"DELETE FROM {table} WHERE user_id = :user_id"), {"user_id": user_id})
+
+    # Handle duplicate_account_detection (has two FK columns)
+    await db.execute(text("DELETE FROM duplicate_account_detection WHERE user_id = :user_id OR duplicate_user_id = :user_id"), {"user_id": user_id})
 
     # Delete user
     await db.execute(delete(UserAuth).where(UserAuth.user_id == user_id))
@@ -1166,18 +1199,53 @@ async def get_scraper_status(
     - Error count
     - Next scheduled run
     """
-    # TODO: Implement actual scraper status check
-    # For now, return placeholder data
-
+    # Get total tenders
     total_tenders = await db.scalar(select(func.count(Tender.tender_id))) or 0
 
+    # Get last scrape run from scrape_history table
+    last_run_query = text("""
+        SELECT started_at, completed_at, status, errors
+        FROM scrape_history
+        ORDER BY started_at DESC
+        LIMIT 1
+    """)
+    result = await db.execute(last_run_query)
+    last_run_row = result.fetchone()
+
+    # Get last successful run
+    last_success_query = text("""
+        SELECT completed_at
+        FROM scrape_history
+        WHERE status = 'completed'
+        ORDER BY completed_at DESC
+        LIMIT 1
+    """)
+    result = await db.execute(last_success_query)
+    last_success_row = result.fetchone()
+
+    # Get total errors
+    errors_query = text("SELECT COALESCE(SUM(errors), 0) FROM scrape_history")
+    total_errors = await db.scalar(errors_query) or 0
+
+    # Check if currently running
+    is_running = False
+    last_run = None
+    last_success = None
+
+    if last_run_row:
+        last_run = last_run_row[0]  # started_at
+        is_running = last_run_row[2] == 'running'  # status
+
+    if last_success_row:
+        last_success = last_success_row[0]
+
     return ScraperStatus(
-        is_running=False,
-        last_run=None,
-        last_success=None,
+        is_running=is_running,
+        last_run=last_run,
+        last_success=last_success,
         total_scraped=total_tenders,
-        errors_count=0,
-        next_scheduled_run=None
+        errors_count=int(total_errors),
+        next_scheduled_run=None  # Cron-based, not tracked in DB
     )
 
 
@@ -1410,4 +1478,131 @@ async def broadcast_notification(
     return MessageResponse(
         message="Broadcast sent successfully",
         detail=f"Notification sent to {len(user_ids)} users"
+    )
+
+
+class EmailBroadcastResponse(BaseModel):
+    """Email broadcast response"""
+    message: str
+    recipients_count: int
+    emails_sent: int
+    emails_failed: int
+
+
+@router.post("/broadcast/email", response_model=EmailBroadcastResponse)
+async def broadcast_email(
+    broadcast: EmailBroadcastRequest,
+    current_user: User = Depends(get_current_active_user),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Send email broadcast to all users (or filtered subset)
+
+    This sends actual emails via Mailersend to all matching users.
+    Use with caution as this can send many emails.
+
+    Filters:
+    - target_tier: Send only to specific subscription tier
+    - target_verified_only: Send only to verified users
+    - send_notification: Also create in-app notification (default: True)
+    """
+    from services.mailer import mailer_service
+
+    # Build user query
+    query = select(UserAuth.user_id, UserAuth.email, UserAuth.full_name)
+
+    conditions = [UserAuth.is_active == True]  # Only send to active users
+    if broadcast.target_verified_only:
+        conditions.append(UserAuth.is_verified == True)
+
+    query = query.where(and_(*conditions))
+
+    # Get all matching users
+    result = await db.execute(query)
+    users = result.all()
+
+    if not users:
+        return EmailBroadcastResponse(
+            message="No users match the criteria",
+            recipients_count=0,
+            emails_sent=0,
+            emails_failed=0
+        )
+
+    # Send emails in background
+    emails_sent = 0
+    emails_failed = 0
+
+    # Create broadcast email content
+    frontend_url = os.getenv("FRONTEND_URL", "https://nabavkidata.com")
+
+    for user_id, email, full_name in users:
+        try:
+            # Generate email HTML content
+            content = f"""
+            <p>Hello <strong>{full_name or 'User'}</strong>,</p>
+            <div style="margin: 20px 0; padding: 20px; background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #2563eb;">
+                {broadcast.message.replace(chr(10), '<br>')}
+            </div>
+            <p style="margin-top: 20px;">If you have any questions, please don't hesitate to contact our support team.</p>
+            """
+
+            html_content = mailer_service._get_email_template(
+                title=broadcast.subject,
+                content=content,
+                button_text="Go to Dashboard",
+                button_link=f"{frontend_url}/dashboard"
+            )
+
+            success = await mailer_service.send_transactional_email(
+                to=email,
+                subject=broadcast.subject,
+                html_content=html_content,
+                reply_to="support@nabavkidata.com"
+            )
+
+            if success:
+                emails_sent += 1
+            else:
+                emails_failed += 1
+                logger.warning(f"Failed to send broadcast email to {email}")
+
+        except Exception as e:
+            emails_failed += 1
+            logger.error(f"Error sending broadcast email to {email}: {e}")
+
+    # Create in-app notifications if requested
+    if broadcast.send_notification:
+        notifications = [
+            Notification(
+                user_id=user_id,
+                message=f"{broadcast.subject}: {broadcast.message[:200]}{'...' if len(broadcast.message) > 200 else ''}",
+                is_read=False
+            )
+            for user_id, _, _ in users
+        ]
+        db.add_all(notifications)
+        await db.commit()
+
+    # Log admin action
+    await log_admin_action(
+        db, current_user.user_id, "broadcast_email",
+        {
+            "subject": broadcast.subject,
+            "message_preview": broadcast.message[:100],
+            "recipients_count": len(users),
+            "emails_sent": emails_sent,
+            "emails_failed": emails_failed,
+            "target_tier": broadcast.target_tier,
+            "verified_only": broadcast.target_verified_only,
+            "with_notification": broadcast.send_notification
+        }
+    )
+
+    return EmailBroadcastResponse(
+        message="Email broadcast completed",
+        recipients_count=len(users),
+        emails_sent=emails_sent,
+        emails_failed=emails_failed
     )

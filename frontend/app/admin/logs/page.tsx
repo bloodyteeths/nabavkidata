@@ -39,6 +39,17 @@ interface LogEntry {
   metadata?: Record<string, any>;
 }
 
+// Backend response format
+interface BackendLogEntry {
+  audit_id: string;
+  user_id: string | null;
+  user_email: string | null;
+  action: string;
+  details: Record<string, any>;
+  ip_address: string | null;
+  created_at: string;
+}
+
 export default function AdminLogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
@@ -82,13 +93,15 @@ export default function AdminLogsPage() {
     try {
       setLoading(true);
 
+      // Convert page to skip for backend
+      const skip = (pagination.page - 1) * pagination.limit;
       const params = new URLSearchParams({
-        page: pagination.page.toString(),
+        skip: skip.toString(),
         limit: pagination.limit.toString(),
       });
 
       if (filters.level !== 'all') {
-        params.append('level', filters.level);
+        params.append('action', filters.level);
       }
 
       const response = await fetch(`/api/admin/logs?${params}`, {
@@ -99,7 +112,26 @@ export default function AdminLogsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setLogs(data.logs || []);
+        // Map backend format to frontend format
+        const mappedLogs: LogEntry[] = (data.logs || []).map((log: BackendLogEntry) => {
+          // Determine level based on action
+          let level: 'error' | 'warning' | 'info' = 'info';
+          if (log.action.includes('error') || log.action.includes('failed') || log.action.includes('delete')) {
+            level = 'error';
+          } else if (log.action.includes('warning') || log.action.includes('ban')) {
+            level = 'warning';
+          }
+
+          return {
+            id: log.audit_id,
+            level,
+            message: log.action,
+            user: log.user_email || 'System',
+            timestamp: log.created_at,
+            metadata: log.details,
+          };
+        });
+        setLogs(mappedLogs);
         setPagination((prev) => ({ ...prev, total: data.total || 0 }));
       }
     } catch (error) {

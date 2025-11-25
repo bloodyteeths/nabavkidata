@@ -22,6 +22,16 @@ interface ScraperStatus {
   tenders_scraped: number;
 }
 
+// Backend response format
+interface BackendScraperStatus {
+  is_running: boolean;
+  last_run: string | null;
+  last_success: string | null;
+  total_scraped: number;
+  errors_count: number;
+  next_scheduled_run: string | null;
+}
+
 interface ScrapingJob {
   job_id: string;
   started_at: string;
@@ -56,8 +66,21 @@ export default function AdminScraperPage() {
       });
 
       if (statusRes.ok) {
-        const data = await statusRes.json();
-        setStatus(data);
+        const data: BackendScraperStatus = await statusRes.json();
+        // Map backend format to frontend format
+        let statusValue: 'idle' | 'running' | 'completed' | 'failed' = 'idle';
+        if (data.is_running) {
+          statusValue = 'running';
+        } else if (data.last_success) {
+          statusValue = 'completed';
+        }
+
+        setStatus({
+          status: statusValue,
+          last_run: data.last_run,
+          next_run: data.next_scheduled_run,
+          tenders_scraped: data.total_scraped,
+        });
       }
     } catch (error) {
       console.error('Error fetching scraper status:', error);
