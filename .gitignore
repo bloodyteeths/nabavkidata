@@ -64,6 +64,7 @@ coverage/
 # Logs
 *.log
 logs/
+!frontend/app/admin/logs/
 *.log.*
 
 # Database

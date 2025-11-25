@@ -139,19 +139,19 @@ export default function AdminUsersPage() {
         fetchUsers();
         setIsEditModalOpen(false);
         setSelectedUser(null);
-        toast.success('Корисникот е успешно зачуван');
+        toast.success('User saved successfully');
       } else {
-        toast.error('Грешка при зачувување на корисникот');
+        toast.error('Error saving user');
       }
     } catch (error) {
       console.error('Error saving user:', error);
-      toast.error('Грешка при зачувување на корисникот');
+      toast.error('Error saving user');
     }
   };
 
   const handleAction = async (userId: string, action: string, method = 'POST') => {
-    const confirmMsg = action === 'delete' ? 'избришете' : action === 'ban' ? 'банирате' : '';
-    if (confirmMsg && !confirm(`Дали сте сигурни дека сакате да го ${confirmMsg} корисникот?`)) return;
+    const confirmMsg = action === 'delete' ? 'delete' : action === 'ban' ? 'ban' : '';
+    if (confirmMsg && !confirm(`Are you sure you want to ${confirmMsg} this user?`)) return;
 
     try {
       const endpoint = action === 'delete' ? `/api/admin/users/${userId}` : `/api/admin/users/${userId}/${action}`;
@@ -161,13 +161,13 @@ export default function AdminUsersPage() {
       });
       if (response.ok) {
         fetchUsers();
-        toast.success('Акцијата е успешно извршена');
+        toast.success('Action completed successfully');
       } else {
-        toast.error(`Грешка при ${action === 'verify' ? 'верификација' : action === 'ban' ? 'банирање' : 'бришење'} на корисникот`);
+        toast.error(`Error ${action === 'verify' ? 'verifying' : action === 'ban' ? 'banning' : 'deleting'} user`);
       }
     } catch (error) {
       console.error(`Error ${action} user:`, error);
-      toast.error(`Грешка при ${action === 'verify' ? 'верификација' : action === 'ban' ? 'банирање' : 'бришење'} на корисникот`);
+      toast.error(`Error ${action === 'verify' ? 'verifying' : action === 'ban' ? 'banning' : 'deleting'} user`);
     }
   };
 
@@ -177,11 +177,11 @@ export default function AdminUsersPage() {
 
   const handleBulkAction = async (action: string) => {
     if (selectedUsers.length === 0) {
-      toast.error('Изберете барем еден корисник');
+      toast.error('Select at least one user');
       return;
     }
 
-    if (!confirm(`Дали сте сигурни дека сакате да ${action} ${selectedUsers.length} корисници?`))
+    if (!confirm(`Are you sure you want to ${action} ${selectedUsers.length} users?`))
       return;
 
     try {
@@ -200,13 +200,13 @@ export default function AdminUsersPage() {
       if (response.ok) {
         fetchUsers();
         setSelectedUsers([]);
-        toast.success('Акцијата е успешно извршена');
+        toast.success('Action completed successfully');
       } else {
-        toast.error('Грешка при извршување на акцијата');
+        toast.error('Error performing action');
       }
     } catch (error) {
       console.error('Error performing bulk action:', error);
-      toast.error('Грешка при извршување на акцијата');
+      toast.error('Error performing action');
     }
   };
 
@@ -226,86 +226,86 @@ export default function AdminUsersPage() {
       }
     } catch (error) {
       console.error('Error exporting users:', error);
-      toast.error('Грешка при експорт на корисниците');
+      toast.error('Error exporting users');
     }
   };
 
   const totalPages = Math.ceil(pagination.total / pagination.limit);
 
-  if (loading && users.length === 0) return <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div><p className="mt-4 text-muted-foreground">Се вчитува...</p></div></div>;
+  if (loading && users.length === 0) return <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div><p className="mt-4 text-muted-foreground">Loading...</p></div></div>;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Управување со корисници</h1>
-          <p className="text-muted-foreground mt-1">Вкупно {pagination.total} корисници</p>
+          <h1 className="text-3xl font-bold">User Management</h1>
+          <p className="text-muted-foreground mt-1">Total {pagination.total} users</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExport}><Download className="w-4 h-4 mr-2" />Експортирај</Button>
-          <Button><UserPlus className="w-4 h-4 mr-2" />Додади корисник</Button>
+          <Button variant="outline" onClick={handleExport}><Download className="w-4 h-4 mr-2" />Export</Button>
+          <Button><UserPlus className="w-4 h-4 mr-2" />Add User</Button>
         </div>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Филтри</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input placeholder="Пребарај по email или име..." className="pl-10" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
-            <Select value={filters.role} onValueChange={(value) => setFilters({ ...filters, role: value })}><SelectTrigger><SelectValue placeholder="Улога" /></SelectTrigger><SelectContent><SelectItem value="all">Сите улоги</SelectItem><SelectItem value="admin">Админ</SelectItem><SelectItem value="moderator">Модератор</SelectItem><SelectItem value="user">Корисник</SelectItem></SelectContent></Select>
-            <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}><SelectTrigger><SelectValue placeholder="Статус" /></SelectTrigger><SelectContent><SelectItem value="all">Сите статуси</SelectItem><SelectItem value="active">Активен</SelectItem><SelectItem value="inactive">Неактивен</SelectItem><SelectItem value="banned">Банан</SelectItem></SelectContent></Select>
-            <Select value={filters.subscription} onValueChange={(value) => setFilters({ ...filters, subscription: value })}><SelectTrigger><SelectValue placeholder="Претплата" /></SelectTrigger><SelectContent><SelectItem value="all">Сите претплати</SelectItem><SelectItem value="free">Бесплатен</SelectItem><SelectItem value="basic">Основен</SelectItem><SelectItem value="premium">Премиум</SelectItem><SelectItem value="enterprise">Корпоративен</SelectItem></SelectContent></Select>
-            <Select value={filters.verified} onValueChange={(value) => setFilters({ ...filters, verified: value })}><SelectTrigger><SelectValue placeholder="Верификација" /></SelectTrigger><SelectContent><SelectItem value="all">Сите</SelectItem><SelectItem value="true">Верифицирани</SelectItem><SelectItem value="false">Неверифицирани</SelectItem></SelectContent></Select>
+            <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input placeholder="Search by email or name..." className="pl-10" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
+            <Select value={filters.role} onValueChange={(value) => setFilters({ ...filters, role: value })}><SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger><SelectContent><SelectItem value="all">All Roles</SelectItem><SelectItem value="admin">Admin</SelectItem><SelectItem value="moderator">Moderator</SelectItem><SelectItem value="user">User</SelectItem></SelectContent></Select>
+            <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">All Statuses</SelectItem><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem><SelectItem value="banned">Banned</SelectItem></SelectContent></Select>
+            <Select value={filters.subscription} onValueChange={(value) => setFilters({ ...filters, subscription: value })}><SelectTrigger><SelectValue placeholder="Subscription" /></SelectTrigger><SelectContent><SelectItem value="all">All Subscriptions</SelectItem><SelectItem value="free">Free</SelectItem><SelectItem value="basic">Basic</SelectItem><SelectItem value="premium">Premium</SelectItem><SelectItem value="enterprise">Enterprise</SelectItem></SelectContent></Select>
+            <Select value={filters.verified} onValueChange={(value) => setFilters({ ...filters, verified: value })}><SelectTrigger><SelectValue placeholder="Verification" /></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="true">Verified</SelectItem><SelectItem value="false">Unverified</SelectItem></SelectContent></Select>
           </div>
         </CardContent>
       </Card>
 
-      {selectedUsers.length > 0 && <Card><CardContent className="py-4 flex items-center justify-between"><p className="text-sm font-medium">{selectedUsers.length} корисници избрани</p><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => handleBulkAction('verify')}>Верифицирај</Button><Button variant="outline" size="sm" onClick={() => handleBulkAction('ban')}>Банирај</Button><Button variant="destructive" size="sm" onClick={() => handleBulkAction('delete')}>Избриши</Button></div></CardContent></Card>}
+      {selectedUsers.length > 0 && <Card><CardContent className="py-4 flex items-center justify-between"><p className="text-sm font-medium">{selectedUsers.length} users selected</p><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => handleBulkAction('verify')}>Verify</Button><Button variant="outline" size="sm" onClick={() => handleBulkAction('ban')}>Ban</Button><Button variant="destructive" size="sm" onClick={() => handleBulkAction('delete')}>Delete</Button></div></CardContent></Card>}
 
       <UserTable users={filteredUsers} onEdit={handleEdit} onBan={handleBan} onDelete={handleDelete} onVerify={handleVerify} />
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Страна {pagination.page} од {totalPages}</p>
+        <p className="text-sm text-muted-foreground">Page {pagination.page} of {totalPages}</p>
         <div className="flex gap-2">
-          <Button variant="outline" disabled={pagination.page === 1} onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}>Претходна</Button>
-          <Button variant="outline" disabled={pagination.page >= totalPages} onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}>Следна</Button>
+          <Button variant="outline" disabled={pagination.page === 1} onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}>Previous</Button>
+          <Button variant="outline" disabled={pagination.page >= totalPages} onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}>Next</Button>
         </div>
       </div>
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Измени корисник</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Edit User</DialogTitle></DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
               <div><Label>Email</Label><Input value={selectedUser.email} onChange={(e) => setSelectedUser({ ...selectedUser, email: e.target.value })} /></div>
-              <div><Label>Име</Label><Input value={selectedUser.name} onChange={(e) => setSelectedUser({ ...selectedUser, name: e.target.value })} /></div>
+              <div><Label>Name</Label><Input value={selectedUser.name} onChange={(e) => setSelectedUser({ ...selectedUser, name: e.target.value })} /></div>
               <div>
-                <Label>Улога</Label>
+                <Label>Role</Label>
                 <Select value={selectedUser.role} onValueChange={(value) => setSelectedUser({ ...selectedUser, role: value })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">Админ</SelectItem>
-                    <SelectItem value="moderator">Модератор</SelectItem>
-                    <SelectItem value="user">Корисник</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="moderator">Moderator</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Статус</Label>
+                <Label>Status</Label>
                 <Select value={selectedUser.status} onValueChange={(value) => setSelectedUser({ ...selectedUser, status: value })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">Активен</SelectItem>
-                    <SelectItem value="inactive">Неактивен</SelectItem>
-                    <SelectItem value="banned">Банан</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="banned">Banned</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Откажи</Button>
-            <Button onClick={handleSaveUser}>Зачувај</Button>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveUser}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

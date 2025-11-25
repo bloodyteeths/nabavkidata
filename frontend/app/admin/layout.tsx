@@ -2,8 +2,8 @@ import { Metadata } from "next";
 import AdminSidebarLayout from "./sidebar-layout";
 
 export const metadata: Metadata = {
-  title: "Админ Панел",
-  description: "Административна контролна табла за управување со Nabavkidata.com платформата.",
+  title: "Admin Panel",
+  description: "Administrative control panel for managing the Nabavkidata.com platform.",
 };
 
 export default AdminSidebarLayout;

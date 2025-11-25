@@ -34,6 +34,7 @@ import { toast } from "sonner";
 
 interface Tender {
   id: string;
+  tender_id?: string;
   title: string;
   category: string;
   status: string;
@@ -41,6 +42,18 @@ interface Tender {
   organization: string;
   deadline: string;
   created_at: string;
+}
+
+// Backend response format
+interface BackendTender {
+  tender_id: string;
+  title: string;
+  category: string | null;
+  procuring_entity: string | null;
+  status: string | null;
+  publication_date: string | null;
+  closing_date: string | null;
+  estimated_value_mkd: string | null;
 }
 
 export default function AdminTendersPage() {
@@ -89,7 +102,19 @@ export default function AdminTendersPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setTenders(data.tenders);
+        // Map backend response to frontend format
+        const mappedTenders = (data.tenders || []).map((t: BackendTender) => ({
+          id: t.tender_id,
+          tender_id: t.tender_id,
+          title: t.title || '',
+          category: t.category || 'Other',
+          status: t.status || 'open',
+          budget: parseFloat(t.estimated_value_mkd || '0') || 0,
+          organization: t.procuring_entity || '',
+          deadline: t.closing_date || '',
+          created_at: t.publication_date || '',
+        }));
+        setTenders(mappedTenders);
         setPagination((prev) => ({ ...prev, total: data.total }));
       }
     } catch (error) {
@@ -113,7 +138,7 @@ export default function AdminTendersPage() {
   };
 
   const handleTenderAction = async (tenderId: string, action: 'approve' | 'reject', needsConfirm = false) => {
-    if (needsConfirm && !confirm(`Дали сте сигурни дека сакате да го ${action === 'approve' ? 'одобрите' : 'одбиете'} тендерот?`)) return;
+    if (needsConfirm && !confirm(`Are you sure you want to ${action} this tender?`)) return;
     try {
       const response = await fetch(`/api/admin/tenders/${encodeTenderId(tenderId)}/${action}`, {
         method: 'POST',
@@ -121,13 +146,13 @@ export default function AdminTendersPage() {
       });
       if (response.ok) {
         fetchTenders();
-        toast.success(`Тендерот е успешно ${action === 'approve' ? 'одобрен' : 'одбиен'}`);
+        toast.success(`Tender ${action === 'approve' ? 'approved' : 'rejected'} successfully`);
       } else {
-        toast.error(`Грешка при ${action === 'approve' ? 'одобрување' : 'одбивање'} на тендерот`);
+        toast.error(`Error ${action === 'approve' ? 'approving' : 'rejecting'} tender`);
       }
     } catch (error) {
       console.error(`Error ${action} tender:`, error);
-      toast.error(`Грешка при ${action === 'approve' ? 'одобрување' : 'одбивање'} на тендерот`);
+      toast.error(`Error ${action === 'approve' ? 'approving' : 'rejecting'} tender`);
     }
   };
 
@@ -153,21 +178,21 @@ export default function AdminTendersPage() {
       });
 
       if (response.ok) {
-        toast.success('Тендерот е успешно зачуван');
+        toast.success('Tender saved successfully');
         fetchTenders();
         setIsEditModalOpen(false);
         setSelectedTender(null);
       } else {
-        toast.error('Грешка при зачувување на тендерот');
+        toast.error('Error saving tender');
       }
     } catch (error) {
       console.error('Error saving tender:', error);
-      toast.error('Грешка при зачувување на тендерот');
+      toast.error('Error saving tender');
     }
   };
 
   const handleDelete = async (tenderId: string) => {
-    if (!confirm('Дали сте сигурни дека сакате да го избришете тендерот?'))
+    if (!confirm('Are you sure you want to delete this tender?'))
       return;
 
     try {
@@ -180,22 +205,24 @@ export default function AdminTendersPage() {
 
       if (response.ok) {
         fetchTenders();
-        toast.success('Тендерот е успешно избришан');
+        toast.success('Tender deleted successfully');
       } else {
-        toast.error('Грешка при бришење на тендерот');
+        toast.error('Error deleting tender');
       }
     } catch (error) {
       console.error('Error deleting tender:', error);
-      toast.error('Грешка при бришење на тендерот');
+      toast.error('Error deleting tender');
     }
   };
 
   const statusConfig: Record<string, { color: string; label: string }> = {
-    pending: { color: 'bg-yellow-100 text-yellow-800', label: 'Во очекување' },
-    approved: { color: 'bg-green-100 text-green-800', label: 'Одобрен' },
-    rejected: { color: 'bg-red-100 text-red-800', label: 'Одбиен' },
-    active: { color: 'bg-blue-100 text-blue-800', label: 'Активен' },
-    closed: { color: 'bg-gray-100 text-gray-800', label: 'Затворен' },
+    pending: { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
+    approved: { color: 'bg-green-100 text-green-800', label: 'Approved' },
+    rejected: { color: 'bg-red-100 text-red-800', label: 'Rejected' },
+    active: { color: 'bg-blue-100 text-blue-800', label: 'Active' },
+    open: { color: 'bg-blue-100 text-blue-800', label: 'Open' },
+    closed: { color: 'bg-gray-100 text-gray-800', label: 'Closed' },
+    awarded: { color: 'bg-green-100 text-green-800', label: 'Awarded' },
   };
 
   const getStatusBadge = (status: string) => {
@@ -205,22 +232,22 @@ export default function AdminTendersPage() {
 
   const totalPages = Math.ceil(pagination.total / pagination.limit);
 
-  if (loading && tenders.length === 0) return <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div><p className="mt-4 text-muted-foreground">Се вчитува...</p></div></div>;
+  if (loading && tenders.length === 0) return <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div><p className="mt-4 text-muted-foreground">Loading...</p></div></div>;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Управување со тендери</h1>
-        <p className="text-muted-foreground mt-1">Вкупно {pagination.total} тендери</p>
+        <h1 className="text-3xl font-bold">Tender Management</h1>
+        <p className="text-muted-foreground mt-1">Total {pagination.total} tenders</p>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Филтри</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input placeholder="Пребарај по наслов или организација..." className="pl-10" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
-            <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}><SelectTrigger><SelectValue placeholder="Статус" /></SelectTrigger><SelectContent><SelectItem value="all">Сите статуси</SelectItem><SelectItem value="pending">Во очекување</SelectItem><SelectItem value="approved">Одобрен</SelectItem><SelectItem value="rejected">Одбиен</SelectItem><SelectItem value="active">Активен</SelectItem><SelectItem value="closed">Затворен</SelectItem></SelectContent></Select>
-            <Select value={filters.category} onValueChange={(value) => setFilters({ ...filters, category: value })}><SelectTrigger><SelectValue placeholder="Категорија" /></SelectTrigger><SelectContent><SelectItem value="all">Сите категории</SelectItem><SelectItem value="construction">Градежништво</SelectItem><SelectItem value="it">ИТ и телекомуникации</SelectItem><SelectItem value="services">Услуги</SelectItem><SelectItem value="supplies">Снабдување</SelectItem></SelectContent></Select>
+            <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input placeholder="Search by title or organization..." className="pl-10" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
+            <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">All Statuses</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="closed">Closed</SelectItem><SelectItem value="awarded">Awarded</SelectItem></SelectContent></Select>
+            <Select value={filters.category} onValueChange={(value) => setFilters({ ...filters, category: value })}><SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger><SelectContent><SelectItem value="all">All Categories</SelectItem><SelectItem value="Работи">Works</SelectItem><SelectItem value="Стоки">Goods</SelectItem><SelectItem value="Услуги">Services</SelectItem></SelectContent></Select>
           </div>
         </CardContent>
       </Card>
@@ -230,20 +257,20 @@ export default function AdminTendersPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Наслов</TableHead>
-              <TableHead>Организација</TableHead>
-              <TableHead>Категорија</TableHead>
-              <TableHead>Буџет</TableHead>
-              <TableHead>Статус</TableHead>
-              <TableHead>Краен рок</TableHead>
-              <TableHead className="w-[150px]">Акции</TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead>Organization</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Budget (MKD)</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Deadline</TableHead>
+              <TableHead className="w-[150px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredTenders.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8">
-                  Нема тендери
+                  No tenders
                 </TableCell>
               </TableRow>
             ) : (
@@ -307,52 +334,50 @@ export default function AdminTendersPage() {
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Страна {pagination.page} од {totalPages}</p>
+        <p className="text-sm text-muted-foreground">Page {pagination.page} of {totalPages}</p>
         <div className="flex gap-2">
-          <Button variant="outline" disabled={pagination.page === 1} onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}>Претходна</Button>
-          <Button variant="outline" disabled={pagination.page >= totalPages} onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}>Следна</Button>
+          <Button variant="outline" disabled={pagination.page === 1} onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}>Previous</Button>
+          <Button variant="outline" disabled={pagination.page >= totalPages} onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}>Next</Button>
         </div>
       </div>
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>Измени тендер</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Edit Tender</DialogTitle></DialogHeader>
           {selectedTender && (
             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-              <div><Label>Наслов</Label><Input value={selectedTender.title} onChange={(e) => setSelectedTender({ ...selectedTender, title: e.target.value })} /></div>
-              <div><Label>Организација</Label><Input value={selectedTender.organization} onChange={(e) => setSelectedTender({ ...selectedTender, organization: e.target.value })} /></div>
+              <div><Label>Title</Label><Input value={selectedTender.title} onChange={(e) => setSelectedTender({ ...selectedTender, title: e.target.value })} /></div>
+              <div><Label>Organization</Label><Input value={selectedTender.organization} onChange={(e) => setSelectedTender({ ...selectedTender, organization: e.target.value })} /></div>
               <div>
-                <Label>Категорија</Label>
+                <Label>Category</Label>
                 <Select value={selectedTender.category} onValueChange={(value) => setSelectedTender({ ...selectedTender, category: value })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="construction">Градежништво</SelectItem>
-                    <SelectItem value="it">ИТ и телекомуникации</SelectItem>
-                    <SelectItem value="services">Услуги</SelectItem>
-                    <SelectItem value="supplies">Снабдување</SelectItem>
+                    <SelectItem value="Работи">Works</SelectItem>
+                    <SelectItem value="Стоки">Goods</SelectItem>
+                    <SelectItem value="Услуги">Services</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Буџет (€)</Label><Input type="number" value={selectedTender.budget} onChange={(e) => setSelectedTender({ ...selectedTender, budget: parseFloat(e.target.value) })} /></div>
+              <div><Label>Budget (MKD)</Label><Input type="number" value={selectedTender.budget} onChange={(e) => setSelectedTender({ ...selectedTender, budget: parseFloat(e.target.value) })} /></div>
               <div>
-                <Label>Статус</Label>
+                <Label>Status</Label>
                 <Select value={selectedTender.status} onValueChange={(value) => setSelectedTender({ ...selectedTender, status: value })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">Во очекување</SelectItem>
-                    <SelectItem value="approved">Одобрен</SelectItem>
-                    <SelectItem value="rejected">Одбиен</SelectItem>
-                    <SelectItem value="active">Активен</SelectItem>
-                    <SelectItem value="closed">Затворен</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                    <SelectItem value="awarded">Awarded</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Краен рок</Label><Input type="date" value={selectedTender.deadline ? new Date(selectedTender.deadline).toISOString().split('T')[0] : ''} onChange={(e) => setSelectedTender({ ...selectedTender, deadline: e.target.value })} /></div>
+              <div><Label>Deadline</Label><Input type="date" value={selectedTender.deadline ? new Date(selectedTender.deadline).toISOString().split('T')[0] : ''} onChange={(e) => setSelectedTender({ ...selectedTender, deadline: e.target.value })} /></div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Откажи</Button>
-            <Button onClick={handleSaveTender}>Зачувај</Button>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveTender}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

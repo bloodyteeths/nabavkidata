@@ -42,11 +42,28 @@ interface DashboardStats {
   tenderGrowth: number;
 }
 
+// Backend response format (snake_case)
+interface BackendStats {
+  total_users: number;
+  active_subscriptions: number;
+  monthly_revenue_eur: string;
+  total_tenders: number;
+  verified_users: number;
+  open_tenders: number;
+}
+
 interface ActivityItem {
   id: string;
   type: string;
   user: string;
   action: string;
+  timestamp: string;
+}
+
+// Backend activity format
+interface BackendActivity {
+  type: string;
+  description: string;
   timestamp: string;
 }
 
@@ -66,28 +83,28 @@ export default function AdminDashboard() {
 
   // Mock data for charts
   const userGrowthData = [
-    { month: 'Јан', users: 120 },
-    { month: 'Фев', users: 150 },
-    { month: 'Мар', users: 180 },
-    { month: 'Апр', users: 220 },
-    { month: 'Мај', users: 280 },
-    { month: 'Јун', users: 350 },
+    { month: 'Jan', users: 120 },
+    { month: 'Feb', users: 150 },
+    { month: 'Mar', users: 180 },
+    { month: 'Apr', users: 220 },
+    { month: 'May', users: 280 },
+    { month: 'Jun', users: 350 },
   ];
 
   const revenueData = [
-    { month: 'Јан', revenue: 4500 },
-    { month: 'Фев', revenue: 5200 },
-    { month: 'Мар', revenue: 6100 },
-    { month: 'Апр', revenue: 7300 },
-    { month: 'Мај', revenue: 8900 },
-    { month: 'Јун', revenue: 10500 },
+    { month: 'Jan', revenue: 4500 },
+    { month: 'Feb', revenue: 5200 },
+    { month: 'Mar', revenue: 6100 },
+    { month: 'Apr', revenue: 7300 },
+    { month: 'May', revenue: 8900 },
+    { month: 'Jun', revenue: 10500 },
   ];
 
   const subscriptionDistribution = [
-    { name: 'Бесплатен', value: 400, color: '#94a3b8' },
-    { name: 'Основен', value: 300, color: '#3b82f6' },
-    { name: 'Премиум', value: 200, color: '#a855f7' },
-    { name: 'Корпоративен', value: 100, color: '#eab308' },
+    { name: 'Free', value: 400, color: '#94a3b8' },
+    { name: 'Basic', value: 300, color: '#3b82f6' },
+    { name: 'Premium', value: 200, color: '#a855f7' },
+    { name: 'Enterprise', value: 100, color: '#eab308' },
   ];
 
   useEffect(() => {
@@ -106,8 +123,18 @@ export default function AdminDashboard() {
       });
 
       if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setStats(statsData);
+        const backendStats: BackendStats = await statsResponse.json();
+        // Map snake_case backend response to camelCase frontend format
+        setStats({
+          totalUsers: backendStats.total_users || 0,
+          activeSubscriptions: backendStats.active_subscriptions || 0,
+          totalRevenue: parseFloat(backendStats.monthly_revenue_eur) || 0,
+          totalTenders: backendStats.total_tenders || 0,
+          userGrowth: 0,
+          revenueGrowth: 0,
+          subscriptionGrowth: 0,
+          tenderGrowth: 0,
+        });
       }
 
       // Fetch recent activity
@@ -119,7 +146,15 @@ export default function AdminDashboard() {
 
       if (activityResponse.ok) {
         const activityData = await activityResponse.json();
-        setRecentActivity(activityData);
+        // Map backend activity format to frontend format
+        const activities = (activityData.activities || []).map((item: BackendActivity, index: number) => ({
+          id: `activity-${index}`,
+          type: item.type === 'user_registered' ? 'user' : item.type,
+          user: item.description.replace('New user registered: ', ''),
+          action: item.description,
+          timestamp: item.timestamp,
+        }));
+        setRecentActivity(activities);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -138,13 +173,13 @@ export default function AdminDashboard() {
       });
 
       if (response.ok) {
-        toast.success('Scraper успешно активиран');
+        toast.success('Scraper triggered successfully');
       } else {
-        toast.error('Грешка при активирање на scraper');
+        toast.error('Failed to trigger scraper');
       }
     } catch (error) {
       console.error('Error triggering scraper:', error);
-      toast.error('Грешка при активирање на scraper');
+      toast.error('Failed to trigger scraper');
     }
   };
 
@@ -167,7 +202,7 @@ export default function AdminDashboard() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Се вчитува...</p>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
@@ -178,19 +213,19 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Админ Dashboard</h1>
+          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
           <p className="text-muted-foreground mt-1">
-            Преглед на системски метрики и активности
+            Overview of system metrics and activity
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => window.location.reload()}>
             <Activity className="w-4 h-4 mr-2" />
-            Освежи
+            Refresh
           </Button>
           <Button onClick={handleTriggerScraper}>
             <PlayCircle className="w-4 h-4 mr-2" />
-            Активирај Scraper
+            Trigger Scraper
           </Button>
         </div>
       </div>
@@ -198,7 +233,7 @@ export default function AdminDashboard() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          label="Вкупно корисници"
+          label="Total Users"
           value={stats.totalUsers}
           icon={Users}
           trend={{
@@ -207,7 +242,7 @@ export default function AdminDashboard() {
           }}
         />
         <StatCard
-          label="Активни претплати"
+          label="Active Subscriptions"
           value={stats.activeSubscriptions}
           icon={CreditCard}
           trend={{
@@ -216,7 +251,7 @@ export default function AdminDashboard() {
           }}
         />
         <StatCard
-          label="Вкупен приход"
+          label="Total Revenue"
           value={`€${stats.totalRevenue.toLocaleString()}`}
           icon={DollarSign}
           trend={{
@@ -225,7 +260,7 @@ export default function AdminDashboard() {
           }}
         />
         <StatCard
-          label="Вкупно тендери"
+          label="Total Tenders"
           value={stats.totalTenders}
           icon={FileText}
           trend={{
@@ -240,7 +275,7 @@ export default function AdminDashboard() {
         {/* User Growth Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Раст на корисници</CardTitle>
+            <CardTitle>User Growth</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -254,7 +289,7 @@ export default function AdminDashboard() {
                   type="monotone"
                   dataKey="users"
                   stroke="#3b82f6"
-                  name="Корисници"
+                  name="Users"
                   strokeWidth={2}
                 />
               </LineChart>
@@ -265,7 +300,7 @@ export default function AdminDashboard() {
         {/* Revenue Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Приход</CardTitle>
+            <CardTitle>Revenue</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -275,7 +310,7 @@ export default function AdminDashboard() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="revenue" fill="#10b981" name="Приход (€)" />
+                <Bar dataKey="revenue" fill="#10b981" name="Revenue (€)" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -287,7 +322,7 @@ export default function AdminDashboard() {
         {/* Subscription Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Дистрибуција на претплати</CardTitle>
+            <CardTitle>Subscription Distribution</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -315,13 +350,13 @@ export default function AdminDashboard() {
         {/* Recent Activity */}
         <Card>
           <CardHeader>
-            <CardTitle>Скорешни активности</CardTitle>
+            <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {recentActivity.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
-                  Нема скорешни активности
+                  No recent activity
                 </p>
               ) : (
                 recentActivity.map((activity) => (
@@ -342,7 +377,7 @@ export default function AdminDashboard() {
                         {activity.user}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(activity.timestamp).toLocaleString('mk-MK')}
+                        {new Date(activity.timestamp).toLocaleString('en-US')}
                       </p>
                     </div>
                   </div>
@@ -356,7 +391,7 @@ export default function AdminDashboard() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Брзи акции</CardTitle>
+          <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -366,9 +401,9 @@ export default function AdminDashboard() {
               onClick={() => (window.location.href = '/admin/users')}
             >
               <Users className="w-8 h-8 mb-2" />
-              <span className="font-semibold">Управувај со корисници</span>
+              <span className="font-semibold">Manage Users</span>
               <span className="text-xs text-muted-foreground">
-                Прегледај и измени корисници
+                View and edit users
               </span>
             </Button>
             <Button
@@ -377,9 +412,9 @@ export default function AdminDashboard() {
               onClick={() => (window.location.href = '/admin/logs')}
             >
               <Database className="w-8 h-8 mb-2" />
-              <span className="font-semibold">Прегледај логови</span>
+              <span className="font-semibold">View Logs</span>
               <span className="text-xs text-muted-foreground">
-                Систем логови и активности
+                System logs and activity
               </span>
             </Button>
             <Button
@@ -388,9 +423,9 @@ export default function AdminDashboard() {
               onClick={() => (window.location.href = '/admin/analytics')}
             >
               <Settings className="w-8 h-8 mb-2" />
-              <span className="font-semibold">Аналитика</span>
+              <span className="font-semibold">Analytics</span>
               <span className="text-xs text-muted-foreground">
-                Детални статистики
+                Detailed statistics
               </span>
             </Button>
           </div>

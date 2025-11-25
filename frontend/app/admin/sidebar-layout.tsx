@@ -24,7 +24,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const data = await api.getDashboardStats();
         setStats(data);
       } catch (error) {
-        console.error('Грешка при вчитување на статистики:', error);
+        console.error('Error loading stats:', error);
       }
     };
 
@@ -36,7 +36,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navigation = [
     {
-      name: 'Контролна табла',
+      name: 'Dashboard',
       href: '/admin',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -45,7 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ),
     },
     {
-      name: 'Корисници',
+      name: 'Users',
       href: '/admin/users',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -54,7 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ),
     },
     {
-      name: 'Тендери',
+      name: 'Tenders',
       href: '/admin/tenders',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -63,7 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ),
     },
     {
-      name: 'Аналитика',
+      name: 'Analytics',
       href: '/admin/analytics',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -81,7 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ),
     },
     {
-      name: 'Логови',
+      name: 'Logs',
       href: '/admin/logs',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -90,7 +90,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ),
     },
     {
-      name: 'Известувања',
+      name: 'Broadcast',
       href: '/admin/broadcast',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -101,10 +101,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ];
 
   const statsCards = [
-    { label: 'Вкупно корисници', value: stats?.total_users || 0, color: 'blue' },
-    { label: 'Вкупно тендери', value: stats?.total_tenders || 0, color: 'green' },
-    { label: 'Активни претплати', value: stats?.active_subscriptions || 0, color: 'purple' },
-    { label: 'Одобрувања', value: stats?.pending_approvals || 0, color: 'orange' },
+    { label: 'Total Users', value: stats?.total_users || 0, color: 'blue' },
+    { label: 'Total Tenders', value: stats?.total_tenders || 0, color: 'green' },
+    { label: 'Active Subscriptions', value: stats?.active_subscriptions || 0, color: 'purple' },
+    { label: 'Pending Approvals', value: stats?.pending_approvals || 0, color: 'orange' },
   ];
 
   return (
@@ -189,7 +189,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                {isSidebarOpen && <span className="font-medium">Назад на сајт</span>}
+                {isSidebarOpen && <span className="font-medium">Back to Site</span>}
               </Link>
             </div>
           </aside>
