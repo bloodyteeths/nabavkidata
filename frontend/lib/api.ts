@@ -370,7 +370,12 @@ class APIClient {
 
   // Tenders
   async getTenders(params?: Record<string, any>) {
-    const query = new URLSearchParams(params).toString();
+    // Filter out null, undefined, and empty string values to prevent URLSearchParams issues
+    const cleanParams = Object.entries(params || {})
+      .filter(([_, value]) => value !== null && value !== undefined && value !== '')
+      .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+
+    const query = new URLSearchParams(cleanParams).toString();
     return this.request<{ total: number; items: Tender[] }>(`/api/tenders?${query}`);
   }
 
@@ -451,6 +456,36 @@ class APIClient {
       method: 'POST',
       body: JSON.stringify(behavior),
     });
+  }
+
+  // Search History Tracking
+  async logSearch(userId: string, search: {
+    query_text?: string;
+    filters?: Record<string, any>;
+    results_count?: number;
+    clicked_tender_id?: string;
+  }) {
+    return this.request(`/api/personalization/search-history?user_id=${userId}`, {
+      method: 'POST',
+      body: JSON.stringify(search),
+    });
+  }
+
+  async getSearchHistory(userId: string, limit: number = 20) {
+    return this.request<{ total: number; items: Array<{
+      id: string;
+      query_text?: string;
+      filters?: string;
+      results_count?: number;
+      clicked_tender_id?: string;
+      created_at?: string;
+    }> }>(`/api/personalization/search-history?user_id=${userId}&limit=${limit}`);
+  }
+
+  async getPopularSearches(limit: number = 10) {
+    return this.request<{ items: Array<{ query: string; count: number }> }>(
+      `/api/personalization/popular-searches?limit=${limit}`
+    );
   }
 
   // RAG/AI

@@ -203,30 +203,57 @@ export default function CompetitorsPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {competitorStats.map((competitor) => (
-              <div
-                key={competitor.name}
-                className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm truncate">{competitor.name}</h4>
-                  <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                    <span>Вкупно: {competitor.totalActivity}</span>
-                    <span className="text-green-600">Добиени: {competitor.wonCount}</span>
-                  </div>
-                </div>
-                {trackedCompetitors.includes(competitor.name) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeCompetitor(competitor.name)}
-                    className="ml-2 h-8 w-8 p-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
+            {trackedCompetitors.length === 0 && competitorStats.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-sm">Немате додадено конкуренти за следење.</p>
+                <p className="text-xs mt-1">Внесете име на компанија погоре за да започнете со следење.</p>
               </div>
-            ))}
+            ) : (
+              <>
+                {/* Show tracked competitors even if no activity data */}
+                {trackedCompetitors.map((name) => {
+                  const stats = competitorStats.find(s => s.name === name);
+                  return (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm truncate">{name}</h4>
+                        <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                          <span>Вкупно: {stats?.totalActivity || 0}</span>
+                          <span className="text-green-600">Добиени: {stats?.wonCount || 0}</span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeCompetitor(name)}
+                        className="ml-2 h-8 w-8 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+                {/* Show competitors from activity that aren't tracked */}
+                {competitorStats.filter(s => !trackedCompetitors.includes(s.name)).map((competitor) => (
+                  <div
+                    key={competitor.name}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-sm truncate">{competitor.name}</h4>
+                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>Вкупно: {competitor.totalActivity}</span>
+                        <span className="text-green-600">Добиени: {competitor.wonCount}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

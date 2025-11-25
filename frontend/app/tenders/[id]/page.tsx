@@ -43,7 +43,8 @@ interface ChatMsg {
 
 export default function TenderDetailPage() {
   const params = useParams();
-  const tenderId = decodeURIComponent(params.id as string);
+  const rawId = params?.id;
+  const tenderId = rawId ? decodeURIComponent(rawId as string) : null;
 
   const [tender, setTender] = useState<Tender | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +62,7 @@ export default function TenderDetailPage() {
   const [hasLots, setHasLots] = useState(false);
 
   useEffect(() => {
+    if (!tenderId) return;
     loadTender();
     generateSummary();
     loadNotifyPreference();
@@ -70,6 +72,7 @@ export default function TenderDetailPage() {
   }, [tenderId]);
 
   async function loadTender() {
+    if (!tenderId) return;
     try {
       setLoading(true);
       const result = await api.getTender(tenderId);
@@ -83,6 +86,7 @@ export default function TenderDetailPage() {
   }
 
   async function generateSummary() {
+    if (!tenderId) return;
     try {
       setSummaryLoading(true);
       const result = await api.queryRAG(
@@ -100,6 +104,7 @@ export default function TenderDetailPage() {
   }
 
   async function loadDocuments() {
+    if (!tenderId) return;
     try {
       setDocumentsLoading(true);
       const result = await api.getTenderDocuments(tenderId);
@@ -113,6 +118,7 @@ export default function TenderDetailPage() {
   }
 
   async function loadBidders() {
+    if (!tenderId) return;
     try {
       // Parse tender ID (format: "12345/2025")
       const parts = tenderId.split('/');
@@ -133,6 +139,7 @@ export default function TenderDetailPage() {
   }
 
   async function loadLots() {
+    if (!tenderId) return;
     try {
       // Parse tender ID (format: "12345/2025")
       const parts = tenderId.split('/');
@@ -166,7 +173,7 @@ export default function TenderDetailPage() {
     setChatLoading(true);
 
     try {
-      const result = await api.queryRAG(message, tenderId);
+      const result = await api.queryRAG(message, tenderId!);
       setChatMessages((prev) => [
         ...prev,
         {
@@ -195,7 +202,7 @@ export default function TenderDetailPage() {
       // Get user ID from localStorage if authenticated
       const userId = typeof window !== 'undefined' ? localStorage.getItem('user_id') || 'anonymous' : 'anonymous';
       await api.logBehavior(userId, {
-        tender_id: tenderId,
+        tender_id: tenderId!,
         action,
         duration_seconds: 0,
       });
@@ -209,7 +216,7 @@ export default function TenderDetailPage() {
       const stored = localStorage.getItem("followed_tenders");
       if (!stored) return;
       const parsed: string[] = JSON.parse(stored);
-      setNotifyEnabled(parsed.includes(tenderId));
+      setNotifyEnabled(parsed.includes(tenderId!));
     } catch {
       // ignore
     }
@@ -220,12 +227,12 @@ export default function TenderDetailPage() {
       const stored = localStorage.getItem("followed_tenders");
       const parsed: string[] = stored ? JSON.parse(stored) : [];
       let updated: string[];
-      if (parsed.includes(tenderId)) {
+      if (parsed.includes(tenderId!)) {
         updated = parsed.filter((id) => id !== tenderId);
         setNotifyEnabled(false);
         toast.success("Известувањата се исклучени за овој тендер.");
       } else {
-        updated = [...parsed, tenderId];
+        updated = [...parsed, tenderId!];
         setNotifyEnabled(true);
         toast.success("Ќе добивате известувања за овој тендер (само активни).");
       }
@@ -248,7 +255,7 @@ export default function TenderDetailPage() {
     window.open(tender.source_url, "_blank", "noopener,noreferrer");
   };
 
-  if (loading) {
+  if (!tenderId || loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-muted-foreground">Се вчитува...</p>

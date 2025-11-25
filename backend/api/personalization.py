@@ -3,9 +3,10 @@ Personalization API Endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import List
+from sqlalchemy import select, text
+from typing import List, Optional
 from uuid import UUID
+from pydantic import BaseModel
 
 from database import get_db
 from models import User
@@ -27,6 +28,82 @@ from services.personalization_engine import (
 )
 
 router = APIRouter(prefix="/api/personalization", tags=["personalization"])
+
+
+# Search history schema
+class SearchHistoryLog(BaseModel):
+    query_text: Optional[str] = None
+    filters: Optional[dict] = {}
+    results_count: Optional[int] = None
+    clicked_tender_id: Optional[str] = None
+
+
+def generate_match_reasons(tender, user_prefs: Optional[UserPreferences]) -> List[str]:
+    """Generate meaningful match reasons based on user preferences"""
+    reasons = []
+
+    if not user_prefs:
+        # No preferences - show generic reasons
+        if tender.status == 'open':
+            reasons.append("Отворен тендер")
+        return reasons if reasons else ["Нов тендер"]
+
+    # Check sector match
+    if user_prefs.sectors and tender.category:
+        # Map sector IDs to names for display
+        sector_names = {
+            "it": "ИТ и Софтвер",
+            "construction": "Градежништво",
+            "consulting": "Консултантски услуги",
+            "equipment": "Опрема и машини",
+            "medical": "Медицина и здравство",
+            "education": "Образование",
+            "transport": "Транспорт",
+            "food": "Храна и пијалоци",
+            "cleaning": "Чистење и одржување",
+            "security": "Обезбедување",
+            "energy": "Енергетика",
+            "printing": "Печатење"
+        }
+        for sector_id in user_prefs.sectors:
+            sector_name = sector_names.get(sector_id, sector_id)
+            if tender.category and (sector_id.lower() in tender.category.lower() or
+                                    sector_name.lower() in tender.category.lower()):
+                reasons.append(f"Сектор: {sector_name}")
+                break
+
+    # Check CPV code match
+    if user_prefs.cpv_codes and tender.cpv_code:
+        for cpv in user_prefs.cpv_codes:
+            if tender.cpv_code.startswith(cpv[:2]):  # Match first 2 digits at minimum
+                reasons.append(f"CPV код: {tender.cpv_code[:8]}")
+                break
+
+    # Check entity match
+    if user_prefs.entities and tender.procuring_entity:
+        for entity in user_prefs.entities:
+            if entity.lower() in tender.procuring_entity.lower():
+                reasons.append(f"Организација: {entity[:30]}")
+                break
+
+    # Check budget range match
+    if tender.estimated_value_mkd:
+        in_budget = True
+        if user_prefs.min_budget and tender.estimated_value_mkd < user_prefs.min_budget:
+            in_budget = False
+        if user_prefs.max_budget and tender.estimated_value_mkd > user_prefs.max_budget:
+            in_budget = False
+        if in_budget and (user_prefs.min_budget or user_prefs.max_budget):
+            reasons.append("Во вашиот буџет")
+
+    # If no specific matches but tender is open
+    if not reasons:
+        if tender.status == 'open':
+            reasons.append("Отворен тендер")
+        else:
+            reasons.append("Поврзан тендер")
+
+    return reasons[:3]  # Limit to 3 reasons
 
 
 # ============================================================================
@@ -154,18 +231,19 @@ async def get_personalized_dashboard(
 ):
     """Get personalized dashboard"""
 
+    # Get user preferences for match reasons
+    prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
+    prefs_result = await db.execute(prefs_query)
+    user_prefs = prefs_result.scalar_one_or_none()
+
     # Hybrid search
     search_engine = HybridSearchEngine(db)
     scored_tenders = await search_engine.search(user_id, limit=limit)
 
-    # Convert to response format
+    # Convert to response format with meaningful match reasons
     recommended = []
     for tender, score in scored_tenders:
-        match_reasons = []
-        if tender.category:
-            match_reasons.append(f"Category: {tender.category}")
-        if tender.cpv_code:
-            match_reasons.append(f"CPV: {tender.cpv_code}")
+        match_reasons = generate_match_reasons(tender, user_prefs)
 
         recommended.append(RecommendedTender(
             tender_id=tender.tender_id,
@@ -264,6 +342,27 @@ async def get_user_digests(
     db: AsyncSession = Depends(get_db)
 ):
     """Get user's email digests"""
+    from sqlalchemy import text
+
+    # Check if table exists first
+    try:
+        check_query = text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'email_digests')")
+        check_result = await db.execute(check_query)
+        table_exists = check_result.scalar()
+
+        if not table_exists:
+            # Table doesn't exist yet - return empty results
+            return {
+                "total": 0,
+                "items": []
+            }
+    except Exception:
+        # If we can't check, return empty results
+        return {
+            "total": 0,
+            "items": []
+        }
+
     from models_user_personalization import EmailDigest
 
     query = select(EmailDigest).where(
@@ -301,6 +400,21 @@ async def get_digest_detail(
     db: AsyncSession = Depends(get_db)
 ):
     """Get detailed digest content"""
+    from sqlalchemy import text
+
+    # Check if table exists first
+    try:
+        check_query = text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'email_digests')")
+        check_result = await db.execute(check_query)
+        table_exists = check_result.scalar()
+
+        if not table_exists:
+            raise HTTPException(status_code=404, detail="Digest not found")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=404, detail="Digest not found")
+
     from models_user_personalization import EmailDigest
 
     query = select(EmailDigest).where(
@@ -324,3 +438,128 @@ async def get_digest_detail(
         "sent": digest.sent,
         "sent_at": digest.sent_at.isoformat() if digest.sent_at else None,
     }
+
+
+# ============================================================================
+# SEARCH HISTORY
+# ============================================================================
+
+@router.post("/search-history", status_code=201)
+async def log_search(
+    search: SearchHistoryLog,
+    user_id: UUID,  # TODO: Get from auth
+    db: AsyncSession = Depends(get_db)
+):
+    """Log a search query for personalization"""
+    try:
+        # Check if table exists
+        check_query = text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'search_history')")
+        check_result = await db.execute(check_query)
+        table_exists = check_result.scalar()
+
+        if not table_exists:
+            return {"message": "Search logged (table pending migration)"}
+
+        # Insert search history
+        insert_query = text("""
+            INSERT INTO search_history (user_id, query_text, filters, results_count, clicked_tender_id)
+            VALUES (:user_id, :query_text, :filters, :results_count, :clicked_tender_id)
+        """)
+        await db.execute(insert_query, {
+            "user_id": str(user_id),
+            "query_text": search.query_text,
+            "filters": str(search.filters) if search.filters else "{}",
+            "results_count": search.results_count,
+            "clicked_tender_id": search.clicked_tender_id
+        })
+        await db.commit()
+
+        return {"message": "Search logged successfully"}
+    except Exception as e:
+        # Don't fail the request if logging fails
+        print(f"Failed to log search: {e}")
+        return {"message": "Search logged (with warning)"}
+
+
+@router.get("/search-history")
+async def get_search_history(
+    user_id: UUID,  # TODO: Get from auth
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get user's recent search history"""
+    try:
+        # Check if table exists
+        check_query = text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'search_history')")
+        check_result = await db.execute(check_query)
+        table_exists = check_result.scalar()
+
+        if not table_exists:
+            return {"total": 0, "items": []}
+
+        # Get recent searches
+        query = text("""
+            SELECT search_id, query_text, filters, results_count, clicked_tender_id, created_at
+            FROM search_history
+            WHERE user_id = :user_id
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """)
+        result = await db.execute(query, {"user_id": str(user_id), "limit": limit})
+        rows = result.fetchall()
+
+        return {
+            "total": len(rows),
+            "items": [
+                {
+                    "id": str(row[0]),
+                    "query_text": row[1],
+                    "filters": row[2],
+                    "results_count": row[3],
+                    "clicked_tender_id": row[4],
+                    "created_at": row[5].isoformat() if row[5] else None
+                }
+                for row in rows
+            ]
+        }
+    except Exception as e:
+        print(f"Failed to get search history: {e}")
+        return {"total": 0, "items": []}
+
+
+@router.get("/popular-searches")
+async def get_popular_searches(
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get popular search queries across all users"""
+    try:
+        # Check if table exists
+        check_query = text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'search_history')")
+        check_result = await db.execute(check_query)
+        table_exists = check_result.scalar()
+
+        if not table_exists:
+            return {"items": []}
+
+        # Get popular searches
+        query = text("""
+            SELECT query_text, COUNT(*) as search_count
+            FROM search_history
+            WHERE query_text IS NOT NULL AND query_text != ''
+            GROUP BY query_text
+            ORDER BY search_count DESC
+            LIMIT :limit
+        """)
+        result = await db.execute(query, {"limit": limit})
+        rows = result.fetchall()
+
+        return {
+            "items": [
+                {"query": row[0], "count": row[1]}
+                for row in rows
+            ]
+        }
+    except Exception as e:
+        print(f"Failed to get popular searches: {e}")
+        return {"items": []}

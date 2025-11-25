@@ -13,16 +13,21 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
   const { user } = useAuth();
 
+  // Track hydration to prevent client-side navigation errors
   useEffect(() => {
-    if (user) {
-      loadDashboard();
-    }
-  }, [user]);
+    setIsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isHydrated || !user) return;
+    loadDashboard();
+  }, [isHydrated, user]);
 
   async function loadDashboard() {
-    if (!user) return;
+    if (!user?.user_id) return;
 
     try {
       setLoading(true);
@@ -61,7 +66,7 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading) {
+  if (!isHydrated || loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -106,33 +111,35 @@ export default function DashboardPage() {
       animate="show"
       className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6 lg:space-y-8"
     >
-      {/* Free Tier Upgrade Banner */}
-      <motion.div variants={item}>
-        <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 border-primary/30">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1">
-                <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+      {/* Free Tier Upgrade Banner - Only show for FREE plan users */}
+      {user?.subscription_tier?.toLowerCase() === 'free' && (
+        <motion.div variants={item}>
+          <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 border-primary/30">
+            <CardContent className="p-4 md:p-6">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1">
+                  <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-base md:text-lg font-bold text-white">Вие сте на FREE планот</h3>
+                    <p className="text-xs md:text-sm text-muted-foreground mt-1">
+                      Надоградете за целосен пристап до напредна аналитика, неограничени пребарувања и повеќе функции
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-base md:text-lg font-bold text-white">Вие сте на FREE планот</h3>
-                  <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                    Надоградете за целосен пристап до напредна аналитика, неограничени пребарувања и повеќе функции
-                  </p>
-                </div>
+                <a href="/settings" className="w-full md:w-auto">
+                  <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg">
+                    <Award className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">Надогради сега</span>
+                    <span className="sm:hidden">Надогради</span>
+                  </Button>
+                </a>
               </div>
-              <a href="/settings" className="w-full md:w-auto">
-                <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg">
-                  <Award className="mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Надогради сега</span>
-                  <span className="sm:hidden">Надогради</span>
-                </Button>
-              </a>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Header */}
       <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -144,10 +151,14 @@ export default function DashboardPage() {
             Вашите препорачани тендери и анализа на конкуренцијата
           </p>
         </div>
-        <Button className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]">
-          <Sparkles className="mr-2 h-4 w-4" />
-          <span className="hidden sm:inline">Нова Анализа</span>
-          <span className="sm:hidden">Анализа</span>
+        <Button
+          onClick={loadDashboard}
+          disabled={loading}
+          className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]"
+        >
+          <Sparkles className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline">{loading ? 'Анализирам...' : 'Нова Анализа'}</span>
+          <span className="sm:hidden">{loading ? '...' : 'Анализа'}</span>
         </Button>
       </motion.div>
 
