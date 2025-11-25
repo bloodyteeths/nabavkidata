@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from itemadapter import ItemAdapter
 from scrapy.utils.defer import deferred_from_coro
+from scraper.items import DocumentItem
 import aiofiles
 import fitz  # PyMuPDF
 
@@ -473,6 +474,15 @@ class DatabasePipeline:
                 await self.insert_tender_lots(self.conn, tender_id, adapter.get('lots_data'))
                 await self.insert_tender_bidders(self.conn, tender_id, adapter.get('bidders_data'))
                 await self.insert_tender_amendments(self.conn, tender_id, adapter.get('amendments_data'))
+                # Insert documents captured on tender (fallback if DocumentItems not processed)
+                docs_data = adapter.get('documents_data')
+                if docs_data:
+                    logger.info(f"Inserting {len(docs_data)} document(s) for tender {tender_id}")
+                    for doc in docs_data:
+                        # Ensure required fields
+                        doc.setdefault('doc_type', doc.get('doc_category') or 'document')
+                        doc.setdefault('extraction_status', 'pending')
+                        await self.insert_document(doc)
 
             elif item.__class__.__name__ == 'DocumentItem':
                 doc_name = adapter.get('file_name', 'UNKNOWN')
@@ -733,8 +743,7 @@ class DatabasePipeline:
                 doc_category = EXCLUDED.doc_category,
                 doc_version = EXCLUDED.doc_version,
                 upload_date = EXCLUDED.upload_date,
-                file_hash = EXCLUDED.file_hash,
-                updated_at = CURRENT_TIMESTAMP
+                file_hash = EXCLUDED.file_hash
         """,
             item.get('tender_id'),
             item.get('doc_type'),

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import asyncpg
+import aiohttp
 
 DEFAULT_HEALTH_PATH = Path("/var/log/nabavkidata/health.json")
 
@@ -69,6 +70,16 @@ async def main():
     db_stats = await get_db_stats()
     anomalies = compute_anomalies(db_stats, args.finished, args.dataset)
 
+    async def send_slack_alert(payload: dict):
+        webhook = os.getenv("SLACK_WEBHOOK_URL")
+        if not webhook:
+            return
+        try:
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook, json=payload, timeout=10)
+        except Exception:
+            pass
+
     health = {
         "dataset": args.dataset,
         "status": args.status,
@@ -85,6 +96,13 @@ async def main():
     DEFAULT_HEALTH_PATH.parent.mkdir(parents=True, exist_ok=True)
     DEFAULT_HEALTH_PATH.write_text(json.dumps(health, indent=2))
     print(json.dumps(health, indent=2))
+
+    # Alert on failures or anomalies
+    if args.status == "failure" or anomalies:
+        await send_slack_alert({
+            "text": f"[nabavkidata] Scraper {args.dataset} status={args.status} errors={args.error_count} anomalies={anomalies}",
+            "health": health
+        })
 
 if __name__ == "__main__":
     asyncio.run(main())

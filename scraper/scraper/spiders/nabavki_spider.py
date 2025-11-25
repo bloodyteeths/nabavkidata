@@ -27,6 +27,7 @@ from typing import Optional, Dict, Any, List
 import re
 import json
 from scrapy.http import Response
+from scraper.items import TenderItem, DocumentItem
 
 logger = logging.getLogger(__name__)
 
@@ -560,9 +561,23 @@ class NabavkiSpider(scrapy.Spider):
 
         tender['status'] = self._detect_status(tender)
 
-        # Extract documents (handled by PDF pipeline, not included in tender item)
+        # Extract documents and yield DocumentItems for pipeline processing
         documents = self._extract_documents(response, tender.get('tender_id', 'unknown'))
-        # Note: documents are not added to tender dict - they're processed by PDFDownloadPipeline
+        tender['documents_data'] = documents
+        logger.warning(f"Documents captured for {tender.get('tender_id')}: {len(documents)}")
+        for doc in documents:
+            logger.warning(f"Yielding document item for tender {tender.get('tender_id')}: {doc.get('file_name')}")
+            if hasattr(self, "crawler") and self.crawler:
+                self.crawler.stats.inc_value("documents_yielded", 1)
+            yield DocumentItem(
+                tender_id=doc.get('tender_id'),
+                file_url=doc.get('url'),
+                file_name=doc.get('file_name'),
+                doc_category=doc.get('doc_category'),
+                upload_date=doc.get('upload_date'),
+                doc_type=doc.get('doc_type', 'document'),
+                extraction_status='pending'
+            )
 
         # Log extraction statistics
         self._log_extraction_stats(tender)
@@ -571,7 +586,6 @@ class NabavkiSpider(scrapy.Spider):
         logger.warning(f"✅ Successfully extracted tender: {tender.get('tender_id')}")
 
         # Yield tender item
-        from scraper.items import TenderItem
         yield TenderItem(**tender)
 
     def _extract_field(self, response: Response, field_name: str) -> Optional[str]:
@@ -948,6 +962,7 @@ class NabavkiSpider(scrapy.Spider):
                         'doc_category': doc_category,
                         'upload_date': upload_date,
                         'file_name': filename,
+                        'doc_type': doc_type,
                     })
 
         logger.info(f"Extracted {len(documents)} documents for tender {tender_id}")
