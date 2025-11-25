@@ -57,18 +57,20 @@ export default function SettingsPage() {
     try {
       if (!userId) {
         setLoading(false);
-        // router.push('/auth/login'); // Optional: redirect
         return;
       }
       setLoading(true);
-      // TODO: Re-enable when personalization API is implemented
-      // const prefs = await api.getPreferences(userId);
-      // setPreferences(prefs);
-
-      // Use default preferences for now
-      setPreferences(DEFAULT_PREFERENCES);
+      try {
+        const prefs = await api.getPreferences(userId);
+        setPreferences(prefs);
+      } catch (err) {
+        // If 404, user has no preferences yet - use defaults
+        console.log("No existing preferences, using defaults");
+        setPreferences(DEFAULT_PREFERENCES);
+      }
     } catch (error) {
       console.error("Грешка при вчитување на преференци:", error);
+      setPreferences(DEFAULT_PREFERENCES);
     } finally {
       setLoading(false);
     }
@@ -176,10 +178,11 @@ export default function SettingsPage() {
     try {
       if (!userId) return;
       setSaving(true);
-      await api.updatePreferences(userId, preferences);
+      await api.savePreferences(userId, preferences);
       toast.success("Преференциите се успешно зачувани");
     } catch (error) {
       console.error("Грешка при зачувување:", error);
+      toast.error("Грешка при зачувување на преференците");
     } finally {
       setSaving(false);
     }
