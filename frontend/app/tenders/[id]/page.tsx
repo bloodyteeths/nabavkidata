@@ -32,7 +32,7 @@ interface ChatMsg {
 
 export default function TenderDetailPage() {
   const params = useParams();
-  const tenderId = params.id as string;
+  const tenderId = decodeURIComponent(params.id as string);
 
   const [tender, setTender] = useState<Tender | null>(null);
   const [loading, setLoading] = useState(true);

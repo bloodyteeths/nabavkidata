@@ -10,7 +10,7 @@ echo "Running smoke tests against $BASE_URL"
 curl -sf "$BASE_URL/api/tenders?page=1&page_size=2" | python3 -c "import sys,json; d=json.load(sys.stdin); print('[OK] tenders total', d.get('total'));"
 
 # 2. Tender detail API (use sample if available)
-TENDER_ID=$(curl -sf "$BASE_URL/api/tenders?page=1&page_size=1" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['items'][0]['tender_id'])")
+TENDER_ID=$(curl -sf "$BASE_URL/api/tenders?page=1&page_size=1" | python3 -c "import sys,json,urllib.parse; d=json.load(sys.stdin); print(urllib.parse.quote(d['items'][0]['tender_id']))")
 [ -z "$TENDER_ID" ] && fail "No tender id found"
 curl -sf "$BASE_URL/api/tenders/${TENDER_ID}" >/dev/null && echo "[OK] tender detail $TENDER_ID"
 
