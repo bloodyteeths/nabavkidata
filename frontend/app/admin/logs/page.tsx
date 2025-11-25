@@ -71,7 +71,7 @@ export default function AdminLogsPage() {
 
   useEffect(() => {
     fetchLogs();
-  }, [pagination.page]);
+  }, [pagination.page, filters.dateFrom, filters.dateTo]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -100,8 +100,17 @@ export default function AdminLogsPage() {
         limit: pagination.limit.toString(),
       });
 
-      if (filters.level !== 'all') {
-        params.append('action', filters.level);
+      // Add date range filters if provided
+      if (filters.dateFrom) {
+        const startDate = new Date(filters.dateFrom);
+        startDate.setHours(0, 0, 0, 0);
+        params.append('start_date', startDate.toISOString());
+      }
+
+      if (filters.dateTo) {
+        const endDate = new Date(filters.dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        params.append('end_date', endDate.toISOString());
       }
 
       const response = await fetch(`/api/admin/logs?${params}`, {
@@ -114,11 +123,18 @@ export default function AdminLogsPage() {
         const data = await response.json();
         // Map backend format to frontend format
         const mappedLogs: LogEntry[] = (data.logs || []).map((log: BackendLogEntry) => {
-          // Determine level based on action
+          // Improved level inference based on action
           let level: 'error' | 'warning' | 'info' = 'info';
-          if (log.action.includes('error') || log.action.includes('failed') || log.action.includes('delete')) {
+          const action = log.action.toLowerCase();
+
+          // Error level triggers
+          if (action.includes('error') || action.includes('failed') || action.includes('delete') ||
+              action.includes('reject') || action.includes('blocked')) {
             level = 'error';
-          } else if (log.action.includes('warning') || log.action.includes('ban')) {
+          }
+          // Warning level triggers
+          else if (action.includes('warning') || action.includes('ban') || action.includes('suspend') ||
+                   action.includes('alert') || action.includes('exceed')) {
             level = 'warning';
           }
 
@@ -133,9 +149,12 @@ export default function AdminLogsPage() {
         });
         setLogs(mappedLogs);
         setPagination((prev) => ({ ...prev, total: data.total || 0 }));
+      } else {
+        toast.error('Failed to fetch logs');
       }
     } catch (error) {
       console.error('Error fetching logs:', error);
+      toast.error('Error loading logs');
     } finally {
       setLoading(false);
     }
@@ -144,6 +163,12 @@ export default function AdminLogsPage() {
   const applyFilters = () => {
     let filtered = [...logs];
 
+    // Apply level filter
+    if (filters.level !== 'all') {
+      filtered = filtered.filter((log) => log.level === filters.level);
+    }
+
+    // Apply search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
       filtered = filtered.filter(
@@ -258,8 +283,18 @@ export default function AdminLogsPage() {
                 <SelectItem value="info">Info</SelectItem>
               </SelectContent>
             </Select>
-            <Input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} />
-            <Input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} />
+            <Input
+              type="date"
+              placeholder="From date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+            />
+            <Input
+              type="date"
+              placeholder="To date"
+              value={filters.dateTo}
+              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+            />
           </div>
         </CardContent>
       </Card>

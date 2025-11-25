@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { api, type Tender, type TenderDocument, type RAGQueryResponse } from "@/lib/api";
+import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -26,6 +26,11 @@ import {
   Mail,
   Phone,
   Briefcase,
+  Users,
+  Package,
+  Trophy,
+  XCircle,
+  Award,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -49,12 +54,19 @@ export default function TenderDetailPage() {
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [documents, setDocuments] = useState<TenderDocument[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [bidders, setBidders] = useState<TenderBidder[]>([]);
+  const [biddersLoading, setBiddersLoading] = useState(false);
+  const [lots, setLots] = useState<TenderLot[]>([]);
+  const [lotsLoading, setLotsLoading] = useState(false);
+  const [hasLots, setHasLots] = useState(false);
 
   useEffect(() => {
     loadTender();
     generateSummary();
     loadNotifyPreference();
     loadDocuments();
+    loadBidders();
+    loadLots();
   }, [tenderId]);
 
   async function loadTender() {
@@ -97,6 +109,48 @@ export default function TenderDetailPage() {
       setDocuments([]);
     } finally {
       setDocumentsLoading(false);
+    }
+  }
+
+  async function loadBidders() {
+    try {
+      // Parse tender ID (format: "12345/2025")
+      const parts = tenderId.split('/');
+      if (parts.length !== 2) {
+        console.log("Invalid tender ID format for bidders");
+        return;
+      }
+      const [tenderNumber, tenderYear] = parts;
+      setBiddersLoading(true);
+      const result = await api.getTenderBidders(tenderNumber, tenderYear);
+      setBidders(result.bidders || []);
+    } catch (error) {
+      console.error("Failed to load bidders:", error);
+      setBidders([]);
+    } finally {
+      setBiddersLoading(false);
+    }
+  }
+
+  async function loadLots() {
+    try {
+      // Parse tender ID (format: "12345/2025")
+      const parts = tenderId.split('/');
+      if (parts.length !== 2) {
+        console.log("Invalid tender ID format for lots");
+        return;
+      }
+      const [tenderNumber, tenderYear] = parts;
+      setLotsLoading(true);
+      const result = await api.getTenderLots(tenderNumber, tenderYear);
+      setLots(result.lots || []);
+      setHasLots(result.has_lots || false);
+    } catch (error) {
+      console.error("Failed to load lots:", error);
+      setLots([]);
+      setHasLots(false);
+    } finally {
+      setLotsLoading(false);
     }
   }
 
@@ -290,6 +344,16 @@ export default function TenderDetailPage() {
                 <File className="h-4 w-4 mr-2" />
                 Документи ({documents.length})
               </TabsTrigger>
+              <TabsTrigger value="bidders">
+                <Users className="h-4 w-4 mr-2" />
+                Понудувачи ({bidders.length})
+              </TabsTrigger>
+              {hasLots && (
+                <TabsTrigger value="lots">
+                  <Package className="h-4 w-4 mr-2" />
+                  Лотови ({lots.length})
+                </TabsTrigger>
+              )}
               <TabsTrigger value="chat">
                 <MessageSquare className="h-4 w-4 mr-2" />
                 AI Асистент
@@ -324,13 +388,42 @@ export default function TenderDetailPage() {
                       </div>
                     </div>
                   )}
+                  {tender.procedure_type && (
+                    <div className="flex items-start gap-3">
+                      <Briefcase className="h-5 w-5 text-muted-foreground mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Тип на постапка</p>
+                        <Badge variant="secondary">{tender.procedure_type}</Badge>
+                      </div>
+                    </div>
+                  )}
+                  {tender.evaluation_method && (
+                    <div className="flex items-start gap-3">
+                      <Award className="h-5 w-5 text-muted-foreground mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Метод на евалуација</p>
+                        <p className="text-sm text-muted-foreground">{tender.evaluation_method}</p>
+                      </div>
+                    </div>
+                  )}
                   {tender.estimated_value_mkd && (
                     <div className="flex items-start gap-3">
                       <Tag className="h-5 w-5 text-muted-foreground mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">Проценета вредност</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm font-semibold text-primary">
                           {formatCurrency(tender.estimated_value_mkd)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {tender.actual_value_mkd && (
+                    <div className="flex items-start gap-3">
+                      <Trophy className="h-5 w-5 text-muted-foreground mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Договорена вредност</p>
+                        <p className="text-sm font-semibold text-green-600">
+                          {formatCurrency(tender.actual_value_mkd)}
                         </p>
                       </div>
                     </div>
@@ -340,16 +433,25 @@ export default function TenderDetailPage() {
                       <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">CPV Код</p>
-                        <p className="text-sm text-muted-foreground">{tender.cpv_code}</p>
+                        <p className="text-sm text-muted-foreground font-mono">{tender.cpv_code}</p>
                       </div>
                     </div>
                   )}
-                  {tender.procedure_type && (
+                  {tender.num_bidders !== undefined && tender.num_bidders !== null && (
                     <div className="flex items-start gap-3">
-                      <Briefcase className="h-5 w-5 text-muted-foreground mt-0.5" />
+                      <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
                       <div>
-                        <p className="text-sm font-medium">Тип на постапка</p>
-                        <p className="text-sm text-muted-foreground">{tender.procedure_type}</p>
+                        <p className="text-sm font-medium">Број на понудувачи</p>
+                        <p className="text-sm text-muted-foreground">{tender.num_bidders}</p>
+                      </div>
+                    </div>
+                  )}
+                  {tender.winner && (
+                    <div className="flex items-start gap-3">
+                      <Trophy className="h-5 w-5 text-muted-foreground mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Добитник</p>
+                        <p className="text-sm text-muted-foreground">{tender.winner}</p>
                       </div>
                     </div>
                   )}
@@ -459,6 +561,160 @@ export default function TenderDetailPage() {
                               </a>
                             </Button>
                           )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="bidders" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Понудувачи</CardTitle>
+                  <CardDescription>
+                    Список на сите понудувачи кои аплицирале за овој тендер
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {biddersLoading ? (
+                    <p className="text-sm text-muted-foreground">Се вчитуваат понудувачи...</p>
+                  ) : bidders.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                      <Users className="h-12 w-12 mb-2 opacity-20" />
+                      <p className="text-sm">Нема понудувачи</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {bidders.map((bidder) => (
+                        <div
+                          key={bidder.bidder_id}
+                          className="flex items-start justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold">{bidder.company_name}</p>
+                              {bidder.is_winner && (
+                                <Badge variant="default" className="bg-green-600">
+                                  <Trophy className="h-3 w-3 mr-1" />
+                                  Добитник
+                                </Badge>
+                              )}
+                              {bidder.is_disqualified && (
+                                <Badge variant="destructive">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Дисквалификуван
+                                </Badge>
+                              )}
+                            </div>
+                            {bidder.tax_id && (
+                              <p className="text-xs text-muted-foreground">
+                                Даночен број: {bidder.tax_id}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-4 text-sm">
+                              {bidder.bid_amount_mkd && (
+                                <div>
+                                  <span className="text-muted-foreground">Понуда: </span>
+                                  <span className="font-semibold text-primary">
+                                    {formatCurrency(bidder.bid_amount_mkd)}
+                                  </span>
+                                </div>
+                              )}
+                              {bidder.rank && (
+                                <div>
+                                  <span className="text-muted-foreground">Ранг: </span>
+                                  <span className="font-semibold">#{bidder.rank}</span>
+                                </div>
+                              )}
+                            </div>
+                            {bidder.is_disqualified && bidder.disqualification_reason && (
+                              <p className="text-xs text-destructive">
+                                Причина: {bidder.disqualification_reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="lots" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Лотови</CardTitle>
+                  <CardDescription>
+                    Поделба на тендерот на лотови/ставки
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {lotsLoading ? (
+                    <p className="text-sm text-muted-foreground">Се вчитуваат лотови...</p>
+                  ) : lots.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                      <Package className="h-12 w-12 mb-2 opacity-20" />
+                      <p className="text-sm">Нема лотови</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {lots.map((lot) => (
+                        <div
+                          key={lot.lot_id}
+                          className="p-4 rounded-lg border bg-card"
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline">Лот #{lot.lot_number}</Badge>
+                                {lot.winner && (
+                                  <Badge variant="default" className="bg-green-600">
+                                    <Trophy className="h-3 w-3 mr-1" />
+                                    Доделен
+                                  </Badge>
+                                )}
+                              </div>
+                              <h4 className="text-sm font-semibold">{lot.title}</h4>
+                            </div>
+                          </div>
+                          {lot.description && (
+                            <p className="text-xs text-muted-foreground mb-2">
+                              {lot.description}
+                            </p>
+                          )}
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            {lot.estimated_value_mkd && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Проценета вредност</p>
+                                <p className="font-semibold text-primary">
+                                  {formatCurrency(lot.estimated_value_mkd)}
+                                </p>
+                              </div>
+                            )}
+                            {lot.actual_value_mkd && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Договорена вредност</p>
+                                <p className="font-semibold text-green-600">
+                                  {formatCurrency(lot.actual_value_mkd)}
+                                </p>
+                              </div>
+                            )}
+                            {lot.cpv_code && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">CPV Код</p>
+                                <p className="font-mono text-xs">{lot.cpv_code}</p>
+                              </div>
+                            )}
+                            {lot.winner && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Добитник</p>
+                                <p className="font-semibold text-xs">{lot.winner}</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

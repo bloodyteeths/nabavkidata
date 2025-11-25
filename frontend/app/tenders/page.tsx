@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { TenderCard } from "@/components/tenders/TenderCard";
 import { TenderFilters, type FilterState } from "@/components/tenders/TenderFilters";
 import { TenderStats } from "@/components/tenders/TenderStats";
+import { SavedSearches } from "@/components/SavedSearches";
 import { Button } from "@/components/ui/button";
+import { ExportButton } from "@/components/ExportButton";
 import { api, type Tender } from "@/lib/api";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -20,17 +22,40 @@ export default function TendersPage() {
     "active"
   );
   const [error, setError] = useState<string | null>(null);
+  const [hasHistoricalData, setHasHistoricalData] = useState(false);
+  const [quickFilters, setQuickFilters] = useState({
+    procedureType: null as string | null,
+    statusFilter: null as string | null,
+  });
 
   const limit = 20;
 
   useEffect(() => {
     loadTenders();
+  }, [page, filters, dataset, quickFilters]);
+
+  useEffect(() => {
     loadStats();
-  }, [page, filters, dataset]);
+    checkHistoricalData();
+  }, []);
+
+  async function checkHistoricalData() {
+    try {
+      const result = await api.getTenders({
+        source_category: "historical",
+        page: 1,
+        page_size: 1
+      });
+      setHasHistoricalData(result.total > 0);
+    } catch (err) {
+      console.error("Failed to check historical data:", err);
+      setHasHistoricalData(false);
+    }
+  }
 
   async function loadTenders() {
-    // Historical dataset not yet available
-    if (dataset === "historical") {
+    // Historical dataset - check if available
+    if (dataset === "historical" && !hasHistoricalData) {
       setTenders([]);
       setTotal(0);
       setLoading(false);
@@ -61,6 +86,10 @@ export default function TendersPage() {
       if (filters.dateFrom) params.date_from = filters.dateFrom;
       if (filters.dateTo) params.date_to = filters.dateTo;
 
+      // Apply quick filters
+      if (quickFilters.procedureType) params.procedure_type = quickFilters.procedureType;
+      if (quickFilters.statusFilter) params.status = quickFilters.statusFilter;
+
       const result = await api.getTenders(params);
       setTenders(result.items);
       setTotal(result.total);
@@ -76,11 +105,25 @@ export default function TendersPage() {
   async function loadStats() {
     try {
       const result = await api.getTenderStats();
+
+      // Get awarded count from awarded dataset
+      let awardedCount = 0;
+      try {
+        const awardedResult = await api.getTenders({
+          source_category: "awarded",
+          page: 1,
+          page_size: 1
+        });
+        awardedCount = awardedResult.total || 0;
+      } catch (err) {
+        console.error("Failed to get awarded count:", err);
+      }
+
       setStats({
         total: result.total_tenders || 0,
         open: result.open_tenders || 0,
         closed: result.closed_tenders || 0,
-        awarded: 0, // Backend doesn't track awarded status
+        awarded: awardedCount,
       });
     } catch (error) {
       console.error("Failed to load stats:", error);
@@ -94,6 +137,29 @@ export default function TendersPage() {
 
   const handleReset = () => {
     setFilters({});
+    setQuickFilters({ procedureType: null, statusFilter: null });
+    setPage(1);
+  };
+
+  const handleLoadSearch = (savedFilters: FilterState) => {
+    setFilters(savedFilters);
+    setPage(1);
+    toast.success("Пребарувањето е вчитано");
+  };
+
+  const handleQuickProcedureFilter = (type: string) => {
+    setQuickFilters(prev => ({
+      ...prev,
+      procedureType: prev.procedureType === type ? null : type
+    }));
+    setPage(1);
+  };
+
+  const handleQuickStatusFilter = (status: string) => {
+    setQuickFilters(prev => ({
+      ...prev,
+      statusFilter: prev.statusFilter === status ? null : status
+    }));
     setPage(1);
   };
 
@@ -124,11 +190,11 @@ export default function TendersPage() {
             active: "Активни",
             awarded: "Доделени",
             cancelled: "Поништени",
-            historical: "Архива (во подготовка)",
+            historical: hasHistoricalData ? "Архива" : "Архива (во подготовка)",
           };
           const isActive = dataset === key;
-          // Only historical is disabled now
-          const disabled = key === "historical";
+          // Historical is disabled if no data
+          const disabled = key === "historical" && !hasHistoricalData;
           return (
             <Button
               key={key}
@@ -151,11 +217,68 @@ export default function TendersPage() {
       </div>
 
       {/* Placeholder notice for historical (not yet available) */}
-      {dataset === "historical" && (
+      {dataset === "historical" && !hasHistoricalData && (
         <div className="rounded-md border border-dashed border-muted-foreground/30 p-4 text-sm text-muted-foreground">
           Архивата на договори ќе биде активирана наскоро.
         </div>
       )}
+
+      {/* Quick Filters */}
+      <div className="space-y-3">
+        <div className="flex flex-col gap-2">
+          {/* Procedure Type Filters */}
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Брзо филтрирање по тип на постапка:</span>
+            <div className="flex flex-wrap gap-2">
+              {["Отворена постапка", "Ограничена постапка", "Преговарачка постапка", "Конкурентен дијалог"].map((type) => (
+                <Button
+                  key={type}
+                  variant={quickFilters.procedureType === type ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleQuickProcedureFilter(type)}
+                >
+                  {type}
+                </Button>
+              ))}
+              {quickFilters.procedureType && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setQuickFilters(prev => ({ ...prev, procedureType: null }))}
+                >
+                  Откажи
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Status Quick Filters - only show if not on specific dataset */}
+          {dataset === "active" && (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Брзо филтрирање по статус:</span>
+              <div className="flex flex-wrap gap-2">
+                {["open", "closed"].map((status) => (
+                  <Button
+                    key={status}
+                    variant={quickFilters.statusFilter === status ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleQuickStatusFilter(status)}
+                  >
+                    {status === "open" ? "Отворени" : "Затворени"}
+                  </Button>
+                ))}
+                <Button
+                  variant={quickFilters.statusFilter === null ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setQuickFilters(prev => ({ ...prev, statusFilter: null }))}
+                >
+                  Сите
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Stats */}
       <TenderStats
@@ -168,11 +291,15 @@ export default function TendersPage() {
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
         {/* Filters Sidebar */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-4">
           <TenderFilters
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onReset={handleReset}
+          />
+          <SavedSearches
+            currentFilters={filters}
+            onLoadSearch={handleLoadSearch}
           />
         </div>
 
@@ -186,9 +313,25 @@ export default function TendersPage() {
               {dataset === "awarded" && " · доделени договори"}
               {dataset === "cancelled" && " · поништени тендери"}
             </p>
-            <p className="text-xs md:text-sm text-muted-foreground">
-              Страна {page} од {totalPages}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs md:text-sm text-muted-foreground">
+                Страна {page} од {totalPages}
+              </p>
+              {tenders.length > 0 && (
+                <ExportButton
+                  data={tenders}
+                  filename={`тендери-${dataset}-${new Date().toISOString().split('T')[0]}`}
+                  columns={[
+                    { key: 'tender_id', label: 'ID' },
+                    { key: 'title', label: 'Наслов' },
+                    { key: 'procuring_entity', label: 'Наручилац' },
+                    { key: 'estimated_value_mkd', label: 'Проценета вредност (МКД)' },
+                    { key: 'closing_date', label: 'Краен рок' },
+                    { key: 'status', label: 'Статус' },
+                  ]}
+                />
+              )}
+            </div>
           </div>
 
           {error && (

@@ -77,8 +77,10 @@ export default function AdminUsersPage() {
     try {
       setLoading(true);
 
+      // Backend uses skip/limit instead of page/limit
+      const skip = (pagination.page - 1) * pagination.limit;
       const params = new URLSearchParams({
-        page: pagination.page.toString(),
+        skip: skip.toString(),
         limit: pagination.limit.toString(),
       });
 
@@ -90,13 +92,29 @@ export default function AdminUsersPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setUsers(data.users);
+
+        // Map backend format to frontend format
+        // Backend: user_id, email, full_name, subscription_tier, email_verified, is_active, role, created_at, last_login
+        // Frontend: id, email, name, subscription, verified, status (active/inactive/banned), role, created_at
+        const mappedUsers = data.users.map((user: any) => ({
+          id: user.user_id,
+          email: user.email,
+          name: user.full_name || user.email.split('@')[0],
+          role: user.role,
+          status: user.is_active ? 'active' : 'inactive',
+          subscription: user.subscription_tier || 'free',
+          verified: user.email_verified,
+          created_at: user.created_at,
+        }));
+
+        setUsers(mappedUsers);
         setPagination((prev) => ({ ...prev, total: data.total }));
       } else {
-        console.error('Failed to fetch users');
+        toast.error('Failed to fetch users');
       }
     } catch (error) {
       console.error('Error fetching users:', error);
+      toast.error('Error loading users');
     } finally {
       setLoading(false);
     }
@@ -171,9 +189,47 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleBan = (userId: string) => handleAction(userId, 'ban');
-  const handleDelete = (userId: string) => handleAction(userId, 'delete');
-  const handleVerify = (userId: string) => handleAction(userId, 'verify');
+  const handleBan = (userId: string) => {
+    // Check if user is already banned by finding the user
+    const user = users.find(u => u.id === userId);
+    if (user?.status === 'inactive') {
+      // User is banned/inactive, so unban them
+      handleAction(userId, 'unban', 'POST');
+    } else {
+      // User is active, so ban them
+      handleAction(userId, 'ban', 'POST');
+    }
+  };
+
+  const handleDelete = (userId: string) => handleAction(userId, 'delete', 'DELETE');
+
+  const handleVerify = (userId: string) => {
+    // Use PATCH to update email_verified field
+    handleUpdateUser(userId, { email_verified: true });
+  };
+
+  const handleUpdateUser = async (userId: string, updates: any) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (response.ok) {
+        fetchUsers();
+        toast.success('User updated successfully');
+      } else {
+        toast.error('Failed to update user');
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast.error('Error updating user');
+    }
+  };
 
   const handleBulkAction = async (action: string) => {
     if (selectedUsers.length === 0) {

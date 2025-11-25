@@ -45,11 +45,28 @@ interface DashboardStats {
 // Backend response format (snake_case)
 interface BackendStats {
   total_users: number;
-  active_subscriptions: number;
-  monthly_revenue_eur: string;
-  total_tenders: number;
+  active_users: number;
   verified_users: number;
+  total_tenders: number;
   open_tenders: number;
+  total_subscriptions: number;
+  active_subscriptions: number;
+  monthly_revenue_mkd: string;
+  monthly_revenue_eur: string;
+  total_queries_today: number;
+  total_queries_month: number;
+}
+
+// Backend analytics response
+interface BackendAnalytics {
+  users_growth: Record<string, number>;
+  revenue_trend: Record<string, number>;
+  queries_trend: Record<string, number>;
+  subscription_distribution: Record<string, number>;
+  top_categories: Array<{ category: string; count: number }>;
+  active_users_today: number;
+  active_users_week: number;
+  active_users_month: number;
 }
 
 interface ActivityItem {
@@ -60,11 +77,10 @@ interface ActivityItem {
   timestamp: string;
 }
 
-// Backend activity format
-interface BackendActivity {
-  type: string;
-  description: string;
-  timestamp: string;
+interface ChartDataPoint {
+  month: string;
+  users?: number;
+  revenue?: number;
 }
 
 export default function AdminDashboard() {
@@ -80,32 +96,9 @@ export default function AdminDashboard() {
   });
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Mock data for charts
-  const userGrowthData = [
-    { month: 'Jan', users: 120 },
-    { month: 'Feb', users: 150 },
-    { month: 'Mar', users: 180 },
-    { month: 'Apr', users: 220 },
-    { month: 'May', users: 280 },
-    { month: 'Jun', users: 350 },
-  ];
-
-  const revenueData = [
-    { month: 'Jan', revenue: 4500 },
-    { month: 'Feb', revenue: 5200 },
-    { month: 'Mar', revenue: 6100 },
-    { month: 'Apr', revenue: 7300 },
-    { month: 'May', revenue: 8900 },
-    { month: 'Jun', revenue: 10500 },
-  ];
-
-  const subscriptionDistribution = [
-    { name: 'Free', value: 400, color: '#94a3b8' },
-    { name: 'Basic', value: 300, color: '#3b82f6' },
-    { name: 'Premium', value: 200, color: '#a855f7' },
-    { name: 'Enterprise', value: 100, color: '#eab308' },
-  ];
+  const [userGrowthData, setUserGrowthData] = useState<ChartDataPoint[]>([]);
+  const [revenueData, setRevenueData] = useState<ChartDataPoint[]>([]);
+  const [subscriptionDistribution, setSubscriptionDistribution] = useState<Array<{ name: string; value: number; color: string }>>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -115,38 +108,92 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
 
-      // Fetch stats
-      const statsResponse = await fetch('/api/admin/dashboard', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
+      const authToken = localStorage.getItem('auth_token');
+      const headers = { Authorization: `Bearer ${authToken}` };
+
+      // Fetch dashboard stats
+      const statsResponse = await fetch('/api/admin/dashboard', { headers });
 
       if (statsResponse.ok) {
         const backendStats: BackendStats = await statsResponse.json();
-        // Map snake_case backend response to camelCase frontend format
+
+        // Calculate growth from analytics data (will fetch next)
         setStats({
           totalUsers: backendStats.total_users || 0,
           activeSubscriptions: backendStats.active_subscriptions || 0,
           totalRevenue: parseFloat(backendStats.monthly_revenue_eur) || 0,
           totalTenders: backendStats.total_tenders || 0,
-          userGrowth: 0,
+          userGrowth: 0, // Will be calculated from analytics
           revenueGrowth: 0,
           subscriptionGrowth: 0,
           tenderGrowth: 0,
         });
+      } else {
+        toast.error('Failed to fetch dashboard stats');
+      }
+
+      // Fetch analytics for charts and trends
+      const analyticsResponse = await fetch('/api/admin/analytics', { headers });
+
+      if (analyticsResponse.ok) {
+        const analytics: BackendAnalytics = await analyticsResponse.json();
+
+        // Process user growth data for chart (last 6 months)
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Avg', 'Sep', 'Okt', 'Nov', 'Dec'];
+        const userGrowthEntries = Object.entries(analytics.users_growth || {}).slice(-6);
+        const userChartData = userGrowthEntries.map(([date, count]) => {
+          const monthIndex = new Date(date).getMonth();
+          return { month: monthNames[monthIndex], users: count };
+        });
+        setUserGrowthData(userChartData);
+
+        // Calculate user growth percentage
+        if (userGrowthEntries.length >= 2) {
+          const prev = userGrowthEntries[userGrowthEntries.length - 2][1];
+          const curr = userGrowthEntries[userGrowthEntries.length - 1][1];
+          const growth = prev > 0 ? ((curr - prev) / prev * 100) : 0;
+          setStats(s => ({ ...s, userGrowth: Math.round(growth) }));
+        }
+
+        // Process revenue data for chart (last 6 months)
+        const revenueEntries = Object.entries(analytics.revenue_trend || {}).slice(-6);
+        const revenueChartData = revenueEntries.map(([month, revenue]) => {
+          const monthIndex = parseInt(month.split('-')[1]) - 1;
+          return { month: monthNames[monthIndex], revenue: revenue };
+        });
+        setRevenueData(revenueChartData);
+
+        // Calculate revenue growth percentage
+        if (revenueEntries.length >= 2) {
+          const prev = revenueEntries[revenueEntries.length - 2][1];
+          const curr = revenueEntries[revenueEntries.length - 1][1];
+          const growth = prev > 0 ? ((curr - prev) / prev * 100) : 0;
+          setStats(s => ({ ...s, revenueGrowth: Math.round(growth) }));
+        }
+
+        // Process subscription distribution
+        const subColors: Record<string, string> = {
+          free: '#94a3b8',
+          basic: '#3b82f6',
+          premium: '#a855f7',
+          enterprise: '#eab308',
+          admin: '#ef4444',
+        };
+        const subDist = Object.entries(analytics.subscription_distribution || {}).map(([name, value]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          value,
+          color: subColors[name.toLowerCase()] || '#94a3b8',
+        }));
+        setSubscriptionDistribution(subDist);
+      } else {
+        toast.error('Failed to fetch analytics');
       }
 
       // Fetch recent activity from audit logs
-      const activityResponse = await fetch('/api/admin/logs?limit=10', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
+      const activityResponse = await fetch('/api/admin/logs?limit=10', { headers });
 
       if (activityResponse.ok) {
         const activityData = await activityResponse.json();
-        // Map backend logs format to frontend activity format
         const activities = (activityData.logs || []).map((log: any, index: number) => ({
           id: log.audit_id || `activity-${index}`,
           type: log.action?.includes('user') ? 'user' : log.action?.includes('subscription') ? 'subscription' : 'tender',
@@ -158,6 +205,7 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      toast.error('Error loading dashboard');
     } finally {
       setLoading(false);
     }

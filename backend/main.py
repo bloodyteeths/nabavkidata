@@ -67,8 +67,8 @@ async def shutdown():
 app.include_router(auth.router, prefix="/api")
 app.include_router(billing.router, prefix="/api")
 app.include_router(stripe_webhook.router, prefix="/api")  # Stripe webhook handler
+app.include_router(tender_details.router, prefix="/api")  # Tender bidders/lots/amendments/documents - MUST BE BEFORE tenders
 app.include_router(tenders.router, prefix="/api")
-app.include_router(tender_details.router, prefix="/api")  # Tender bidders/lots/amendments/documents
 app.include_router(documents.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
 app.include_router(scraper.router, prefix="/api")  # Scraper API

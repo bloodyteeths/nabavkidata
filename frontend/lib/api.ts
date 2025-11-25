@@ -53,6 +53,45 @@ export interface TenderDocument {
   uploaded_at: string;
 }
 
+export interface TenderBidder {
+  bidder_id: string;
+  company_name: string;
+  tax_id?: string;
+  bid_amount_mkd?: number;
+  bid_amount_eur?: number;
+  rank?: number;
+  is_winner: boolean;
+  is_disqualified: boolean;
+  disqualification_reason?: string;
+  bid_date?: string;
+}
+
+export interface TenderBiddersResponse {
+  tender_id: string;
+  total_bidders: number;
+  winner?: string;
+  bidders: TenderBidder[];
+}
+
+export interface TenderLot {
+  lot_id: string;
+  lot_number: number;
+  title: string;
+  description?: string;
+  estimated_value_mkd?: number;
+  actual_value_mkd?: number;
+  cpv_code?: string;
+  status?: string;
+  winner?: string;
+}
+
+export interface TenderLotsResponse {
+  tender_id: string;
+  has_lots: boolean;
+  total_lots: number;
+  lots: TenderLot[];
+}
+
 export interface RecommendedTender extends Tender {
   score: number;
   match_reasons: string[];
@@ -358,6 +397,18 @@ class APIClient {
       total: number;
       documents: TenderDocument[];
     }>(`/api/tenders/${encodedId}/documents`);
+  }
+
+  async getTenderBidders(tenderNumber: string, tenderYear: string) {
+    return this.request<TenderBiddersResponse>(
+      `/api/tenders/by-id/${tenderNumber}/${tenderYear}/bidders`
+    );
+  }
+
+  async getTenderLots(tenderNumber: string, tenderYear: string) {
+    return this.request<TenderLotsResponse>(
+      `/api/tenders/by-id/${tenderNumber}/${tenderYear}/lots`
+    );
   }
 
   // Personalization

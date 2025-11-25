@@ -41,20 +41,38 @@ import { toast } from "sonner";
 interface AnalyticsData {
   userGrowth: Array<{ date: string; users: number; newUsers: number }>;
   revenue: Array<{ month: string; revenue: number; subscriptions: number }>;
-  activeUsers: Array<{
-    id: string;
-    name: string;
-    email: string;
-    logins: number;
-    lastActive: string;
-  }>;
-  categoryStats: Array<{ category: string; count: number; percentage: number }>;
+  categoryStats: Array<{ category: string; count: number; color: string }>;
   systemStats: {
-    totalViews: number;
-    avgSessionDuration: number;
-    bounceRate: number;
-    activeUsers24h: number;
+    totalQueriesToday: number;
+    totalQueriesMonth: number;
+    activeUsersToday: number;
+    activeUsersWeek: number;
+    activeUsersMonth: number;
   };
+}
+
+// Backend analytics response
+interface BackendAnalytics {
+  users_growth: Record<string, number>;
+  revenue_trend: Record<string, number>;
+  queries_trend: Record<string, number>;
+  subscription_distribution: Record<string, number>;
+  top_categories: Array<{ category: string; count: number }>;
+  active_users_today: number;
+  active_users_week: number;
+  active_users_month: number;
+}
+
+// Backend stats from /api/analytics/tenders/stats
+interface TenderStats {
+  total_tenders: number;
+  tenders_by_status: Record<string, number>;
+  tenders_by_category: Record<string, number>;
+  tenders_by_procedure_type: Record<string, number>;
+  total_estimated_value_mkd: number | null;
+  avg_estimated_value_mkd: number | null;
+  tenders_last_7_days: number;
+  tenders_last_30_days: number;
 }
 
 export default function AdminAnalyticsPage() {
@@ -70,21 +88,83 @@ export default function AdminAnalyticsPage() {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        `/api/admin/analytics?range=${timeRange}`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-        }
-      );
+      const authToken = localStorage.getItem('auth_token');
+      const headers = { Authorization: `Bearer ${authToken}` };
 
-      if (response.ok) {
-        const data = await response.json();
-        setAnalytics(data);
+      // Fetch admin analytics
+      const analyticsResponse = await fetch('/api/admin/analytics', { headers });
+
+      if (!analyticsResponse.ok) {
+        toast.error('Грешка при вчитување на аналитика');
+        return;
       }
+
+      const backendAnalytics: BackendAnalytics = await analyticsResponse.json();
+
+      // Fetch tender stats from public analytics API
+      const tenderStatsResponse = await fetch('/api/analytics/tenders/stats', { headers });
+      const tenderStats: TenderStats = tenderStatsResponse.ok
+        ? await tenderStatsResponse.json()
+        : null;
+
+      // Process user growth data
+      const daysToShow = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 30;
+      const userGrowthEntries = Object.entries(backendAnalytics.users_growth || {}).slice(-daysToShow);
+      const userGrowthData = userGrowthEntries.map(([date, count], index) => {
+        const prevCount = index > 0 ? userGrowthEntries[index - 1][1] : count;
+        const newUsers = count - prevCount;
+        return {
+          date: new Date(date).toLocaleDateString('mk-MK', { month: '2-digit', day: '2-digit' }),
+          users: count,
+          newUsers: Math.max(0, newUsers),
+        };
+      });
+
+      // Process revenue data (last 6 months)
+      const monthNames = ['Јан', 'Фев', 'Мар', 'Апр', 'Мај', 'Јун', 'Јул', 'Авг', 'Сеп', 'Окт', 'Нов', 'Дек'];
+      const revenueEntries = Object.entries(backendAnalytics.revenue_trend || {}).slice(-6);
+      const revenueData = revenueEntries.map(([month, revenue]) => {
+        const monthIndex = parseInt(month.split('-')[1]) - 1;
+        // Get subscription count from distribution (approximate)
+        const totalSubs = Object.values(backendAnalytics.subscription_distribution || {}).reduce((a, b) => a + b, 0);
+        return {
+          month: monthNames[monthIndex] || month,
+          revenue: revenue,
+          subscriptions: Math.round(totalSubs / 6), // Rough estimate
+        };
+      });
+
+      // Process category data from tender stats
+      const categoryColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#94a3b8'];
+      const categoryData = tenderStats?.tenders_by_category
+        ? Object.entries(tenderStats.tenders_by_category).slice(0, 8).map(([category, count], index) => ({
+            category,
+            count,
+            color: categoryColors[index] || '#94a3b8',
+          }))
+        : backendAnalytics.top_categories.slice(0, 8).map((cat, index) => ({
+            ...cat,
+            color: categoryColors[index] || '#94a3b8',
+          }));
+
+      // System stats
+      const systemStats = {
+        totalQueriesToday: 0,
+        totalQueriesMonth: 0,
+        activeUsersToday: backendAnalytics.active_users_today || 0,
+        activeUsersWeek: backendAnalytics.active_users_week || 0,
+        activeUsersMonth: backendAnalytics.active_users_month || 0,
+      };
+
+      setAnalytics({
+        userGrowth: userGrowthData,
+        revenue: revenueData,
+        categoryStats: categoryData,
+        systemStats,
+      });
     } catch (error) {
       console.error('Error fetching analytics:', error);
+      toast.error('Грешка при вчитување на податоците');
     } finally {
       setLoading(false);
     }
@@ -92,96 +172,20 @@ export default function AdminAnalyticsPage() {
 
   const handleExportData = async (type: string) => {
     try {
-      const response = await fetch(`/api/admin/analytics/export?type=${type}&range=${timeRange}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-      });
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${type}-analytics-${new Date().toISOString()}.csv`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-      }
+      toast.info('Експортот ќе биде достапен наскоро');
+      // Future implementation: export functionality
+      // const response = await fetch(`/api/admin/analytics/export?type=${type}&range=${timeRange}`, {
+      //   headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+      // });
     } catch (error) {
       console.error('Error exporting data:', error);
       toast.error('Грешка при експорт на податоците');
     }
   };
 
-  // Mock data for demonstration
-  const userGrowthData = [
-    { date: '01.01', users: 120, newUsers: 15 },
-    { date: '08.01', users: 135, newUsers: 20 },
-    { date: '15.01', users: 155, newUsers: 18 },
-    { date: '22.01', users: 173, newUsers: 22 },
-    { date: '29.01', users: 195, newUsers: 25 },
-  ];
-
-  const revenueData = [
-    { month: 'Јан', revenue: 4500, subscriptions: 45 },
-    { month: 'Фев', revenue: 5200, subscriptions: 52 },
-    { month: 'Мар', revenue: 6100, subscriptions: 61 },
-    { month: 'Апр', revenue: 7300, subscriptions: 73 },
-    { month: 'Мај', revenue: 8900, subscriptions: 89 },
-    { month: 'Јун', revenue: 10500, subscriptions: 105 },
-  ];
-
-  const categoryData = [
-    { category: 'Градежништво', count: 450, color: '#3b82f6' },
-    { category: 'ИТ', count: 320, color: '#10b981' },
-    { category: 'Услуги', count: 280, color: '#f59e0b' },
-    { category: 'Снабдување', count: 220, color: '#8b5cf6' },
-    { category: 'Останато', count: 180, color: '#94a3b8' },
-  ];
-
-  const activeUsersData = [
-    {
-      id: '1',
-      name: 'Марко Петровски',
-      email: 'marko@example.com',
-      logins: 145,
-      lastActive: '2024-01-15T10:30:00',
-    },
-    {
-      id: '2',
-      name: 'Ана Стојановска',
-      email: 'ana@example.com',
-      logins: 128,
-      lastActive: '2024-01-15T09:15:00',
-    },
-    {
-      id: '3',
-      name: 'Петар Николовски',
-      email: 'petar@example.com',
-      logins: 112,
-      lastActive: '2024-01-14T16:45:00',
-    },
-    {
-      id: '4',
-      name: 'Елена Димитриевска',
-      email: 'elena@example.com',
-      logins: 98,
-      lastActive: '2024-01-14T14:20:00',
-    },
-    {
-      id: '5',
-      name: 'Владимир Георгиевски',
-      email: 'vladimir@example.com',
-      logins: 87,
-      lastActive: '2024-01-13T11:30:00',
-    },
-  ];
-
-  const systemStats = {
-    totalViews: 45678,
-    avgSessionDuration: 342,
-    bounceRate: 32.5,
-    activeUsers24h: 156,
-  };
-
   if (loading) return <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div><p className="mt-4 text-muted-foreground">Се вчитува...</p></div></div>;
+
+  if (!analytics) return <div className="flex items-center justify-center min-h-screen"><p className="text-muted-foreground">Нема податоци</p></div>;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -195,10 +199,10 @@ export default function AdminAnalyticsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
-          { label: 'Вкупни прегледи', value: systemStats.totalViews.toLocaleString(), icon: Activity, color: 'text-blue-600' },
-          { label: 'Просечна сесија', value: `${Math.floor(systemStats.avgSessionDuration / 60)}м ${systemStats.avgSessionDuration % 60}с`, icon: TrendingUp, color: 'text-green-600' },
-          { label: 'Bounce Rate', value: `${systemStats.bounceRate}%`, icon: DollarSign, color: 'text-yellow-600' },
-          { label: 'Активни корисници (24ч)', value: systemStats.activeUsers24h, icon: Users, color: 'text-purple-600' },
+          { label: 'Активни корисници (денес)', value: analytics.systemStats.activeUsersToday, icon: Activity, color: 'text-blue-600' },
+          { label: 'Активни корисници (недела)', value: analytics.systemStats.activeUsersWeek, icon: TrendingUp, color: 'text-green-600' },
+          { label: 'Активни корисници (месец)', value: analytics.systemStats.activeUsersMonth, icon: Users, color: 'text-purple-600' },
+          { label: 'Вкупно тендери', value: analytics.categoryStats.reduce((sum, cat) => sum + cat.count, 0).toLocaleString(), icon: DollarSign, color: 'text-yellow-600' },
         ].map((stat, i) => {
           const Icon = stat.icon;
           return <Card key={i}><CardContent className="p-6"><div className="flex items-center justify-between"><div><p className="text-sm font-medium text-muted-foreground">{stat.label}</p><h3 className="text-2xl font-bold mt-2">{stat.value}</h3></div><Icon className={`w-8 h-8 ${stat.color}`} /></div></CardContent></Card>;
@@ -222,7 +226,7 @@ export default function AdminAnalyticsPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={userGrowthData}>
+              <AreaChart data={analytics.userGrowth}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
@@ -264,7 +268,7 @@ export default function AdminAnalyticsPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={revenueData}>
+              <BarChart data={analytics.revenue}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" />
@@ -308,7 +312,7 @@ export default function AdminAnalyticsPage() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={categoryData}
+                  data={analytics.categoryStats}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -317,7 +321,7 @@ export default function AdminAnalyticsPage() {
                   fill="#8884d8"
                   dataKey="count"
                 >
-                  {categoryData.map((entry, index) => (
+                  {analytics.categoryStats.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -327,39 +331,23 @@ export default function AdminAnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Most Active Users */}
+        {/* Top Categories List */}
         <Card>
           <CardHeader>
-            <CardTitle>Најактивни корисници</CardTitle>
+            <CardTitle>Најпопуларни категории</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Корисник</TableHead>
-                  <TableHead>Најави</TableHead>
-                  <TableHead>Последна активност</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeUsersData.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {user.email}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium">{user.logins}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(user.lastActive).toLocaleString('mk-MK')}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="space-y-3">
+              {analytics.categoryStats.map((cat, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }}></div>
+                    <span className="text-sm font-medium">{cat.category}</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{cat.count} тендери</span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>

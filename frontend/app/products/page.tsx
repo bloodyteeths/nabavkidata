@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ExportButton } from "@/components/ExportButton";
+import { PriceHistoryChart } from "@/components/charts/PriceHistoryChart";
 import { api, type ProductSearchResult, type ProductAggregation } from "@/lib/api";
 import { Search, ChevronLeft, ChevronRight, Package, TrendingUp, Building2, Calendar, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
@@ -178,40 +180,55 @@ export default function ProductsPage() {
         <>
           {/* Aggregations */}
           {aggregations.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Price Analysis
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2">Product</th>
-                        <th className="text-right p-2">Avg. Price</th>
-                        <th className="text-right p-2">Min Price</th>
-                        <th className="text-right p-2">Max Price</th>
-                        <th className="text-right p-2">Tenders</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {aggregations.slice(0, 5).map((agg, i) => (
-                        <tr key={i} className="border-b last:border-0">
-                          <td className="p-2 font-medium">{agg.product_name}</td>
-                          <td className="text-right p-2">{formatPrice(agg.avg_unit_price)}</td>
-                          <td className="text-right p-2 text-green-600">{formatPrice(agg.min_unit_price)}</td>
-                          <td className="text-right p-2 text-red-600">{formatPrice(agg.max_unit_price)}</td>
-                          <td className="text-right p-2">{agg.tender_count}</td>
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Price Analysis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2">Product</th>
+                          <th className="text-right p-2">Avg. Price</th>
+                          <th className="text-right p-2">Min Price</th>
+                          <th className="text-right p-2">Max Price</th>
+                          <th className="text-right p-2">Tenders</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+                      </thead>
+                      <tbody>
+                        {aggregations.slice(0, 5).map((agg, i) => (
+                          <tr key={i} className="border-b last:border-0">
+                            <td className="p-2 font-medium">{agg.product_name}</td>
+                            <td className="text-right p-2">{formatPrice(agg.avg_unit_price)}</td>
+                            <td className="text-right p-2 text-green-600">{formatPrice(agg.min_unit_price)}</td>
+                            <td className="text-right p-2 text-red-600">{formatPrice(agg.max_unit_price)}</td>
+                            <td className="text-right p-2">{agg.tender_count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Price History Chart - Sample data for demonstration */}
+              {aggregations.length > 0 && aggregations[0].years && aggregations[0].years.length > 0 && (
+                <PriceHistoryChart
+                  data={aggregations[0].years.map((year) => ({
+                    period: year.toString(),
+                    avg_estimated: aggregations[0].avg_unit_price || 0,
+                    avg_awarded: (aggregations[0].avg_unit_price || 0) * 0.95, // Mock data - 5% lower
+                    count: aggregations[0].tender_count,
+                  }))}
+                  title={`Историја на цени - ${aggregations[0].product_name}`}
+                />
+              )}
+            </>
           )}
 
           {/* Results Header */}
@@ -219,11 +236,30 @@ export default function ProductsPage() {
             <p className="text-sm text-muted-foreground">
               {total.toLocaleString()} results for "{query}"
             </p>
-            {totalPages > 1 && (
-              <p className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-              </p>
-            )}
+            <div className="flex items-center gap-2">
+              {totalPages > 1 && (
+                <p className="text-sm text-muted-foreground">
+                  Page {page} of {totalPages}
+                </p>
+              )}
+              {products.length > 0 && (
+                <ExportButton
+                  data={products}
+                  filename={`products-${query.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`}
+                  columns={[
+                    { key: 'name', label: 'Product Name' },
+                    { key: 'quantity', label: 'Quantity' },
+                    { key: 'unit', label: 'Unit' },
+                    { key: 'unit_price', label: 'Unit Price (MKD)' },
+                    { key: 'total_price', label: 'Total Price (MKD)' },
+                    { key: 'cpv_code', label: 'CPV Code' },
+                    { key: 'tender_title', label: 'Tender' },
+                    { key: 'procuring_entity', label: 'Entity' },
+                    { key: 'opening_date', label: 'Date' },
+                  ]}
+                />
+              )}
+            </div>
           </div>
 
           {/* Product Cards */}

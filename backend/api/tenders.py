@@ -10,7 +10,7 @@ from datetime import date
 from decimal import Decimal
 
 from database import get_db
-from models import Tender
+from models import Tender, TenderBidder, TenderLot, Supplier
 from schemas import (
     TenderCreate,
     TenderUpdate,
@@ -24,17 +24,274 @@ router = APIRouter(prefix="/tenders", tags=["tenders"])
 
 
 # ============================================================================
+# TENDER STATISTICS (Must be defined BEFORE path parameter routes)
+# ============================================================================
+
+@router.get("/stats/overview")
+async def get_tender_stats(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get tender statistics overview
+
+    Returns counts, totals, and breakdowns
+    """
+    # Total tenders
+    total_query = select(func.count()).select_from(Tender)
+    total_tenders = await db.scalar(total_query)
+
+    # Tenders by status
+    open_query = select(func.count()).select_from(Tender).where(Tender.status == "open")
+    open_tenders = await db.scalar(open_query)
+
+    closed_query = select(func.count()).select_from(Tender).where(Tender.status == "closed")
+    closed_tenders = await db.scalar(closed_query)
+
+    # Total value
+    value_query = select(func.sum(Tender.estimated_value_mkd)).select_from(Tender)
+    total_value = await db.scalar(value_query) or 0
+
+    # Average value
+    avg_query = select(func.avg(Tender.estimated_value_mkd)).select_from(Tender)
+    avg_value = await db.scalar(avg_query) or 0
+
+    # Tenders by category (top 10)
+    category_query = select(
+        Tender.category,
+        func.count().label('count')
+    ).where(
+        Tender.category.isnot(None)
+    ).group_by(
+        Tender.category
+    ).order_by(
+        func.count().desc()
+    ).limit(10)
+
+    result = await db.execute(category_query)
+    categories = {row[0]: row[1] for row in result}
+
+    # Tenders by source_category
+    source_category_query = select(
+        Tender.source_category,
+        func.count().label('count')
+    ).group_by(
+        Tender.source_category
+    ).order_by(
+        func.count().desc()
+    )
+
+    result = await db.execute(source_category_query)
+    source_categories = {row[0] or 'unknown': row[1] for row in result}
+
+    return {
+        "total_tenders": total_tenders,
+        "open_tenders": open_tenders,
+        "closed_tenders": closed_tenders,
+        "total_value_mkd": float(total_value),
+        "avg_value_mkd": float(avg_value),
+        "tenders_by_category": categories,
+        "tenders_by_source_category": source_categories
+    }
+
+
+@router.get("/stats/recent")
+async def get_recent_tenders(
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get most recently added tenders
+
+    Parameters:
+    - limit: Number of tenders to return
+    """
+    query = select(Tender).order_by(
+        Tender.created_at.desc()
+    ).limit(limit)
+
+    result = await db.execute(query)
+    tenders = result.scalars().all()
+
+    return {
+        "count": len(tenders),
+        "tenders": [TenderResponse.from_orm(t) for t in tenders]
+    }
+
+
+@router.get("/compare")
+async def compare_tenders(
+    ids: str = Query(..., description="Comma-separated tender IDs"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Compare multiple tenders side-by-side
+
+    Parameters:
+    - ids: Comma-separated list of tender IDs (e.g., "12345/2025,67890/2024")
+
+    Returns:
+    - List of tenders with key comparison fields
+    """
+    # Parse tender IDs from comma-separated string
+    tender_ids = [id.strip() for id in ids.split(",")]
+
+    if not tender_ids:
+        raise HTTPException(status_code=400, detail="No tender IDs provided")
+
+    if len(tender_ids) > 10:
+        raise HTTPException(status_code=400, detail="Maximum 10 tenders can be compared at once")
+
+    # Query all tenders
+    query = select(Tender).where(Tender.tender_id.in_(tender_ids))
+    result = await db.execute(query)
+    tenders = result.scalars().all()
+
+    if not tenders:
+        raise HTTPException(status_code=404, detail="No tenders found with provided IDs")
+
+    # Return comparison data
+    return {
+        "total": len(tenders),
+        "requested": len(tender_ids),
+        "tenders": [
+            {
+                "tender_id": t.tender_id,
+                "title": t.title,
+                "procuring_entity": t.procuring_entity,
+                "category": t.category,
+                "cpv_code": t.cpv_code,
+                "status": t.status,
+                "estimated_value_mkd": float(t.estimated_value_mkd) if t.estimated_value_mkd else None,
+                "estimated_value_eur": float(t.estimated_value_eur) if t.estimated_value_eur else None,
+                "actual_value_mkd": float(t.actual_value_mkd) if t.actual_value_mkd else None,
+                "actual_value_eur": float(t.actual_value_eur) if t.actual_value_eur else None,
+                "opening_date": t.opening_date.isoformat() if t.opening_date else None,
+                "closing_date": t.closing_date.isoformat() if t.closing_date else None,
+                "publication_date": t.publication_date.isoformat() if t.publication_date else None,
+                "procedure_type": t.procedure_type,
+                "winner": t.winner,
+                "num_bidders": t.num_bidders,
+                "has_lots": t.has_lots,
+                "source_url": t.source_url,
+                "source_category": t.source_category
+            }
+            for t in tenders
+        ]
+    }
+
+
+@router.get("/price_history")
+async def get_price_history(
+    cpv_code: str = Query(None, description="Filter by CPV code prefix"),
+    category: str = Query(None, description="Filter by tender category"),
+    entity: str = Query(None, description="Filter by procuring entity name"),
+    period: str = Query("1y", regex="^(30d|90d|1y|all)$", description="Time period: 30d, 90d, 1y, or all"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get price history and trends over time
+
+    Parameters:
+    - cpv_code: Filter by CPV code prefix (e.g., "45000000" for construction works)
+    - category: Filter by tender category
+    - entity: Filter by procuring entity (partial match)
+    - period: Time period (30d, 90d, 1y, all)
+
+    Returns:
+    - Time series data grouped by month showing average estimated and awarded values
+    - Useful for charting price trends
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy import extract, case
+
+    # Calculate date filter based on period
+    filters = []
+    if period != "all":
+        days_map = {"30d": 30, "90d": 90, "1y": 365}
+        cutoff_date = datetime.utcnow().date() - timedelta(days=days_map[period])
+        filters.append(Tender.opening_date >= cutoff_date)
+
+    # Add other filters
+    if cpv_code:
+        filters.append(Tender.cpv_code.startswith(cpv_code))
+    if category:
+        filters.append(Tender.category == category)
+    if entity:
+        filters.append(Tender.procuring_entity.ilike(f"%{entity}%"))
+
+    # Build query to group by year-month
+    query = select(
+        extract('year', Tender.opening_date).label('year'),
+        extract('month', Tender.opening_date).label('month'),
+        func.count().label('tender_count'),
+        func.avg(Tender.estimated_value_mkd).label('avg_estimated_mkd'),
+        func.avg(Tender.estimated_value_eur).label('avg_estimated_eur'),
+        func.avg(Tender.actual_value_mkd).label('avg_awarded_mkd'),
+        func.avg(Tender.actual_value_eur).label('avg_awarded_eur'),
+        func.sum(Tender.estimated_value_mkd).label('total_estimated_mkd'),
+        func.sum(Tender.actual_value_mkd).label('total_awarded_mkd')
+    ).where(
+        and_(
+            Tender.opening_date.isnot(None),
+            *filters
+        )
+    ).group_by(
+        extract('year', Tender.opening_date),
+        extract('month', Tender.opening_date)
+    ).order_by(
+        extract('year', Tender.opening_date).asc(),
+        extract('month', Tender.opening_date).asc()
+    )
+
+    result = await db.execute(query)
+    rows = result.fetchall()
+
+    # Format data for charting
+    time_series = [
+        {
+            "period": f"{int(row.year)}-{int(row.month):02d}",
+            "year": int(row.year),
+            "month": int(row.month),
+            "tender_count": row.tender_count,
+            "avg_estimated_mkd": float(row.avg_estimated_mkd) if row.avg_estimated_mkd else None,
+            "avg_estimated_eur": float(row.avg_estimated_eur) if row.avg_estimated_eur else None,
+            "avg_awarded_mkd": float(row.avg_awarded_mkd) if row.avg_awarded_mkd else None,
+            "avg_awarded_eur": float(row.avg_awarded_eur) if row.avg_awarded_eur else None,
+            "total_estimated_mkd": float(row.total_estimated_mkd) if row.total_estimated_mkd else None,
+            "total_awarded_mkd": float(row.total_awarded_mkd) if row.total_awarded_mkd else None
+        }
+        for row in rows
+    ]
+
+    return {
+        "period": period,
+        "filters": {
+            "cpv_code": cpv_code,
+            "category": category,
+            "entity": entity
+        },
+        "data_points": len(time_series),
+        "time_series": time_series
+    }
+
+
+# ============================================================================
 # GET TENDERS
 # ============================================================================
 
 @router.get("", response_model=TenderListResponse)
 async def list_tenders(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1, description="Page number (1-indexed, must be >= 1)"),
+    page_size: int = Query(20, ge=1, le=200, description="Items per page (1-200)"),
     category: Optional[str] = None,
     status: Optional[str] = None,
+    source_category: Optional[str] = Query(None, description="Filter by source category (active, awarded, cancelled, etc.)"),
     procuring_entity: Optional[str] = None,
     cpv_code: Optional[str] = None,
+    min_estimated_mkd: Optional[Decimal] = Query(None, description="Minimum estimated value in MKD"),
+    max_estimated_mkd: Optional[Decimal] = Query(None, description="Maximum estimated value in MKD"),
+    min_estimated_eur: Optional[Decimal] = Query(None, description="Minimum estimated value in EUR"),
+    max_estimated_eur: Optional[Decimal] = Query(None, description="Maximum estimated value in EUR"),
     sort_by: str = Query("created_at", description="Field to sort by"),
     sort_order: str = Query("desc", description="asc or desc"),
     db: AsyncSession = Depends(get_db)
@@ -47,8 +304,13 @@ async def list_tenders(
     - page_size: Items per page
     - category: Filter by category
     - status: Filter by status (open, closed, awarded)
+    - source_category: Filter by source category (active, awarded, cancelled, historical)
     - procuring_entity: Filter by procuring entity
     - cpv_code: Filter by CPV code
+    - min_estimated_mkd: Minimum estimated value in MKD
+    - max_estimated_mkd: Maximum estimated value in MKD
+    - min_estimated_eur: Minimum estimated value in EUR
+    - max_estimated_eur: Maximum estimated value in EUR
     - sort_by: Field to sort by
     - sort_order: Sort order (asc or desc)
     """
@@ -61,10 +323,22 @@ async def list_tenders(
         filters.append(Tender.category == category)
     if status:
         filters.append(Tender.status == status)
+    if source_category:
+        filters.append(Tender.source_category == source_category)
     if procuring_entity:
         filters.append(Tender.procuring_entity.ilike(f"%{procuring_entity}%"))
     if cpv_code:
         filters.append(Tender.cpv_code.startswith(cpv_code))
+    # Estimated value filters (MKD)
+    if min_estimated_mkd is not None:
+        filters.append(Tender.estimated_value_mkd >= min_estimated_mkd)
+    if max_estimated_mkd is not None:
+        filters.append(Tender.estimated_value_mkd <= max_estimated_mkd)
+    # Estimated value filters (EUR)
+    if min_estimated_eur is not None:
+        filters.append(Tender.estimated_value_eur >= min_estimated_eur)
+    if max_estimated_eur is not None:
+        filters.append(Tender.estimated_value_eur <= max_estimated_eur)
 
     if filters:
         query = query.where(and_(*filters))
@@ -131,11 +405,16 @@ async def search_tenders(
     if search.cpv_code:
         filters.append(Tender.cpv_code.startswith(search.cpv_code))
 
-    # Value range filters
+    # Value range filters (MKD)
     if search.min_value_mkd:
         filters.append(Tender.estimated_value_mkd >= search.min_value_mkd)
     if search.max_value_mkd:
         filters.append(Tender.estimated_value_mkd <= search.max_value_mkd)
+    # Value range filters (EUR)
+    if search.min_value_eur:
+        filters.append(Tender.estimated_value_eur >= search.min_value_eur)
+    if search.max_value_eur:
+        filters.append(Tender.estimated_value_eur <= search.max_value_eur)
 
     # Date range filters
     if search.opening_date_from:
@@ -146,6 +425,19 @@ async def search_tenders(
         filters.append(Tender.closing_date >= search.closing_date_from)
     if search.closing_date_to:
         filters.append(Tender.closing_date <= search.closing_date_to)
+
+    # NEW FILTER FIELDS - Added 2025-11-24
+    if search.procedure_type:
+        filters.append(Tender.procedure_type == search.procedure_type)
+    if search.contracting_entity_category:
+        filters.append(Tender.contracting_entity_category == search.contracting_entity_category)
+    if search.contract_signing_date_from:
+        filters.append(Tender.contract_signing_date >= search.contract_signing_date_from)
+    if search.contract_signing_date_to:
+        filters.append(Tender.contract_signing_date <= search.contract_signing_date_to)
+    # Source category filter
+    if hasattr(search, 'source_category') and search.source_category:
+        filters.append(Tender.source_category == search.source_category)
 
     # Apply filters
     if filters:
@@ -180,17 +472,238 @@ async def search_tenders(
     )
 
 
-@router.get("/{tender_id}", response_model=TenderResponse)
+# ============================================================================
+# TENDER DOCUMENTS (Must be before the path parameter route)
+# ============================================================================
+
+@router.get("/{tender_id}/documents")
+async def get_tender_documents(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all documents for a specific tender.
+
+    Returns list of documents including file names, URLs, and extraction status.
+    """
+    from models import Document
+    from schemas import DocumentResponse
+
+    # Normalize encoded slash IDs
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    # First verify tender exists
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Get documents
+    doc_query = select(Document).where(Document.tender_id == tender_id).order_by(Document.uploaded_at.desc())
+    result = await db.execute(doc_query)
+    documents = result.scalars().all()
+
+    return {
+        "tender_id": tender_id,
+        "total": len(documents),
+        "documents": [DocumentResponse.from_orm(doc) for doc in documents]
+    }
+
+
+@router.get("/{tender_id}/bidders")
+async def get_tender_bidders(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all bidders/participants for a specific tender.
+
+    Returns list of bidders with their bid amounts, winner status, and ranking.
+    """
+    # Parse tender_id which may contain "/" like "12345/2025"
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    # First verify tender exists
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Query tender_bidders table
+    query = select(TenderBidder).where(TenderBidder.tender_id == tender_id).order_by(
+        TenderBidder.rank.asc().nulls_last(),
+        TenderBidder.is_winner.desc()
+    )
+    result = await db.execute(query)
+    bidders = result.scalars().all()
+
+    return {
+        "tender_id": tender_id,
+        "total": len(bidders),
+        "bidders": [
+            {
+                "bidder_id": str(b.bidder_id),
+                "company_name": b.company_name,
+                "tax_id": b.company_tax_id,
+                "bid_amount_mkd": float(b.bid_amount_mkd) if b.bid_amount_mkd else None,
+                "bid_amount_eur": float(b.bid_amount_eur) if b.bid_amount_eur else None,
+                "rank": b.rank,
+                "is_winner": b.is_winner,
+                "disqualified": b.disqualified,
+                "disqualification_reason": b.disqualification_reason
+            }
+            for b in bidders
+        ]
+    }
+
+
+@router.get("/{tender_id}/lots")
+async def get_tender_lots(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all lots for a specific tender.
+
+    Returns list of lots with their values, CPV codes, and winner information.
+    """
+    # Parse tender_id which may contain "/" like "12345/2025"
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    # First verify tender exists
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Query tender_lots table
+    query = select(TenderLot).where(TenderLot.tender_id == tender_id).order_by(
+        TenderLot.lot_number.asc()
+    )
+    result = await db.execute(query)
+    lots = result.scalars().all()
+
+    return {
+        "tender_id": tender_id,
+        "has_lots": tender.has_lots or False,
+        "total": len(lots),
+        "lots": [
+            {
+                "lot_id": str(l.lot_id),
+                "lot_number": l.lot_number,
+                "lot_title": l.lot_title,
+                "lot_description": l.lot_description,
+                "estimated_value_mkd": float(l.estimated_value_mkd) if l.estimated_value_mkd else None,
+                "estimated_value_eur": float(l.estimated_value_eur) if l.estimated_value_eur else None,
+                "actual_value_mkd": float(l.actual_value_mkd) if l.actual_value_mkd else None,
+                "actual_value_eur": float(l.actual_value_eur) if l.actual_value_eur else None,
+                "cpv_code": l.cpv_code,
+                "winner": l.winner,
+                "quantity": l.quantity,
+                "unit": l.unit
+            }
+            for l in lots
+        ]
+    }
+
+
+@router.get("/{tender_id}/suppliers")
+async def get_tender_suppliers(tender_id: str, db: AsyncSession = Depends(get_db)):
+    """Get suppliers/winners associated with a tender"""
+    tender_id = tender_id.replace("%2F", "/")
+
+    # Get the tender to find winner
+    tender = await db.execute(
+        select(Tender).where(Tender.tender_id == tender_id)
+    )
+    tender = tender.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    suppliers = []
+
+    # If tender has a winner, look up in suppliers table
+    if tender.winner:
+        supplier_query = await db.execute(
+            select(Supplier).where(
+                or_(
+                    Supplier.company_name.ilike(f"%{tender.winner}%"),
+                    Supplier.company_name == tender.winner
+                )
+            )
+        )
+        supplier = supplier_query.scalar_one_or_none()
+
+        if supplier:
+            suppliers.append({
+                "supplier_id": str(supplier.supplier_id),
+                "company_name": supplier.company_name,
+                "tax_id": supplier.tax_id,
+                "city": supplier.city,
+                "total_wins": supplier.total_wins,
+                "total_bids": supplier.total_bids,
+                "win_rate": float(supplier.win_rate) if supplier.win_rate else None,
+                "total_contract_value_mkd": float(supplier.total_contract_value_mkd) if supplier.total_contract_value_mkd else None,
+                "is_winner": True
+            })
+
+    # Also get bidders who are in suppliers table
+    bidders_query = await db.execute(
+        select(TenderBidder).where(TenderBidder.tender_id == tender_id)
+    )
+    bidders = bidders_query.scalars().all()
+
+    for bidder in bidders:
+        if bidder.company_name and bidder.company_name != tender.winner:
+            supplier_query = await db.execute(
+                select(Supplier).where(
+                    Supplier.company_name.ilike(f"%{bidder.company_name}%")
+                )
+            )
+            supplier = supplier_query.scalar_one_or_none()
+            if supplier and not any(s["company_name"] == supplier.company_name for s in suppliers):
+                suppliers.append({
+                    "supplier_id": str(supplier.supplier_id),
+                    "company_name": supplier.company_name,
+                    "tax_id": supplier.tax_id,
+                    "city": supplier.city,
+                    "total_wins": supplier.total_wins,
+                    "total_bids": supplier.total_bids,
+                    "win_rate": float(supplier.win_rate) if supplier.win_rate else None,
+                    "total_contract_value_mkd": float(supplier.total_contract_value_mkd) if supplier.total_contract_value_mkd else None,
+                    "is_winner": False
+                })
+
+    return {
+        "tender_id": tender_id,
+        "winner": tender.winner,
+        "awarded_value_mkd": float(tender.actual_value_mkd) if tender.actual_value_mkd else None,
+        "total": len(suppliers),
+        "suppliers": suppliers
+    }
+
+
+# ============================================================================
+# GET SINGLE TENDER (Path parameter - must be LAST among GET routes)
+# ============================================================================
+
+@router.get("/{tender_id:path}", response_model=TenderResponse)
 async def get_tender(
     tender_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get tender by ID
-
-    Parameters:
-    - tender_id: Tender ID
+    Get tender by ID. Supports IDs containing slashes (encoded in the path).
     """
+    # Normalize encoded slash IDs
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
     query = select(Tender).where(Tender.tender_id == tender_id)
     result = await db.execute(query)
     tender = result.scalar_one_or_none()
@@ -295,84 +808,3 @@ async def delete_tender(
         message="Tender deleted successfully",
         detail=f"Tender {tender_id} has been removed"
     )
-
-
-# ============================================================================
-# TENDER STATISTICS
-# ============================================================================
-
-@router.get("/stats/overview")
-async def get_tender_stats(
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get tender statistics overview
-
-    Returns counts, totals, and breakdowns
-    """
-    # Total tenders
-    total_query = select(func.count()).select_from(Tender)
-    total_tenders = await db.scalar(total_query)
-
-    # Tenders by status
-    open_query = select(func.count()).select_from(Tender).where(Tender.status == "open")
-    open_tenders = await db.scalar(open_query)
-
-    closed_query = select(func.count()).select_from(Tender).where(Tender.status == "closed")
-    closed_tenders = await db.scalar(closed_query)
-
-    # Total value
-    value_query = select(func.sum(Tender.estimated_value_mkd)).select_from(Tender)
-    total_value = await db.scalar(value_query) or 0
-
-    # Average value
-    avg_query = select(func.avg(Tender.estimated_value_mkd)).select_from(Tender)
-    avg_value = await db.scalar(avg_query) or 0
-
-    # Tenders by category (top 10)
-    category_query = select(
-        Tender.category,
-        func.count().label('count')
-    ).where(
-        Tender.category.isnot(None)
-    ).group_by(
-        Tender.category
-    ).order_by(
-        func.count().desc()
-    ).limit(10)
-
-    result = await db.execute(category_query)
-    categories = {row[0]: row[1] for row in result}
-
-    return {
-        "total_tenders": total_tenders,
-        "open_tenders": open_tenders,
-        "closed_tenders": closed_tenders,
-        "total_value_mkd": float(total_value),
-        "avg_value_mkd": float(avg_value),
-        "tenders_by_category": categories
-    }
-
-
-@router.get("/stats/recent")
-async def get_recent_tenders(
-    limit: int = Query(10, ge=1, le=50),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get most recently added tenders
-
-    Parameters:
-    - limit: Number of tenders to return
-    """
-    query = select(Tender).order_by(
-        Tender.created_at.desc()
-    ).limit(limit)
-
-    result = await db.execute(query)
-    tenders = result.scalars().all()
-
-    return {
-        "count": len(tenders),
-        "tenders": [TenderResponse.from_orm(t) for t in tenders]
-    }
