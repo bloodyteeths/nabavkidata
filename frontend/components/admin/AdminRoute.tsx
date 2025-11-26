@@ -27,7 +27,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
         setIsAuthorized(true);
       } catch (error) {
         console.error('Грешка при проверка на администраторски пристап:', error);
-        router.push('/login?redirect=/admin');
+        router.push('/auth/login?redirect=/admin');
       } finally {
         setIsLoading(false);
       }

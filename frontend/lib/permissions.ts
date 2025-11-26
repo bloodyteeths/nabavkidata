@@ -22,7 +22,7 @@ export type Role = typeof ROLES[keyof typeof ROLES];
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
 
 interface UserWithRole extends User {
-  role?: Role;
+  role?: string;
   permissions?: Permission[];
 }
 
@@ -62,7 +62,7 @@ export function hasPermission(user: UserWithRole | null | undefined, permission:
   if (user.permissions?.includes(permission)) return true;
 
   // Check role-based permissions
-  const role = user.role || ROLES.USER;
+  const role = (user.role || ROLES.USER) as Role;
   return ROLE_PERMISSIONS[role]?.includes(permission) || false;
 }
 
@@ -83,7 +83,7 @@ export function usePermissions(user: UserWithRole | null | undefined) {
       return;
     }
 
-    const role = user.role || ROLES.USER;
+    const role = (user.role || ROLES.USER) as Role;
     const rolePerms = ROLE_PERMISSIONS[role] || [];
     const userPerms = user.permissions || [];
 
