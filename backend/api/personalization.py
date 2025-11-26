@@ -39,7 +39,9 @@ class SearchHistoryLog(BaseModel):
 
 
 def generate_match_reasons(tender, user_prefs: Optional[UserPreferences]) -> List[str]:
-    """Generate meaningful match reasons based on user preferences"""
+    """Generate meaningful match reasons based on user preferences using AI-powered CPV matching"""
+    from services.cpv_matcher import get_cpv_matcher
+
     reasons = []
 
     if not user_prefs:
@@ -72,12 +74,30 @@ def generate_match_reasons(tender, user_prefs: Optional[UserPreferences]) -> Lis
                 reasons.append(f"Сектор: {sector_name}")
                 break
 
-    # Check CPV code match
-    if user_prefs.cpv_codes and tender.cpv_code:
-        for cpv in user_prefs.cpv_codes:
-            if tender.cpv_code.startswith(cpv[:2]):  # Match first 2 digits at minimum
-                reasons.append(f"CPV код: {tender.cpv_code[:8]}")
-                break
+    # Check CPV code match using AI-powered inference
+    if user_prefs.cpv_codes:
+        cpv_matcher = get_cpv_matcher()
+
+        # First check if tender has actual CPV code
+        if tender.cpv_code and tender.cpv_code not in ["Услуги", "Стоки", "Работи"]:
+            for cpv in user_prefs.cpv_codes:
+                if tender.cpv_code.startswith(cpv[:2]):
+                    category_name = cpv_matcher.get_category_for_display(tender.cpv_code)
+                    if category_name:
+                        reasons.append(f"CPV: {category_name}")
+                    else:
+                        reasons.append(f"CPV код: {tender.cpv_code[:8]}")
+                    break
+        else:
+            # Use AI to infer CPV from title/description
+            is_match, cpv_reasons = cpv_matcher.matches_user_preferences(
+                tender_title=tender.title or "",
+                tender_description=tender.description or "",
+                tender_category=tender.category or "",
+                user_cpv_codes=user_prefs.cpv_codes
+            )
+            if is_match and cpv_reasons:
+                reasons.extend(cpv_reasons[:1])  # Add first CPV match reason
 
     # Check entity match
     if user_prefs.entities and tender.procuring_entity:

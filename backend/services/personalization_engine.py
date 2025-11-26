@@ -27,19 +27,22 @@ except ImportError:
 
 
 class HybridSearchEngine:
-    """Combines preference-based and vector-based search"""
+    """Combines preference-based and vector-based search with AI-powered CPV matching"""
 
     def __init__(self, db: AsyncSession):
         self.db = db
         if AI_AVAILABLE:
             self.embedder = EmbeddingGenerator()
+        # Import CPV matcher for AI-based category matching
+        from services.cpv_matcher import get_cpv_matcher
+        self.cpv_matcher = get_cpv_matcher()
 
     async def search(
         self,
         user_id: str,
         limit: int = 20
     ) -> List[Tuple[Tender, float]]:
-        """Hybrid search: preferences + interest vector"""
+        """Hybrid search: preferences + interest vector + AI CPV matching"""
 
         # Get user preferences
         prefs = await self._get_preferences(user_id)
@@ -52,9 +55,16 @@ class HybridSearchEngine:
 
         if prefs.sectors:
             filters.append(Tender.category.in_(prefs.sectors))
+
+        # CPV filtering - we'll do AI matching after fetching candidates
+        # since most tenders don't have actual CPV codes
         if prefs.cpv_codes:
+            # Only filter by CPV if tender has actual CPV code (not category name)
             cpv_filters = [Tender.cpv_code.startswith(code) for code in prefs.cpv_codes]
-            filters.append(or_(*cpv_filters))
+            # Don't add this filter - we'll use AI matching instead
+            # filters.append(or_(*cpv_filters))
+            pass
+
         if prefs.entities:
             entity_filters = [Tender.procuring_entity.ilike(f"%{e}%") for e in prefs.entities]
             filters.append(or_(*entity_filters))
@@ -69,9 +79,37 @@ class HybridSearchEngine:
         if filters:
             query = query.where(and_(*filters))
 
-        # Get candidate tenders
-        result = await self.db.execute(query.limit(100))
-        candidates = result.scalars().all()
+        # Get more candidates to filter with AI CPV matching
+        result = await self.db.execute(query.order_by(desc(Tender.created_at)).limit(200))
+        all_candidates = result.scalars().all()
+
+        # Apply AI-based CPV matching if user has CPV preferences
+        if prefs.cpv_codes:
+            candidates = []
+            for tender in all_candidates:
+                # Check if tender has real CPV code
+                if tender.cpv_code and tender.cpv_code not in ["Услуги", "Стоки", "Работи"]:
+                    # Use actual CPV code
+                    for cpv in prefs.cpv_codes:
+                        if tender.cpv_code.startswith(cpv[:2]):
+                            candidates.append(tender)
+                            break
+                else:
+                    # Use AI to infer CPV from title/description
+                    is_match, _ = self.cpv_matcher.matches_user_preferences(
+                        tender_title=tender.title or "",
+                        tender_description=tender.description or "",
+                        tender_category=tender.category or "",
+                        user_cpv_codes=prefs.cpv_codes
+                    )
+                    if is_match:
+                        candidates.append(tender)
+
+                # Stop if we have enough candidates
+                if len(candidates) >= 100:
+                    break
+        else:
+            candidates = all_candidates[:100]
 
         # Vector ranking
         scored = await self._vector_rank(user_id, candidates)
