@@ -127,7 +127,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { refreshToken: token } = getTokens();
       if (!token) {
-        throw new Error('No refresh token available');
+        // No refresh token - just clear state silently, don't redirect
+        clearTokens();
+        setUser(null);
+        setIsLoading(false);
+        return;
       }
 
       const response = await fetch(`${API_URL}/api/auth/refresh`, {
@@ -139,7 +143,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        throw new Error('Token refresh failed');
+        // Token refresh failed - clear state silently without redirect
+        // User will be prompted to login when they try to access protected content
+        console.warn('Token refresh failed, clearing session');
+        clearTokens();
+        setUser(null);
+        setIsLoading(false);
+        return;
       }
 
       const tokens: AuthTokens = await response.json();
@@ -147,8 +157,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       scheduleTokenRefresh();
     } catch (err) {
       console.error('Silent token refresh failed:', err);
-      // If refresh fails, logout user
-      await logout();
+      // Clear state silently without redirect to prevent page crash
+      clearTokens();
+      setUser(null);
+      setIsLoading(false);
     }
   };
 
