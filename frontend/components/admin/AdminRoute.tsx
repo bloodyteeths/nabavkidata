@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
-import { canAccessAdmin } from '@/lib/permissions';
+import { useAuth } from '@/lib/auth';
 
 interface AdminRouteProps {
   children: React.ReactNode;
@@ -11,31 +10,28 @@ interface AdminRouteProps {
 
 export default function AdminRoute({ children }: AdminRouteProps) {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  const { user, isLoading, isAuthenticated } = useAuth();
+
+  // Check if user has admin role
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
-    const checkAdminAccess = async () => {
-      try {
-        const user = await api.authGetMe();
+    // Wait for auth to load
+    if (isLoading) return;
 
-        if (!canAccessAdmin(user)) {
-          router.push('/403');
-          return;
-        }
+    // Not authenticated - redirect to login
+    if (!isAuthenticated) {
+      router.push('/auth/login?redirect=/admin');
+      return;
+    }
 
-        setIsAuthorized(true);
-      } catch (error) {
-        console.error('Грешка при проверка на администраторски пристап:', error);
-        router.push('/auth/login?redirect=/admin');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    // Authenticated but not admin - redirect to 403
+    if (!isAdmin) {
+      router.push('/403');
+    }
+  }, [isLoading, isAuthenticated, isAdmin, router]);
 
-    checkAdminAccess();
-  }, [router]);
-
+  // Show loading while checking auth
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -47,7 +43,8 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     );
   }
 
-  if (!isAuthorized) {
+  // Not authenticated or not admin
+  if (!isAuthenticated || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto p-8">
