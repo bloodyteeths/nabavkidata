@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 export default function TendersPage() {
+  const [isHydrated, setIsHydrated] = useState(false);
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,11 @@ export default function TendersPage() {
   });
 
   const limit = 20;
+
+  // Hydration guard
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     loadTenders();
@@ -165,7 +171,7 @@ export default function TendersPage() {
 
   const totalPages = Math.ceil(total / limit);
 
-  if (loading && page === 1) {
+  if (!isHydrated || (loading && page === 1)) {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-muted-foreground">Се вчитува...</p>

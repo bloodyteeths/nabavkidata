@@ -57,6 +57,9 @@ interface Filters {
 type SortOption = "date_desc" | "date_asc" | "price_asc" | "price_desc" | "quantity_desc";
 
 export default function ProductsPage() {
+  // Hydration guard
+  const [isHydrated, setIsHydrated] = useState(false);
+
   // Search state
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -92,10 +95,16 @@ export default function ProductsPage() {
 
   const pageSize = 20;
 
+  // Hydration effect
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
   // Load stats on mount
   useEffect(() => {
+    if (!isHydrated) return;
     loadStats();
-  }, []);
+  }, [isHydrated]);
 
   async function loadStats() {
     try {
@@ -293,6 +302,15 @@ export default function ProductsPage() {
       aggregations.flatMap(a => a.years)
     )
   ).sort((a, b) => b - a);
+
+  // Wait for hydration
+  if (!isHydrated) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <p className="text-muted-foreground">Се вчитува...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
