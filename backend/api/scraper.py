@@ -410,3 +410,376 @@ async def get_scraper_status(
             "total_documents": total_documents
         }
     }
+
+
+# ============================================================================
+# LIVE SCRAPER MONITORING ENDPOINT (ADMIN)
+# ============================================================================
+
+@router.get(
+    "/live-status",
+    dependencies=[Depends(require_role(UserRole.admin))]
+)
+async def get_live_scraper_status(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get live scraper process status from the server (admin only)
+
+    This endpoint checks:
+    - If scrapy processes are running on the server
+    - Last lines from the scraper log file
+    - Database counts for progress tracking
+    """
+    import subprocess
+    import os
+    from pathlib import Path
+
+    result = {
+        "processes": [],
+        "log_tail": [],
+        "database_stats": {},
+        "downloaded_files": 0,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+    # Check for running scrapy processes
+    try:
+        ps_output = subprocess.run(
+            ["pgrep", "-af", "scrapy"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if ps_output.stdout:
+            for line in ps_output.stdout.strip().split('\n'):
+                if line and 'scrapy crawl' in line:
+                    parts = line.split(None, 1)
+                    if len(parts) >= 2:
+                        result["processes"].append({
+                            "pid": parts[0],
+                            "command": parts[1][:200]  # Truncate long commands
+                        })
+    except Exception as e:
+        result["process_error"] = str(e)
+
+    # Read last lines from log file
+    log_files = [
+        "/tmp/nabavki_full_scrape.log",
+        "/tmp/spider_test.log",
+        "/var/log/nabavkidata/scraper.log"
+    ]
+
+    for log_file in log_files:
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, 'r') as f:
+                    # Read last 50 lines
+                    lines = f.readlines()[-50:]
+                    result["log_tail"] = [line.strip() for line in lines if line.strip()]
+                    result["log_file"] = log_file
+                break
+            except Exception as e:
+                result["log_error"] = str(e)
+
+    # Count downloaded files
+    downloads_dir = Path("/home/ubuntu/nabavkidata/scraper/downloads/files")
+    if downloads_dir.exists():
+        try:
+            result["downloaded_files"] = len(list(downloads_dir.glob("*")))
+        except Exception:
+            pass
+
+    # Get database counts
+    try:
+        total_tenders = await db.scalar(select(func.count(Tender.tender_id))) or 0
+        total_documents = await db.scalar(select(func.count(Document.doc_id))) or 0
+        downloaded_docs = await db.scalar(
+            select(func.count(Document.doc_id)).where(Document.file_path.isnot(None))
+        ) or 0
+
+        result["database_stats"] = {
+            "total_tenders": total_tenders,
+            "total_documents": total_documents,
+            "downloaded_documents": downloaded_docs
+        }
+    except Exception as e:
+        result["db_error"] = str(e)
+
+    # Determine overall status
+    if result["processes"]:
+        result["status"] = "running"
+        result["message"] = f"{len(result['processes'])} scraper process(es) running"
+    else:
+        result["status"] = "idle"
+        result["message"] = "No scraper processes detected"
+
+    return result
+
+
+# ============================================================================
+# MANUAL SCRAPER TRIGGER ENDPOINTS (ADMIN)
+# ============================================================================
+
+SCRAPER_CONFIGS = {
+    "nabavki_active": {
+        "name": "E-Nabavki Active Tenders",
+        "command": "scrapy crawl nabavki -a categories=active",
+        "log_file": "/tmp/nabavki_active.log",
+        "description": "Scrape active tenders from e-nabavki.gov.mk"
+    },
+    "nabavki_awarded": {
+        "name": "E-Nabavki Awarded Tenders",
+        "command": "scrapy crawl nabavki -a categories=awarded",
+        "log_file": "/tmp/nabavki_awarded.log",
+        "description": "Scrape awarded tenders from e-nabavki.gov.mk"
+    },
+    "nabavki_cancelled": {
+        "name": "E-Nabavki Cancelled Tenders",
+        "command": "scrapy crawl nabavki -a categories=cancelled",
+        "log_file": "/tmp/nabavki_cancelled.log",
+        "description": "Scrape cancelled tenders from e-nabavki.gov.mk"
+    },
+    "nabavki_full": {
+        "name": "E-Nabavki Full Scrape",
+        "command": "scrapy crawl nabavki -a categories=active,awarded,cancelled",
+        "log_file": "/tmp/nabavki_full_scrape.log",
+        "description": "Full scrape of all tender categories"
+    },
+    "epazar": {
+        "name": "E-Pazar Products",
+        "command": "scrapy crawl epazar_api -a category=all",
+        "log_file": "/tmp/epazar.log",
+        "description": "Scrape products from e-pazar.mk"
+    },
+    "documents": {
+        "name": "Document Processing",
+        "command": "/home/ubuntu/nabavkidata/scraper/cron/process_documents.sh",
+        "log_file": "/var/log/nabavkidata/documents_$(date +%Y%m%d).log",
+        "description": "Process pending documents and extract products"
+    }
+}
+
+
+@router.get(
+    "/scrapers",
+    dependencies=[Depends(require_role(UserRole.admin))]
+)
+async def list_available_scrapers():
+    """List all available scrapers that can be triggered manually"""
+    return {
+        "scrapers": [
+            {
+                "id": key,
+                "name": config["name"],
+                "description": config["description"],
+                "log_file": config["log_file"]
+            }
+            for key, config in SCRAPER_CONFIGS.items()
+        ]
+    }
+
+
+@router.post(
+    "/run/{scraper_id}",
+    dependencies=[Depends(require_role(UserRole.admin))]
+)
+async def run_scraper(scraper_id: str):
+    """
+    Manually trigger a specific scraper (admin only)
+
+    Runs the scraper in background via nohup
+    """
+    import subprocess
+
+    if scraper_id not in SCRAPER_CONFIGS:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown scraper: {scraper_id}. Available: {list(SCRAPER_CONFIGS.keys())}"
+        )
+
+    config = SCRAPER_CONFIGS[scraper_id]
+
+    # Build the command to run in background
+    scraper_dir = "/home/ubuntu/nabavkidata/scraper"
+    venv_activate = "source /home/ubuntu/nabavkidata/venv/bin/activate"
+    db_url = "export DATABASE_URL='postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata'"
+
+    log_file = config["log_file"].replace("$(date +%Y%m%d)", datetime.utcnow().strftime("%Y%m%d"))
+
+    if scraper_id == "documents":
+        # Document processing script
+        full_command = f"cd {scraper_dir} && {venv_activate} && {db_url} && nohup {config['command']} > {log_file} 2>&1 &"
+    else:
+        # Scrapy commands
+        full_command = f"cd {scraper_dir} && {venv_activate} && {db_url} && nohup {config['command']} -s LOG_LEVEL=INFO > {log_file} 2>&1 &"
+
+    try:
+        result = subprocess.run(
+            ["bash", "-c", full_command],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        return {
+            "status": "started",
+            "scraper_id": scraper_id,
+            "name": config["name"],
+            "log_file": log_file,
+            "message": f"Scraper '{config['name']}' started in background. Monitor at {log_file}"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start scraper: {str(e)}"
+        )
+
+
+@router.post(
+    "/stop/{scraper_id}",
+    dependencies=[Depends(require_role(UserRole.admin))]
+)
+async def stop_scraper(scraper_id: str):
+    """Stop a running scraper by killing its process"""
+    import subprocess
+
+    if scraper_id not in SCRAPER_CONFIGS:
+        raise HTTPException(status_code=404, detail=f"Unknown scraper: {scraper_id}")
+
+    config = SCRAPER_CONFIGS[scraper_id]
+
+    try:
+        # Find and kill processes matching this scraper
+        if scraper_id.startswith("nabavki"):
+            pattern = f"scrapy crawl nabavki"
+        elif scraper_id == "epazar":
+            pattern = "scrapy crawl epazar"
+        else:
+            pattern = config["command"].split()[0]
+
+        result = subprocess.run(
+            ["pkill", "-f", pattern],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        return {
+            "status": "stopped",
+            "scraper_id": scraper_id,
+            "message": f"Sent kill signal to processes matching '{pattern}'"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop scraper: {str(e)}")
+
+
+# ============================================================================
+# CRON JOB STATUS AND LOGS (ADMIN)
+# ============================================================================
+
+@router.get(
+    "/cron-status",
+    dependencies=[Depends(require_role(UserRole.admin))]
+)
+async def get_cron_status():
+    """Get cron job configuration and recent log files"""
+    import subprocess
+    import os
+    from pathlib import Path
+
+    result = {
+        "crontab": [],
+        "recent_logs": [],
+        "log_directory": "/var/log/nabavkidata"
+    }
+
+    # Get crontab entries
+    try:
+        cron_result = subprocess.run(
+            ["crontab", "-l"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if cron_result.returncode == 0:
+            lines = [line.strip() for line in cron_result.stdout.split('\n') if line.strip() and not line.startswith('#')]
+            result["crontab"] = lines
+    except Exception as e:
+        result["crontab_error"] = str(e)
+
+    # Get recent log files
+    log_dirs = [
+        "/var/log/nabavkidata",
+        "/tmp"
+    ]
+
+    log_files = []
+    for log_dir in log_dirs:
+        if os.path.exists(log_dir):
+            try:
+                for f in os.listdir(log_dir):
+                    if any(pattern in f for pattern in ['nabavki', 'epazar', 'scraper', 'documents']):
+                        filepath = os.path.join(log_dir, f)
+                        if os.path.isfile(filepath):
+                            stat = os.stat(filepath)
+                            log_files.append({
+                                "name": f,
+                                "path": filepath,
+                                "size_kb": round(stat.st_size / 1024, 2),
+                                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                            })
+            except Exception:
+                pass
+
+    # Sort by modification time, newest first
+    log_files.sort(key=lambda x: x["modified"], reverse=True)
+    result["recent_logs"] = log_files[:20]  # Limit to 20 most recent
+
+    return result
+
+
+@router.get(
+    "/logs/{log_name}",
+    dependencies=[Depends(require_role(UserRole.admin))]
+)
+async def get_log_content(
+    log_name: str,
+    lines: int = Query(100, ge=1, le=1000, description="Number of lines to return")
+):
+    """Get content from a specific log file"""
+    import os
+
+    # Security: only allow certain directories and patterns
+    allowed_dirs = ["/var/log/nabavkidata", "/tmp"]
+    allowed_patterns = ["nabavki", "epazar", "scraper", "documents", "spider"]
+
+    if not any(pattern in log_name for pattern in allowed_patterns):
+        raise HTTPException(status_code=400, detail="Invalid log file name")
+
+    # Find the log file
+    log_path = None
+    for log_dir in allowed_dirs:
+        potential_path = os.path.join(log_dir, log_name)
+        if os.path.isfile(potential_path):
+            log_path = potential_path
+            break
+
+    if not log_path:
+        raise HTTPException(status_code=404, detail=f"Log file not found: {log_name}")
+
+    try:
+        with open(log_path, 'r') as f:
+            all_lines = f.readlines()
+            # Return last N lines
+            content = all_lines[-lines:]
+
+        return {
+            "log_name": log_name,
+            "path": log_path,
+            "total_lines": len(all_lines),
+            "returned_lines": len(content),
+            "content": [line.rstrip() for line in content]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read log: {str(e)}")
