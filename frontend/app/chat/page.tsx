@@ -44,34 +44,39 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Hydration guard
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
   // Load messages from localStorage on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedMessages = localStorage.getItem(STORAGE_KEY);
-      if (storedMessages) {
-        try {
-          const parsedMessages = JSON.parse(storedMessages);
-          setMessages(parsedMessages);
-        } catch (error) {
-          console.error('Failed to parse stored messages:', error);
-          localStorage.removeItem(STORAGE_KEY);
-        }
+    if (!isHydrated) return;
+    const storedMessages = localStorage.getItem(STORAGE_KEY);
+    if (storedMessages) {
+      try {
+        const parsedMessages = JSON.parse(storedMessages);
+        setMessages(parsedMessages);
+      } catch (error) {
+        console.error('Failed to parse stored messages:', error);
+        localStorage.removeItem(STORAGE_KEY);
       }
     }
-  }, []);
+  }, [isHydrated]);
 
   // Save messages to localStorage whenever they change
   useEffect(() => {
-    if (typeof window !== 'undefined' && messages.length > 0) {
+    if (isHydrated && messages.length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
     }
-  }, [messages]);
+  }, [messages, isHydrated]);
 
   useEffect(() => {
     scrollToBottom();
@@ -151,9 +156,7 @@ export default function ChatPage() {
 
   const handleClearChat = () => {
     setMessages([]);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const handleSuggestedQuestion = (question: string) => {
@@ -163,6 +166,15 @@ export default function ChatPage() {
   const isLimitReached = usageStatus && usageStatus.daily_queries_used >= usageStatus.daily_queries_limit;
   const isBlocked = usageStatus?.is_blocked || usageStatus?.is_trial_expired;
   const remainingQueries = usageStatus ? Math.max(0, usageStatus.daily_queries_limit - usageStatus.daily_queries_used) : 0;
+
+  // Show loading until hydrated
+  if (!isHydrated) {
+    return (
+      <div className="flex flex-col h-screen bg-background items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background">
