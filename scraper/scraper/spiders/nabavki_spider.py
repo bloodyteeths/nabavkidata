@@ -337,7 +337,8 @@ class NabavkiSpider(scrapy.Spider):
         if page:
             try:
                 # Wait for Angular DataTable to load
-                await page.wait_for_selector('table#notices-grid tbody tr', timeout=15000)
+                # Increased timeout from 15s to 30s for slow e-nabavki.gov.mk responses
+                await page.wait_for_selector('table#notices-grid tbody tr', timeout=30000)
                 await page.wait_for_timeout(2000)  # Extra wait for data binding
                 logger.info(f"✓ Angular DataTable loaded successfully for category: {source_category}")
             except Exception as e:
@@ -346,28 +347,73 @@ class NabavkiSpider(scrapy.Spider):
         logger.info(f"Parsing listing page ({source_category}): {response.url}")
 
         tender_links = []
+        # For full historical scrape: ~109K awarded contracts / 10 per page = ~11K pages
+        # Set high limit but with safety check for same-page detection
+        max_pages_to_scrape = 15000  # Allow scraping all historical data
 
         # Prefer Playwright anchors to support dossie-acpp pages (contracts/awards)
+        # Also handle pagination - collect links from multiple pages
         if page:
-            try:
-                link_elems = await page.query_selector_all("a[href*='dossie']")
-                tender_links.extend([
-                    await elem.get_attribute('href')
-                    for elem in link_elems
-                    if await elem.get_attribute('href')
-                ])
-            except Exception as e:
-                logger.warning(f"Failed to extract links via Playwright: {e}")
+            current_page = 1
+            consecutive_zero_new = 0  # Track consecutive pages with no new links
+            last_link_count = 0
 
-        # Fallback to HTML selectors
+            while current_page <= max_pages_to_scrape:
+                try:
+                    # Extract links from current page
+                    link_elems = await page.query_selector_all("a[href*='dossie']")
+                    page_links = []
+                    for elem in link_elems:
+                        href = await elem.get_attribute('href')
+                        if href and href not in tender_links:
+                            page_links.append(href)
+                            tender_links.append(href)
+
+                    new_links_count = len(page_links)
+                    logger.info(f"Page {current_page}: Found {new_links_count} new tender links (total: {len(tender_links)})")
+
+                    # Safety check: if 3 consecutive pages have no new links, pagination is stuck
+                    if new_links_count == 0:
+                        consecutive_zero_new += 1
+                        if consecutive_zero_new >= 3:
+                            logger.warning(f"Pagination stuck: {consecutive_zero_new} consecutive pages with no new links")
+                            break
+                    else:
+                        consecutive_zero_new = 0
+
+                    # Check if we should go to next page
+                    if current_page >= max_pages_to_scrape:
+                        logger.info(f"Reached max pages limit ({max_pages_to_scrape})")
+                        break
+
+                    # Try to click Next button
+                    has_next = await self._click_next_page(page)
+                    if not has_next:
+                        logger.info("No more pages available")
+                        break
+
+                    current_page += 1
+
+                    # Log progress every 100 pages
+                    if current_page % 100 == 0:
+                        logger.warning(f"Progress: Page {current_page}, Total links: {len(tender_links)}")
+
+                except Exception as e:
+                    logger.warning(f"Error on page {current_page}: {e}")
+                    break
+
+        # Fallback to HTML selectors if no links found via Playwright
         if not tender_links:
             tender_links = response.css('table#notices-grid tbody tr td:first-child a[href*=\"/dossie/\"]::attr(href)').getall()
 
         if not tender_links:
             tender_links = response.css('table tbody tr td a[target=\"_blank\"]::attr(href)').getall()
 
+        # Deduplicate
+        tender_links = list(set(tender_links))
+
         self.stats['tenders_found'] += len(tender_links)
-        logger.info(f"✓ Found {len(tender_links)} tender links in {source_category}")
+        logger.warning(f"✓ Total unique tender links found in {source_category}: {len(tender_links)}")
 
         # CRITICAL: Close listing page's Playwright page to free up context for detail pages
         if page:
@@ -408,9 +454,173 @@ class NabavkiSpider(scrapy.Spider):
                 dont_filter=True
             )
 
-        # Pagination temporarily disabled for testing detail page processing
-        # TODO: Re-implement pagination after detail pages are working
-        logger.info("Pagination: Skipped (page context already closed for detail processing)")
+        # Pagination is now handled in the main loop above - all links collected before closing page
+        logger.info("Pagination: All pages processed within single page context")
+
+    async def _click_next_page(self, page) -> bool:
+        """
+        Click the Next button in pagination.
+        Returns True if successfully clicked and page changed, False if no more pages.
+        """
+        try:
+            # Get current page info BEFORE clicking
+            old_page_info = ""
+            try:
+                info_elem = await page.query_selector('.dataTables_info, #notices-grid_info')
+                if info_elem:
+                    old_page_info = await info_elem.inner_text()
+            except:
+                pass
+
+            # DataTables pagination selectors - try multiple approaches
+            # The key insight: DataTables uses #tableid_next as the Next button ID
+            next_selectors = [
+                '#notices-grid_next',  # DataTables standard ID-based selector
+                'a.paginate_button.next',  # Class-based selector
+                '.dataTables_paginate .next',
+                'a[data-dt-idx="next"]',
+                'li.next a',
+            ]
+
+            for selector in next_selectors:
+                try:
+                    next_btn = await page.query_selector(selector)
+                    if next_btn:
+                        # Check if disabled
+                        class_attr = await next_btn.get_attribute('class') or ''
+                        if 'disabled' in class_attr:
+                            logger.info(f"Next button disabled: {selector}")
+                            continue
+
+                        # Get position and scroll into view
+                        await next_btn.scroll_into_view_if_needed()
+                        await page.wait_for_timeout(500)
+
+                        # Click using JavaScript for more reliable interaction
+                        await page.evaluate('(el) => el.click()', next_btn)
+                        logger.info(f"Clicked Next button via JS: {selector}")
+
+                        # Wait for table to update - check for loading indicator or row change
+                        await page.wait_for_timeout(3000)
+
+                        # Verify page actually changed by checking pagination info
+                        try:
+                            new_info_elem = await page.query_selector('.dataTables_info, #notices-grid_info')
+                            if new_info_elem:
+                                new_page_info = await new_info_elem.inner_text()
+                                if new_page_info != old_page_info:
+                                    logger.info(f"Page changed: {old_page_info} -> {new_page_info}")
+                                    return True
+                                else:
+                                    logger.warning(f"Page info unchanged after click: {new_page_info}")
+                                    # Try clicking again with force
+                                    continue
+                        except:
+                            pass
+
+                        # Even if we can't verify, assume success if we clicked
+                        return True
+
+                except Exception as e:
+                    logger.debug(f"Selector {selector} failed: {e}")
+                    continue
+
+            # If no selector worked, try clicking page numbers directly
+            try:
+                # Find current page number and click next
+                current_page_btn = await page.query_selector('.paginate_button.current')
+                if current_page_btn:
+                    current_text = await current_page_btn.inner_text()
+                    current_num = int(current_text.strip())
+                    next_num = current_num + 1
+
+                    # Click on next page number
+                    next_page_btn = await page.query_selector(f'.paginate_button:has-text("{next_num}")')
+                    if next_page_btn:
+                        await page.evaluate('(el) => el.click()', next_page_btn)
+                        await page.wait_for_timeout(3000)
+                        logger.info(f"Clicked page number {next_num}")
+                        return True
+            except Exception as e:
+                logger.debug(f"Page number click failed: {e}")
+
+            logger.info("No working Next button found or last page reached")
+            return False
+        except Exception as e:
+            logger.warning(f"Error clicking next page: {e}")
+            return False
+
+    async def _handle_pagination(self, page, source_category: str) -> Optional[str]:
+        """
+        Handle pagination for the listing page.
+        Clicks the "Next" button and returns the new page URL if available.
+        Returns None if no more pages.
+        """
+        try:
+            # Look for pagination info to see total pages
+            page_info_selectors = [
+                '.dataTables_info',
+                '#notices-grid_info',
+                '.pagination-info',
+            ]
+
+            for selector in page_info_selectors:
+                try:
+                    info_elem = await page.query_selector(selector)
+                    if info_elem:
+                        info_text = await info_elem.inner_text()
+                        logger.info(f"Pagination info: {info_text}")
+                        break
+                except:
+                    continue
+
+            # Look for Next button in DataTables pagination
+            next_selectors = [
+                'a.paginate_button.next:not(.disabled)',
+                'li.next:not(.disabled) a',
+                'a:has-text("Следна"):not(.disabled)',
+                'a:has-text("Next"):not(.disabled)',
+                'button:has-text("Следна"):not([disabled])',
+                '#notices-grid_next:not(.disabled)',
+            ]
+
+            for selector in next_selectors:
+                try:
+                    next_btn = await page.query_selector(selector)
+                    if next_btn:
+                        # Check if truly clickable (not disabled)
+                        class_attr = await next_btn.get_attribute('class') or ''
+                        if 'disabled' in class_attr:
+                            logger.info(f"Next button found but disabled ({selector})")
+                            continue
+
+                        logger.info(f"Found Next button with selector: {selector}")
+
+                        # Click and wait for table to refresh
+                        await next_btn.click()
+                        await page.wait_for_timeout(3000)  # Wait for data to load
+
+                        # Try to wait for table refresh
+                        try:
+                            await page.wait_for_selector('table tbody tr', timeout=20000)
+                        except:
+                            pass
+
+                        # Return current URL (will be re-parsed with new data)
+                        current_url = page.url
+                        logger.info(f"Clicked Next - new page loaded: {current_url}")
+                        return current_url
+
+                except Exception as e:
+                    logger.debug(f"Selector {selector} failed: {e}")
+                    continue
+
+            logger.info("No Next button found or all pages scraped")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Pagination handling error: {e}")
+            return None
 
     async def _find_next_page(self, response, page):
         """
@@ -446,7 +656,7 @@ class NabavkiSpider(scrapy.Spider):
                         # Click the button and wait for navigation/update
                         await button.click()
                         await page.wait_for_timeout(2000)  # Wait for DataTable to update
-                        await page.wait_for_selector('table#notices-grid tbody tr', timeout=10000)
+                        await page.wait_for_selector('table#notices-grid tbody tr', timeout=20000)
 
                         # Return current URL to re-parse the page with new data
                         current_url = page.url
@@ -476,7 +686,8 @@ class NabavkiSpider(scrapy.Spider):
         if page:
             try:
                 # Wait for Angular to render content
-                await page.wait_for_selector('label.dosie-value', timeout=20000)
+                # Increased timeout from 20s to 30s for slow pages
+                await page.wait_for_selector('label.dosie-value', timeout=30000)
                 await page.wait_for_timeout(1500)
                 logger.info("✓ Tender detail page loaded")
 
@@ -514,7 +725,7 @@ class NabavkiSpider(scrapy.Spider):
         tender['description'] = self._extract_field(response, 'description')
         tender['procuring_entity'] = self._extract_field(response, 'procuring_entity')
         tender['category'] = self._extract_field(response, 'category')
-        tender['cpv_code'] = self._extract_field(response, 'cpv_code')
+        tender['cpv_code'] = self._extract_cpv_code(response)
         tender['procedure_type'] = self._extract_field(response, 'procedure_type')
         tender['contracting_entity_category'] = self._extract_field(response, 'contracting_entity_category')
         tender['procurement_holder'] = self._extract_field(response, 'procurement_holder')
@@ -547,7 +758,39 @@ class NabavkiSpider(scrapy.Spider):
         tender['payment_terms'] = self._extract_field(response, 'payment_terms')
         tender['evaluation_method'] = self._extract_field(response, 'evaluation_method')
 
-        # Extract bidders and lots
+        # Extract additional bid data (highest/lowest bids)
+        tender['highest_bid'] = self._extract_currency(response, 'highest_bid')
+        tender['lowest_bid'] = self._extract_currency(response, 'lowest_bid')
+
+        # Extract delivery location
+        tender['delivery_location'] = self._extract_field(response, 'delivery_location')
+
+        # Extract dossier_id (UUID) from URL
+        # URL format: https://e-nabavki.gov.mk/PublicAccess/home.aspx#/dossie-acpp/UUID
+        import re
+        url = response.url
+        dossier_match = re.search(r'/dossie-acpp/([a-f0-9-]{36})', url)
+        if dossier_match:
+            tender['dossier_id'] = dossier_match.group(1)
+        else:
+            tender['dossier_id'] = None
+
+        # Extract number of bidders from page (NUMBER OF OFFERS DOSSIE shows actual count)
+        num_bidders_str = self._extract_field(response, 'num_bidders')
+        if num_bidders_str:
+            try:
+                tender['num_bidders'] = int(num_bidders_str.strip())
+            except (ValueError, TypeError):
+                tender['num_bidders'] = None
+
+        # Extract has_lots from page
+        has_lots_str = self._extract_field(response, 'has_lots')
+        if has_lots_str:
+            tender['has_lots'] = has_lots_str.lower() in ('да', 'yes', 'true')
+        else:
+            tender['has_lots'] = False
+
+        # Extract bidders and lots data
         tender_id = tender.get('tender_id', 'unknown')
         bidders_list = self._extract_bidders(response, tender_id)
         lots_list = self._extract_lots(response, tender_id)
@@ -555,9 +798,12 @@ class NabavkiSpider(scrapy.Spider):
         # Set bidder and lot related fields
         tender['bidders_data'] = json.dumps(bidders_list, ensure_ascii=False) if bidders_list else None
         tender['lots_data'] = json.dumps(lots_list, ensure_ascii=False) if lots_list else None
-        tender['num_bidders'] = len(bidders_list)
-        tender['has_lots'] = bool(lots_list)
-        tender['num_lots'] = len(lots_list)
+
+        # Override num_bidders if we have a list (fallback)
+        if tender.get('num_bidders') is None and bidders_list:
+            tender['num_bidders'] = len(bidders_list)
+
+        tender['num_lots'] = len(lots_list) if lots_list else 0
 
         tender['status'] = self._detect_status(tender)
 
@@ -590,135 +836,264 @@ class NabavkiSpider(scrapy.Spider):
 
     def _extract_field(self, response: Response, field_name: str) -> Optional[str]:
         """
-        Extract field using label-based selectors with fallbacks
+        Extract field using XPath label-for attribute selectors.
+
+        CRITICAL: Scrapy CSS selectors don't support :contains() pseudo-selector.
+        We use XPath with label[@label-for="..."] for reliable extraction.
         """
-        # Define label-for attributes for each field
-        FIELD_LABELS = {
+        # XPath selectors based on label-for attributes discovered from page analysis
+        FIELD_XPATH = {
             'tender_id': [
-                'label[label-for="ANNOUNCEMENT NUMBER DOSIE"] + label.dosie-value::text',
-                'label:contains("Број на оглас:") + label.dosie-value::text',
-                'label.dosie-value:contains("/")::text',
+                # For notifications/contracts
+                '//label[@label-for="PROCESS NUMBER FOR NOTIFICATION DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # For active tenders
+                '//label[@label-for="ANNOUNCEMENT NUMBER DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="NUMBER OF NOTICE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Fallback: look for pattern like 12345/2025 in any dosie-value
+                '//label[contains(@class, "dosie-value")][contains(text(), "/202")]/text()',
             ],
             'title': [
-                'label[label-for*="SUBJECT"] + label.dosie-value::text',
-                'label:contains("Предмет на договорот") + label.dosie-value::text',
-                'label:contains("Предмет на делот") + label.dosie-value::text',
+                '//label[@label-for="SUBJECT:"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "SUBJECT")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'description': [
-                'label[label-for*="SUBJECT"] + label.dosie-value::text',
-                'label:contains("Предмет") + label.dosie-value::text',
+                # English label-for detailed description
+                '//label[@label-for="DETAIL DESCRIPTION OF THE ITEM TO BE PROCURED DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="DESCRIPTION DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels - detailed description
+                '//label[contains(text(), "Подетален опис")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Опис на предметот")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Детален опис")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels - subject of procurement (shorter)
+                '//label[contains(text(), "Предмет на набавка")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Предмет на договорот")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Catch-all: any long text (>100 chars) in dosie-value that's likely a description
+                '//label[contains(@class, "dosie-value") and string-length(text()) > 100]/text()',
             ],
             'procuring_entity': [
-                'label[label-for="CONTRACTING INSTITUTION NAME DOSIE"] + label.dosie-value::text',
-                'label:contains("Договорен орган") + label.dosie-value::text',
-                'label:contains("Назив на договорниот орган") + label.dosie-value::text',
+                '//label[@label-for="CONTRACTING INSTITUTION NAME DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="CONTRACTING AUTHORITY NAME DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels
+                '//label[contains(text(), "Назив на договорниот орган")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Договорен орган")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'category': [
-                'label:contains("Вид на договорот:") + label.dosie-value::text',
-                'label:contains("Вид на договорот") ~ label.dosie-value::text',
+                '//label[@label-for="TYPE OF PROCUREMENT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="TYPE OF CONTRACT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'cpv_code': [
-                'label:contains("CPV") + label.dosie-value::text',
-                'label[label-for*="CPV"] + label.dosie-value::text',
+                # PRIMARY: Extract any 8-digit CPV code pattern from the page
+                # Note: CPV codes are embedded in the page HTML, not always in labeled fields
+                # This will be handled by _extract_cpv_code method
+                '//label[@label-for="CPV CODE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "CPV")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian CPV labels
+                '//label[contains(text(), "CPV код")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "CPV")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'procedure_type': [
-                'label[label-for="TYPE OF CALL:"] + label.dosie-value::text',
-                'label:contains("Вид на постапка:") + label.dosie-value::text',
+                '//label[@label-for="TYPE OF CALL:"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PROCEDURE TYPE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'contracting_entity_category': [
-                'label:contains("Категорија") + label.dosie-value::text',
+                '//label[@label-for="CATEGORY OF CONTRACTING INSTITUTION AND ITS MAIN ROLE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'procurement_holder': [
-                'label:contains("Носител") + label.dosie-value::text',
+                # This is actually the winner in awarded contracts
+                '//label[@label-for="NAME OF CONTACT OF PROCUREMENT DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'contract_duration': [
-                'label:contains("Времетраење") + label.dosie-value::text',
-                'label:contains("Период") + label.dosie-value::text',
+                '//label[@label-for="PERIOD IN MONTHS"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="CONTRACT DURATION DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'winner': [
-                'label:contains("Добитник") + label.dosie-value::text',
-                'label:contains("Избран понудувач") + label.dosie-value::text',
+                # Winner name (contractor who won the tender)
+                '//label[@label-for="NAME OF CONTACT OF PROCUREMENT DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="WINNER NAME DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="SELECTED BIDDER DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'contact_person': [
-                'label:contains("Контакт лице") + label.dosie-value::text',
-                'label:contains("Contact person") + label.dosie-value::text',
-                'label:contains("Лице за контакт") + label.dosie-value::text',
-                'label[label-for*="CONTACT"] + label.dosie-value::text',
+                '//label[@label-for="CONTRACTING INSTITUTION CONTACT PERSON DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="CONTACT PERSON DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'contact_email': [
-                'label:contains("Е-пошта") + label.dosie-value::text',
-                'label:contains("Email") + label.dosie-value::text',
-                'label:contains("E-mail") + label.dosie-value::text',
-                'label:contains("Електронска пошта") + label.dosie-value::text',
+                '//label[@label-for="CONTRACTING INSTITUTION EMAIL DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="EMAIL DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'contact_phone': [
-                'label:contains("Телефон") + label.dosie-value::text',
-                'label:contains("Phone") + label.dosie-value::text',
-                'label:contains("Тел.") + label.dosie-value::text',
-                'label:contains("Telephone") + label.dosie-value::text',
+                '//label[@label-for="CONTRACTING INSTITUTION PHONE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PHONE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'payment_terms': [
-                'label:contains("Услови за плаќање") + label.dosie-value::text',
-                'label:contains("Payment terms") + label.dosie-value::text',
-                'label:contains("Начин на плаќање") + label.dosie-value::text',
-                'label:contains("Рок за плаќање") + label.dosie-value::text',
+                # Primary: Various payment terms labels found on e-nabavki pages
+                '//label[@label-for="PAYMENT TERMS DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PAYMENT TERMS DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="TERMS OF PAYMENT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="TERMS OF PAYMENT DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PAYMENT DEADLINE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PAYMENT DEADLINE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PAYMENT PERIOD DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PAYMENT PERIOD DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels for payment terms
+                '//label[contains(text(), "Услови за плаќање")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Рок за плаќање")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Плаќање")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # General contains for "PAYMENT" in label-for
+                '//label[contains(@label-for, "PAYMENT")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'evaluation_method': [
-                'label:contains("Метод на евалуација") + label.dosie-value::text',
-                'label:contains("Evaluation method") + label.dosie-value::text',
-                'label:contains("Критериум") + label.dosie-value::text',
-                'label:contains("Критериуми за доделување") + label.dosie-value::text',
-                'label:contains("Критериум за избор") + label.dosie-value::text',
+                '//label[@label-for="CRITERION FOR ASSIGNMENT OF CONTRACT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="AWARD CRITERIA DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            ],
+            'delivery_location': [
+                '//label[@label-for="DELIVERY OF GOODS LOCATION OF WORKS DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            ],
+            'num_bidders': [
+                '//label[@label-for="NUMBER OF OFFERS DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            ],
+            'highest_bid': [
+                '//label[@label-for="HIGEST OFFER VALUE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            ],
+            'lowest_bid': [
+                '//label[@label-for="LOWEST OFFER VALUE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            ],
+            'has_lots': [
+                '//label[@label-for="CAN BE DIVEDED ON LOTS DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
         }
 
-        selectors = FIELD_LABELS.get(field_name, [])
+        xpaths = FIELD_XPATH.get(field_name, [])
 
-        for selector in selectors:
+        for xpath in xpaths:
             try:
-                value = response.css(selector).get()
-                if value:
-                    value = value.strip()
+                values = response.xpath(xpath).getall()
+                for value in values:
                     if value:
-                        return value
+                        value = value.strip()
+                        if value and len(value) > 0:
+                            logger.debug(f"Extracted {field_name}: {value[:50]}...")
+                            return value
             except Exception as e:
+                logger.debug(f"XPath error for {field_name}: {e}")
                 continue
 
         return None
 
+    def _extract_cpv_code(self, response: Response) -> Optional[str]:
+        """
+        Extract CPV code using regex pattern matching on the entire page.
+        CPV codes are 8-digit numbers, optionally followed by -digit (e.g., 72410000-7)
+        """
+        # First try labeled extraction
+        cpv_xpaths = [
+            '//label[@label-for="CPV CODE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            '//label[contains(@label-for, "CPV")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            '//label[contains(text(), "CPV код")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            '//label[contains(text(), "CPV")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+        ]
+
+        for xpath in cpv_xpaths:
+            try:
+                values = response.xpath(xpath).getall()
+                for value in values:
+                    if value:
+                        value = value.strip()
+                        # Check if it's a valid CPV code pattern
+                        cpv_match = re.match(r'^(\d{8})(-\d)?$', value)
+                        if cpv_match:
+                            logger.info(f"Extracted CPV code via label: {value}")
+                            return value
+            except Exception:
+                continue
+
+        # Fallback: Search entire HTML for CPV pattern
+        # CPV codes are 8-digit codes, optionally with -digit suffix
+        html_text = response.text
+
+        # Find all 8-digit patterns with optional -digit suffix
+        cpv_pattern = r'\b(\d{8}(?:-\d)?)\b'
+        matches = re.findall(cpv_pattern, html_text)
+
+        # Filter out common false positives
+        valid_cpv_codes = []
+        for match in matches:
+            # CPV codes start with specific prefixes (not 00000000 or 99999999)
+            if match.startswith('0000') or match.startswith('9999'):
+                continue
+            # Valid CPV division codes are 01-98
+            try:
+                division = int(match[:2])
+                if 1 <= division <= 98:
+                    valid_cpv_codes.append(match)
+            except ValueError:
+                continue
+
+        if valid_cpv_codes:
+            # Return the first valid CPV code found
+            cpv_code = valid_cpv_codes[0]
+            logger.info(f"Extracted CPV code via regex: {cpv_code}")
+            return cpv_code
+
+        return None
+
     def _extract_date(self, response: Response, field_name: str) -> Optional[str]:
-        """Extract and parse date fields"""
-        DATE_FIELDS = {
+        """Extract and parse date fields using XPath selectors"""
+        # XPath selectors based on label-for attributes
+        DATE_XPATH = {
             'publication_date': [
-                'label[label-for="ANNOUNCEMENT DATE DOSSIE"] + label.dosie-value::text',
-                'label:contains("Датум на објавување") + label.dosie-value::text',
+                '//label[@label-for="ANNOUNCEMENT DATE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PUBLICATION DATE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'opening_date': [
-                'label:contains("Датум на отворање") + label.dosie-value::text',
+                # PRIMARY: Exact label-for from live page analysis (active tenders)
+                '//label[@label-for="PUBLIC OPENING OF THE TENDERS WILL BE HELD ON THE DAY AND HOUR DEFINED AS THE DEAD LINE FOR THEIR DELIVERY DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Alternate English label-for values
+                '//label[@label-for="OPENING DATE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="BID OPENING DATE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="DATE OF OPENING OFFERS DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # For awarded tenders - use contract signing date as proxy for opening
+                '//label[@label-for="DATE WHEN CONTRACT WAS ASSIGNED DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian text-based search
+                '//label[contains(text(), "Јавното отворање на понудите")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Отворање на понуди")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Датум на отворање")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'closing_date': [
-                'label:contains("Рок за поднесување") + label.dosie-value::text',
-                'label:contains("Краен рок") + label.dosie-value::text',
+                # PRIMARY: Exact label-for from live page analysis (active tenders)
+                '//label[@label-for="THE TENDERS TO BE DELIVERED AT LEAST UNTIL"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Alternate selectors
+                '//label[@label-for="DEADLINE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="SUBMISSION DEADLINE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="END DATE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian text-based fallbacks
+                '//label[contains(text(), "Крајниот рок за доставување")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Рок за поднесување")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Крајниот рок")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'contract_signing_date': [
-                'label:contains("Датум на склучување") + label.dosie-value::text',
+                '//label[@label-for="DATE WHEN CONTRACT WAS ASSIGNED DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="CONTRACT SIGNING DATE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'bureau_delivery_date': [
-                'label:contains("Датум на достава") + label.dosie-value::text',
+                '//label[@label-for="DATE OF DELIVERY DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="DELIVERY DATE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
         }
 
-        selectors = DATE_FIELDS.get(field_name, [])
+        xpaths = DATE_XPATH.get(field_name, [])
 
-        for selector in selectors:
+        for xpath in xpaths:
             try:
-                date_str = response.css(selector).get()
-                if date_str:
-                    date_str = date_str.strip()
-                    parsed = self._parse_date(date_str)
-                    if parsed:
-                        return parsed
+                values = response.xpath(xpath).getall()
+                for date_str in values:
+                    if date_str:
+                        date_str = date_str.strip()
+                        parsed = self._parse_date(date_str)
+                        if parsed:
+                            logger.debug(f"Extracted {field_name}: {parsed}")
+                            return parsed
             except Exception as e:
+                logger.debug(f"XPath error for {field_name}: {e}")
                 continue
 
         return None
@@ -752,48 +1127,61 @@ class NabavkiSpider(scrapy.Spider):
         """
         Extract and parse currency values using XPath for better text matching.
 
-        The e-nabavki site structure:
-        - Label: <label label-for="ESTIMATED VALUE NO DDV"> Проценета вредност без ДДВ:</label>
-        - Value: <label class="dosie-value ng-binding">200.000,00</label>
-
-        Note: Values often don't include currency suffix (МКД/EUR), just the number.
-        For estimated_value_mkd, we get the first numeric value.
-        For estimated_value_eur, we look for a second value or EUR indicator.
+        The e-nabavki site structure (from page analysis):
+        - Estimated value: label-for="ESTIMATED VALUE NEW" => "1.000.000,44"
+        - Contract value without VAT: label-for="ASSIGNED CONTRACT VALUE WITHOUT VAT" => "507.000,00"
+        - Contract value with VAT: label-for="ASSIGNED CONTRACT VALUE DOSSIE" => "598.260,00"
         """
-        # XPath selectors for currency fields
+        # XPath selectors based on actual label-for attributes discovered
         CURRENCY_XPATH = {
             'estimated_value_mkd': [
-                # Primary: Look for label with "ESTIMATED VALUE" label-for attribute
+                # Primary: "ESTIMATED VALUE NEW" from page analysis
+                '//label[@label-for="ESTIMATED VALUE NEW"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="ESTIMATED VALUE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="ESTIMATED VALUE NO DDV"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="ESTIMATED VALUE WITHOUT VAT"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels for estimated value
+                '//label[contains(text(), "Проценета вредност")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Предвидена вредност")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Вредност без ДДВ")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Broad English pattern
                 '//label[contains(@label-for, "ESTIMATED VALUE")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
-                # Also try text-based matching
-                '//label[contains(text(), "Проценета вредност") and not(contains(text(), "Објавување"))]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
-                # Fallback: any dosie-value after estimated value label
-                '//label[contains(text(), "Проценета вредност без")]/following-sibling::label[contains(@class, "dosie-value")]/text()',
             ],
             'estimated_value_eur': [
-                # EUR is usually the second value or has EUR in the text
+                # EUR is usually marked or second value
+                '//label[@label-for="ESTIMATED VALUE EUR"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[contains(@label-for, "ESTIMATED VALUE")]/following-sibling::label[contains(@class, "dosie-value")][contains(text(), "EUR")]/text()',
-                '//label[contains(text(), "Проценета вредност")]/following-sibling::label[contains(@class, "dosie-value")][contains(text(), "EUR")]/text()',
-                # Second value after estimated value label
-                '//label[contains(@label-for, "ESTIMATED VALUE")]/following-sibling::label[contains(@class, "dosie-value")][2]/text()',
             ],
             'actual_value_mkd': [
+                # Contract value without VAT (this is the winning bid)
+                '//label[@label-for="ASSIGNED CONTRACT VALUE WITHOUT VAT"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Contract value with VAT
+                '//label[@label-for="ASSIGNED CONTRACT VALUE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[contains(@label-for, "CONTRACT VALUE")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
-                '//label[contains(text(), "Вредност на договорот")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
-                '//label[contains(text(), "Contract value")]/following-sibling::label[contains(@class, "dosie-value")]/text()',
             ],
             'actual_value_eur': [
+                '//label[@label-for="ASSIGNED CONTRACT VALUE EUR"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[contains(@label-for, "CONTRACT VALUE")]/following-sibling::label[contains(@class, "dosie-value")][contains(text(), "EUR")]/text()',
-                '//label[contains(text(), "Вредност на договорот")]/following-sibling::label[contains(@class, "dosie-value")][2]/text()',
             ],
             'security_deposit_mkd': [
-                '//label[contains(text(), "Гаранција за учество")]/following-sibling::label[contains(@class, "dosie-value")]/text()',
-                '//label[contains(text(), "Security deposit")]/following-sibling::label[contains(@class, "dosie-value")]/text()',
-                '//label[contains(text(), "Депозит")]/following-sibling::label[contains(@class, "dosie-value")]/text()',
+                # Изјава за сериозност (Bid guarantee / Security deposit)
+                '//label[@label-for="IMPORTANCE STATEMENT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="SECURITY DEPOSIT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="BID GUARANTEE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'performance_guarantee_mkd': [
-                '//label[contains(text(), "Гаранција за извршување")]/following-sibling::label[contains(@class, "dosie-value")]/text()',
-                '//label[contains(text(), "Performance guarantee")]/following-sibling::label[contains(@class, "dosie-value")]/text()',
+                # Гаранција за квалитетно извршување на договорот (Performance guarantee)
+                '//label[@label-for="ASSURANCE OF QUALITY EXECUTION OF AGREEMENT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PERFORMANCE GUARANTEE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            ],
+            'highest_bid': [
+                '//label[@label-for="HIGEST OFFER VALUE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="HIGHEST OFFER VALUE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Највисока понуда")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+            ],
+            'lowest_bid': [
+                '//label[@label-for="LOWEST OFFER VALUE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Најниска понуда")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
         }
 
@@ -805,8 +1193,15 @@ class NabavkiSpider(scrapy.Spider):
                 for value_str in values:
                     if value_str:
                         value_str = value_str.strip()
+                        # For guarantee fields, extract percentage from brackets like "[15.00 %]"
+                        if field_name in ('security_deposit_mkd', 'performance_guarantee_mkd'):
+                            parsed = self._parse_guarantee_percentage(value_str)
+                            if parsed:
+                                logger.info(f"Extracted {field_name}: {parsed}% from '{value_str}'")
+                                return parsed
+                            continue
                         # Skip "Не" or "Да" values (these are yes/no indicators)
-                        if value_str in ('Не', 'Да', 'No', 'Yes'):
+                        if value_str in ('Не', 'Да', 'No', 'Yes', '%'):
                             continue
                         parsed = self._parse_currency(value_str)
                         if parsed:
@@ -815,6 +1210,37 @@ class NabavkiSpider(scrapy.Spider):
             except Exception as e:
                 logger.debug(f"XPath error for {field_name}: {e}")
                 continue
+
+        return None
+
+    def _parse_guarantee_percentage(self, value_string: str) -> Optional[Decimal]:
+        """
+        Extract percentage value from guarantee field text.
+        Examples:
+        - "Да [15.00 %]" -> 15.00
+        - "Да [5.00 %]" -> 5.00
+        - "Не" -> None
+        """
+        if not value_string:
+            return None
+
+        # Look for percentage pattern in brackets: [15.00 %] or [5.00%]
+        percentage_match = re.search(r'\[(\d+(?:[.,]\d+)?)\s*%?\]', value_string)
+        if percentage_match:
+            try:
+                number_str = percentage_match.group(1).replace(',', '.')
+                return Decimal(number_str)
+            except:
+                pass
+
+        # Also try pattern without brackets: "15.00 %" or "15,00%"
+        percentage_match = re.search(r'(\d+(?:[.,]\d+)?)\s*%', value_string)
+        if percentage_match:
+            try:
+                number_str = percentage_match.group(1).replace(',', '.')
+                return Decimal(number_str)
+            except:
+                pass
 
         return None
 
@@ -910,60 +1336,76 @@ class NabavkiSpider(scrapy.Spider):
     def _extract_documents(self, response: Response, tender_id: str) -> List[Dict[str, Any]]:
         """Extract document links with categorization and metadata"""
         documents = []
+        seen_urls = set()  # Dedupe
+
+        # XPath selectors for document links - more comprehensive
+        doc_xpaths = [
+            '//a[contains(@href, "Download")]/@href',
+            '//a[contains(@href, ".pdf")]/@href',
+            '//a[contains(@href, "/File/")]/@href',
+            '//a[contains(@href, "/Bids/")]/@href',
+            '//a[contains(@href, "fileId=")]/@href',
+            '//a[contains(@href, "document")]/@href',
+            '//a[contains(@href, ".docx")]/@href',
+            '//a[contains(@href, ".xlsx")]/@href',
+        ]
 
         doc_selectors = [
             'a[href*="Download"]::attr(href)',
             'a[href*=".pdf"]::attr(href)',
             'a[href*="File"]::attr(href)',
+            'a[href*="Bids"]::attr(href)',
+            'a[href*="fileId"]::attr(href)',
         ]
 
+        def add_document(link):
+            """Helper to add document after validation"""
+            if not link or link in seen_urls:
+                return
+            seen_urls.add(link)
+
+            # Make absolute URL
+            if link.startswith('/'):
+                link = 'https://e-nabavki.gov.mk' + link
+            elif not link.startswith('http'):
+                link = 'https://e-nabavki.gov.mk/' + link
+
+            # Extract filename from URL
+            import urllib.parse
+            parsed = urllib.parse.urlparse(link)
+            if 'fileId=' in link:
+                # For fileId URLs, generate filename from fileId
+                file_id = urllib.parse.parse_qs(parsed.query).get('fileId', ['unknown'])[0]
+                filename = f"document_{file_id[:8]}.pdf"
+            else:
+                filename = urllib.parse.unquote(parsed.path.split('/')[-1]) if '/' in parsed.path else 'document.pdf'
+
+            # Clean up filename
+            filename = filename.replace('%20', ' ').replace('%', '_')
+
+            doc_type = 'document'
+            doc_category = self._categorize_document(filename, doc_type)
+
+            documents.append({
+                'url': link,
+                'tender_id': tender_id,
+                'doc_category': doc_category,
+                'upload_date': None,
+                'file_name': filename,
+                'doc_type': doc_type,
+            })
+
+        # Try CSS selectors first
         for selector in doc_selectors:
             links = response.css(selector).getall()
             for link in links:
-                if link:
-                    # Make absolute URL
-                    if not link.startswith('http'):
-                        link = 'https://e-nabavki.gov.mk' + link
+                add_document(link)
 
-                    # Extract filename from URL or use a default
-                    filename = link.split('/')[-1] if '/' in link else 'document.pdf'
-
-                    # Attempt to extract document type from nearby text
-                    # This would require more context from the DOM, using filename for now
-                    doc_type = 'document'
-
-                    # Categorize document
-                    doc_category = self._categorize_document(filename, doc_type)
-
-                    # Try to extract upload date from page context
-                    # Look for date near the document link (this is a best-effort attempt)
-                    upload_date = None
-                    try:
-                        # Try to find date in parent or sibling elements
-                        # This selector might need adjustment based on actual page structure
-                        date_selectors = [
-                            'label:contains("Датум"):contains("upload")::text',
-                            'span.date::text',
-                            'label.dosie-value:contains("/")::text'
-                        ]
-                        for date_selector in date_selectors:
-                            date_text = response.css(date_selector).get()
-                            if date_text:
-                                parsed_date = self._parse_date(date_text)
-                                if parsed_date:
-                                    upload_date = parsed_date
-                                    break
-                    except Exception as e:
-                        logger.debug(f"Could not extract upload date for {filename}: {e}")
-
-                    documents.append({
-                        'url': link,
-                        'tender_id': tender_id,
-                        'doc_category': doc_category,
-                        'upload_date': upload_date,
-                        'file_name': filename,
-                        'doc_type': doc_type,
-                    })
+        # Also try XPath selectors
+        for xpath in doc_xpaths:
+            links = response.xpath(xpath).getall()
+            for link in links:
+                add_document(link)
 
         logger.info(f"Extracted {len(documents)} documents for tender {tender_id}")
         return documents
@@ -1196,18 +1638,39 @@ class NabavkiSpider(scrapy.Spider):
         return lots
 
     def _detect_status(self, tender: Dict[str, Any]) -> str:
-        """Auto-detect tender status from available fields"""
+        """
+        Auto-detect tender status from available fields.
+
+        IMPORTANT: Status must match DB constraint:
+        CHECK (status IN ('open', 'closed', 'awarded', 'cancelled'))
+        """
         source_category = tender.get('source_category', '')
+
+        # Handle awarded tenders
         if source_category in ('awarded', 'contracts', 'tender_winners'):
             return 'awarded'
-        if 'cancel' in source_category:
-            return 'cancelled'
         if tender.get('winner'):
             return 'awarded'
-        elif tender.get('closing_date'):
-            return 'active'
-        else:
-            return 'published'
+
+        # Handle cancelled tenders
+        if 'cancel' in source_category.lower():
+            return 'cancelled'
+
+        # Handle active/open tenders
+        # Default to 'open' for active tenders (NOT 'active' or 'published')
+        closing_date = tender.get('closing_date')
+        if closing_date:
+            # Check if past closing date
+            try:
+                from datetime import datetime
+                close_dt = datetime.strptime(closing_date, '%Y-%m-%d')
+                if close_dt < datetime.now():
+                    return 'closed'
+            except:
+                pass
+
+        # Default status for active tenders
+        return 'open'
 
     def _log_extraction_stats(self, tender: Dict[str, Any]):
         """Log extraction statistics"""

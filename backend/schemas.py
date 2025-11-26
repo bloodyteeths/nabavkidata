@@ -40,6 +40,15 @@ class TenderBase(BaseModel):
     procurement_holder: Optional[str] = None
     bureau_delivery_date: Optional[date] = None
 
+    # Contact Information
+    contact_person: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+
+    # Additional Fields
+    num_bidders: Optional[int] = None
+    evaluation_method: Optional[str] = None
+
 
 class TenderCreate(TenderBase):
     """Schema for creating tender"""

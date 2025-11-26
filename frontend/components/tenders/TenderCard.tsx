@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Calendar, Building2, Tag, ExternalLink, Clock } from "lucide-react";
+import { Calendar, Building2, Tag, ExternalLink, Clock, User, Mail, Phone } from "lucide-react";
 import type { Tender } from "@/lib/api";
 import Link from "next/link";
 
@@ -135,6 +135,34 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
                 </div>
               )}
             </div>
+
+            {/* Contact Information */}
+            {(tender.contact_person || tender.contact_email || tender.contact_phone) && (
+              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground border-t pt-3 mt-1">
+                {tender.contact_person && (
+                  <div className="flex items-center gap-1">
+                    <User className="h-4 w-4" />
+                    <span>{tender.contact_person}</span>
+                  </div>
+                )}
+                {tender.contact_email && (
+                  <div className="flex items-center gap-1">
+                    <Mail className="h-4 w-4" />
+                    <a href={`mailto:${tender.contact_email}`} className="hover:text-primary">
+                      {tender.contact_email}
+                    </a>
+                  </div>
+                )}
+                {tender.contact_phone && (
+                  <div className="flex items-center gap-1">
+                    <Phone className="h-4 w-4" />
+                    <a href={`tel:${tender.contact_phone}`} className="hover:text-primary">
+                      {tender.contact_phone}
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Additional Tags */}
             {(tender.category || tender.evaluation_method) && (

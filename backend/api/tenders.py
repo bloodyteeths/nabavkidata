@@ -473,6 +473,97 @@ async def search_tenders(
 
 
 # ============================================================================
+# METADATA ENDPOINTS (categories, CPV codes)
+# ============================================================================
+
+@router.get("/categories")
+async def get_tender_categories(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all unique tender categories with counts
+
+    Returns list of categories sorted by count (most common first)
+    """
+    query = select(
+        Tender.category,
+        func.count().label('count')
+    ).where(
+        Tender.category.isnot(None),
+        Tender.category != ''
+    ).group_by(
+        Tender.category
+    ).order_by(
+        func.count().desc()
+    )
+
+    result = await db.execute(query)
+    categories = [
+        {"category": row[0], "count": row[1]}
+        for row in result
+    ]
+
+    return {
+        "total": len(categories),
+        "categories": categories
+    }
+
+
+@router.get("/cpv-codes")
+async def get_cpv_codes(
+    prefix: str = Query(None, description="Filter by CPV code prefix (e.g., '45' for construction)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of CPV codes to return"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all unique CPV codes with counts and tender statistics
+
+    Parameters:
+    - prefix: Filter by CPV code prefix (e.g., "45" for construction works)
+    - limit: Maximum number of codes to return
+
+    Returns list of CPV codes sorted by frequency
+    """
+    filters = [
+        Tender.cpv_code.isnot(None),
+        Tender.cpv_code != ''
+    ]
+
+    if prefix:
+        filters.append(Tender.cpv_code.startswith(prefix))
+
+    query = select(
+        Tender.cpv_code,
+        func.count().label('tender_count'),
+        func.sum(Tender.estimated_value_mkd).label('total_value_mkd'),
+        func.avg(Tender.estimated_value_mkd).label('avg_value_mkd')
+    ).where(
+        and_(*filters)
+    ).group_by(
+        Tender.cpv_code
+    ).order_by(
+        func.count().desc()
+    ).limit(limit)
+
+    result = await db.execute(query)
+    cpv_codes = [
+        {
+            "cpv_code": row[0],
+            "tender_count": row[1],
+            "total_value_mkd": float(row[2]) if row[2] else None,
+            "avg_value_mkd": float(row[3]) if row[3] else None
+        }
+        for row in result
+    ]
+
+    return {
+        "total": len(cpv_codes),
+        "prefix_filter": prefix,
+        "cpv_codes": cpv_codes
+    }
+
+
+# ============================================================================
 # TENDER DOCUMENTS (Must be before the path parameter route)
 # ============================================================================
 

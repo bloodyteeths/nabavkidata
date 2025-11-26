@@ -66,6 +66,12 @@ class PDFDownloadPipeline:
         if not file_url:
             return item
 
+        # Skip ohridskabanka.mk documents (external bank guarantees)
+        if 'ohridskabanka' in file_url.lower():
+            logger.info(f"Skipping ohridskabanka.mk document: {file_url}")
+            adapter['extraction_status'] = 'skipped_external'
+            return item
+
         try:
             # Generate unique filename based on URL hash
             url_hash = hashlib.md5(file_url.encode('utf-8')).hexdigest()
@@ -185,6 +191,13 @@ class PDFExtractionPipeline:
 
         file_path = adapter.get('file_path')
         if not file_path or not Path(file_path).exists():
+            return item
+
+        # Skip ohridskabanka.mk documents (external bank guarantees)
+        file_url = adapter.get('file_url', '')
+        if 'ohridskabanka' in file_url.lower():
+            logger.info(f"Skipping extraction for ohridskabanka.mk document: {file_path}")
+            adapter['extraction_status'] = 'skipped_external'
             return item
 
         try:
@@ -910,3 +923,283 @@ class DatabasePipeline:
             logger.error(f"Error parsing amendments JSON for {tender_id}: {e}")
         except Exception as e:
             logger.error(f"Error inserting amendments for {tender_id}: {e}")
+
+
+# ==============================================================================
+# E-PAZAR PIPELINES (for e-pazar.gov.mk API spider)
+# ==============================================================================
+
+class EPazarValidationPipeline:
+    """
+    Validate e-Pazar tender data before database insertion.
+    """
+
+    def process_item(self, item, spider):
+        """Validate e-pazar item data."""
+        adapter = ItemAdapter(item)
+
+        # Only validate EPazarApiItem
+        if item.__class__.__name__ != 'EPazarApiItem':
+            return item
+
+        # Validate required fields
+        tender_id = adapter.get('tender_id')
+        if not tender_id:
+            logger.error("EPazar validation failed: Missing tender_id")
+            raise ValueError("tender_id is required")
+
+        # Title fallback logic
+        title = adapter.get('title')
+        if not title or len(str(title).strip()) < 3:
+            fallback_title = (
+                adapter.get('description') or
+                adapter.get('contracting_authority') or
+                f"E-Pazar Tender {tender_id}"
+            )
+            adapter['title'] = fallback_title
+            logger.warning(f"Missing title for {tender_id}, using fallback: {fallback_title[:50]}")
+
+        logger.info(f"EPazar validation passed: {tender_id}")
+        return item
+
+
+class EPazarDatabasePipeline:
+    """
+    Insert e-Pazar scraped tenders and contracts into PostgreSQL.
+
+    Features:
+    - Connection pool created once in open_spider() (not per-item)
+    - UPSERT logic for duplicate handling
+    - Separate epazar_tenders table
+    """
+
+    def __init__(self):
+        self.pool = None
+        self.stats = {
+            'tenders_inserted': 0,
+            'tenders_updated': 0,
+            'documents_inserted': 0,
+            'errors': 0,
+        }
+
+    def open_spider(self, spider):
+        """Initialize (pool created on first item to get event loop)."""
+        logger.info("EPazarDatabasePipeline: Ready")
+
+    async def _ensure_pool(self):
+        """Create connection pool if not exists (called from async context)."""
+        if self.pool is not None:
+            return True
+
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            logger.error("❌ DATABASE_URL not set!")
+            return False
+
+        # Strip SQLAlchemy driver suffix
+        database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
+
+        try:
+            self.pool = await asyncpg.create_pool(
+                database_url,
+                min_size=2,
+                max_size=10,
+                command_timeout=60
+            )
+            logger.info("✓ EPazarDatabasePipeline: Connection pool created")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to create connection pool: {e}")
+            return False
+
+    async def _close_spider_async(self, spider):
+        """Close connection pool."""
+        if self.pool:
+            await self.pool.close()
+            logger.info(f"EPazarDatabasePipeline: Pool closed. Stats: {self.stats}")
+
+    def close_spider(self, spider):
+        return deferred_from_coro(self._close_spider_async(spider))
+
+    async def process_item(self, item, spider):
+        """Process e-pazar items asynchronously."""
+        adapter = ItemAdapter(item)
+
+        # Only process EPazarApiItem
+        if item.__class__.__name__ != 'EPazarApiItem':
+            return item
+
+        # Ensure pool exists
+        if not await self._ensure_pool():
+            return item
+
+        tender_id = adapter.get('tender_id', 'UNKNOWN')
+        logger.info(f"→ Processing e-Pazar tender: {tender_id}")
+
+        try:
+            async with self.pool.acquire() as conn:
+                await self._upsert_epazar_tender(adapter, conn)
+                logger.info(f"✓ Saved e-Pazar tender: {tender_id}")
+
+                # Insert documents if present
+                docs_data = adapter.get('documents_data')
+                if docs_data:
+                    await self._insert_epazar_documents(tender_id, docs_data, conn)
+
+        except Exception as e:
+            logger.error(f"❌ Failed to save e-Pazar item [{tender_id}]: {e}")
+            logger.exception("Full traceback:")
+            self.stats['errors'] += 1
+
+        return item
+
+    def _parse_date_string(self, date_str):
+        """Convert date string to date object."""
+        if not date_str or not isinstance(date_str, str):
+            return None
+        try:
+            from datetime import date as date_type
+            parts = date_str.split('-')
+            if len(parts) >= 3:
+                return date_type(int(parts[0]), int(parts[1]), int(parts[2][:2]))
+        except Exception:
+            return None
+        return None
+
+    async def _upsert_epazar_tender(self, adapter, conn):
+        """Upsert e-pazar tender with ON CONFLICT handling."""
+        tender_id = adapter.get('tender_id')
+
+        # Parse dates
+        publication_date = self._parse_date_string(adapter.get('publication_date'))
+        closing_date = self._parse_date_string(adapter.get('closing_date') or adapter.get('deadline_date'))
+        contract_date = self._parse_date_string(adapter.get('contract_date'))
+
+        # Convert contracting_authority_id to string (API returns integer)
+        ca_id = adapter.get('contracting_authority_id')
+        contracting_authority_id = str(ca_id) if ca_id is not None else None
+
+        # Check if exists
+        existing = await conn.fetchval(
+            "SELECT tender_id FROM epazar_tenders WHERE tender_id = $1",
+            tender_id
+        )
+
+        if existing:
+            # UPDATE existing record (only columns that exist in the table)
+            await conn.execute("""
+                UPDATE epazar_tenders SET
+                    title = COALESCE($2, title),
+                    description = COALESCE($3, description),
+                    contracting_authority = COALESCE($4, contracting_authority),
+                    contracting_authority_id = COALESCE($5, contracting_authority_id),
+                    estimated_value_mkd = COALESCE($6, estimated_value_mkd),
+                    awarded_value_mkd = COALESCE($7, awarded_value_mkd),
+                    procedure_type = COALESCE($8, procedure_type),
+                    status = COALESCE($9, status),
+                    publication_date = COALESCE($10, publication_date),
+                    closing_date = COALESCE($11, closing_date),
+                    contract_date = COALESCE($12, contract_date),
+                    contract_number = COALESCE($13, contract_number),
+                    source_url = COALESCE($14, source_url),
+                    source_category = COALESCE($15, source_category),
+                    content_hash = $16,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE tender_id = $1
+            """,
+                tender_id,
+                adapter.get('title'),
+                adapter.get('description'),
+                adapter.get('contracting_authority'),
+                contracting_authority_id,
+                adapter.get('estimated_value_mkd'),
+                adapter.get('contract_value_mkd'),  # Maps to awarded_value_mkd
+                adapter.get('procurement_type'),  # Maps to procedure_type
+                adapter.get('status'),
+                publication_date,
+                closing_date,
+                contract_date,
+                adapter.get('contract_number'),
+                adapter.get('source_url'),
+                adapter.get('source_category'),
+                adapter.get('content_hash'),
+            )
+            self.stats['tenders_updated'] += 1
+            logger.info(f"Updated e-Pazar tender: {tender_id}")
+        else:
+            # INSERT new record (only columns that exist in the table)
+            await conn.execute("""
+                INSERT INTO epazar_tenders (
+                    tender_id, title, description,
+                    contracting_authority, contracting_authority_id,
+                    estimated_value_mkd, awarded_value_mkd,
+                    procedure_type, status,
+                    publication_date, closing_date, contract_date,
+                    contract_number, source_url, source_category, content_hash,
+                    language, scraped_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                    $11, $12, $13, $14, $15, $16, 'mk', CURRENT_TIMESTAMP
+                )
+            """,
+                tender_id,
+                adapter.get('title'),
+                adapter.get('description'),
+                adapter.get('contracting_authority'),
+                contracting_authority_id,
+                adapter.get('estimated_value_mkd'),
+                adapter.get('contract_value_mkd'),  # Maps to awarded_value_mkd
+                adapter.get('procurement_type'),  # Maps to procedure_type
+                adapter.get('status'),
+                publication_date,
+                closing_date,
+                contract_date,
+                adapter.get('contract_number'),
+                adapter.get('source_url'),
+                adapter.get('source_category'),
+                adapter.get('content_hash'),
+            )
+            self.stats['tenders_inserted'] += 1
+            logger.info(f"Inserted e-Pazar tender: {tender_id}")
+
+    async def _insert_epazar_documents(self, tender_id: str, docs_data: str, conn):
+        """Insert documents for an e-pazar tender."""
+        try:
+            docs = json.loads(docs_data)
+            if not docs or not isinstance(docs, list):
+                return
+
+            inserted_count = 0
+            for doc in docs:
+                file_url = doc.get('file_url')
+                if not file_url:
+                    continue
+
+                # Check if document already exists
+                existing = await conn.fetchval(
+                    "SELECT doc_id FROM epazar_documents WHERE tender_id = $1 AND file_url = $2",
+                    tender_id, file_url
+                )
+
+                if not existing:
+                    await conn.execute("""
+                        INSERT INTO epazar_documents (
+                            tender_id, doc_type, file_name, file_url, upload_date
+                        ) VALUES ($1, $2, $3, $4, $5)
+                    """,
+                        tender_id,
+                        doc.get('doc_type', 'document'),
+                        doc.get('file_name'),
+                        file_url,
+                        self._parse_date_string(doc.get('upload_date'))
+                    )
+                    inserted_count += 1
+                    self.stats['documents_inserted'] += 1
+
+            if inserted_count > 0:
+                logger.info(f"✓ Inserted {inserted_count} documents for tender {tender_id}")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing documents JSON for {tender_id}: {e}")
+        except Exception as e:
+            logger.error(f"Error inserting documents for {tender_id}: {e}")
