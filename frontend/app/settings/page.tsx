@@ -901,6 +901,9 @@ export default function SettingsPage() {
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
   const [upgrading, setUpgrading] = useState<string | null>(null);
 
+  // Hydration guard to prevent client-side errors
+  const [isHydrated, setIsHydrated] = useState(false);
+
   // Autocomplete suggestions
   const [entitySuggestions, setEntitySuggestions] = useState<string[]>([]);
   const [showEntitySuggestions, setShowEntitySuggestions] = useState(false);
@@ -912,6 +915,11 @@ export default function SettingsPage() {
 
   const { user } = useAuth();
   const userId = user?.user_id;
+
+  // Track hydration
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   // Filtered CPV codes based on search
   const filteredCpvCodes = useMemo(() => {
@@ -1187,7 +1195,8 @@ export default function SettingsPage() {
     return new Intl.NumberFormat('mk-MK').format(num);
   };
 
-  if (loading) {
+  // Show loading state until hydrated and data loaded
+  if (!isHydrated || loading) {
     return (
       <div className="container mx-auto py-8">
         <div className="text-center">Се вчитува...</div>
