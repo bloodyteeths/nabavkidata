@@ -34,8 +34,8 @@ class UserRole(str, Enum):
     GUEST = "guest"
 
 
-# JWT Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+# JWT Configuration - Use same SECRET_KEY as auth.py for token validation
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
@@ -185,23 +185,35 @@ async def get_current_active_user(
 # ROLE-BASED ACCESS CONTROL
 # ============================================================================
 
-def map_subscription_to_role(subscription_tier: str) -> UserRole:
+def get_user_role(user: User) -> UserRole:
     """
-    Map subscription tier to UserRole enum
+    Get user's role from the role field, falling back to subscription_tier
 
     Args:
-        subscription_tier: Subscription tier from database
+        user: User object from database
 
     Returns:
         UserRole enum value
     """
+    # First check the role field (primary source of role info)
+    if hasattr(user, 'role') and user.role:
+        role_str = user.role.lower()
+        if role_str == "admin":
+            return UserRole.ADMIN
+        elif role_str == "moderator":
+            return UserRole.ENTERPRISE  # Moderators get enterprise-level access
+
+    # Fallback to subscription_tier for non-admin users
+    tier = (user.subscription_tier or "free").lower()
     role_mapping = {
-        "admin": UserRole.admin,
-        "premium": UserRole.PREMIUM,
-        "pro": UserRole.PRO,
+        "admin": UserRole.ADMIN,
+        "enterprise": UserRole.ENTERPRISE,
+        "professional": UserRole.PROFESSIONAL,
+        "pro": UserRole.PROFESSIONAL,
+        "starter": UserRole.STARTER,
         "free": UserRole.FREE,
     }
-    return role_mapping.get(subscription_tier.lower(), UserRole.GUEST)
+    return role_mapping.get(tier, UserRole.FREE)
 
 
 class RoleChecker:
@@ -236,7 +248,7 @@ class RoleChecker:
         Raises:
             HTTPException: If user doesn't have required role
         """
-        user_role = map_subscription_to_role(current_user.subscription_tier)
+        user_role = get_user_role(current_user)
 
         if user_role not in self.allowed_roles:
             raise HTTPException(
@@ -286,9 +298,9 @@ async def require_admin(current_user: User = Depends(get_current_active_user)) -
     Raises:
         HTTPException: If user is not admin
     """
-    user_role = map_subscription_to_role(current_user.subscription_tier)
+    user_role = get_user_role(current_user)
 
-    if user_role != UserRole.admin:
+    if user_role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",

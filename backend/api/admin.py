@@ -34,11 +34,9 @@ from models import (
     User, Tender, Document, Subscription, Alert, Notification,
     UsageTracking, AuditLog, QueryHistory, SystemConfig
 )
-from models_auth import UserRole, UserAuth
-from models_billing import (
-    UserSubscription, Payment, Invoice, SubscriptionPlan,
-    SubscriptionStatus, PaymentStatus
-)
+from models_auth import UserRole
+# Note: Using Subscription from models.py (maps to existing subscriptions table)
+# UserSubscription, Payment, Invoice etc. from models_billing use tables that don't exist yet
 from middleware.rbac import get_current_active_user, require_role
 from pydantic import BaseModel, Field
 
@@ -294,12 +292,10 @@ async def get_dashboard_stats(
     - Query statistics (today, this month)
     """
     # User statistics
-    total_users = await db.scalar(select(func.count(UserAuth.user_id)))
-    active_users = await db.scalar(
-        select(func.count(UserAuth.user_id)).where(UserAuth.is_active == True)
-    )
+    total_users = await db.scalar(select(func.count(User.user_id)))
+    active_users = total_users  # All users are considered active
     verified_users = await db.scalar(
-        select(func.count(UserAuth.user_id)).where(UserAuth.is_verified == True)
+        select(func.count(User.user_id)).where(User.email_verified == True)
     )
 
     # Tender statistics
@@ -308,35 +304,17 @@ async def get_dashboard_stats(
         select(func.count(Tender.tender_id)).where(Tender.status == "open")
     )
 
-    # Subscription statistics
-    total_subscriptions = await db.scalar(select(func.count(UserSubscription.subscription_id)))
+    # Subscription statistics (using Subscription model from models.py)
+    total_subscriptions = await db.scalar(select(func.count(Subscription.subscription_id)))
     active_subscriptions = await db.scalar(
-        select(func.count(UserSubscription.subscription_id))
-        .where(UserSubscription.status == SubscriptionStatus.active)
+        select(func.count(Subscription.subscription_id))
+        .where(Subscription.status == "active")
     )
 
-    # Revenue statistics (current month)
+    # Revenue statistics - no payments table yet, return zeros
     current_month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
-    monthly_revenue_mkd = await db.scalar(
-        select(func.coalesce(func.sum(Payment.amount_mkd), 0))
-        .where(
-            and_(
-                Payment.status == PaymentStatus.succeeded,
-                Payment.created_at >= current_month_start
-            )
-        )
-    ) or Decimal(0)
-
-    monthly_revenue_eur = await db.scalar(
-        select(func.coalesce(func.sum(Payment.amount_eur), 0))
-        .where(
-            and_(
-                Payment.status == PaymentStatus.succeeded,
-                Payment.created_at >= current_month_start
-            )
-        )
-    ) or Decimal(0)
+    monthly_revenue_mkd = Decimal(0)
+    monthly_revenue_eur = Decimal(0)
 
     # Query statistics
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -397,21 +375,18 @@ async def list_users(
     - search: Search by email or name
     """
     # Build query
-    query = select(UserAuth)
+    query = select(User)
 
     # Apply filters
     conditions = []
     if role:
-        conditions.append(UserAuth.role == role)
-    if status == "active":
-        conditions.append(UserAuth.is_active == True)
-    elif status == "inactive":
-        conditions.append(UserAuth.is_active == False)
+        conditions.append(User.role == role)
+    # status filter removed - all users are active in current schema
     if search:
         conditions.append(
             or_(
-                UserAuth.email.ilike(f"%{search}%"),
-                UserAuth.full_name.ilike(f"%{search}%")
+                User.email.ilike(f"%{search}%"),
+                User.full_name.ilike(f"%{search}%")
             )
         )
 
@@ -423,7 +398,7 @@ async def list_users(
     total = await db.scalar(count_query) or 0
 
     # Get paginated results
-    query = query.order_by(desc(UserAuth.created_at)).offset(skip).limit(limit)
+    query = query.order_by(desc(User.created_at)).offset(skip).limit(limit)
     result = await db.execute(query)
     users = result.scalars().all()
 
@@ -433,12 +408,12 @@ async def list_users(
             user_id=user.user_id,
             email=user.email,
             full_name=user.full_name,
-            subscription_tier="free",  # Default, will be enhanced with join
-            email_verified=user.is_verified,
-            is_active=user.is_active,
-            role=user.role.value,
+            subscription_tier=user.subscription_tier or "free",
+            email_verified=user.email_verified,
+            is_active=True,  # All users considered active
+            role=user.role or "user",
             created_at=user.created_at,
-            last_login=user.last_login
+            last_login=None  # Field doesn't exist in User model
         )
         for user in users
     ]
@@ -467,7 +442,7 @@ async def get_user_details(
     - Active alerts count
     """
     # Get user
-    result = await db.execute(select(UserAuth).where(UserAuth.user_id == user_id))
+    result = await db.execute(select(User).where(User.user_id == user_id))
     user = result.scalar_one_or_none()
 
     if not user:
@@ -487,16 +462,16 @@ async def get_user_details(
         .where(and_(Alert.user_id == user_id, Alert.is_active == True))
     ) or 0
 
-    # Get active subscription
+    # Get active subscription (using Subscription model from models.py)
     subscription_result = await db.execute(
-        select(UserSubscription)
+        select(Subscription)
         .where(
             and_(
-                UserSubscription.user_id == user_id,
-                UserSubscription.status == SubscriptionStatus.active
+                Subscription.user_id == user_id,
+                Subscription.status == "active"
             )
         )
-        .order_by(desc(UserSubscription.created_at))
+        .order_by(desc(Subscription.created_at))
         .limit(1)
     )
     active_subscription_obj = subscription_result.scalar_one_or_none()
@@ -505,26 +480,26 @@ async def get_user_details(
     if active_subscription_obj:
         active_subscription = {
             "subscription_id": str(active_subscription_obj.subscription_id),
-            "status": active_subscription_obj.status.value,
-            "current_period_start": active_subscription_obj.current_period_start.isoformat(),
-            "current_period_end": active_subscription_obj.current_period_end.isoformat(),
-            "auto_renew": active_subscription_obj.auto_renew
+            "status": active_subscription_obj.status,
+            "current_period_start": active_subscription_obj.current_period_start.isoformat() if active_subscription_obj.current_period_start else None,
+            "current_period_end": active_subscription_obj.current_period_end.isoformat() if active_subscription_obj.current_period_end else None,
+            "auto_renew": not active_subscription_obj.cancel_at_period_end
         }
 
     return UserDetailResponse(
         user_id=user.user_id,
         email=user.email,
         full_name=user.full_name,
-        subscription_tier="free",
-        email_verified=user.is_verified,
-        is_active=user.is_active,
-        role=user.role.value,
+        subscription_tier=user.subscription_tier or "free",
+        email_verified=user.email_verified,
+        is_active=True,
+        role=user.role or "user",
         created_at=user.created_at,
         updated_at=user.updated_at,
-        last_login=user.last_login,
-        stripe_customer_id=None,
+        last_login=None,
+        stripe_customer_id=user.stripe_customer_id,
         failed_login_attempts=0,
-        locked_until=user.locked_until,
+        locked_until=None,
         total_queries=total_queries,
         active_alerts=active_alerts,
         active_subscription=active_subscription
@@ -548,7 +523,7 @@ async def update_user(
     - subscription_tier
     """
     # Get user
-    result = await db.execute(select(UserAuth).where(UserAuth.user_id == user_id))
+    result = await db.execute(select(User).where(User.user_id == user_id))
     user = result.scalar_one_or_none()
 
     if not user:
@@ -560,17 +535,17 @@ async def update_user(
     # Build update dictionary
     updates = {}
     if update_data.role is not None:
-        try:
-            updates["role"] = UserRole[update_data.role]
-        except KeyError:
+        valid_roles = ["admin", "moderator", "user"]
+        if update_data.role.lower() not in valid_roles:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid role: {update_data.role}"
+                detail=f"Invalid role: {update_data.role}. Valid roles: {valid_roles}"
             )
-    if update_data.is_active is not None:
-        updates["is_active"] = update_data.is_active
+        updates["role"] = update_data.role.lower()
     if update_data.email_verified is not None:
-        updates["is_verified"] = update_data.email_verified
+        updates["email_verified"] = update_data.email_verified
+    if update_data.subscription_tier is not None:
+        updates["subscription_tier"] = update_data.subscription_tier
 
     if not updates:
         raise HTTPException(
@@ -582,8 +557,8 @@ async def update_user(
 
     # Update user
     await db.execute(
-        update(UserAuth)
-        .where(UserAuth.user_id == user_id)
+        update(User)
+        .where(User.user_id == user_id)
         .values(**updates)
     )
     await db.commit()
@@ -621,7 +596,7 @@ async def delete_user(
         )
 
     # Check if user exists
-    result = await db.execute(select(UserAuth).where(UserAuth.user_id == user_id))
+    result = await db.execute(select(User).where(User.user_id == user_id))
     user = result.scalar_one_or_none()
 
     if not user:
@@ -657,7 +632,7 @@ async def delete_user(
     await db.execute(text("DELETE FROM duplicate_account_detection WHERE user_id = :user_id OR duplicate_user_id = :user_id"), {"user_id": user_id})
 
     # Delete user
-    await db.execute(delete(UserAuth).where(UserAuth.user_id == user_id))
+    await db.execute(delete(User).where(User.user_id == user_id))
     await db.commit()
 
     return MessageResponse(
@@ -673,7 +648,7 @@ async def ban_user(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Ban user account (set is_active to False)
+    Ban user account (set role to 'banned')
     """
     # Prevent self-ban
     if str(current_user.user_id) == str(user_id):
@@ -682,12 +657,12 @@ async def ban_user(
             detail="Cannot ban your own account"
         )
 
-    # Update user
+    # Update user - set role to banned
     result = await db.execute(
-        update(UserAuth)
-        .where(UserAuth.user_id == user_id)
-        .values(is_active=False, updated_at=datetime.utcnow())
-        .returning(UserAuth.email)
+        update(User)
+        .where(User.user_id == user_id)
+        .values(role='banned', updated_at=datetime.utcnow())
+        .returning(User.email)
     )
     await db.commit()
 
@@ -717,14 +692,14 @@ async def unban_user(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Unban user account (set is_active to True)
+    Unban user account (restore role to 'user')
     """
-    # Update user
+    # Update user - restore role to user
     result = await db.execute(
-        update(UserAuth)
-        .where(UserAuth.user_id == user_id)
-        .values(is_active=True, updated_at=datetime.utcnow())
-        .returning(UserAuth.email)
+        update(User)
+        .where(User.user_id == user_id)
+        .values(role='user', updated_at=datetime.utcnow())
+        .returning(User.email)
     )
     await db.commit()
 
@@ -907,54 +882,41 @@ async def list_subscriptions(
     Filters:
     - status: Filter by subscription status (active, cancelled, expired)
     """
-    # Build query - join with UserAuth to get email and with Plan to get plan name
+    # Build query - join with User to get email (using Subscription from models.py)
     query = (
         select(
-            UserSubscription,
-            UserAuth.email,
-            SubscriptionPlan.name.label("plan_name")
+            Subscription,
+            User.email
         )
-        .join(UserAuth, UserAuth.user_id == UserSubscription.user_id)
-        .join(SubscriptionPlan, SubscriptionPlan.plan_id == UserSubscription.plan_id)
+        .join(User, User.user_id == Subscription.user_id)
     )
 
     # Apply filters
     if status:
-        try:
-            status_enum = SubscriptionStatus[status]
-            query = query.where(UserSubscription.status == status_enum)
-        except KeyError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status: {status}"
-            )
+        query = query.where(Subscription.status == status)
 
     # Get total count
-    count_query = select(func.count(UserSubscription.subscription_id))
+    count_query = select(func.count(Subscription.subscription_id))
     if status:
-        try:
-            status_enum = SubscriptionStatus[status]
-            count_query = count_query.where(UserSubscription.status == status_enum)
-        except KeyError:
-            pass
+        count_query = count_query.where(Subscription.status == status)
     total = await db.scalar(count_query) or 0
 
     # Get paginated results
-    query = query.order_by(desc(UserSubscription.created_at)).offset(skip).limit(limit)
+    query = query.order_by(desc(Subscription.created_at)).offset(skip).limit(limit)
     result = await db.execute(query)
     rows = result.all()
 
     # Convert to response format
     subscription_items = [
         SubscriptionListItem(
-            subscription_id=row.UserSubscription.subscription_id,
+            subscription_id=row.Subscription.subscription_id,
             user_email=row.email,
-            plan_name=row.plan_name,
-            status=row.UserSubscription.status.value,
-            current_period_start=row.UserSubscription.current_period_start,
-            current_period_end=row.UserSubscription.current_period_end,
-            cancel_at_period_end=row.UserSubscription.cancel_at_period_end,
-            auto_renew=row.UserSubscription.auto_renew
+            plan_name=row.Subscription.tier or "Unknown",  # Use tier as plan name
+            status=row.Subscription.status,
+            current_period_start=row.Subscription.current_period_start,
+            current_period_end=row.Subscription.current_period_end,
+            cancel_at_period_end=row.Subscription.cancel_at_period_end or False,
+            auto_renew=not (row.Subscription.cancel_at_period_end or False)
         )
         for row in rows
     ]
@@ -992,27 +954,16 @@ async def get_analytics(
     for i in range(30, 0, -1):
         date = (datetime.utcnow() - timedelta(days=i)).date()
         count = await db.scalar(
-            select(func.count(UserAuth.user_id))
-            .where(func.date(UserAuth.created_at) == date)
+            select(func.count(User.user_id))
+            .where(func.date(User.created_at) == date)
         ) or 0
         users_growth[date.isoformat()] = count
 
-    # Revenue trend (last 12 months)
+    # Revenue trend (last 12 months) - No payments table yet, return zeros
     revenue_trend = {}
     for i in range(12, 0, -1):
         month_start = (datetime.utcnow() - timedelta(days=30*i)).replace(day=1)
-        month_end = (month_start + timedelta(days=32)).replace(day=1)
-        revenue = await db.scalar(
-            select(func.coalesce(func.sum(Payment.amount_mkd), 0))
-            .where(
-                and_(
-                    Payment.status == PaymentStatus.succeeded,
-                    Payment.created_at >= month_start,
-                    Payment.created_at < month_end
-                )
-            )
-        ) or Decimal(0)
-        revenue_trend[month_start.strftime("%Y-%m")] = revenue
+        revenue_trend[month_start.strftime("%Y-%m")] = Decimal(0)
 
     # Query trend (last 30 days)
     queries_trend = {}
@@ -1024,14 +975,14 @@ async def get_analytics(
         ) or 0
         queries_trend[date.isoformat()] = count
 
-    # Subscription distribution
+    # Subscription distribution (by role)
     subscription_distribution = {}
     result = await db.execute(
-        select(UserAuth.role, func.count(UserAuth.user_id))
-        .group_by(UserAuth.role)
+        select(User.role, func.count(User.user_id))
+        .group_by(User.role)
     )
     for role, count in result.all():
-        subscription_distribution[role.value] = count
+        subscription_distribution[role or "user"] = count
 
     # Top categories
     top_categories = []
@@ -1103,8 +1054,8 @@ async def get_audit_logs(
     """
     # Build query with join to get user email
     query = (
-        select(AuditLog, UserAuth.email)
-        .outerjoin(UserAuth, UserAuth.user_id == AuditLog.user_id)
+        select(AuditLog, User.email)
+        .outerjoin(User, User.user_id == AuditLog.user_id)
     )
 
     # Apply filters
@@ -1438,11 +1389,11 @@ async def broadcast_notification(
     - target_verified_only: Send only to verified users
     """
     # Build user query
-    query = select(UserAuth.user_id)
+    query = select(User.user_id)
 
     conditions = []
     if broadcast.target_verified_only:
-        conditions.append(UserAuth.is_verified == True)
+        conditions.append(User.email_verified == True)
 
     if conditions:
         query = query.where(and_(*conditions))
@@ -1510,11 +1461,11 @@ async def broadcast_email(
     from services.mailer import mailer_service
 
     # Build user query
-    query = select(UserAuth.user_id, UserAuth.email, UserAuth.full_name)
+    query = select(User.user_id, User.email, User.full_name)
 
-    conditions = [UserAuth.is_active == True]  # Only send to active users
+    conditions = [User.email_verified == True]  # Only send to active users
     if broadcast.target_verified_only:
-        conditions.append(UserAuth.is_verified == True)
+        conditions.append(User.email_verified == True)
 
     query = query.where(and_(*conditions))
 
@@ -1605,4 +1556,340 @@ async def broadcast_email(
         recipients_count=len(users),
         emails_sent=emails_sent,
         emails_failed=emails_failed
+    )
+
+
+# ============================================================================
+# CONTACTS MANAGEMENT ENDPOINTS
+# ============================================================================
+
+class ContactItem(BaseModel):
+    """Contact item for admin"""
+    contact_id: UUID
+    contact_type: str  # procuring_entity, winner, bidder
+    entity_name: str
+    entity_type: Optional[str]
+    email: Optional[str]
+    phone: Optional[str]
+    address: Optional[str]
+    city: Optional[str]
+    contact_person: Optional[str]
+    source_tender_id: Optional[str]
+    status: str
+    scraped_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class ContactListResponse(BaseModel):
+    """Paginated contacts response"""
+    total: int
+    skip: int
+    limit: int
+    with_email_count: int
+    contacts: List[ContactItem]
+
+
+class ContactStatsResponse(BaseModel):
+    """Contact statistics response"""
+    total_contacts: int
+    with_email: int
+    without_email: int
+    by_type: Dict[str, int]
+    by_status: Dict[str, int]
+
+
+@router.get("/contacts", response_model=ContactListResponse)
+async def list_contacts(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    contact_type: Optional[str] = None,
+    has_email: Optional[bool] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    List all contacts for admin outreach
+
+    Filters:
+    - contact_type: Filter by type (procuring_entity, winner, bidder)
+    - has_email: Filter to only contacts with/without email
+    - status: Filter by status (new, contacted, subscribed, unsubscribed)
+    - search: Search by entity name or email
+    """
+    # Build query
+    base_query = "SELECT * FROM contacts WHERE 1=1"
+    count_query = "SELECT COUNT(*) FROM contacts WHERE 1=1"
+    email_count_query = "SELECT COUNT(*) FROM contacts WHERE email IS NOT NULL AND email != ''"
+    params = {}
+
+    # Apply filters
+    if contact_type:
+        base_query += " AND contact_type = :contact_type"
+        count_query += " AND contact_type = :contact_type"
+        email_count_query += " AND contact_type = :contact_type"
+        params["contact_type"] = contact_type
+
+    if has_email is True:
+        base_query += " AND email IS NOT NULL AND email != ''"
+        count_query += " AND email IS NOT NULL AND email != ''"
+    elif has_email is False:
+        base_query += " AND (email IS NULL OR email = '')"
+        count_query += " AND (email IS NULL OR email = '')"
+
+    if status:
+        base_query += " AND status = :status"
+        count_query += " AND status = :status"
+        params["status"] = status
+
+    if search:
+        base_query += " AND (entity_name ILIKE :search OR email ILIKE :search)"
+        count_query += " AND (entity_name ILIKE :search OR email ILIKE :search)"
+        params["search"] = f"%{search}%"
+
+    # Get total count
+    total = await db.scalar(text(count_query), params) or 0
+
+    # Get count with email
+    with_email_count = await db.scalar(text(email_count_query), params) or 0
+
+    # Get paginated results
+    base_query += " ORDER BY contact_type, entity_name LIMIT :limit OFFSET :skip"
+    params["limit"] = limit
+    params["skip"] = skip
+
+    result = await db.execute(text(base_query), params)
+    rows = result.fetchall()
+
+    # Convert to response format
+    contacts = [
+        ContactItem(
+            contact_id=row.contact_id,
+            contact_type=row.contact_type,
+            entity_name=row.entity_name,
+            entity_type=row.entity_type,
+            email=row.email,
+            phone=row.phone,
+            address=row.address,
+            city=row.city,
+            contact_person=row.contact_person,
+            source_tender_id=row.source_tender_id,
+            status=row.status,
+            scraped_at=row.scraped_at
+        )
+        for row in rows
+    ]
+
+    return ContactListResponse(
+        total=total,
+        skip=skip,
+        limit=limit,
+        with_email_count=with_email_count,
+        contacts=contacts
+    )
+
+
+@router.get("/contacts/stats", response_model=ContactStatsResponse)
+async def get_contact_stats(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get contact statistics for admin dashboard
+
+    Returns:
+    - Total contacts
+    - Contacts with email
+    - Breakdown by type (procuring_entity, winner, bidder)
+    - Breakdown by status
+    """
+    # Total contacts
+    total_contacts = await db.scalar(text("SELECT COUNT(*) FROM contacts")) or 0
+
+    # With email
+    with_email = await db.scalar(
+        text("SELECT COUNT(*) FROM contacts WHERE email IS NOT NULL AND email != ''")
+    ) or 0
+
+    # By type
+    type_result = await db.execute(
+        text("SELECT contact_type, COUNT(*) as count FROM contacts GROUP BY contact_type")
+    )
+    by_type = {row.contact_type: row.count for row in type_result.fetchall()}
+
+    # By status
+    status_result = await db.execute(
+        text("SELECT status, COUNT(*) as count FROM contacts GROUP BY status")
+    )
+    by_status = {row.status: row.count for row in status_result.fetchall()}
+
+    return ContactStatsResponse(
+        total_contacts=total_contacts,
+        with_email=with_email,
+        without_email=total_contacts - with_email,
+        by_type=by_type,
+        by_status=by_status
+    )
+
+
+@router.get("/contacts/export")
+async def export_contacts(
+    contact_type: Optional[str] = None,
+    has_email: bool = True,
+    format: str = Query("csv", regex="^(csv|json)$"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Export contacts to CSV or JSON for email campaigns
+
+    Parameters:
+    - contact_type: Filter by type (procuring_entity, winner, bidder)
+    - has_email: Only export contacts with email (default: True)
+    - format: Export format (csv, json)
+
+    Returns file download
+    """
+    from fastapi.responses import StreamingResponse
+    import csv
+    import io
+
+    # Build query
+    query = "SELECT * FROM contacts WHERE 1=1"
+    params = {}
+
+    if contact_type:
+        query += " AND contact_type = :contact_type"
+        params["contact_type"] = contact_type
+
+    if has_email:
+        query += " AND email IS NOT NULL AND email != ''"
+
+    query += " ORDER BY contact_type, entity_name"
+
+    result = await db.execute(text(query), params)
+    rows = result.fetchall()
+
+    # Log admin action
+    await log_admin_action(
+        db, current_user.user_id, "export_contacts",
+        {
+            "format": format,
+            "contact_type": contact_type,
+            "has_email": has_email,
+            "count": len(rows)
+        }
+    )
+
+    if format == "json":
+        # Export as JSON
+        contacts = [
+            {
+                "entity_name": row.entity_name,
+                "contact_type": row.contact_type,
+                "email": row.email,
+                "phone": row.phone,
+                "address": row.address,
+                "city": row.city,
+                "contact_person": row.contact_person,
+                "source_tender_id": row.source_tender_id,
+            }
+            for row in rows
+        ]
+
+        import json
+        json_str = json.dumps(contacts, ensure_ascii=False, indent=2)
+
+        return StreamingResponse(
+            iter([json_str]),
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename=contacts_{datetime.utcnow().strftime('%Y%m%d')}.json"}
+        )
+
+    else:
+        # Export as CSV
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Header
+        writer.writerow([
+            "Entity Name", "Type", "Email", "Phone", "Address", "City",
+            "Contact Person", "Source Tender ID"
+        ])
+
+        # Data rows
+        for row in rows:
+            writer.writerow([
+                row.entity_name,
+                row.contact_type,
+                row.email or "",
+                row.phone or "",
+                row.address or "",
+                row.city or "",
+                row.contact_person or "",
+                row.source_tender_id or ""
+            ])
+
+        output.seek(0)
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=contacts_{datetime.utcnow().strftime('%Y%m%d')}.csv"}
+        )
+
+
+@router.patch("/contacts/{contact_id}/status", response_model=MessageResponse)
+async def update_contact_status(
+    contact_id: UUID,
+    new_status: str = Query(..., regex="^(new|contacted|subscribed|unsubscribed)$"),
+    notes: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update contact status after outreach
+
+    Status values:
+    - new: Not yet contacted
+    - contacted: Email/message sent
+    - subscribed: Signed up for service
+    - unsubscribed: Opted out
+    """
+    query = """
+        UPDATE contacts
+        SET status = :status,
+            notes = COALESCE(:notes, notes),
+            last_contacted_at = CASE WHEN :status IN ('contacted', 'subscribed') THEN NOW() ELSE last_contacted_at END,
+            updated_at = NOW()
+        WHERE contact_id = :contact_id
+        RETURNING entity_name
+    """
+
+    result = await db.execute(text(query), {
+        "status": new_status,
+        "notes": notes,
+        "contact_id": contact_id
+    })
+    await db.commit()
+
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contact not found"
+        )
+
+    # Log admin action
+    await log_admin_action(
+        db, current_user.user_id, "update_contact_status",
+        {"contact_id": str(contact_id), "new_status": new_status, "notes": notes}
+    )
+
+    return MessageResponse(
+        message="Contact status updated",
+        detail=f"Contact '{row.entity_name}' marked as {new_status}"
     )
