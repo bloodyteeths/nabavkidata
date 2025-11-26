@@ -76,8 +76,10 @@ class PDFDownloadPipeline:
             # Generate unique filename based on URL hash
             url_hash = hashlib.md5(file_url.encode('utf-8')).hexdigest()
             tender_id = adapter.get('tender_id', 'unknown')
+            # Replace / with _ in tender_id to create valid filename (e.g., "21513/2025" -> "21513_2025")
+            safe_tender_id = tender_id.replace('/', '_')
             file_ext = self._get_extension(file_url)
-            filename = f"{tender_id}_{url_hash}{file_ext}"
+            filename = f"{safe_tender_id}_{url_hash}{file_ext}"
             file_path = self.files_store / filename
 
             # Check if file already exists (skip re-download and calculate hash)

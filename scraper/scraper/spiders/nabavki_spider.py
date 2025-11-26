@@ -682,6 +682,7 @@ class NabavkiSpider(scrapy.Spider):
         logger.warning(f"🔥 PROCESSING DETAIL PAGE: {response.url}")
 
         page = response.meta.get('playwright_page')
+        documents_html = ""  # Store HTML from documents tab
 
         if page:
             try:
@@ -691,11 +692,54 @@ class NabavkiSpider(scrapy.Spider):
                 await page.wait_for_timeout(1500)
                 logger.info("✓ Tender detail page loaded")
 
-                # Get updated HTML content after JavaScript execution
+                # Get main page HTML first
                 html_content = await page.content()
 
-                # Replace response body with rendered HTML
-                response = response.replace(body=html_content.encode('utf-8'))
+                # ============================================
+                # CLICK ON ДОКУМЕНТАЦИЈА TAB TO LOAD DOCUMENTS
+                # ============================================
+                try:
+                    # Try multiple selectors for the Documentation tab
+                    doc_tab_selectors = [
+                        'a[href*="documents"]',  # Link containing 'documents'
+                        'a:has-text("Документација")',  # Tab with Macedonian text
+                        'a:has-text("Documents")',  # English version
+                        '.nav-tabs a:nth-child(2)',  # Second tab (often documents)
+                        'ul.nav-tabs li:nth-child(2) a',  # Second tab item
+                        '[ng-click*="document"]',  # Angular click handler
+                        'a[data-toggle="tab"]:has-text("Документација")',
+                    ]
+
+                    doc_tab_clicked = False
+                    for selector in doc_tab_selectors:
+                        try:
+                            doc_tab = await page.query_selector(selector)
+                            if doc_tab:
+                                await doc_tab.click()
+                                await page.wait_for_timeout(2000)  # Wait for tab content to load
+                                logger.info(f"✓ Clicked documents tab using selector: {selector}")
+                                doc_tab_clicked = True
+                                break
+                        except Exception as e:
+                            continue
+
+                    if doc_tab_clicked:
+                        # Get the updated HTML with document links
+                        documents_html = await page.content()
+                        logger.info("✓ Captured HTML from documents tab")
+                    else:
+                        logger.warning("⚠ Could not find documents tab to click")
+
+                except Exception as e:
+                    logger.warning(f"⚠ Failed to click documents tab: {e}")
+
+                # Combine main page HTML with documents tab HTML
+                if documents_html:
+                    # Append document links section to main HTML
+                    combined_html = html_content + "\n<!-- DOCUMENTS TAB -->\n" + documents_html
+                    response = response.replace(body=combined_html.encode('utf-8'))
+                else:
+                    response = response.replace(body=html_content.encode('utf-8'))
                 logger.info("✓ Updated response with rendered HTML")
 
             except Exception as e:
@@ -1338,6 +1382,10 @@ class NabavkiSpider(scrapy.Spider):
 
     def _extract_documents(self, response: Response, tender_id: str) -> List[Dict[str, Any]]:
         """Extract document links with categorization and metadata"""
+        import json
+        import re
+        import urllib.parse
+
         documents = []
         seen_urls = set()  # Dedupe
 
@@ -1351,6 +1399,9 @@ class NabavkiSpider(scrapy.Spider):
             '//a[contains(@href, "document")]/@href',
             '//a[contains(@href, ".docx")]/@href',
             '//a[contains(@href, ".xlsx")]/@href',
+            '//a[contains(@href, "GetAttachmentChangesFile")]/@href',
+            '//a[contains(@href, "DownloadDoc")]/@href',
+            '//a[contains(@href, "DownloadPublicFile")]/@href',
         ]
 
         doc_selectors = [
@@ -1359,9 +1410,12 @@ class NabavkiSpider(scrapy.Spider):
             'a[href*="File"]::attr(href)',
             'a[href*="Bids"]::attr(href)',
             'a[href*="fileId"]::attr(href)',
+            'a[href*="GetAttachmentChangesFile"]::attr(href)',
+            'a[href*="DownloadDoc"]::attr(href)',
+            'a[href*="DownloadPublicFile"]::attr(href)',
         ]
 
-        def add_document(link):
+        def add_document(link, filename=None):
             """Helper to add document after validation"""
             if not link or link in seen_urls:
                 return
@@ -1379,15 +1433,18 @@ class NabavkiSpider(scrapy.Spider):
                 logger.debug(f"Skipping external document URL: {link}")
                 return
 
-            # Extract filename from URL
-            import urllib.parse
-            parsed = urllib.parse.urlparse(link)
-            if 'fileId=' in link:
-                # For fileId URLs, generate filename from fileId
-                file_id = urllib.parse.parse_qs(parsed.query).get('fileId', ['unknown'])[0]
-                filename = f"document_{file_id[:8]}.pdf"
-            else:
-                filename = urllib.parse.unquote(parsed.path.split('/')[-1]) if '/' in parsed.path else 'document.pdf'
+            # Extract filename from URL if not provided
+            if not filename:
+                parsed = urllib.parse.urlparse(link)
+                if 'fileId=' in link:
+                    # For fileId URLs, generate filename from fileId
+                    file_id = urllib.parse.parse_qs(parsed.query).get('fileId', ['unknown'])[0]
+                    filename = f"document_{file_id[:8]}.pdf"
+                elif 'fname=' in link:
+                    # Extract filename from fname parameter
+                    filename = urllib.parse.parse_qs(parsed.query).get('fname', ['document.pdf'])[0]
+                else:
+                    filename = urllib.parse.unquote(parsed.path.split('/')[-1]) if '/' in parsed.path else 'document.pdf'
 
             # Clean up filename
             filename = filename.replace('%20', ' ').replace('%', '_')
@@ -1403,8 +1460,76 @@ class NabavkiSpider(scrapy.Spider):
                 'file_name': filename,
                 'doc_type': doc_type,
             })
+            logger.debug(f"Added document: {filename} -> {link[:80]}...")
 
-        # Try CSS selectors first
+        # ============================================
+        # EXTRACT DOCUMENTS FROM ng-click ATTRIBUTES
+        # Documents are embedded in PreviewDocumentConfirm({...}) calls
+        # ============================================
+        ng_click_pattern = re.compile(r'PreviewDocumentConfirm\((\{.*?\})\)', re.DOTALL)
+
+        # Find all elements with ng-click containing PreviewDocumentConfirm
+        ng_click_elements = response.xpath('//*[contains(@ng-click, "PreviewDocumentConfirm")]/@ng-click').getall()
+
+        for ng_click in ng_click_elements:
+            try:
+                match = ng_click_pattern.search(ng_click)
+                if match:
+                    json_str = match.group(1)
+                    # Parse the JSON document data
+                    doc_data = json.loads(json_str)
+
+                    doc_url = doc_data.get('DocumentUrl', '')
+                    doc_name = doc_data.get('DocumentName', '')
+                    file_id = doc_data.get('FileId', '')
+
+                    if doc_url:
+                        # Build full URL
+                        if doc_url.startswith('/'):
+                            full_url = 'https://e-nabavki.gov.mk' + doc_url
+                        elif not doc_url.startswith('http'):
+                            full_url = 'https://e-nabavki.gov.mk/' + doc_url
+                        else:
+                            full_url = doc_url
+
+                        add_document(full_url, doc_name)
+                        logger.info(f"Extracted ng-click document: {doc_name}")
+
+                    # Also try to build public download URL from FileId
+                    if file_id and file_id not in str(seen_urls):
+                        public_url = f"https://e-nabavki.gov.mk/File/DownloadPublicFile?fileId={file_id}"
+                        add_document(public_url, doc_name)
+
+            except json.JSONDecodeError as e:
+                logger.debug(f"Failed to parse ng-click JSON: {e}")
+            except Exception as e:
+                logger.debug(f"Error extracting ng-click document: {e}")
+
+        # Also extract from previewDocumentModal calls
+        preview_modal_pattern = re.compile(r'previewDocumentModal\([^,]+,\s*["\']([^"\']+)["\'],\s*["\']([^"\']+)["\'],\s*["\']([^"\']+)["\']', re.DOTALL)
+        preview_elements = response.xpath('//*[contains(@ng-click, "previewDocumentModal")]/@ng-click').getall()
+
+        for ng_click in preview_elements:
+            try:
+                match = preview_modal_pattern.search(ng_click)
+                if match:
+                    file_id = match.group(1)
+                    doc_name = match.group(2)
+                    doc_url = match.group(3)
+
+                    if doc_url:
+                        if doc_url.startswith('/'):
+                            full_url = 'https://e-nabavki.gov.mk' + doc_url
+                        elif not doc_url.startswith('http'):
+                            full_url = 'https://e-nabavki.gov.mk/' + doc_url
+                        else:
+                            full_url = doc_url
+                        add_document(full_url, doc_name)
+                        logger.info(f"Extracted previewDocumentModal document: {doc_name}")
+            except Exception as e:
+                logger.debug(f"Error extracting previewDocumentModal document: {e}")
+
+        # Try CSS selectors for href links
         for selector in doc_selectors:
             links = response.css(selector).getall()
             for link in links:

@@ -335,40 +335,41 @@ async def search_epazar_items(
 
         if search:
             conditions.append("""
-                (item_name ILIKE :search
-                OR item_description ILIKE :search
-                OR cpv_code ILIKE :search)
+                (i.item_name ILIKE :search
+                OR i.item_description ILIKE :search
+                OR i.cpv_code ILIKE :search)
             """)
             params['search'] = f"%{search}%"
 
         if cpv_code:
-            conditions.append("cpv_code LIKE :cpv_code")
+            conditions.append("i.cpv_code LIKE :cpv_code")
             params['cpv_code'] = f"{cpv_code}%"
 
         if min_price is not None:
-            conditions.append("estimated_unit_price_mkd >= :min_price")
+            conditions.append("i.estimated_unit_price_mkd >= :min_price")
             params['min_price'] = min_price
 
         if max_price is not None:
-            conditions.append("estimated_unit_price_mkd <= :max_price")
+            conditions.append("i.estimated_unit_price_mkd <= :max_price")
             params['max_price'] = max_price
 
         if unit:
-            conditions.append("unit ILIKE :unit")
+            conditions.append("i.unit ILIKE :unit")
             params['unit'] = f"%{unit}%"
 
         where_clause = " AND " + " AND ".join(conditions) if conditions else ""
 
-        # Validate sort field
+        # Validate sort field (prefix with i. for table alias)
         valid_sort_fields = ['item_name', 'estimated_unit_price_mkd', 'quantity', 'estimated_total_price_mkd', 'cpv_code']
         if sort_by not in valid_sort_fields:
             sort_by = 'item_name'
+        sort_field = f"i.{sort_by}"
 
         sort_direction = 'DESC' if sort_order.lower() == 'desc' else 'ASC'
 
         # Get total count
         count_result = await db.execute(
-            text(f"SELECT COUNT(*) FROM epazar_items WHERE 1=1 {where_clause}"),
+            text(f"SELECT COUNT(*) FROM epazar_items i WHERE 1=1 {where_clause}"),
             params
         )
         total = count_result.scalar()
@@ -388,7 +389,7 @@ async def search_epazar_items(
                 FROM epazar_items i
                 LEFT JOIN epazar_tenders t ON i.tender_id = t.tender_id
                 WHERE 1=1 {where_clause}
-                ORDER BY {sort_by} {sort_direction} NULLS LAST
+                ORDER BY {sort_field} {sort_direction} NULLS LAST
                 LIMIT :limit OFFSET :offset
             """),
             params
