@@ -54,6 +54,7 @@ const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshTimer, setRefreshTimer] = useState<NodeJS.Timeout | null>(null);
   const router = useRouter();
@@ -184,8 +185,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Initialize auth state on mount
+  // Hydration guard - wait for client before accessing localStorage
   useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  // Initialize auth state on mount (only after hydration)
+  useEffect(() => {
+    if (!isHydrated) return;
+
     fetchUser();
 
     return () => {
@@ -193,7 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(refreshTimer);
       }
     };
-  }, []);
+  }, [isHydrated]);
 
   const login = async (email: string, password: string) => {
     try {
