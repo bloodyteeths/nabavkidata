@@ -43,7 +43,7 @@ export function AuthGuard({
 
     // Check role requirements
     if (requireRoles.length > 0 && user) {
-      const userRole = user.subscription_tier.toLowerCase();
+      const userRole = (user.role || 'user').toLowerCase();
       const hasRequiredRole = requireRoles.some(role =>
         role.toLowerCase() === userRole || userRole === 'admin'
       );
@@ -74,7 +74,7 @@ export function AuthGuard({
 
   // Show nothing if role check fails (will redirect)
   if (requireRoles.length > 0 && user) {
-    const userRole = user.subscription_tier.toLowerCase();
+    const userRole = (user.role || 'user').toLowerCase();
     const hasRequiredRole = requireRoles.some(role =>
       role.toLowerCase() === userRole || userRole === 'admin'
     );
@@ -119,7 +119,7 @@ export function useRole(requiredRole: string): boolean {
 
   if (!user) return false;
 
-  const userRole = user.subscription_tier.toLowerCase();
+  const userRole = (user.role || 'user').toLowerCase();
   return userRole === requiredRole.toLowerCase() || userRole === 'admin';
 }
 
@@ -131,7 +131,7 @@ export function useRoles(requiredRoles: string[]): boolean {
 
   if (!user || requiredRoles.length === 0) return false;
 
-  const userRole = user.subscription_tier.toLowerCase();
+  const userRole = (user.role || 'user').toLowerCase();
   return requiredRoles.some(role =>
     role.toLowerCase() === userRole || userRole === 'admin'
   );

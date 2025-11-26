@@ -13,6 +13,7 @@ export interface User {
   full_name?: string;
   email_verified: boolean;
   subscription_tier: string;
+  role?: string;
   created_at: string;
 }
 
