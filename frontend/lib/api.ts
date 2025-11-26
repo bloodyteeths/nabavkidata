@@ -97,6 +97,41 @@ export interface RecommendedTender extends Tender {
   match_reasons: string[];
 }
 
+export interface Supplier {
+  supplier_id: string;
+  company_name: string;
+  tax_id?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  contact_person?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  website?: string;
+  total_bids: number;
+  total_wins: number;
+  win_rate?: number;
+  total_value_won_mkd?: number;
+  created_at?: string;
+}
+
+export interface SupplierTenderParticipation {
+  tender_id: string;
+  title: string;
+  procuring_entity: string;
+  bid_amount_mkd?: number;
+  rank?: number;
+  is_winner: boolean;
+  status: string;
+  closing_date?: string;
+}
+
+export interface SupplierDetail extends Supplier {
+  recent_participations: SupplierTenderParticipation[];
+  wins_by_category: Record<string, number>;
+  wins_by_entity: Record<string, number>;
+}
+
 export interface CompetitorActivity {
   tender_id: string;
   title: string;
@@ -394,6 +429,114 @@ class APIClient {
 
   async getTenderStats() {
     return this.request<any>('/api/tenders/stats/overview');
+  }
+
+  async getTenderCategories() {
+    return this.request<{ total: number; categories: Array<{ category: string; count: number }> }>(
+      '/api/tenders/categories'
+    );
+  }
+
+  async getCpvCodes(prefix?: string, limit: number = 100) {
+    const params = new URLSearchParams();
+    if (prefix) params.append('prefix', prefix);
+    params.append('limit', limit.toString());
+    return this.request<{
+      total: number;
+      prefix_filter: string | null;
+      cpv_codes: Array<{
+        cpv_code: string;
+        tender_count: number;
+        total_value_mkd: number | null;
+        avg_value_mkd: number | null;
+      }>;
+    }>(`/api/tenders/cpv-codes?${params.toString()}`);
+  }
+
+  // Entities (Procuring Organizations)
+  async getEntities(params?: {
+    page?: number;
+    page_size?: number;
+    search?: string;
+    sort_by?: string;
+    sort_order?: string;
+  }) {
+    const query = new URLSearchParams(
+      Object.entries(params || {})
+        .filter(([_, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => [k, String(v)])
+    ).toString();
+    return this.request<{
+      total: number;
+      page: number;
+      page_size: number;
+      items: Array<{
+        entity_id: string;
+        entity_name: string;
+        entity_type?: string;
+        category?: string;
+        total_tenders: number;
+        total_value_mkd: number | null;
+      }>;
+    }>(`/api/entities?${query}`);
+  }
+
+  async searchEntities(search: string, limit: number = 10) {
+    return this.request<{
+      total: number;
+      items: Array<{
+        entity_id: string;
+        entity_name: string;
+        total_tenders: number;
+        total_value_mkd: number | null;
+      }>;
+    }>(`/api/entities?search=${encodeURIComponent(search)}&page_size=${limit}`);
+  }
+
+  // Suppliers
+  async getSuppliers(params?: {
+    page?: number;
+    page_size?: number;
+    search?: string;
+    city?: string;
+    min_wins?: number;
+    sort_by?: string;
+    sort_order?: string;
+  }) {
+    const query = new URLSearchParams(
+      Object.entries(params || {})
+        .filter(([_, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => [k, String(v)])
+    ).toString();
+    return this.request<{
+      total: number;
+      page: number;
+      page_size: number;
+      items: Supplier[];
+    }>(`/api/suppliers?${query}`);
+  }
+
+  async getSupplier(supplierId: string) {
+    return this.request<SupplierDetail>(`/api/suppliers/${supplierId}`);
+  }
+
+  async searchSuppliers(companyName: string, limit: number = 10) {
+    return this.request<Supplier[]>(`/api/suppliers/search/${encodeURIComponent(companyName)}?limit=${limit}`);
+  }
+
+  async getKnownWinners(search?: string, limit: number = 50) {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    params.append('limit', limit.toString());
+    return this.request<{
+      total: number;
+      winners: Array<{
+        company_name: string;
+        total_wins: number;
+        total_bids: number;
+        total_contract_value: number | null;
+      }>;
+    }>(`/api/suppliers/winners?${params.toString()}`);
   }
 
   async getTenderDocuments(tenderId: string) {

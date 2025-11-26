@@ -1038,43 +1038,57 @@ export default function SettingsPage() {
     }
   };
 
-  // Fetch entity suggestions (debounced)
+  // Fetch entity suggestions from real database (460+ procuring organizations)
   const fetchEntitySuggestions = useCallback(async (query: string) => {
     if (query.length < 2) {
       setEntitySuggestions([]);
       return;
     }
     try {
-      // Search for entities in existing tenders
-      const result = await api.searchTenders({
-        query: query,
-        page: 1,
-        page_size: 20
-      });
-      // Extract unique procuring entities
-      const entities = [...new Set(
-        result.items
-          .map(t => t.procuring_entity)
-          .filter((e): e is string => !!e && e.toLowerCase().includes(query.toLowerCase()))
-      )].slice(0, 8);
+      // Use the entities API which has 460+ real procuring organizations
+      const result = await api.searchEntities(query, 10);
+      const entities = result.items.map(e => e.entity_name);
       setEntitySuggestions(entities);
     } catch {
-      setEntitySuggestions([]);
+      // Fallback to searching tenders if entities API fails
+      try {
+        const result = await api.searchTenders({
+          query: query,
+          page: 1,
+          page_size: 20
+        });
+        const entities = [...new Set(
+          result.items
+            .map(t => t.procuring_entity)
+            .filter((e): e is string => !!e && e.toLowerCase().includes(query.toLowerCase()))
+        )].slice(0, 8);
+        setEntitySuggestions(entities);
+      } catch {
+        setEntitySuggestions([]);
+      }
     }
   }, []);
 
-  // Fetch competitor suggestions (from e-Pazar suppliers)
+  // Fetch competitor suggestions from real database (suppliers who won tenders)
   const fetchCompetitorSuggestions = useCallback(async (query: string) => {
     if (query.length < 2) {
       setCompetitorSuggestions([]);
       return;
     }
     try {
-      const result = await api.getEPazarSuppliers({ search: query, page_size: 8 });
+      // Use the suppliers API which has real companies that won tenders
+      const result = await api.getSuppliers({ search: query, page_size: 10 });
       const companies = result.items.map(s => s.company_name);
       setCompetitorSuggestions(companies);
     } catch {
-      setCompetitorSuggestions([]);
+      // Fallback to e-Pazar suppliers
+      try {
+        const result = await api.getEPazarSuppliers({ search: query, page_size: 8 });
+        const companies = result.items.map(s => s.company_name);
+        setCompetitorSuggestions(companies);
+      } catch {
+        setCompetitorSuggestions([]);
+      }
     }
   }, []);
 
