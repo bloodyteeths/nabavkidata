@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import AdminRoute from '@/components/admin/AdminRoute';
 import { api } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
 
 interface DashboardStats {
   total_users: number;
@@ -14,19 +13,14 @@ interface DashboardStats {
   pending_approvals: number;
 }
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+// Inner component that only renders after auth is confirmed
+function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, isLoading, isAuthenticated } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Only fetch stats after auth is confirmed and user is admin
+  // Fetch stats - only runs after AdminRoute confirms auth
   useEffect(() => {
-    // Don't fetch until auth is loaded and user is confirmed admin
-    if (isLoading || !isAuthenticated || !user || user.role !== 'admin') {
-      return;
-    }
-
     const fetchStats = async () => {
       try {
         const data = await api.getDashboardStats();
@@ -40,7 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const interval = setInterval(fetchStats, 60000); // Refresh every minute
 
     return () => clearInterval(interval);
-  }, [isLoading, isAuthenticated, user]);
+  }, []);
 
   const navigation = [
     {
@@ -116,98 +110,105 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ];
 
   return (
-    <AdminRoute>
-      <div className="min-h-screen bg-gray-100">
-        {/* Top Stats Bar */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {statsCards.map((stat) => (
-                <div key={stat.label} className="flex items-center space-x-3">
-                  <div className={`flex-shrink-0 w-12 h-12 rounded-lg bg-${stat.color}-100 flex items-center justify-center`}>
-                    <span className={`text-2xl font-bold text-${stat.color}-600`}>
-                      {stat.value}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">{stat.label}</p>
-                  </div>
+    <div className="min-h-screen bg-gray-100">
+      {/* Top Stats Bar */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {statsCards.map((stat) => (
+              <div key={stat.label} className="flex items-center space-x-3">
+                <div className={`flex-shrink-0 w-12 h-12 rounded-lg bg-${stat.color}-100 flex items-center justify-center`}>
+                  <span className={`text-2xl font-bold text-${stat.color}-600`}>
+                    {stat.value}
+                  </span>
                 </div>
-              ))}
-            </div>
+                <div>
+                  <p className="text-sm text-gray-500">{stat.label}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-
-        <div className="flex">
-          {/* Sidebar */}
-          <aside
-            className={`${
-              isSidebarOpen ? 'w-64' : 'w-20'
-            } bg-white border-r border-gray-200 min-h-screen transition-all duration-300`}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              {isSidebarOpen && (
-                <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
-              )}
-              <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-2 rounded-lg hover:bg-gray-100"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d={isSidebarOpen ? 'M11 19l-7-7 7-7m8 14l-7-7 7-7' : 'M13 5l7 7-7 7M5 5l7 7-7 7'}
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <nav className="p-4 space-y-2">
-              {navigation.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {item.icon}
-                    {isSidebarOpen && <span className="font-medium">{item.name}</span>}
-                  </Link>
-                );
-              })}
-            </nav>
-
-            <div className="absolute bottom-4 left-4 right-4">
-              <Link
-                href="/"
-                className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                {isSidebarOpen && <span className="font-medium">Back to Site</span>}
-              </Link>
-            </div>
-          </aside>
-
-          {/* Main Content */}
-          <main className="flex-1 p-8">
-            {children}
-          </main>
-        </div>
       </div>
+
+      <div className="flex">
+        {/* Sidebar */}
+        <aside
+          className={`${
+            isSidebarOpen ? 'w-64' : 'w-20'
+          } bg-white border-r border-gray-200 min-h-screen transition-all duration-300`}
+        >
+          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+            {isSidebarOpen && (
+              <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
+            )}
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 rounded-lg hover:bg-gray-100"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={isSidebarOpen ? 'M11 19l-7-7 7-7m8 14l-7-7 7-7' : 'M13 5l7 7-7 7M5 5l7 7-7 7'}
+                />
+              </svg>
+            </button>
+          </div>
+
+          <nav className="p-4 space-y-2">
+            {navigation.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {item.icon}
+                  {isSidebarOpen && <span className="font-medium">{item.name}</span>}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="absolute bottom-4 left-4 right-4">
+            <Link
+              href="/"
+              className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              {isSidebarOpen && <span className="font-medium">Back to Site</span>}
+            </Link>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 p-8">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// Outer component that wraps with AdminRoute
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AdminRoute>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
     </AdminRoute>
   );
 }
