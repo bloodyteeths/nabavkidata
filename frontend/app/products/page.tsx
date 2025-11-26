@@ -116,26 +116,40 @@ export default function ProductsPage() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold">{stats.total_products.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Total Products</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold">{stats.unique_products.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Unique Products</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold">{stats.tenders_with_products.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Tenders with Products</p>
-            </CardContent>
-          </Card>
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold">{stats.total_products.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">Total Products</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold">{stats.unique_products.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">Unique Products</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold">{stats.tenders_with_products.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">Tenders with Products</p>
+              </CardContent>
+            </Card>
+          </div>
+          {stats.total_products === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="pt-6 text-center">
+                <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <h3 className="font-medium mb-2">Податоците за производи се во подготовка</h3>
+                <p className="text-sm text-muted-foreground">
+                  Извлекувањето на детални информации за производи од тендерската документација е во тек.
+                  Оваа функционалност ќе биде достапна наскоро.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Search Form */}

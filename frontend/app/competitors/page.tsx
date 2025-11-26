@@ -129,7 +129,8 @@ export default function CompetitorsPage() {
 
   const competitorStats = getCompetitorStats();
   const filteredActivities = getFilteredActivities();
-  const totalCompetitors = competitorStats.length;
+  // Use tracked competitors count, not just those with activity
+  const totalCompetitors = trackedCompetitors.length || competitorStats.length;
   const activeTenders = filteredActivities.length;
   const wonThisMonth = getWonThisMonth();
 
