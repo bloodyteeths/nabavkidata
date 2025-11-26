@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   Filter,
@@ -44,11 +43,27 @@ function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destr
     case 'active':
       return 'default';
     case 'awarded':
+    case 'signed':
       return 'secondary';
     case 'cancelled':
       return 'destructive';
     default:
       return 'outline';
+  }
+}
+
+function getStatusLabel(status: string): string {
+  switch (status?.toLowerCase()) {
+    case 'active':
+      return 'Активен';
+    case 'awarded':
+      return 'Доделен';
+    case 'signed':
+      return 'Потпишан';
+    case 'cancelled':
+      return 'Откажан';
+    default:
+      return status || 'Непознат';
   }
 }
 
@@ -59,7 +74,7 @@ function EPazarCard({ tender }: { tender: EPazarTender }) {
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start gap-2">
             <Badge variant={getStatusBadgeVariant(tender.status)}>
-              {tender.status}
+              {getStatusLabel(tender.status)}
             </Badge>
             {tender.cpv_code && (
               <span className="text-xs text-gray-500">{tender.cpv_code}</span>
@@ -142,10 +157,11 @@ export default function EPazarPage() {
 
   // Status filter tabs
   const statusTabs = [
-    { key: '', label: 'All' },
-    { key: 'active', label: 'Active' },
-    { key: 'awarded', label: 'Awarded' },
-    { key: 'cancelled', label: 'Cancelled' },
+    { key: '', label: 'Сите' },
+    { key: 'active', label: 'Активни' },
+    { key: 'signed', label: 'Потпишани' },
+    { key: 'awarded', label: 'Доделени' },
+    { key: 'cancelled', label: 'Откажани' },
   ];
 
   useEffect(() => {
@@ -198,43 +214,41 @@ export default function EPazarPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <ShoppingCart className="h-6 w-6" />
-              e-Pazar Electronic Marketplace
+              е-Пазар Електронски Пазар
             </h1>
-            <p className="text-gray-500">Browse tenders from e-pazar.gov.mk</p>
+            <p className="text-gray-500">Прегледајте тендери од e-pazar.gov.mk</p>
           </div>
         </div>
 
         {/* Stats */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatsCard
-              title="Total Tenders"
-              value={stats.total_tenders.toLocaleString()}
-              icon={FileText}
-            />
-            <StatsCard
-              title="Total Items"
-              value={stats.total_items.toLocaleString()}
-              icon={Package}
-            />
-            <StatsCard
-              title="Total Suppliers"
-              value={stats.total_suppliers.toLocaleString()}
-              icon={Users}
-            />
-            <StatsCard
-              title="Total Value"
-              value={formatCurrency(stats.total_value_mkd)}
-              icon={TrendingUp}
-            />
-          </div>
-        )}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatsCard
+            title="Вкупно тендери"
+            value={stats ? stats.total_tenders.toLocaleString() : '-'}
+            icon={FileText}
+          />
+          <StatsCard
+            title="Вкупно ставки"
+            value={stats ? stats.total_items.toLocaleString() : '-'}
+            icon={Package}
+          />
+          <StatsCard
+            title="Вкупно добавувачи"
+            value={stats ? stats.total_suppliers.toLocaleString() : '-'}
+            icon={Users}
+          />
+          <StatsCard
+            title="Вкупна вредност"
+            value={stats ? formatCurrency(stats.total_value_mkd) : '-'}
+            icon={TrendingUp}
+          />
+        </div>
 
         {/* Search and Filters */}
         <Card>
@@ -244,7 +258,7 @@ export default function EPazarPage() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Search tenders..."
+                  placeholder="Пребарај тендери..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-10"
@@ -252,7 +266,7 @@ export default function EPazarPage() {
               </div>
               <Button type="submit">
                 <Filter className="h-4 w-4 mr-2" />
-                Search
+                Барај
               </Button>
             </form>
 
@@ -278,17 +292,17 @@ export default function EPazarPage() {
         {/* Results */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={`skeleton-${i}`} className="animate-pulse">
                 <CardHeader>
-                  <div className="h-4 bg-gray-200 rounded w-1/4" />
-                  <div className="h-6 bg-gray-200 rounded w-3/4 mt-2" />
-                  <div className="h-4 bg-gray-200 rounded w-1/2 mt-2" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4" />
+                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mt-2" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mt-2" />
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded" />
-                    <div className="h-4 bg-gray-200 rounded" />
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
                   </div>
                 </CardContent>
               </Card>
@@ -303,32 +317,22 @@ export default function EPazarPage() {
         ) : tenders.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center text-gray-500">
-              No tenders found. Try adjusting your search criteria.
+              Не се пронајдени тендери. Обидете се со други критериуми за пребарување.
             </CardContent>
           </Card>
         ) : (
           <>
             <div className="text-sm text-gray-500 mb-2">
-              Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} of {total} tenders
+              Прикажани {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} од {total} тендери
             </div>
 
-            <motion.div
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
-            >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {tenders.map((tender) => (
-                <motion.div
-                  key={tender.tender_id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
+                <div key={tender.tender_id}>
                   <EPazarCard tender={tender} />
-                </motion.div>
+                </div>
               ))}
-            </motion.div>
+            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (
@@ -340,10 +344,10 @@ export default function EPazarPage() {
                   disabled={page === 1}
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  Previous
+                  Претходна
                 </Button>
                 <span className="text-sm text-gray-500">
-                  Page {page} of {totalPages}
+                  Страна {page} од {totalPages}
                 </span>
                 <Button
                   variant="outline"
@@ -351,7 +355,7 @@ export default function EPazarPage() {
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
                 >
-                  Next
+                  Следна
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

@@ -37,65 +37,70 @@ class HybridSearchEngine:
         from services.cpv_matcher import get_cpv_matcher
         self.cpv_matcher = get_cpv_matcher()
 
+    # Sector keyword mapping for AI-based matching
+    SECTOR_KEYWORDS = {
+        "it": ["софтвер", "ИТ", "информатички", "компјутер", "систем", "апликација", "веб", "дигитал", "software", "IT", "computer", "digital", "hardware", "сервер", "мрежа"],
+        "construction": ["градежн", "изградба", "реконструкција", "санација", "објект", "зграда", "пат", "construction", "building", "infrastructure"],
+        "consulting": ["консултант", "советодавн", "consulting", "advisory", "студија", "анализа"],
+        "equipment": ["опрема", "машини", "апарат", "уред", "equipment", "machinery", "device"],
+        "medical": ["медицин", "здравств", "болница", "лек", "фармацевт", "medical", "health", "hospital", "pharma"],
+        "education": ["образова", "училиш", "универзитет", "обука", "education", "school", "training"],
+        "transport": ["транспорт", "превоз", "возил", "transport", "vehicle", "logistics"],
+        "food": ["храна", "пијалоц", "прехран", "food", "beverage", "catering"],
+        "cleaning": ["чистење", "хигиена", "одржување", "cleaning", "maintenance", "hygiene"],
+        "security": ["безбедност", "обезбедување", "заштита", "security", "protection", "surveillance"],
+        "energy": ["енергија", "електрична", "струја", "гориво", "energy", "electricity", "fuel"],
+        "printing": ["печатење", "печатница", "printing", "publishing"]
+    }
+
     async def search(
         self,
         user_id: str,
         limit: int = 20
     ) -> List[Tuple[Tender, float]]:
-        """Hybrid search: preferences + interest vector + AI CPV matching"""
+        """Hybrid search: uses preferences for SCORING, not filtering"""
 
         # Get user preferences
         prefs = await self._get_preferences(user_id)
         if not prefs:
             return await self._fallback_search(limit)
 
-        # Preference-based filter
+        # Get all open tenders - preferences are for scoring, not filtering
         query = select(Tender).where(Tender.status == 'open')
-        filters = []
 
-        if prefs.sectors:
-            filters.append(Tender.category.in_(prefs.sectors))
-
-        # CPV filtering - we'll do AI matching after fetching candidates
-        # since most tenders don't have actual CPV codes
-        if prefs.cpv_codes:
-            # Only filter by CPV if tender has actual CPV code (not category name)
-            cpv_filters = [Tender.cpv_code.startswith(code) for code in prefs.cpv_codes]
-            # Don't add this filter - we'll use AI matching instead
-            # filters.append(or_(*cpv_filters))
-            pass
-
-        if prefs.entities:
-            entity_filters = [Tender.procuring_entity.ilike(f"%{e}%") for e in prefs.entities]
-            filters.append(or_(*entity_filters))
-        if prefs.min_budget:
-            filters.append(Tender.estimated_value_mkd >= prefs.min_budget)
-        if prefs.max_budget:
-            filters.append(Tender.estimated_value_mkd <= prefs.max_budget)
+        # Only apply hard filters for exclude_keywords (things user explicitly doesn't want)
         if prefs.exclude_keywords:
             for kw in prefs.exclude_keywords:
-                filters.append(~Tender.title.ilike(f"%{kw}%"))
+                query = query.where(~Tender.title.ilike(f"%{kw}%"))
 
-        if filters:
-            query = query.where(and_(*filters))
-
-        # Get more candidates to filter with AI CPV matching
+        # Get recent open tenders
         result = await self.db.execute(query.order_by(desc(Tender.created_at)).limit(200))
         all_candidates = result.scalars().all()
 
-        # Apply AI-based CPV matching if user has CPV preferences
-        if prefs.cpv_codes:
-            candidates = []
-            for tender in all_candidates:
-                # Check if tender has real CPV code
+        # Score each tender based on preferences (not filter!)
+        scored_candidates = []
+        for tender in all_candidates:
+            score = 0.3  # Base score for being an open tender
+            tender_text = f"{tender.title or ''} {tender.description or ''}".lower()
+
+            # Boost score for sector match (keyword matching)
+            if prefs.sectors:
+                for sector in prefs.sectors:
+                    keywords = self.SECTOR_KEYWORDS.get(sector, [])
+                    for keyword in keywords:
+                        if keyword.lower() in tender_text:
+                            score += 0.25  # Sector match boost
+                            break
+
+            # Boost score for CPV match
+            if prefs.cpv_codes:
                 if tender.cpv_code and tender.cpv_code not in ["Услуги", "Стоки", "Работи"]:
-                    # Use actual CPV code
                     for cpv in prefs.cpv_codes:
                         if tender.cpv_code.startswith(cpv[:2]):
-                            candidates.append(tender)
+                            score += 0.2  # CPV code match boost
                             break
                 else:
-                    # Use AI to infer CPV from title/description
+                    # Use AI to infer CPV match
                     is_match, _ = self.cpv_matcher.matches_user_preferences(
                         tender_title=tender.title or "",
                         tender_description=tender.description or "",
@@ -103,18 +108,31 @@ class HybridSearchEngine:
                         user_cpv_codes=prefs.cpv_codes
                     )
                     if is_match:
-                        candidates.append(tender)
+                        score += 0.15  # AI-inferred CPV match boost
 
-                # Stop if we have enough candidates
-                if len(candidates) >= 100:
-                    break
-        else:
-            candidates = all_candidates[:100]
+            # Boost score for entity match
+            if prefs.entities and tender.procuring_entity:
+                for entity in prefs.entities:
+                    if entity.lower() in tender.procuring_entity.lower():
+                        score += 0.2  # Entity match boost
+                        break
 
-        # Vector ranking
-        scored = await self._vector_rank(user_id, candidates)
+            # Boost score for budget match
+            if tender.estimated_value_mkd:
+                in_budget = True
+                if prefs.min_budget and tender.estimated_value_mkd < float(prefs.min_budget):
+                    in_budget = False
+                if prefs.max_budget and tender.estimated_value_mkd > float(prefs.max_budget):
+                    in_budget = False
+                if in_budget:
+                    score += 0.1  # Budget match boost
 
-        return scored[:limit]
+            scored_candidates.append((tender, min(score, 1.0)))
+
+        # Sort by score (highest first) and return top results
+        scored_candidates.sort(key=lambda x: x[1], reverse=True)
+
+        return scored_candidates[:limit]
 
     async def _get_preferences(self, user_id: str) -> Optional[UserPreferences]:
         query = select(UserPreferences).where(UserPreferences.user_id == user_id)

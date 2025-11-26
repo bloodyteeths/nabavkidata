@@ -159,14 +159,31 @@ async def get_preferences(
     user_id: UUID,  # TODO: Get from auth
     db: AsyncSession = Depends(get_db)
 ):
-    """Get user preferences"""
+    """Get user preferences - creates default preferences if none exist"""
+    from datetime import datetime
+    from uuid import uuid4
 
     query = select(UserPreferences).where(UserPreferences.user_id == user_id)
     result = await db.execute(query)
     prefs = result.scalar_one_or_none()
 
     if not prefs:
-        raise HTTPException(status_code=404, detail="Preferences not found")
+        # Create default preferences for new users
+        prefs = UserPreferences(
+            user_id=user_id,
+            sectors=[],
+            cpv_codes=[],
+            entities=[],
+            competitor_companies=[],
+            exclude_keywords=[],
+            min_budget=None,
+            max_budget=None,
+            notification_frequency="daily",
+            email_enabled=True
+        )
+        db.add(prefs)
+        await db.commit()
+        await db.refresh(prefs)
 
     return PreferencesResponse.from_orm(prefs)
 
@@ -177,14 +194,16 @@ async def update_preferences(
     user_id: UUID,  # TODO: Get from auth
     db: AsyncSession = Depends(get_db)
 ):
-    """Update user preferences"""
+    """Update user preferences - creates them if they don't exist (upsert)"""
 
     query = select(UserPreferences).where(UserPreferences.user_id == user_id)
     result = await db.execute(query)
     db_prefs = result.scalar_one_or_none()
 
     if not db_prefs:
-        raise HTTPException(status_code=404, detail="Preferences not found")
+        # Create new preferences if they don't exist
+        db_prefs = UserPreferences(user_id=user_id)
+        db.add(db_prefs)
 
     update_data = prefs_update.dict(exclude_unset=True)
     for field, value in update_data.items():

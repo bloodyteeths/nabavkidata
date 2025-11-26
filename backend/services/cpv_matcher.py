@@ -290,11 +290,42 @@ CPV_SUBCATEGORIES = {
 
 
 class CPVMatcher:
-    """AI-powered CPV code matcher for tenders without CPV codes"""
+    """
+    CPV code matcher with database-first approach.
 
-    def __init__(self):
+    Priority:
+    1. Check product_items table for real CPV codes (source of truth)
+    2. Fall back to AI-powered inference from tender title/description
+    """
+
+    def __init__(self, db_session=None):
         self.categories = CPV_CATEGORIES
         self.subcategories = CPV_SUBCATEGORIES
+        self.db = db_session
+
+    async def get_cpv_from_database(self, tender_id: str) -> List[str]:
+        """
+        Get CPV codes from product_items table - the source of truth.
+        Returns list of CPV codes associated with this tender.
+        """
+        if not self.db:
+            return []
+
+        try:
+            from sqlalchemy import text
+            query = text("""
+                SELECT DISTINCT cpv_code
+                FROM product_items
+                WHERE tender_id = :tender_id
+                AND cpv_code IS NOT NULL
+                AND cpv_code != ''
+            """)
+            result = await self.db.execute(query, {"tender_id": tender_id})
+            rows = result.fetchall()
+            return [row[0] for row in rows if row[0]]
+        except Exception as e:
+            print(f"Error fetching CPV from database: {e}")
+            return []
 
     def infer_cpv_from_text(self, title: str, description: str = "", category: str = "") -> List[Dict]:
         """
@@ -407,12 +438,46 @@ class CPVMatcher:
         return ""
 
 
-# Singleton instance for use across the application
+# Singleton instance for use across the application (without DB for sync operations)
 _cpv_matcher_instance = None
 
-def get_cpv_matcher() -> CPVMatcher:
-    """Get or create CPV matcher singleton"""
+def get_cpv_matcher(db_session=None) -> CPVMatcher:
+    """
+    Get CPV matcher instance.
+
+    For sync operations (keyword matching only), use without db_session.
+    For async operations (database lookup + fallback), pass db_session.
+    """
     global _cpv_matcher_instance
+    if db_session:
+        # Return new instance with DB session for async operations
+        return CPVMatcher(db_session=db_session)
     if _cpv_matcher_instance is None:
         _cpv_matcher_instance = CPVMatcher()
     return _cpv_matcher_instance
+
+
+async def get_tender_cpv_codes(db_session, tender_id: str, tender_title: str = "",
+                                tender_description: str = "", tender_category: str = "") -> List[str]:
+    """
+    Get CPV codes for a tender using database-first approach.
+
+    1. First checks product_items table (source of truth)
+    2. Falls back to AI inference from title/description
+
+    Returns list of CPV codes.
+    """
+    matcher = get_cpv_matcher(db_session)
+
+    # Try database first (source of truth)
+    db_cpv_codes = await matcher.get_cpv_from_database(tender_id)
+    if db_cpv_codes:
+        return db_cpv_codes
+
+    # Fallback to AI inference
+    inferred = matcher.infer_cpv_from_text(tender_title, tender_description, tender_category)
+    if inferred:
+        # Return codes with confidence > 0.3
+        return [inf["cpv_code"] for inf in inferred if inf.get("confidence", 0) > 0.3]
+
+    return []
