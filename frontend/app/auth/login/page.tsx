@@ -69,16 +69,14 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = () => {
     setGoogleLoading(true);
     setErrors({});
-    try {
-      // Redirect to backend Google OAuth endpoint
-      window.location.href = '/api/auth/google';
-    } catch (error: any) {
-      setErrors({ general: 'Грешка при најава со Google' });
-      setGoogleLoading(false);
-    }
+    // Redirect to backend Google OAuth endpoint
+    const apiUrl = window.location.hostname === 'localhost'
+      ? 'http://localhost:8000'
+      : 'https://api.nabavkidata.com';
+    window.location.href = `${apiUrl}/api/auth/google`;
   };
 
   return (
