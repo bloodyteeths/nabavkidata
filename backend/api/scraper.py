@@ -31,8 +31,8 @@ from services.email_service import email_service
 # ============================================================================
 
 router = APIRouter(
-    prefix="/scraper",
-    tags=["Scraper"]
+    prefix="/admin/scraper",
+    tags=["Admin - Scraper"]
 )
 
 # ============================================================================
