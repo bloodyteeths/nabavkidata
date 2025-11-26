@@ -206,9 +206,9 @@ export default function AdminLogsPage() {
 
   const getLevelBadge = (level: string) => {
     const config = {
-      error: { color: 'bg-red-100 text-red-800', icon: AlertCircle, label: 'Error' },
-      warning: { color: 'bg-yellow-100 text-yellow-800', icon: AlertTriangle, label: 'Warning' },
-      info: { color: 'bg-blue-100 text-blue-800', icon: Info, label: 'Info' },
+      error: { color: 'bg-red-600 text-white', icon: AlertCircle, label: 'Error' },
+      warning: { color: 'bg-yellow-500 text-white', icon: AlertTriangle, label: 'Warning' },
+      info: { color: 'bg-blue-600 text-white', icon: Info, label: 'Info' },
     };
 
     const { color, icon: Icon, label } = config[level as keyof typeof config] || config.info;
@@ -301,36 +301,36 @@ export default function AdminLogsPage() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="rounded-md border">
+          <div className="rounded-md border bg-white">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[150px]">Time</TableHead>
-                  <TableHead className="w-[120px]">Level</TableHead>
-                  <TableHead className="w-[200px]">User</TableHead>
-                  <TableHead>Message</TableHead>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="w-[150px] text-gray-900 font-semibold">Time</TableHead>
+                  <TableHead className="w-[120px] text-gray-900 font-semibold">Level</TableHead>
+                  <TableHead className="w-[200px] text-gray-900 font-semibold">User</TableHead>
+                  <TableHead className="text-gray-900 font-semibold">Message</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLogs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8">No logs</TableCell>
+                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">No logs</TableCell>
                   </TableRow>
                 ) : (
                   filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="font-mono text-sm">
+                    <TableRow key={log.id} className="hover:bg-gray-50">
+                      <TableCell className="font-mono text-sm text-gray-700">
                         {new Date(log.timestamp).toLocaleString('en-US')}
                       </TableCell>
                       <TableCell>{getLevelBadge(log.level)}</TableCell>
-                      <TableCell className="font-medium">{log.user}</TableCell>
+                      <TableCell className="font-medium text-gray-900">{log.user}</TableCell>
                       <TableCell>
                         <div>
-                          <p className="text-sm">{log.message}</p>
+                          <p className="text-sm text-gray-800">{log.message}</p>
                           {log.metadata && (
                             <details className="mt-1">
-                              <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Show details</summary>
-                              <pre className="mt-2 text-xs bg-muted p-2 rounded overflow-x-auto">{JSON.stringify(log.metadata, null, 2)}</pre>
+                              <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">Show details</summary>
+                              <pre className="mt-2 text-xs bg-gray-100 text-gray-800 p-2 rounded overflow-x-auto">{JSON.stringify(log.metadata, null, 2)}</pre>
                             </details>
                           )}
                         </div>

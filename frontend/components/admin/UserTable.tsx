@@ -68,13 +68,13 @@ export default function UserTable({
 
   const getRoleBadge = (role: string) => {
     const colors: Record<string, string> = {
-      admin: 'bg-red-100 text-red-800',
-      user: 'bg-blue-100 text-blue-800',
-      moderator: 'bg-purple-100 text-purple-800',
+      admin: 'bg-red-600 text-white',
+      user: 'bg-blue-600 text-white',
+      moderator: 'bg-purple-600 text-white',
     };
 
     return (
-      <Badge className={colors[role] || 'bg-gray-100 text-gray-800'}>
+      <Badge className={colors[role] || 'bg-gray-600 text-white'}>
         {role === 'admin' ? 'Админ' : role === 'moderator' ? 'Модератор' : 'Корисник'}
       </Badge>
     );
@@ -82,13 +82,13 @@ export default function UserTable({
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      active: 'bg-green-100 text-green-800',
-      inactive: 'bg-gray-100 text-gray-800',
-      banned: 'bg-red-100 text-red-800',
+      active: 'bg-green-600 text-white',
+      inactive: 'bg-gray-500 text-white',
+      banned: 'bg-red-600 text-white',
     };
 
     return (
-      <Badge className={colors[status] || 'bg-gray-100 text-gray-800'}>
+      <Badge className={colors[status] || 'bg-gray-500 text-white'}>
         {status === 'active' ? 'Активен' : status === 'banned' ? 'Банан' : 'Неактивен'}
       </Badge>
     );
@@ -96,93 +96,93 @@ export default function UserTable({
 
   const getSubscriptionBadge = (subscription: string) => {
     const colors: Record<string, string> = {
-      free: 'bg-gray-100 text-gray-800',
-      basic: 'bg-blue-100 text-blue-800',
-      premium: 'bg-purple-100 text-purple-800',
-      enterprise: 'bg-yellow-100 text-yellow-800',
+      free: 'bg-gray-500 text-white',
+      standard: 'bg-blue-600 text-white',
+      pro: 'bg-purple-600 text-white',
+      enterprise: 'bg-amber-600 text-white',
     };
 
     return (
-      <Badge className={colors[subscription] || 'bg-gray-100 text-gray-800'}>
+      <Badge className={colors[subscription] || 'bg-gray-500 text-white'}>
         {subscription === 'free'
           ? 'Бесплатен'
-          : subscription === 'basic'
-          ? 'Основен'
-          : subscription === 'premium'
-          ? 'Премиум'
-          : 'Корпоративен'}
+          : subscription === 'standard'
+          ? 'Стандард'
+          : subscription === 'pro'
+          ? 'Про'
+          : 'Ентерпрајз'}
       </Badge>
     );
   };
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border bg-white">
       <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className="bg-gray-50">
             <TableHead
-              className="cursor-pointer"
+              className="cursor-pointer text-gray-900 font-semibold"
               onClick={() => handleSort('email')}
             >
               Email
             </TableHead>
             <TableHead
-              className="cursor-pointer"
+              className="cursor-pointer text-gray-900 font-semibold"
               onClick={() => handleSort('name')}
             >
               Име
             </TableHead>
             <TableHead
-              className="cursor-pointer"
+              className="cursor-pointer text-gray-900 font-semibold"
               onClick={() => handleSort('role')}
             >
               Улога
             </TableHead>
             <TableHead
-              className="cursor-pointer"
+              className="cursor-pointer text-gray-900 font-semibold"
               onClick={() => handleSort('status')}
             >
               Статус
             </TableHead>
             <TableHead
-              className="cursor-pointer"
+              className="cursor-pointer text-gray-900 font-semibold"
               onClick={() => handleSort('subscription')}
             >
               Претплата
             </TableHead>
-            <TableHead>Верифициран</TableHead>
+            <TableHead className="text-gray-900 font-semibold">Верифициран</TableHead>
             <TableHead
-              className="cursor-pointer"
+              className="cursor-pointer text-gray-900 font-semibold"
               onClick={() => handleSort('created_at')}
             >
               Креиран
             </TableHead>
-            <TableHead className="w-[70px]">Акции</TableHead>
+            <TableHead className="w-[70px] text-gray-900 font-semibold">Акции</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedUsers.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-center py-8">
+              <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                 Нема корисници
               </TableCell>
             </TableRow>
           ) : (
             sortedUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.email}</TableCell>
-                <TableCell>{user.name}</TableCell>
+              <TableRow key={user.id} className="hover:bg-gray-50">
+                <TableCell className="font-medium text-gray-900">{user.email}</TableCell>
+                <TableCell className="text-gray-700">{user.name}</TableCell>
                 <TableCell>{getRoleBadge(user.role)}</TableCell>
                 <TableCell>{getStatusBadge(user.status)}</TableCell>
                 <TableCell>{getSubscriptionBadge(user.subscription)}</TableCell>
                 <TableCell>
                   {user.verified ? (
-                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <CheckCircle className="w-5 h-5 text-green-600" />
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <span className="text-gray-400">-</span>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-gray-700">
                   {new Date(user.created_at).toLocaleDateString('mk-MK')}
                 </TableCell>
                 <TableCell>

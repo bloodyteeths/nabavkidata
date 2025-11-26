@@ -216,13 +216,13 @@ export default function AdminTendersPage() {
   };
 
   const statusConfig: Record<string, { color: string; label: string }> = {
-    pending: { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
-    approved: { color: 'bg-green-100 text-green-800', label: 'Approved' },
-    rejected: { color: 'bg-red-100 text-red-800', label: 'Rejected' },
-    active: { color: 'bg-blue-100 text-blue-800', label: 'Active' },
-    open: { color: 'bg-blue-100 text-blue-800', label: 'Open' },
-    closed: { color: 'bg-gray-100 text-gray-800', label: 'Closed' },
-    awarded: { color: 'bg-green-100 text-green-800', label: 'Awarded' },
+    pending: { color: 'bg-yellow-500 text-white', label: 'Pending' },
+    approved: { color: 'bg-green-600 text-white', label: 'Approved' },
+    rejected: { color: 'bg-red-600 text-white', label: 'Rejected' },
+    active: { color: 'bg-blue-600 text-white', label: 'Active' },
+    open: { color: 'bg-blue-600 text-white', label: 'Open' },
+    closed: { color: 'bg-gray-600 text-white', label: 'Closed' },
+    awarded: { color: 'bg-green-600 text-white', label: 'Awarded' },
   };
 
   const getStatusBadge = (status: string) => {
@@ -253,37 +253,37 @@ export default function AdminTendersPage() {
       </Card>
 
       {/* Tenders Table */}
-      <div className="rounded-md border">
+      <div className="rounded-md border bg-white">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Organization</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Budget (MKD)</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Deadline</TableHead>
-              <TableHead className="w-[150px]">Actions</TableHead>
+            <TableRow className="bg-gray-50">
+              <TableHead className="text-gray-900 font-semibold">Title</TableHead>
+              <TableHead className="text-gray-900 font-semibold">Organization</TableHead>
+              <TableHead className="text-gray-900 font-semibold">Category</TableHead>
+              <TableHead className="text-gray-900 font-semibold">Budget (MKD)</TableHead>
+              <TableHead className="text-gray-900 font-semibold">Status</TableHead>
+              <TableHead className="text-gray-900 font-semibold">Deadline</TableHead>
+              <TableHead className="text-gray-900 font-semibold w-[150px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredTenders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                   No tenders
                 </TableCell>
               </TableRow>
             ) : (
               filteredTenders.map((tender) => (
-                <TableRow key={tender.id}>
-                  <TableCell className="font-medium max-w-[300px] truncate">
+                <TableRow key={tender.id} className="hover:bg-gray-50">
+                  <TableCell className="font-medium max-w-[300px] truncate text-gray-900">
                     {tender.title}
                   </TableCell>
-                  <TableCell>{tender.organization}</TableCell>
-                  <TableCell>{tender.category}</TableCell>
-                  <TableCell>€{tender.budget.toLocaleString()}</TableCell>
+                  <TableCell className="text-gray-700">{tender.organization}</TableCell>
+                  <TableCell className="text-gray-700">{tender.category}</TableCell>
+                  <TableCell className="text-gray-900 font-medium">€{tender.budget.toLocaleString()}</TableCell>
                   <TableCell>{getStatusBadge(tender.status)}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-gray-700">
                     {new Date(tender.deadline).toLocaleDateString('mk-MK')}
                   </TableCell>
                   <TableCell>
