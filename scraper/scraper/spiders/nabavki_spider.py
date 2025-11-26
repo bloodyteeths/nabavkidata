@@ -1059,13 +1059,16 @@ class NabavkiSpider(scrapy.Spider):
                 '//label[contains(text(), "Датум на отворање")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'closing_date': [
-                # PRIMARY: Exact label-for from live page analysis (active tenders)
+                # PRIMARY: Exact label-for from live page inspection (Nov 2025)
+                # "THE REQUEST FOR PARTICIPATION TO BE DELIVERED UNTIL DOSSIE" is the submission deadline
+                '//label[@label-for="THE REQUEST FOR PARTICIPATION TO BE DELIVERED UNTIL DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Alternate: Some pages use this variant
                 '//label[@label-for="THE TENDERS TO BE DELIVERED AT LEAST UNTIL"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
-                # Alternate selectors
-                '//label[@label-for="DEADLINE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="DEADLINE FOR QUESTIONING DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[@label-for="SUBMISSION DEADLINE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
-                '//label[@label-for="END DATE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="DEADLINE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 # Macedonian text-based fallbacks
+                '//label[contains(text(), "Краен рок за поставување прашања")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[contains(text(), "Крајниот рок за доставување")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[contains(text(), "Рок за поднесување")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[contains(text(), "Крајниот рок")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',

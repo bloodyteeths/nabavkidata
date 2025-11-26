@@ -1,198 +1,217 @@
 #!/usr/bin/env python3
 """
 Email Digest Generator Cron
-Generates daily/weekly email digests for users
+Generates and sends daily/weekly email digests for users via Mailersend
 """
 import asyncio
 import sys
 import os
 from datetime import datetime, timedelta
-from typing import List, Dict
-from sqlalchemy import select, and_
+from typing import List, Dict, Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+# Load environment variables
+from dotenv import load_dotenv
+env_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
+load_dotenv(env_path)
+
+from sqlalchemy import select, and_
 from database import AsyncSessionLocal
 from models import User, Tender
-from models_user_personalization import UserPreferences, EmailDigest
-from services.personalization_engine import HybridSearchEngine, CompetitorTracker
+from services.mailer import mailer_service
+
+# Personalization disabled - table doesn't exist yet
+HAS_PERSONALIZATION = False
 
 
 async def generate_digest_html(
-    user_id: str,
-    tenders: List[Tender],
-    competitor_activity: List[Dict],
-    insights: str
+    user_name: str,
+    tenders: List[Dict],
+    frequency: str = "daily"
 ) -> str:
-    """Generate HTML digest"""
+    """Generate HTML digest using Mailersend template style"""
 
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; }}
-            .header {{ background: #1976d2; color: white; padding: 20px; }}
-            .tender {{ border: 1px solid #ddd; padding: 15px; margin: 10px 0; }}
-            .insights {{ background: #f5f5f5; padding: 15px; margin: 20px 0; }}
-            .footer {{ color: #666; padding: 20px; text-align: center; }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>nabavkidata.com - Your Daily Digest</h1>
-            <p>{datetime.utcnow().strftime('%Y-%m-%d')}</p>
-        </div>
+    period = "Today's" if frequency == "daily" else "This Week's"
 
-        <div class="content">
-            <h2>Recommended Tenders ({len(tenders)})</h2>
-    """
-
+    tender_rows = ""
     for tender in tenders[:10]:
-        html += f"""
-            <div class="tender">
-                <h3>{tender.title}</h3>
-                <p><strong>Entity:</strong> {tender.procuring_entity or 'N/A'}</p>
-                <p><strong>Budget:</strong> {tender.estimated_value_mkd or 'N/A'} MKD</p>
-                <p><strong>Closing:</strong> {tender.closing_date or 'N/A'}</p>
-                <p><a href="https://nabavkidata.com/tenders/{tender.tender_id}">View Details</a></p>
-            </div>
+        value = tender.get('estimated_value_mkd') or tender.get('estimated_value')
+        value_str = f"{value:,.0f} MKD" if value else "N/A"
+        closing = tender.get('closing_date', 'N/A')
+        if hasattr(closing, 'strftime'):
+            closing = closing.strftime('%Y-%m-%d')
+
+        tender_rows += f"""
+        <tr>
+            <td style="padding: 15px; border-bottom: 1px solid #e5e7eb;">
+                <h3 style="margin: 0 0 8px 0; color: #1f2937; font-size: 16px;">
+                    <a href="https://nabavkidata.com/tenders/{tender.get('tender_id', '')}"
+                       style="color: #2563eb; text-decoration: none;">
+                        {tender.get('title', 'Untitled')}
+                    </a>
+                </h3>
+                <p style="margin: 0; color: #6b7280; font-size: 14px;">
+                    <strong>Entity:</strong> {tender.get('procuring_entity', 'N/A')} |
+                    <strong>Budget:</strong> {value_str} |
+                    <strong>Closes:</strong> {closing}
+                </p>
+            </td>
+        </tr>
         """
 
-    if competitor_activity:
-        html += f"""
-            <h2>Competitor Activity ({len(competitor_activity)})</h2>
-        """
-        for activity in competitor_activity[:5]:
-            html += f"""
-            <div class="tender">
-                <h3>{activity['title']}</h3>
-                <p><strong>Competitor:</strong> {activity['competitor_name']}</p>
-                <p><strong>Status:</strong> {activity['status']}</p>
-            </div>
-            """
+    content = f"""
+    <p>Hello <strong>{user_name}</strong>,</p>
+    <p>Here's your {frequency} digest of public procurement opportunities in North Macedonia.</p>
 
-    if insights:
-        html += f"""
-            <div class="insights">
-                <h2>AI Insights</h2>
-                <p>{insights}</p>
-            </div>
-        """
+    <div style="margin: 25px 0; padding: 15px; background-color: #eff6ff; border-radius: 8px; border-left: 4px solid #2563eb;">
+        <p style="margin: 0; font-size: 18px; font-weight: 600; color: #1e40af;">
+            {period} Highlights: {len(tenders)} matching tenders
+        </p>
+    </div>
 
-    html += """
-        </div>
-        <div class="footer">
-            <p>nabavkidata.com - Macedonian Tender Intelligence</p>
-            <p><a href="https://nabavkidata.com/preferences">Update Preferences</a></p>
-        </div>
-    </body>
-    </html>
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        {tender_rows}
+    </table>
+
+    <p style="margin-top: 25px;">
+        Visit your dashboard to see all matching tenders and manage your alerts.
+    </p>
     """
 
-    return html
+    return mailer_service._get_email_template(
+        title=f"{period} Tender Digest",
+        content=content,
+        button_text="View All Tenders",
+        button_link="https://nabavkidata.com/dashboard"
+    )
 
 
-async def generate_user_digest(user_id: str, frequency: str = "daily"):
-    """Generate digest for single user"""
+async def get_recent_tenders(db, days: int = 1) -> List[Dict]:
+    """Get recent open tenders"""
+    since = datetime.utcnow() - timedelta(days=days)
 
-    async with AsyncSessionLocal() as db:
-        # Get user preferences
-        prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
-        result = await db.execute(prefs_query)
-        prefs = result.scalar_one_or_none()
-
-        if not prefs or not prefs.email_enabled:
-            return None
-
-        if prefs.notification_frequency != frequency:
-            return None
-
-        # Get recommended tenders
-        search_engine = HybridSearchEngine(db)
-        scored_tenders = await search_engine.search(user_id, limit=20)
-        tenders = [t[0] for t in scored_tenders]
-
-        if not tenders:
-            return None
-
-        # Get competitor activity
-        tracker = CompetitorTracker(db)
-        competitor_activity = await tracker.get_competitor_activity(user_id, limit=5)
-
-        # Generate AI insights summary
-        insights = f"We found {len(tenders)} tenders matching your preferences."
-        if competitor_activity:
-            insights += f" Your competitors are active in {len(competitor_activity)} recent tenders."
-
-        # Generate HTML
-        html = await generate_digest_html(
-            user_id,
-            tenders,
-            [
-                {
-                    'title': a.title,
-                    'competitor_name': a.competitor_name,
-                    'status': a.status
-                }
-                for a in competitor_activity
-            ],
-            insights
+    query = select(Tender).where(
+        and_(
+            Tender.status == 'open',
+            Tender.created_at >= since
         )
+    ).order_by(Tender.created_at.desc()).limit(20)
 
-        # Create digest record
-        digest = EmailDigest(
-            user_id=user_id,
-            digest_date=datetime.utcnow(),
-            digest_html=html,
-            digest_text=insights,
-            tender_count=len(tenders),
-            competitor_activity_count=len(competitor_activity)
-        )
+    result = await db.execute(query)
+    tenders = result.scalars().all()
 
-        db.add(digest)
-        await db.commit()
-        await db.refresh(digest)
+    return [
+        {
+            'tender_id': t.tender_id,
+            'title': t.title,
+            'procuring_entity': t.procuring_entity,
+            'estimated_value_mkd': t.estimated_value_mkd,
+            'closing_date': t.closing_date,
+            'category': t.category
+        }
+        for t in tenders
+    ]
 
-        return digest
+
+async def send_digest_to_user(
+    email: str,
+    name: str,
+    tenders: List[Dict],
+    frequency: str
+) -> bool:
+    """Send digest email to user"""
+
+    if not tenders:
+        return False
+
+    html_content = await generate_digest_html(name, tenders, frequency)
+
+    period = "Daily" if frequency == "daily" else "Weekly"
+    subject = f"{period} Tender Digest - {len(tenders)} New Opportunities"
+
+    return await mailer_service.send_transactional_email(
+        to=email,
+        subject=subject,
+        html_content=html_content,
+        reply_to="support@nabavkidata.com"
+    )
 
 
 async def generate_all_digests(frequency: str = "daily"):
-    """Generate digests for all eligible users"""
+    """Generate and send digests for all eligible users"""
 
-    print(f"[{datetime.utcnow()}] Generating {frequency} email digests...")
+    print(f"\n{'='*60}")
+    print(f"EMAIL DIGEST GENERATOR - {frequency.upper()}")
+    print(f"{'='*60}")
+    print(f"Started: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
     async with AsyncSessionLocal() as db:
-        # Get users with matching frequency
-        query = select(UserPreferences).where(
-            and_(
-                UserPreferences.email_enabled == True,
-                UserPreferences.notification_frequency == frequency
+        # Get recent tenders
+        days = 1 if frequency == "daily" else 7
+        tenders = await get_recent_tenders(db, days)
+
+        print(f"Found {len(tenders)} tenders from last {days} day(s)")
+
+        if not tenders:
+            print("No new tenders to send. Exiting.")
+            return
+
+        # Get users with email notifications enabled
+        if HAS_PERSONALIZATION:
+            query = select(UserPreferences, User).join(
+                User, User.user_id == UserPreferences.user_id
+            ).where(
+                and_(
+                    UserPreferences.email_enabled == True,
+                    UserPreferences.notification_frequency == frequency,
+                    User.email_verified == True
+                )
             )
-        )
-        result = await db.execute(query)
-        prefs_list = result.scalars().all()
+            result = await db.execute(query)
+            users = [(prefs.user_id, user.email, user.full_name) for prefs, user in result.all()]
+        else:
+            # Fallback: send to all verified users
+            query = select(User).where(User.email_verified == True)
+            result = await db.execute(query)
+            users = [(u.user_id, u.email, u.full_name) for u in result.scalars().all()]
 
-        print(f"Found {len(prefs_list)} users for {frequency} digest")
+        print(f"Found {len(users)} eligible users for {frequency} digest")
 
-        generated_count = 0
-        skipped_count = 0
+        if not users:
+            print("No eligible users found. Exiting.")
+            return
 
-        for prefs in prefs_list:
+        sent_count = 0
+        failed_count = 0
+
+        for user_id, email, name in users:
             try:
-                digest = await generate_user_digest(str(prefs.user_id), frequency)
-                if digest:
-                    generated_count += 1
-                    print(f"✓ Generated digest for user {prefs.user_id}")
-                else:
-                    skipped_count += 1
-            except Exception as e:
-                print(f"✗ Error for user {prefs.user_id}: {e}")
-                skipped_count += 1
+                success = await send_digest_to_user(
+                    email=email,
+                    name=name or "User",
+                    tenders=tenders,
+                    frequency=frequency
+                )
 
-        print(f"\n[{datetime.utcnow()}] Generation complete:")
-        print(f"  ✓ Generated: {generated_count}")
-        print(f"  - Skipped: {skipped_count}")
+                if success:
+                    sent_count += 1
+                    print(f"  ✓ Sent to {email}")
+                else:
+                    failed_count += 1
+                    print(f"  ✗ Failed: {email}")
+
+            except Exception as e:
+                failed_count += 1
+                print(f"  ✗ Error for {email}: {e}")
+
+        print(f"\n{'='*60}")
+        print(f"DIGEST SUMMARY")
+        print(f"{'='*60}")
+        print(f"  Tenders included: {len(tenders)}")
+        print(f"  Emails sent: {sent_count}")
+        print(f"  Emails failed: {failed_count}")
+        print(f"Completed: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
 
 def main():

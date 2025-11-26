@@ -221,22 +221,24 @@ class PromptBuilder:
     Handles Macedonian language and tender-specific formatting
     """
 
-    SYSTEM_PROMPT = """You are an AI assistant specialized in Macedonian public procurement and tender analysis.
+    SYSTEM_PROMPT = """Ти си AI асистент специјализиран за македонски јавни набавки и анализа на тендери.
 
-Your role:
-- Answer questions about tenders, procurement procedures, and related documents
-- Use ONLY information from the provided context (source documents)
-- Cite sources when making claims
-- Be precise and factual
-- Support both Macedonian and English questions
-- If information is not in context, say so clearly
+Твоја улога:
+- Одговарај на прашања за тендери, постапки за јавни набавки и поврзани документи
+- Користи САМО информации од дадениот контекст (изворни документи)
+- Наведи извори кога тврдиш нешто
+- Биди прецизен и фактички точен
+- ОДГОВАРАЈ на ИСТИОТ ЈАЗИК на кој е поставено прашањето (македонски, албански, турски или англиски)
+- Ако информацијата не е во контекстот, кажи јасно
 
-Guidelines:
-- Quote relevant parts of documents when appropriate
-- Mention tender IDs and document names
-- Explain procurement terminology when needed
-- Handle both Macedonian (Cyrillic) and English
-- Be concise but thorough"""
+Упатства:
+- Цитирај релевантни делови од документи кога е соодветно
+- Спомни ги ID-ата на тендерите и имиња на документи
+- Објасни терминологија за набавки кога е потребно
+- Биди концизен но темелен
+- Ако нема доволно податоци за одговор, наведи кои тендери се достапни
+
+ВАЖНО: Секогаш одговарај на јазикот на кој е поставено прашањето."""
 
     @classmethod
     def build_query_prompt(
@@ -266,14 +268,14 @@ Guidelines:
                 prompt_parts.append(f"A: {turn['answer']}\n\n")
 
         # Add current query with context
-        prompt_parts.append("Context from tender documents:\n\n")
+        prompt_parts.append("Контекст од документи за тендери:\n\n")
         prompt_parts.append(context)
         prompt_parts.append("\n\n---\n\n")
-        prompt_parts.append(f"Question: {question}\n\n")
+        prompt_parts.append(f"Прашање: {question}\n\n")
         prompt_parts.append(
-            "Please answer the question based ONLY on the context provided above. "
-            "If the answer is not in the context, say \"I don't have enough information "
-            "to answer this question based on the available documents.\""
+            "Одговори на прашањето САМО врз основа на контекстот даден погоре. "
+            "ВАЖНО: Одговори на ИСТИОТ ЈАЗИК на кој е поставено прашањето. "
+            "Ако одговорот не е во контекстот, кажи кои тендери се достапни и дај преглед на нив."
         )
 
         return "".join(prompt_parts)
@@ -477,8 +479,8 @@ class RAGQueryPipeline:
         self,
         database_url: Optional[str] = None,
         gemini_api_key: Optional[str] = None,
-        model: str = "gemini-1.5-flash",
-        fallback_model: str = "gemini-1.5-pro",
+        model: Optional[str] = None,
+        fallback_model: Optional[str] = None,
         top_k: int = 5,
         max_context_tokens: int = 3000,
         enable_personalization: bool = True,
@@ -491,6 +493,10 @@ class RAGQueryPipeline:
         self.gemini_api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
         if not self.gemini_api_key:
             raise ValueError("GEMINI_API_KEY not set")
+
+        # Use env vars for model names, with sensible defaults
+        model = model or os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+        fallback_model = fallback_model or os.getenv('GEMINI_FALLBACK_MODEL', 'gemini-2.0-flash')
 
         genai.configure(api_key=self.gemini_api_key)
         self.model = model
@@ -572,13 +578,43 @@ class RAGQueryPipeline:
                 )
 
             if not search_results:
-                logger.warning("No relevant documents found")
-                # Return message in Macedonian
+                logger.warning("No embeddings found, falling back to direct SQL query")
+                # FALLBACK: Query tenders table directly when no embeddings exist
+                search_results, context = await self._fallback_sql_search(question, tender_id)
+
+                if not search_results:
+                    logger.warning("No tenders found in database")
+                    return RAGAnswer(
+                        question=question,
+                        answer="Моментално немаме тендери во базата. Обидете се повторно кога ќе имаме повеќе тендери во системот.",
+                        sources=[],
+                        confidence='low',
+                        generated_at=datetime.utcnow(),
+                        model_used=self.model
+                    )
+
+                # Skip normal context assembly, use pre-built context
+                sources_used = search_results
+
+                # Build prompt and generate answer
+                prompt = self.prompt_builder.build_query_prompt(
+                    question=question,
+                    context=context,
+                    conversation_history=conversation_history
+                )
+
+                logger.info(f"Generating answer with {self.model} (SQL fallback)...")
+                try:
+                    answer_text = await self._generate_with_gemini(prompt, self.model)
+                except Exception as e:
+                    logger.warning(f"Primary model failed: {e}, trying fallback...")
+                    answer_text = await self._generate_with_gemini(prompt, self.fallback_model)
+
                 return RAGAnswer(
                     question=question,
-                    answer="Моментално немаме документи во базата што можат да го одговорат вашето прашање. Обидете се повторно кога ќе имаме повеќе тендери во системот.",
-                    sources=[],
-                    confidence='low',
+                    answer=answer_text,
+                    sources=sources_used,
+                    confidence='medium',
                     generated_at=datetime.utcnow(),
                     model_used=self.model
                 )
@@ -626,6 +662,92 @@ class RAGQueryPipeline:
             await self.vector_store.close()
             if self.enable_personalization:
                 await self.personalization_scorer.close()
+
+    async def _fallback_sql_search(
+        self,
+        question: str,
+        tender_id: Optional[str] = None
+    ) -> Tuple[List[SearchResult], str]:
+        """
+        Fallback: Query tenders table directly when no embeddings exist.
+
+        This is a simple keyword-based search that doesn't require embeddings.
+        Returns tender data formatted as context for Gemini.
+        """
+        # Convert SQLAlchemy URL to asyncpg format
+        db_url = self.database_url.replace('postgresql+asyncpg://', 'postgresql://')
+        conn = await asyncpg.connect(db_url)
+
+        try:
+            # Query recent tenders (limit to 20 for context size)
+            if tender_id:
+                rows = await conn.fetch("""
+                    SELECT tender_id, title, description, category, procuring_entity,
+                           estimated_value_mkd, estimated_value_eur, status,
+                           publication_date, closing_date, procedure_type, winner
+                    FROM tenders
+                    WHERE tender_id = $1
+                    LIMIT 1
+                """, tender_id)
+            else:
+                # Get recent tenders ordered by publication date
+                rows = await conn.fetch("""
+                    SELECT tender_id, title, description, category, procuring_entity,
+                           estimated_value_mkd, estimated_value_eur, status,
+                           publication_date, closing_date, procedure_type, winner
+                    FROM tenders
+                    ORDER BY publication_date DESC NULLS LAST, created_at DESC
+                    LIMIT 20
+                """)
+
+            if not rows:
+                return [], ""
+
+            # Build context from tender data
+            context_parts = []
+            search_results = []
+
+            for i, row in enumerate(rows):
+                # Format tender info as text
+                tender_text = f"""
+Тендер: {row['title']}
+ID: {row['tender_id']}
+Категорија: {row['category'] or 'N/A'}
+Набавувач: {row['procuring_entity'] or 'N/A'}
+Проценета вредност (МКД): {row['estimated_value_mkd'] or 'N/A'}
+Проценета вредност (EUR): {row['estimated_value_eur'] or 'N/A'}
+Статус: {row['status'] or 'N/A'}
+Датум на објава: {row['publication_date'] or 'N/A'}
+Краен рок: {row['closing_date'] or 'N/A'}
+Тип на постапка: {row['procedure_type'] or 'N/A'}
+Победник: {row['winner'] or 'Не е избран'}
+Опис: {row['description'] or 'Нема опис'}
+""".strip()
+
+                context_parts.append(f"[Тендер {i+1}]\n{tender_text}")
+
+                # Create SearchResult for source attribution
+                search_results.append(SearchResult(
+                    embed_id=f"sql-{row['tender_id']}",
+                    chunk_text=tender_text,
+                    chunk_index=0,
+                    tender_id=row['tender_id'],
+                    doc_id=None,
+                    chunk_metadata={
+                        'tender_title': row['title'],
+                        'tender_category': row['category'],
+                        'source': 'sql_fallback'
+                    },
+                    similarity=1.0  # Direct match
+                ))
+
+            context = "\n\n---\n\n".join(context_parts)
+            logger.info(f"SQL fallback: Found {len(rows)} tenders")
+
+            return search_results, context
+
+        finally:
+            await conn.close()
 
     async def _generate_with_gemini(self, prompt: str, model: str) -> str:
         """
@@ -850,3 +972,163 @@ async def search_tenders(
 
     finally:
         await vector_store.close()
+
+
+# ============================================================================
+# E-PAZAR AI SUMMARIZATION FUNCTIONS
+# ============================================================================
+
+async def generate_tender_summary(context: Dict) -> str:
+    """
+    Generate AI summary of e-Pazar tender including items and offers.
+
+    Args:
+        context: Dictionary containing tender data, items, and offers
+
+    Returns:
+        AI-generated summary in Macedonian
+    """
+    gemini_api_key = os.getenv('GEMINI_API_KEY')
+    if not gemini_api_key:
+        raise ValueError("GEMINI_API_KEY not set")
+
+    genai.configure(api_key=gemini_api_key)
+    model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+
+    # Build context text
+    tender_info = f"""
+Тендер: {context.get('tender_title', 'N/A')}
+Договорен орган: {context.get('contracting_authority', 'N/A')}
+Проценета вредност: {context.get('estimated_value', 'N/A')} МКД
+Статус: {context.get('status', 'N/A')}
+"""
+
+    # Format items
+    items_text = ""
+    items = context.get('items', [])
+    if items:
+        items_text = "\n\nАртикли (BOQ):\n"
+        for i, item in enumerate(items[:20], 1):  # Limit to 20 items
+            name = item.get('name', 'N/A')
+            qty = item.get('quantity', 'N/A')
+            unit = item.get('unit', '')
+            price = item.get('estimated_price', 'N/A')
+            items_text += f"{i}. {name} - {qty} {unit} @ {price} МКД\n"
+
+        if len(items) > 20:
+            items_text += f"\n... и уште {len(items) - 20} артикли\n"
+
+    # Format offers
+    offers_text = ""
+    offers = context.get('offers', [])
+    if offers:
+        offers_text = "\n\nПонуди:\n"
+        for i, offer in enumerate(offers[:10], 1):
+            supplier = offer.get('supplier', 'N/A')
+            amount = offer.get('amount', 'N/A')
+            is_winner = " (ПОБЕДНИК)" if offer.get('is_winner') else ""
+            ranking = offer.get('ranking', '')
+            rank_text = f" (Ранг: #{ranking})" if ranking else ""
+            offers_text += f"{i}. {supplier}: {amount} МКД{rank_text}{is_winner}\n"
+
+    full_context = tender_info + items_text + offers_text
+
+    # Build prompt
+    prompt = f"""Ти си експерт за јавни набавки во Македонија. Направи кратко резиме на следниот тендер од е-Пазар платформата.
+
+Контекст:
+{full_context}
+
+Резимето треба да вклучува:
+1. Краток опис на набавката (2-3 реченици)
+2. Клучни артикли/производи што се бараат
+3. Анализа на понудите и конкуренцијата (ако има)
+4. Препораки за потенцијални понудувачи
+
+Одговори на македонски јазик. Биди концизен и прецизен."""
+
+    def _sync_generate():
+        model_obj = genai.GenerativeModel(model_name)
+        response = model_obj.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=800
+            )
+        )
+        return response.text
+
+    summary = await asyncio.to_thread(_sync_generate)
+    return summary
+
+
+async def generate_supplier_analysis(context: Dict) -> str:
+    """
+    Generate AI analysis of supplier performance based on their bidding history.
+
+    Args:
+        context: Dictionary containing supplier data and offers history
+
+    Returns:
+        AI-generated analysis in Macedonian
+    """
+    gemini_api_key = os.getenv('GEMINI_API_KEY')
+    if not gemini_api_key:
+        raise ValueError("GEMINI_API_KEY not set")
+
+    genai.configure(api_key=gemini_api_key)
+    model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+
+    # Build context text
+    supplier_info = f"""
+Компанија: {context.get('company_name', 'N/A')}
+Вкупно понуди: {context.get('total_offers', 0)}
+Вкупно победи: {context.get('total_wins', 0)}
+Процент на успех: {context.get('win_rate', 0):.1f}%
+Вкупна вредност на договори: {context.get('total_contract_value', 0)} МКД
+Индустрии: {context.get('industries', 'N/A')}
+"""
+
+    # Format recent offers
+    offers_text = ""
+    offers_history = context.get('offers_history', [])
+    if offers_history:
+        offers_text = "\n\nПоследни понуди:\n"
+        for i, offer in enumerate(offers_history[:15], 1):
+            title = offer.get('tender_title', 'N/A')[:50]
+            amount = offer.get('bid_amount', 'N/A')
+            is_winner = " ✓" if offer.get('is_winner') else ""
+            ranking = offer.get('ranking', '')
+            rank_text = f" (#{ranking})" if ranking else ""
+            offers_text += f"{i}. {title}... - {amount} МКД{rank_text}{is_winner}\n"
+
+    full_context = supplier_info + offers_text
+
+    # Build prompt
+    prompt = f"""Ти си експерт за анализа на добавувачи во јавни набавки. Анализирај го следниот добавувач од е-Пазар платформата.
+
+Контекст:
+{full_context}
+
+Анализата треба да вклучува:
+1. Профил на компанијата и нејзината активност
+2. Анализа на успешноста во тендерирање
+3. Области/категории каде се најактивни
+4. Трендови во понудувањето (ако може да се забележат)
+5. Оценка на конкурентноста на понудите
+
+Одговори на македонски јазик. Биди објективен и аналитичен."""
+
+    def _sync_generate():
+        model_obj = genai.GenerativeModel(model_name)
+        response = model_obj.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=800
+            )
+        )
+        return response.text
+
+    analysis = await asyncio.to_thread(_sync_generate)
+    return analysis

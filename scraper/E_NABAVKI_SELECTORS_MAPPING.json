@@ -1,0 +1,386 @@
+{
+  "metadata": {
+    "agent": "Agent A - Website Mapping & Selector Extraction Expert",
+    "date": "2025-11-24",
+    "website": "e-nabavki.gov.mk",
+    "status": "PARTIAL - JavaScript-rendered Angular site limits direct inspection",
+    "notes": [
+      "e-nabavki.gov.mk is a heavily Angular-based application with client-side rendering",
+      "WebFetch tool cannot fully render JavaScript content, limiting direct DOM inspection",
+      "Selectors derived from skopjehacklab/e-nabavki open-source project",
+      "Real selector validation requires Playwright/Selenium with JavaScript execution",
+      "Some selectors are ASP.NET control IDs from settings.ini.example"
+    ]
+  },
+
+  "listings_page": {
+    "url": "https://e-nabavki.gov.mk/PublicAccess/home.aspx#/notices",
+    "framework": "AngularJS with hash-based routing",
+    "rendering": "Client-side JavaScript required",
+    "selectors": {
+      "tender_list_container": {
+        "css": null,
+        "notes": "Container not visible in non-rendered HTML"
+      },
+      "tender_item": {
+        "css": [
+          ".RowStyle",
+          ".AltRowStyle"
+        ],
+        "notes": "Alternating row styles in listings table"
+      },
+      "tender_link": {
+        "css": [
+          ".RowStyle td:nth-child(1) a[href]",
+          ".AltRowStyle td:nth-child(1) a[href]"
+        ],
+        "notes": "Links in first column of each row",
+        "source": "e-nabavki.gov.mk.js (CasperJS script)"
+      },
+      "pagination_dropdown": {
+        "id": "ctl00$ctl00$cphGlobal$cphPublicAccess$ucNotificationForACPP$gvNotifications$ctl13$ddlPageSelector",
+        "type": "ASP.NET control",
+        "notes": "Dropdown for page selection (zero-based indexing)"
+      },
+      "pagination_status": {
+        "css": ".PagerStyle",
+        "validation_text": "до {pageNum * 10} од",
+        "notes": "Pager showing current page range"
+      }
+    },
+    "sample_tender_urls": [
+      "https://e-nabavki.gov.mk/PublicAccess/Dossie/dosieNotificationForACPP.aspx?Id=c8d9ff87-d7a1-4cd2-95bf-3a56107439ae&Level=3",
+      "https://e-nabavki.gov.mk/PublicAccess/Dossie/dosieNotificationForACPP.aspx?Id=18d0035d-158c-4df9-ad04-3e770c74a083&Level=3",
+      "https://e-nabavki.gov.mk/PublicAccess/Dossie/dosieNotificationForACPP.aspx?Id=cb2e22be-a1e6-437d-aaf1-8367a38cd010&Level=3"
+    ],
+    "url_pattern": {
+      "template": "https://e-nabavki.gov.mk/PublicAccess/Dossie/dosieNotificationForACPP.aspx?Id={GUID}&Level={LEVEL}",
+      "parameters": {
+        "Id": "UUID/GUID identifier",
+        "Level": "Integer (commonly 3)"
+      }
+    }
+  },
+
+  "detail_page": {
+    "url_pattern": "/PublicAccess/Dossie/dosieNotificationForACPP.aspx",
+    "asp_net_control_prefix": "ctl00_ctl00_cphGlobal_cphPublicAccess_",
+    "rendering": "ASP.NET WebForms with partial client-side rendering",
+
+    "selectors": {
+      "organization_name": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblName",
+        "label_macedonian": "Назив на договорниот орган",
+        "label_english": "Organization name",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblName"},
+          {"type": "label", "macedonian": "Назив на договорниот орган", "english": "Organization name"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "procedure_type": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblProcedureType",
+        "label_macedonian": "Вид на постапка",
+        "label_english": "Procedure type",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblProcedureType"},
+          {"type": "label", "macedonian": "Вид на постапка", "english": "Procedure type"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "contracting_entity_category": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblCategory",
+        "label_macedonian": "Категорија на орган / Главна дејност",
+        "label_english": "Contractor category / primary activity",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblCategory"},
+          {"type": "label", "macedonian": "Категорија на орган", "english": "Entity category"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "tender_subject": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblPredmet",
+        "label_macedonian": "Предмет на договорот",
+        "label_english": "Contract subject",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblPredmet"},
+          {"type": "label", "macedonian": "Предмет", "english": "Subject"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "procurement_subject": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblSubjectOfProcurement",
+        "label_macedonian": "Предмет на набавка",
+        "label_english": "Subject of procurement",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblSubjectOfProcurement"},
+          {"type": "label", "macedonian": "Предмет на набавка", "english": "Subject of procurement"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "detailed_description": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblPodetalenOpis",
+        "label_macedonian": "Подетален опис",
+        "label_english": "Detailed description",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblPodetalenOpis"},
+          {"type": "label", "macedonian": "Подетален опис", "english": "Detailed description"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "contract_duration": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblContractPeriod",
+        "label_macedonian": "Времетраење на договорот",
+        "label_english": "Contract duration",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblContractPeriod"},
+          {"type": "label", "macedonian": "Времетраење", "english": "Duration"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "contract_signing_date": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblContractDate",
+        "label_macedonian": "Датум на склучување на договорот",
+        "label_english": "Contract signing date",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblContractDate"},
+          {"type": "label", "macedonian": "Датум на склучување", "english": "Signing date"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "procurement_holder": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblNositel",
+        "label_macedonian": "Носител на набавката",
+        "label_english": "Procurement holder name",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblNositel"},
+          {"type": "label", "macedonian": "Носител", "english": "Holder"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "estimated_value": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblEstimatedContractValue",
+        "label_macedonian": "Проценета вредност на договор",
+        "label_english": "Estimated contract value",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblEstimatedContractValue"},
+          {"type": "label", "macedonian": "Проценета вредност", "english": "Estimated value"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "awarded_value_vat": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblAssignedContractValueVAT",
+        "label_macedonian": "Вредност на склучениот договор со ДДВ",
+        "label_english": "Contract value with VAT",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblAssignedContractValueVAT"},
+          {"type": "label", "macedonian": "Вредност со ДДВ", "english": "Value with VAT"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "bureau_delivery_date": {
+        "asp_net_id": "ctl00_ctl00_cphGlobal_cphPublicAccess_lblDeliveryDate",
+        "label_macedonian": "Датум на доставување до Биро за јавни набавки",
+        "label_english": "Delivery date to procurement bureau",
+        "fallback": [
+          {"type": "css", "selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblDeliveryDate"},
+          {"type": "label", "macedonian": "Датум на доставување", "english": "Delivery date"}
+        ],
+        "source": "settings.ini.example"
+      },
+
+      "tender_id": {
+        "primary": null,
+        "xpath": null,
+        "label_based": ["Број", "Референца", "ID"],
+        "fallback": "Extract from URL parameter ?Id=",
+        "notes": "Not found in settings.ini - may need page inspection"
+      },
+
+      "title": {
+        "primary": null,
+        "xpath": null,
+        "label_based": ["Назив", "Име на набавка"],
+        "fallback": "h1 or main heading",
+        "notes": "Not found in settings.ini - likely in page heading"
+      },
+
+      "closing_date": {
+        "primary": null,
+        "xpath": null,
+        "label_based": ["Краен рок", "Рок за поднесување", "Затворање"],
+        "fallback": null,
+        "notes": "Critical field - needs identification"
+      },
+
+      "opening_date": {
+        "primary": null,
+        "xpath": null,
+        "label_based": ["Отворање", "Датум на отворање"],
+        "fallback": null,
+        "notes": "Important date field"
+      },
+
+      "publication_date": {
+        "primary": null,
+        "xpath": null,
+        "label_based": ["Објавено", "Датум на објава"],
+        "fallback": null,
+        "notes": "Publication metadata"
+      },
+
+      "cpv_code": {
+        "primary": null,
+        "xpath": null,
+        "label_based": ["CPV", "CPV Код"],
+        "fallback": "Regex: CPV[:\\s]+([0-9-]+)",
+        "notes": "Classification code"
+      },
+
+      "status": {
+        "primary": null,
+        "xpath": null,
+        "label_based": ["Статус", "Состојба"],
+        "fallback": "Auto-detect based on dates and winner",
+        "notes": "May be badge or indicator"
+      },
+
+      "winner": {
+        "primary": null,
+        "xpath": null,
+        "label_based": ["Добитник", "Избран понудувач", "Договорен оператор"],
+        "fallback": null,
+        "notes": "Only present in awarded tenders"
+      }
+    }
+  },
+
+  "documents": {
+    "container": {
+      "css": null,
+      "notes": "Document section needs page inspection"
+    },
+    "document_links": {
+      "css": "a[href$='.pdf']",
+      "fallback": "a.btn-download, table.documents a",
+      "notes": "PDF links likely use standard anchor tags"
+    },
+    "download_button": {
+      "css": null,
+      "notes": "May vary by document type"
+    }
+  },
+
+  "angular_specifics": {
+    "framework": "AngularJS (1.x)",
+    "routing": "Hash-based (#/notices, #/Dossie/...)",
+    "wait_for_element": ".RowStyle, .AltRowStyle, .PagerStyle",
+    "dynamic_content_triggers": [
+      "Page load with hash route",
+      "Pagination dropdown change",
+      "AJAX completion check via .PagerStyle text content"
+    ],
+    "playwright_requirements": {
+      "wait_for_load_state": "networkidle",
+      "wait_for_selector": ".RowStyle, .AltRowStyle",
+      "wait_for_timeout": 2000,
+      "notes": "Angular needs time to bootstrap and render content"
+    }
+  },
+
+  "extraction_challenges": {
+    "javascript_rendering": {
+      "severity": "CRITICAL",
+      "description": "Page requires JavaScript execution to render content",
+      "solution": "Use Playwright or Selenium with wait conditions"
+    },
+    "asp_net_viewstate": {
+      "severity": "MEDIUM",
+      "description": "ASP.NET WebForms may use ViewState for postbacks",
+      "solution": "Maintain session state if submitting forms"
+    },
+    "ajax_loaded_content": {
+      "severity": "HIGH",
+      "description": "Tender listings loaded via AJAX after page load",
+      "solution": "Wait for .RowStyle/.AltRowStyle elements to appear"
+    },
+    "dynamic_control_ids": {
+      "severity": "LOW",
+      "description": "ASP.NET control IDs are consistent but verbose",
+      "solution": "Use documented IDs from settings.ini or label-based fallbacks"
+    },
+    "pagination": {
+      "severity": "MEDIUM",
+      "description": "Pagination via dropdown requires form interaction",
+      "solution": "Select option in dropdown, wait for AJAX, verify .PagerStyle text"
+    }
+  },
+
+  "field_mapping_table": {
+    "headers": ["Field Name", "Macedonian Label", "ASP.NET ID", "CSS Selector", "Fallback Strategy"],
+    "rows": [
+      ["organization_name", "Назив на договорниот орган", "lblName", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblName", "Label search"],
+      ["procedure_type", "Вид на постапка", "lblProcedureType", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblProcedureType", "Label search"],
+      ["contracting_entity_category", "Категорија на орган", "lblCategory", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblCategory", "Label search"],
+      ["tender_subject", "Предмет на договорот", "lblPredmet", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblPredmet", "Label search"],
+      ["procurement_subject", "Предмет на набавка", "lblSubjectOfProcurement", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblSubjectOfProcurement", "Label search"],
+      ["detailed_description", "Подетален опис", "lblPodetalenOpis", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblPodetalenOpis", "Label search"],
+      ["contract_duration", "Времетраење на договорот", "lblContractPeriod", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblContractPeriod", "Label search"],
+      ["contract_signing_date", "Датум на склучување", "lblContractDate", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblContractDate", "Date parser"],
+      ["procurement_holder", "Носител на набавката", "lblNositel", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblNositel", "Label search"],
+      ["estimated_value", "Проценета вредност", "lblEstimatedContractValue", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblEstimatedContractValue", "Currency parser"],
+      ["awarded_value_vat", "Вредност со ДДВ", "lblAssignedContractValueVAT", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblAssignedContractValueVAT", "Currency parser"],
+      ["bureau_delivery_date", "Датум на доставување", "lblDeliveryDate", "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblDeliveryDate", "Date parser"],
+      ["tender_id", "Број", "UNKNOWN", "NEEDS_INSPECTION", "URL parameter, Label search"],
+      ["title", "Назив", "UNKNOWN", "h1, h2", "Label search, heading"],
+      ["closing_date", "Краен рок", "UNKNOWN", "NEEDS_INSPECTION", "Label search, date parser"],
+      ["opening_date", "Отворање", "UNKNOWN", "NEEDS_INSPECTION", "Label search, date parser"],
+      ["publication_date", "Објавено", "UNKNOWN", "NEEDS_INSPECTION", "Label search, date parser"],
+      ["cpv_code", "CPV", "UNKNOWN", "NEEDS_INSPECTION", "Label search, regex"],
+      ["status", "Статус", "UNKNOWN", "NEEDS_INSPECTION", "Auto-detect, label search"],
+      ["winner", "Добитник", "UNKNOWN", "NEEDS_INSPECTION", "Label search"]
+    ]
+  },
+
+  "recommendations": {
+    "immediate_actions": [
+      "Use Playwright to render actual tender detail pages and inspect DOM",
+      "Test ASP.NET control IDs from settings.ini on live pages",
+      "Identify selectors for missing critical fields (tender_id, title, closing_date)",
+      "Verify document attachment section structure",
+      "Test pagination mechanism with Playwright"
+    ],
+    "testing_strategy": [
+      "Test on at least 10 different tenders",
+      "Include tenders at different statuses (open, closed, awarded)",
+      "Test different procurement types",
+      "Verify date format consistency",
+      "Check currency value extraction accuracy"
+    ],
+    "fallback_priorities": [
+      "Level 1: ASP.NET control IDs (most reliable if unchanged)",
+      "Level 2: CSS classes and IDs",
+      "Level 3: Label-based extraction (Macedonian then English)",
+      "Level 4: Regex patterns on page text",
+      "Level 5: Default values with logging"
+    ]
+  },
+
+  "references": {
+    "github_project": "https://github.com/skopjehacklab/e-nabavki",
+    "casperjs_script": "https://raw.githubusercontent.com/skopjehacklab/e-nabavki/master/e-nabavki.gov.mk.js",
+    "settings_example": "https://raw.githubusercontent.com/skopjehacklab/e-nabavki/master/settings.ini.example",
+    "parse_script": "https://raw.githubusercontent.com/skopjehacklab/e-nabavki/master/parse-dosies-js/parse-dosie.js"
+  }
+}

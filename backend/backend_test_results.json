@@ -1,0 +1,144 @@
+{
+  "passed": 19,
+  "failed": 4,
+  "tests": [
+    {
+      "name": "GET /",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:13:58.869089"
+    },
+    {
+      "name": "GET / - Response body",
+      "passed": true,
+      "details": "Keys: ['service', 'version', 'description', 'documentation', 'status']",
+      "timestamp": "2025-11-23T23:13:58.869121"
+    },
+    {
+      "name": "GET /health",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:13:58.904803"
+    },
+    {
+      "name": "GET /health - Response body",
+      "passed": true,
+      "details": "Status: healthy",
+      "timestamp": "2025-11-23T23:13:58.904832"
+    },
+    {
+      "name": "POST /api/auth/login",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:13:59.236150"
+    },
+    {
+      "name": "POST /api/auth/login - Token received",
+      "passed": true,
+      "details": "Token length: 187",
+      "timestamp": "2025-11-23T23:13:59.236177"
+    },
+    {
+      "name": "GET /api/auth/me (authenticated)",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:13:59.280192"
+    },
+    {
+      "name": "GET /api/auth/me - User data",
+      "passed": true,
+      "details": "Email: test-enterprise@nabavkidata.com",
+      "timestamp": "2025-11-23T23:13:59.280217"
+    },
+    {
+      "name": "GET /api/auth/me (unauthenticated)",
+      "passed": true,
+      "details": "Status: 401 (expected 401)",
+      "timestamp": "2025-11-23T23:13:59.320581"
+    },
+    {
+      "name": "GET /api/tenders",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:13:59.360368"
+    },
+    {
+      "name": "GET /api/tenders - Response structure",
+      "passed": true,
+      "details": "Total: 0, Items: 0",
+      "timestamp": "2025-11-23T23:13:59.360394"
+    },
+    {
+      "name": "GET /api/tenders?status=open",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:13:59.411120"
+    },
+    {
+      "name": "GET /api/tenders/stats/overview",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:13:59.455698"
+    },
+    {
+      "name": "GET /api/billing/subscription",
+      "passed": false,
+      "details": "Status: 404",
+      "timestamp": "2025-11-23T23:13:59.489661"
+    },
+    {
+      "name": "GET /api/billing/usage",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:13:59.531938"
+    },
+    {
+      "name": "GET /api/admin/users",
+      "passed": false,
+      "details": "Status: 404 (200=admin, 403=not admin)",
+      "timestamp": "2025-11-23T23:13:59.566647"
+    },
+    {
+      "name": "GET /api/admin/analytics",
+      "passed": false,
+      "details": "Status: 404 (200=admin, 403=not admin)",
+      "timestamp": "2025-11-23T23:13:59.601184"
+    },
+    {
+      "name": "GET /api/admin/fraud/logs",
+      "passed": false,
+      "details": "Status: 404 (200=admin, 403=not admin)",
+      "timestamp": "2025-11-23T23:13:59.636625"
+    },
+    {
+      "name": "Rate limiting",
+      "passed": true,
+      "details": "10 rapid requests: 10 succeeded, 0 rate-limited",
+      "timestamp": "2025-11-23T23:13:59.988882"
+    },
+    {
+      "name": "CORS headers present",
+      "passed": true,
+      "details": "Headers: {'access-control-allow-origin': 'https://www.nabavkidata.com', 'access-control-allow-methods': None, 'access-control-allow-headers': None}",
+      "timestamp": "2025-11-23T23:14:00.040337"
+    },
+    {
+      "name": "GET /api/docs (Swagger UI)",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:14:00.094869"
+    },
+    {
+      "name": "GET /api/openapi.json",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:14:00.402700"
+    },
+    {
+      "name": "OpenAPI spec structure",
+      "passed": true,
+      "details": "Endpoints documented: 73",
+      "timestamp": "2025-11-23T23:14:00.403607"
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "passed": 14,
+  "failed": 3,
+  "tests": [
+    {
+      "name": "GET /api/stripe/webhook/health",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:42:28.197696"
+    },
+    {
+      "name": "Webhook secret configured",
+      "passed": true,
+      "details": "Configured: True",
+      "timestamp": "2025-11-23T23:42:28.197728"
+    },
+    {
+      "name": "Stripe API key configured",
+      "passed": true,
+      "details": "Configured: True",
+      "timestamp": "2025-11-23T23:42:28.197733"
+    },
+    {
+      "name": "All required events supported",
+      "passed": true,
+      "details": "Supported: 6 events",
+      "timestamp": "2025-11-23T23:42:28.197740"
+    },
+    {
+      "name": "Price ID mappings configured",
+      "passed": true,
+      "details": "Mappings: 4 (expected >= 4)",
+      "timestamp": "2025-11-23T23:42:28.197744"
+    },
+    {
+      "name": "GET /api/billing/plans",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:42:28.634001"
+    },
+    {
+      "name": "Billing plans structure",
+      "passed": false,
+      "details": "Plans available: 0",
+      "timestamp": "2025-11-23T23:42:28.634042"
+    },
+    {
+      "name": "GET /api/billing/status",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:42:28.686122"
+    },
+    {
+      "name": "Billing status structure",
+      "passed": true,
+      "details": "Keys: ['tier', 'status', 'plan', 'trial', 'billing_period', 'usage', 'limits', 'subscription_id', 'cancel_at_period_end', 'stripe_customer_id']",
+      "timestamp": "2025-11-23T23:42:28.686184"
+    },
+    {
+      "name": "GET /api/billing/usage",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:42:28.727717"
+    },
+    {
+      "name": "Usage tracking data",
+      "passed": true,
+      "details": "Keys: ['tier', 'period_start', 'period_end', 'trial', 'usage', 'limits', 'warnings']",
+      "timestamp": "2025-11-23T23:42:28.727752"
+    },
+    {
+      "name": "GET /api/billing/invoices",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-11-23T23:42:28.766520"
+    },
+    {
+      "name": "User has subscription tier",
+      "passed": true,
+      "details": "Current tier: enterprise",
+      "timestamp": "2025-11-23T23:42:28.804854"
+    },
+    {
+      "name": "Subscription tier stored in user data",
+      "passed": true,
+      "details": "Tier field present: enterprise",
+      "timestamp": "2025-11-23T23:42:28.804864"
+    },
+    {
+      "name": "POST /api/billing/checkout",
+      "passed": false,
+      "details": "Status: 422",
+      "timestamp": "2025-11-23T23:42:28.846080"
+    },
+    {
+      "name": "POST /api/billing/portal",
+      "passed": false,
+      "details": "Status: 400",
+      "timestamp": "2025-11-23T23:42:28.886392"
+    },
+    {
+      "name": "Webhook rejects unsigned requests",
+      "passed": true,
+      "details": "Status: 400 (expected 400/401)",
+      "timestamp": "2025-11-23T23:42:28.922160"
+    }
+  ]
+}

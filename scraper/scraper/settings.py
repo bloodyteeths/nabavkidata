@@ -3,6 +3,14 @@ Scrapy settings for nabavki scraper
 Includes: UTF-8 Cyrillic, large PDF support, robots.txt fallback, Playwright integration
 """
 
+import os
+from pathlib import Path
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(env_path)
+
 BOT_NAME = "nabavki_scraper"
 SPIDER_MODULES = ["scraper.spiders"]
 NEWSPIDER_MODULE = "scraper.spiders"
@@ -50,23 +58,44 @@ CRITICAL_URL_PATTERNS = [
 # ============================================================================
 # REQUIREMENT 4: SCRAPY + PLAYWRIGHT HYBRID
 # ============================================================================
-# Enable Playwright for JavaScript-heavy pages
+# Enable Playwright for JavaScript-heavy pages (Angular SPA)
 PLAYWRIGHT_BROWSER_TYPE = "chromium"
+
+# ENHANCED: Improved launch options for stability
 PLAYWRIGHT_LAUNCH_OPTIONS = {
     "headless": True,
-    "timeout": 30000,  # 30 seconds
+    "args": [
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',  # Avoid detection
+    ]
 }
 
-# Playwright contexts (one per browser)
-PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT = 30000
+# ENHANCED: Increased timeout for slow-loading Angular pages
+# Increased from 60s to 120s due to slow e-nabavki.gov.mk responses
+PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT = 120000  # 120 seconds (was 60s)
 
-# Add Playwright middleware
+# Force Playwright for all e-nabavki.gov.mk requests
+PLAYWRIGHT_PROCESS_REQUEST_HEADERS = None
+
+# Add Playwright download handlers
 DOWNLOAD_HANDLERS = {
     "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
     "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
 }
 
+# Required for Playwright async support
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
+
+# Playwright contexts configuration
+PLAYWRIGHT_CONTEXTS = {
+    'default': {
+        'viewport': {'width': 1920, 'height': 1080},
+        'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'locale': 'mk-MK',  # Macedonian locale
+        'timezone_id': 'Europe/Skopje',
+    }
+}
 
 # ============================================================================
 # RATE LIMITING & POLITENESS
@@ -115,8 +144,12 @@ ITEM_PIPELINES = {
 # RETRY & ERROR HANDLING
 # ============================================================================
 RETRY_ENABLED = True
-RETRY_TIMES = 3
+RETRY_TIMES = 5  # Increased from 3 to 5 for better resilience
 RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429, 403]  # Include 403 for retry
+
+# Additional retry settings for slow website
+RETRY_PRIORITY_ADJUST = -1
+DOWNLOAD_FAIL_ON_DATALOSS = False  # Don't fail on partial downloads
 
 # ============================================================================
 # LOGGING

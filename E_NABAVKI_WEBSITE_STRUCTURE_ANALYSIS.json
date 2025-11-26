@@ -1,0 +1,637 @@
+{
+  "metadata": {
+    "analysis_date": "2025-11-24",
+    "website": "e-nabavki.gov.mk",
+    "base_url": "https://e-nabavki.gov.mk",
+    "framework": "AngularJS 1.x with ASP.NET WebForms backend",
+    "rendering": "Client-side JavaScript required",
+    "status": "Comprehensive analysis based on existing scraper and open-source projects",
+    "sources": [
+      "Internal scraper spider implementation",
+      "GitHub project: skopjehacklab/e-nabavki",
+      "ASP.NET control IDs from settings.ini.example"
+    ]
+  },
+
+  "tender_categories": [
+    {
+      "name": "Active/Published Notices",
+      "url": "https://e-nabavki.gov.mk/PublicAccess/home.aspx#/notices",
+      "angular_route": "#/notices",
+      "description": "Main tender listing page with active procurement notices",
+      "rendering": "JavaScript required - AngularJS SPA",
+      "xhr_endpoints": [
+        "Unknown - requires network inspection",
+        "Likely pattern: /PublicAccess/api/notices or similar"
+      ],
+      "pagination": {
+        "type": "ASP.NET dropdown",
+        "control_id": "ctl00$ctl00$cphGlobal$cphPublicAccess$ucNotificationForACPP$gvNotifications$ctl13$ddlPageSelector",
+        "indexing": "Zero-based",
+        "validation_selector": ".PagerStyle",
+        "validation_text_pattern": "до {pageNum * 10} од",
+        "mechanism": "Dropdown selection triggers AJAX reload"
+      },
+      "selectors": {
+        "tender_rows_even": ".RowStyle",
+        "tender_rows_odd": ".AltRowStyle",
+        "tender_link": ".RowStyle td:nth-child(1) a[href], .AltRowStyle td:nth-child(1) a[href]",
+        "pagination_status": ".PagerStyle"
+      },
+      "wait_conditions": {
+        "playwright": {
+          "wait_for_load_state": "networkidle",
+          "wait_for_selector": ".RowStyle, .AltRowStyle",
+          "additional_timeout": 2000,
+          "reason": "Angular needs time to bootstrap and bind data"
+        }
+      }
+    },
+    {
+      "name": "Awarded Tenders",
+      "url": "Unknown - requires site inspection",
+      "angular_route": "Unknown - possibly #/awarded or similar",
+      "description": "Tenders that have been awarded to winning bidders",
+      "status": "Not documented in existing scraper",
+      "xhr_endpoints": ["Unknown"]
+    },
+    {
+      "name": "Cancelled Tenders",
+      "url": "Unknown - requires site inspection",
+      "angular_route": "Unknown - possibly #/cancelled or similar",
+      "description": "Tenders that were cancelled before completion",
+      "status": "Not documented in existing scraper",
+      "xhr_endpoints": ["Unknown"]
+    },
+    {
+      "name": "Upcoming/Planned Tenders",
+      "url": "Unknown - requires site inspection",
+      "angular_route": "Unknown",
+      "description": "Future procurement opportunities",
+      "status": "Not documented in existing scraper",
+      "xhr_endpoints": ["Unknown"]
+    },
+    {
+      "name": "Historical Tenders/Archive",
+      "url": "Unknown - Archive link present in navigation",
+      "angular_route": "Unknown",
+      "description": "Historical procurement records",
+      "status": "Archive link exists in navigation but URL not captured",
+      "xhr_endpoints": ["Unknown"]
+    }
+  ],
+
+  "tender_detail_pages": {
+    "url_pattern": "https://e-nabavki.gov.mk/PublicAccess/Dossie/dosieNotificationForACPP.aspx?Id={GUID}&Level={LEVEL}",
+    "url_pattern_alt": "https://e-nabavki.gov.mk/PublicAccess/home.aspx#/dossie/{PARAMS}",
+    "parameters": {
+      "Id": {
+        "type": "UUID/GUID",
+        "description": "Unique tender identifier",
+        "example": "c8d9ff87-d7a1-4cd2-95bf-3a56107439ae"
+      },
+      "Level": {
+        "type": "integer",
+        "description": "Detail level or procurement phase",
+        "common_value": 3
+      }
+    },
+    "sample_urls": [
+      "https://e-nabavki.gov.mk/PublicAccess/Dossie/dosieNotificationForACPP.aspx?Id=c8d9ff87-d7a1-4cd2-95bf-3a56107439ae&Level=3",
+      "https://e-nabavki.gov.mk/PublicAccess/Dossie/dosieNotificationForACPP.aspx?Id=18d0035d-158c-4df9-ad04-3e770c74a083&Level=3",
+      "https://e-nabavki.gov.mk/PublicAccess/Dossie/dosieNotificationForACPP.aspx?Id=cb2e22be-a1e6-437d-aaf1-8367a38cd010&Level=3"
+    ],
+    "rendering": {
+      "type": "ASP.NET WebForms with Angular components",
+      "wait_for_selector": "label.dosie-value",
+      "timeout": 20000,
+      "additional_wait": 1500
+    },
+    "field_selectors": {
+      "asp_net_control_prefix": "ctl00_ctl00_cphGlobal_cphPublicAccess_",
+      "fields": {
+        "tender_id": {
+          "selectors": [
+            "label[label-for=\"ANNOUNCEMENT NUMBER DOSIE\"] + label.dosie-value::text",
+            "label:contains(\"Број на оглас:\") + label.dosie-value::text",
+            "label.dosie-value:contains(\"/\")::text"
+          ],
+          "fallback": "Extract from URL parameter ?Id=",
+          "priority": "CRITICAL"
+        },
+        "title": {
+          "selectors": [
+            "label[label-for*=\"SUBJECT\"] + label.dosie-value::text",
+            "label:contains(\"Предмет на договорот\") + label.dosie-value::text",
+            "label:contains(\"Предмет на делот\") + label.dosie-value::text"
+          ],
+          "fallback": "h1 or main heading",
+          "priority": "CRITICAL"
+        },
+        "procuring_entity": {
+          "asp_net_id": "lblName",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblName",
+          "selectors": [
+            "label[label-for=\"CONTRACTING INSTITUTION NAME DOSIE\"] + label.dosie-value::text",
+            "label:contains(\"Договорен орган\") + label.dosie-value::text",
+            "label:contains(\"Назив на договорниот орган\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Назив на договорниот орган",
+          "english_label": "Organization name",
+          "priority": "CRITICAL"
+        },
+        "procedure_type": {
+          "asp_net_id": "lblProcedureType",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblProcedureType",
+          "selectors": [
+            "label[label-for=\"TYPE OF CALL:\"] + label.dosie-value::text",
+            "label:contains(\"Вид на постапка:\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Вид на постапка",
+          "english_label": "Procedure type",
+          "priority": "HIGH"
+        },
+        "contracting_entity_category": {
+          "asp_net_id": "lblCategory",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblCategory",
+          "selectors": [
+            "label:contains(\"Категорија\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Категорија на орган / Главна дејност",
+          "english_label": "Contractor category / primary activity",
+          "priority": "MEDIUM"
+        },
+        "category": {
+          "selectors": [
+            "label:contains(\"Вид на договорот:\") + label.dosie-value::text",
+            "label:contains(\"Вид на договорот\") ~ label.dosie-value::text"
+          ],
+          "priority": "MEDIUM"
+        },
+        "description": {
+          "asp_net_id": "lblPodetalenOpis",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblPodetalenOpis",
+          "selectors": [
+            "label[label-for*=\"SUBJECT\"] + label.dosie-value::text",
+            "label:contains(\"Предмет\") + label.dosie-value::text",
+            "label:contains(\"Подетален опис\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Подетален опис",
+          "english_label": "Detailed description",
+          "priority": "HIGH"
+        },
+        "cpv_code": {
+          "selectors": [
+            "label:contains(\"CPV\") + label.dosie-value::text",
+            "label[label-for*=\"CPV\"] + label.dosie-value::text"
+          ],
+          "fallback": "Regex: CPV[:\\s]+([0-9-]+)",
+          "priority": "MEDIUM"
+        },
+        "contract_duration": {
+          "asp_net_id": "lblContractPeriod",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblContractPeriod",
+          "selectors": [
+            "label:contains(\"Времетраење\") + label.dosie-value::text",
+            "label:contains(\"Период\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Времетраење на договорот",
+          "english_label": "Contract duration",
+          "priority": "MEDIUM"
+        },
+        "procurement_holder": {
+          "asp_net_id": "lblNositel",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblNositel",
+          "selectors": [
+            "label:contains(\"Носител\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Носител на набавката",
+          "english_label": "Procurement holder name",
+          "priority": "LOW"
+        },
+        "winner": {
+          "selectors": [
+            "label:contains(\"Добитник\") + label.dosie-value::text",
+            "label:contains(\"Избран понудувач\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Добитник",
+          "english_label": "Winner",
+          "priority": "HIGH",
+          "note": "Only present in awarded tenders"
+        },
+        "publication_date": {
+          "selectors": [
+            "label[label-for=\"ANNOUNCEMENT DATE DOSSIE\"] + label.dosie-value::text",
+            "label:contains(\"Датум на објавување\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Датум на објавување",
+          "english_label": "Publication date",
+          "priority": "MEDIUM",
+          "format": "DD.MM.YYYY or DD/MM/YYYY"
+        },
+        "opening_date": {
+          "selectors": [
+            "label:contains(\"Датум на отворање\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Датум на отворање",
+          "english_label": "Opening date",
+          "priority": "MEDIUM",
+          "format": "DD.MM.YYYY or DD/MM/YYYY"
+        },
+        "closing_date": {
+          "selectors": [
+            "label:contains(\"Рок за поднесување\") + label.dosie-value::text",
+            "label:contains(\"Краен рок\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Рок за поднесување",
+          "english_label": "Closing date/Deadline",
+          "priority": "CRITICAL",
+          "format": "DD.MM.YYYY or DD/MM/YYYY"
+        },
+        "contract_signing_date": {
+          "asp_net_id": "lblContractDate",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblContractDate",
+          "selectors": [
+            "label:contains(\"Датум на склучување\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Датум на склучување на договорот",
+          "english_label": "Contract signing date",
+          "priority": "MEDIUM",
+          "format": "DD.MM.YYYY or DD/MM/YYYY"
+        },
+        "bureau_delivery_date": {
+          "asp_net_id": "lblDeliveryDate",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblDeliveryDate",
+          "selectors": [
+            "label:contains(\"Датум на достава\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Датум на доставување до Биро за јавни набавки",
+          "english_label": "Delivery date to procurement bureau",
+          "priority": "LOW",
+          "format": "DD.MM.YYYY or DD/MM/YYYY"
+        },
+        "estimated_value_mkd": {
+          "asp_net_id": "lblEstimatedContractValue",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblEstimatedContractValue",
+          "selectors": [
+            "label:contains(\"Проценета вредност\") + label.dosie-value:contains(\"МКД\")::text"
+          ],
+          "macedonian_label": "Проценета вредност",
+          "english_label": "Estimated contract value",
+          "priority": "HIGH",
+          "currency": "MKD",
+          "format": "European format: 1.234.567,89"
+        },
+        "estimated_value_eur": {
+          "selectors": [
+            "label:contains(\"Проценета вредност\") + label.dosie-value:contains(\"EUR\")::text"
+          ],
+          "priority": "HIGH",
+          "currency": "EUR",
+          "format": "European format: 1.234.567,89"
+        },
+        "actual_value_mkd": {
+          "selectors": [
+            "label:contains(\"Вредност на договорот\") + label.dosie-value:contains(\"МКД\")::text"
+          ],
+          "priority": "HIGH",
+          "currency": "MKD",
+          "format": "European format: 1.234.567,89"
+        },
+        "actual_value_eur": {
+          "asp_net_id": "lblAssignedContractValueVAT",
+          "css_selector": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblAssignedContractValueVAT",
+          "selectors": [
+            "label:contains(\"Вредност на договорот\") + label.dosie-value:contains(\"EUR\")::text",
+            "label:contains(\"Вредност со ДДВ\") + label.dosie-value::text"
+          ],
+          "macedonian_label": "Вредност на склучениот договор со ДДВ",
+          "english_label": "Contract value with VAT",
+          "priority": "HIGH",
+          "currency": "EUR",
+          "format": "European format: 1.234.567,89"
+        },
+        "status": {
+          "selectors": [
+            "label:contains(\"Статус\") + label.dosie-value::text",
+            "label:contains(\"Состојба\") + label.dosie-value::text"
+          ],
+          "fallback": "Auto-detect based on dates and winner presence",
+          "priority": "HIGH",
+          "auto_detection": {
+            "awarded": "winner field is present",
+            "active": "closing_date is present and in future",
+            "closed": "closing_date is in past",
+            "published": "default status"
+          }
+        }
+      }
+    }
+  },
+
+  "document_endpoints": {
+    "container_selectors": [
+      "Unknown - requires page inspection",
+      "Possible: div.documents, section.attachments, table.files"
+    ],
+    "document_link_selectors": [
+      "a[href*=\"Download\"]::attr(href)",
+      "a[href*=\".pdf\"]::attr(href)",
+      "a[href*=\"File\"]::attr(href)",
+      "a[href$=\".pdf\"]",
+      "a.btn-download",
+      "table.documents a",
+      "a:contains(\"Преземи\")",
+      "a:contains(\"Download\")"
+    ],
+    "download_pattern": {
+      "relative_to_absolute": "If link starts with '/' prepend 'https://e-nabavki.gov.mk'",
+      "examples": [
+        "/PublicAccess/Documents/tender_ABC123.pdf",
+        "/PublicAccess/Download.aspx?docid=XYZ789",
+        "/files/tenders/2024/technical_spec.pdf"
+      ]
+    },
+    "document_types": [
+      "Technical specifications (PDF)",
+      "Tender documentation (PDF)",
+      "Contract templates (PDF)",
+      "Amendments (PDF)",
+      "Q&A documents (PDF)",
+      "Award decisions (PDF)"
+    ],
+    "tender_documents": "Located on tender detail page",
+    "download_mechanism": "Direct links or ASP.NET Download.aspx endpoint",
+    "file_size_support": "Up to 50MB (per scraper configuration)"
+  },
+
+  "profile_pages": {
+    "entity": {
+      "description": "Procuring entity/organization profile pages",
+      "url_pattern": "Unknown - requires site inspection",
+      "possible_patterns": [
+        "/PublicAccess/Entity.aspx?id={ENTITY_ID}",
+        "/PublicAccess/Organization.aspx?id={ORG_ID}",
+        "#/entity/{ENTITY_ID}"
+      ],
+      "status": "Not documented in existing scraper"
+    },
+    "supplier": {
+      "description": "Supplier/bidder profile pages",
+      "url_pattern": "Unknown - requires site inspection",
+      "possible_patterns": [
+        "/PublicAccess/Supplier.aspx?id={SUPPLIER_ID}",
+        "/PublicAccess/Contractor.aspx?id={CONTRACTOR_ID}",
+        "#/supplier/{SUPPLIER_ID}"
+      ],
+      "status": "Not documented in existing scraper"
+    }
+  },
+
+  "additional_features": {
+    "clarifications_qa": {
+      "description": "Questions and answers section for tender clarifications",
+      "url_pattern": "Unknown",
+      "location": "Possibly within tender detail page or separate section",
+      "status": "Not documented in existing scraper"
+    },
+    "modifications_amendments": {
+      "description": "Tender modifications and amendments",
+      "url_pattern": "Unknown",
+      "location": "Possibly within tender detail page timeline or separate documents",
+      "status": "Not documented in existing scraper"
+    },
+    "decision_announcements": {
+      "description": "Award decisions and announcements",
+      "url_pattern": "Unknown",
+      "location": "Possibly in awarded tenders category or within tender detail",
+      "status": "Winner field extraction implemented, but separate decision page unknown"
+    },
+    "ask_question": {
+      "url": "https://e-nabavki.gov.mk/PublicAccess/home.aspx#/askquestion",
+      "angular_route": "#/askquestion",
+      "description": "Public question submission form",
+      "status": "Navigation link exists"
+    },
+    "sitemap": {
+      "url": "https://e-nabavki.gov.mk/PublicAccess/home.aspx#/sitemap",
+      "angular_route": "#/sitemap",
+      "description": "Site navigation map",
+      "status": "Navigation link exists"
+    }
+  },
+
+  "navigation_structure": {
+    "main_menu": [
+      {
+        "label": "Home",
+        "url": "PublicAccess/home.aspx#/home",
+        "angular_route": "#/home"
+      },
+      {
+        "label": "Archive",
+        "url": "Unknown - link present but destination not captured",
+        "angular_route": "Unknown"
+      },
+      {
+        "label": "Ask Question",
+        "url": "PublicAccess/home.aspx#/askquestion",
+        "angular_route": "#/askquestion"
+      },
+      {
+        "label": "Sitemap",
+        "url": "PublicAccess/home.aspx#/sitemap",
+        "angular_route": "#/sitemap"
+      }
+    ],
+    "language_options": [
+      "MK (Macedonian - Primary)",
+      "EN (English)",
+      "AL (Albanian)"
+    ],
+    "support_sections": [
+      "User Support",
+      "ESJN Support (Electronic system)",
+      "Accounting Support",
+      "Legislative Support (links to https://www.bjn.gov.mk/kontakt/)"
+    ]
+  },
+
+  "technical_requirements": {
+    "javascript_execution": "MANDATORY - AngularJS SPA requires client-side rendering",
+    "recommended_tools": [
+      "Playwright (currently implemented)",
+      "Selenium",
+      "Puppeteer"
+    ],
+    "wait_conditions": {
+      "initial_load": "wait_for_load_state('networkidle')",
+      "listings_page": "wait_for_selector('.RowStyle, .AltRowStyle', timeout=10000)",
+      "detail_page": "wait_for_selector('label.dosie-value', timeout=20000)",
+      "additional_delay": "wait_for_timeout(1500-2000) for Angular data binding"
+    },
+    "session_handling": "May require cookie/session management for certain operations",
+    "rate_limiting": "Scraper configured for 1 request/second with AutoThrottle"
+  },
+
+  "extraction_strategy": {
+    "fallback_levels": [
+      {
+        "level": 1,
+        "type": "ASP.NET control IDs",
+        "reliability": "HIGH",
+        "example": "#ctl00_ctl00_cphGlobal_cphPublicAccess_lblName"
+      },
+      {
+        "level": 2,
+        "type": "CSS selectors and classes",
+        "reliability": "MEDIUM",
+        "example": ".dosie-value, .RowStyle"
+      },
+      {
+        "level": 3,
+        "type": "Label-based extraction",
+        "reliability": "MEDIUM",
+        "example": "Find 'Назив:' then extract adjacent value"
+      },
+      {
+        "level": 4,
+        "type": "Regex pattern matching",
+        "reliability": "LOW",
+        "example": "CPV[:\\s]+([0-9-]+)"
+      },
+      {
+        "level": 5,
+        "type": "Default/null with logging",
+        "reliability": "FALLBACK",
+        "example": "Log warning and return None"
+      }
+    ]
+  },
+
+  "data_parsing": {
+    "date_formats": {
+      "input_patterns": [
+        "DD.MM.YYYY",
+        "DD/MM/YYYY",
+        "YYYY-MM-DD"
+      ],
+      "output_format": "YYYY-MM-DD (ISO 8601)",
+      "macedonian_text_removal": ["година", "год.", "часот"]
+    },
+    "currency_formats": {
+      "input_format": "European: 1.234.567,89",
+      "decimal_separator": ",",
+      "thousands_separator": ".",
+      "currencies": ["MKD", "EUR"],
+      "parsing": "Remove currency symbols, convert to Decimal"
+    },
+    "text_encoding": {
+      "charset": "UTF-8",
+      "cyrillic_support": "Full Macedonian Cyrillic (U+0400 to U+04FF)",
+      "verification": "Contains Cyrillic check in PDF pipeline"
+    }
+  },
+
+  "api_endpoints": {
+    "status": "Not publicly documented",
+    "discovery_method": "Browser DevTools network inspection required",
+    "likely_patterns": [
+      "/PublicAccess/api/notices",
+      "/PublicAccess/api/tenders",
+      "/PublicAccess/api/dossie/{id}",
+      "/api/procurement/search",
+      "ASP.NET WebForms postback mechanisms"
+    ],
+    "note": "Website uses combination of AJAX calls and ASP.NET WebForms postbacks"
+  },
+
+  "robots_txt": {
+    "url": "https://e-nabavki.gov.mk/robots.txt",
+    "compliance": "Respected by scraper with fallback for critical public procurement URLs",
+    "critical_url_patterns": [
+      "e-nabavki\\.gov\\.mk/.*tender",
+      "e-nabavki\\.gov\\.mk/.*document"
+    ]
+  },
+
+  "challenges_and_limitations": {
+    "javascript_rendering": {
+      "severity": "CRITICAL",
+      "description": "Full JavaScript execution required to render content",
+      "solution": "Playwright integration (implemented)",
+      "impact": "Cannot use simple HTTP requests"
+    },
+    "ajax_loaded_content": {
+      "severity": "HIGH",
+      "description": "Tender listings loaded via AJAX after page load",
+      "solution": "Wait for specific DOM elements (.RowStyle/.AltRowStyle)",
+      "impact": "Requires wait conditions and timing management"
+    },
+    "asp_net_viewstate": {
+      "severity": "MEDIUM",
+      "description": "ASP.NET WebForms may use ViewState for postbacks",
+      "solution": "Maintain session state if submitting forms",
+      "impact": "Pagination and form interactions more complex"
+    },
+    "dynamic_control_ids": {
+      "severity": "LOW",
+      "description": "ASP.NET control IDs are verbose but consistent",
+      "solution": "Use documented IDs with label-based fallbacks",
+      "impact": "Minor - selectors are stable"
+    },
+    "undocumented_api": {
+      "severity": "MEDIUM",
+      "description": "No public API documentation available",
+      "solution": "Network inspection and reverse engineering",
+      "impact": "Cannot optimize with direct API calls"
+    },
+    "missing_categories": {
+      "severity": "MEDIUM",
+      "description": "Awarded/Cancelled/Historical tender URLs unknown",
+      "solution": "Manual site exploration required",
+      "impact": "Currently only scraping active notices"
+    }
+  },
+
+  "recommendations": {
+    "immediate_actions": [
+      "Use browser DevTools to inspect network XHR/Fetch requests on tender listing page",
+      "Capture actual API endpoint URLs being called by AngularJS",
+      "Document response format of API calls",
+      "Explore sitemap page to discover all available categories",
+      "Test pagination to understand how pages 2+ are loaded",
+      "Inspect 10+ different tender detail pages to verify field selectors",
+      "Document the document attachment section structure",
+      "Search for entity/supplier profile page links"
+    ],
+    "testing_priorities": [
+      "Critical fields: tender_id, title, procuring_entity, closing_date",
+      "Test on tenders with different statuses (active, awarded, closed)",
+      "Test on different procurement types",
+      "Verify date parsing accuracy",
+      "Test document downloads",
+      "Validate currency value extraction"
+    ],
+    "enhancement_opportunities": [
+      "Direct API integration if endpoints can be reverse-engineered",
+      "Add support for awarded/cancelled tender categories",
+      "Implement entity/supplier profile scraping",
+      "Add Q&A section extraction",
+      "Extract tender amendments/modifications",
+      "Build historical tender archive scraper"
+    ]
+  },
+
+  "references": {
+    "official_website": "https://e-nabavki.gov.mk",
+    "ministry": "https://finance.gov.mk/е-јавни-набавки/?lang=en",
+    "procurement_bureau": "https://www.bjn.gov.mk/kontakt/",
+    "github_project": "https://github.com/skopjehacklab/e-nabavki",
+    "casperjs_script": "https://raw.githubusercontent.com/skopjehacklab/e-nabavki/master/e-nabavki.gov.mk.js",
+    "settings_example": "https://raw.githubusercontent.com/skopjehacklab/e-nabavki/master/settings.ini.example",
+    "internal_scraper": "/Users/tamsar/Downloads/nabavkidata/scraper/scraper/spiders/nabavki_spider.py",
+    "selector_mapping": "/Users/tamsar/Downloads/nabavkidata/scraper/E_NABAVKI_SELECTORS_MAPPING.json",
+    "inspection_report": "/Users/tamsar/Downloads/nabavkidata/scraper/AGENT_A_INSPECTION_REPORT.md"
+  }
+}

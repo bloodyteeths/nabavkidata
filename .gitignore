@@ -101,3 +101,5 @@ backups/
 tmp/
 temp/
 *.tmp
+
+scraper/opendata_cache/

@@ -11,7 +11,7 @@ from decimal import Decimal
 import logging
 
 from database import get_db
-from auth_utils import get_current_user, get_optional_user
+from api.auth import get_current_user
 from models import User
 from schemas import (
     EPazarTenderResponse,
@@ -50,7 +50,6 @@ async def get_epazar_tenders(
     sort_by: str = Query("publication_date", description="Sort field"),
     sort_order: str = Query("desc", description="Sort order: asc or desc"),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     Get list of e-Pazar tenders with filtering and pagination.
@@ -219,7 +218,6 @@ async def get_epazar_tenders(
 async def get_epazar_tender(
     tender_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     Get single e-Pazar tender with full details.

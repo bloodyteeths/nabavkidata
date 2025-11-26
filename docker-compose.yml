@@ -86,12 +86,10 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
 
-      # Email
-      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      EMAIL_FROM: ${EMAIL_FROM:-noreply@nabavkidata.com}
+      # Email (Mailersend)
+      MAILERSEND_API_KEY: ${MAILERSEND_API_KEY}
+      MAILERSEND_FROM_EMAIL: ${MAILERSEND_FROM_EMAIL:-noreply@nabavkidata.com}
+      MAILERSEND_FROM_NAME: ${MAILERSEND_FROM_NAME:-NabavkiData}
 
       # Application
       ENVIRONMENT: ${ENVIRONMENT:-development}

@@ -1,0 +1,38 @@
+# ========================================
+# NABAVKIDATA SCRAPER AUTOMATION
+# ========================================
+# DO NOT MODIFY EXISTING CRON JOBS
+# These are additional jobs for scraper automation
+# ========================================
+
+# Active tenders scraping (4x daily at 04:00, 10:00, 16:00, 22:00 UTC)
+# Purpose: Capture new postings and deadline changes
+0 4,10,16,22 * * * /home/ubuntu/nabavkidata/scraper/jobs/scrape_active.sh >> /home/ubuntu/nabavkidata/scraper/logs/cron_active.log 2>&1
+
+# Awards scraping (daily at 6 AM UTC)
+# Purpose: Competitor intelligence and market trends
+0 6 * * * /home/ubuntu/nabavkidata/scraper/jobs/scrape_awards.sh >> /home/ubuntu/nabavkidata/scraper/logs/cron_awards.log 2>&1
+
+# Historical backfill (weekly, Sunday 2 AM UTC)
+# Purpose: Trend data and historical analysis
+0 2 * * 0 /home/ubuntu/nabavkidata/scraper/jobs/scrape_backfill.sh >> /home/ubuntu/nabavkidata/scraper/logs/cron_backfill.log 2>&1
+
+# Document processing (every 15 minutes)
+# Purpose: Process document download queue
+*/15 * * * * /home/ubuntu/nabavkidata/scraper/jobs/process_documents.sh >> /home/ubuntu/nabavkidata/scraper/logs/cron_docs.log 2>&1
+
+# Vector refresh (daily at 3 AM UTC)
+# Purpose: Update embeddings for new tenders
+0 3 * * * /home/ubuntu/nabavkidata/scraper/jobs/refresh_vectors.sh >> /home/ubuntu/nabavkidata/scraper/logs/cron_vectors.log 2>&1
+
+# Health check (every 5 minutes)
+# Purpose: Monitor scraper status and send alerts
+*/5 * * * * /home/ubuntu/nabavkidata/scraper/jobs/health_check.sh >> /home/ubuntu/nabavkidata/scraper/logs/cron_health.log 2>&1
+
+# Log rotation (daily at 1 AM UTC)
+# Purpose: Prevent disk fill from accumulated logs
+0 1 * * * /home/ubuntu/nabavkidata/scraper/jobs/rotate_logs.sh >> /home/ubuntu/nabavkidata/scraper/logs/cron_rotate.log 2>&1
+
+# Database backup (daily at 5 AM UTC)
+# Purpose: Data protection and disaster recovery
+0 5 * * * /home/ubuntu/nabavkidata/scraper/jobs/backup_db.sh >> /home/ubuntu/nabavkidata/scraper/logs/cron_backup.log 2>&1

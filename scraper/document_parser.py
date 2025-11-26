@@ -46,6 +46,8 @@ class ExtractionResult:
     tables: List[List[List[str]]]  # List of tables, each table is list of rows
     cpv_codes: List[str]
     company_names: List[str]
+    emails: List[str]  # Extracted email addresses
+    phones: List[str]  # Extracted phone numbers
     metadata: Dict
 
 
@@ -438,6 +440,106 @@ class CPVExtractor:
         return True
 
 
+class ContactExtractor:
+    """
+    Extract contact information (emails, phones) from text
+    """
+
+    # Email pattern
+    EMAIL_PATTERN = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+
+    # Phone patterns (Macedonian format)
+    PHONE_PATTERNS = [
+        r'\+389\s*\d{2}\s*\d{3}\s*\d{3}',  # +389 XX XXX XXX
+        r'0\d{2}[\s\-]?\d{3}[\s\-]?\d{3}',  # 0XX XXX XXX or 0XX-XXX-XXX
+        r'\d{3}[\s\-]?\d{3}[\s\-]?\d{3}',   # XXX XXX XXX
+        r'\(\d{2,3}\)\s*\d{3}[\s\-]?\d{3}', # (XX) XXX-XXX
+        r'\d{9,12}',                         # 9-12 digits
+    ]
+
+    @staticmethod
+    def extract_emails(text: str) -> List[str]:
+        """
+        Extract email addresses from text
+
+        Returns:
+            List of unique email addresses
+        """
+        emails = set()
+
+        matches = re.findall(ContactExtractor.EMAIL_PATTERN, text, re.IGNORECASE)
+        for email in matches:
+            email = email.lower().strip()
+            # Validate email
+            if ContactExtractor._validate_email(email):
+                emails.add(email)
+
+        logger.info(f"Extracted {len(emails)} email addresses")
+        return sorted(list(emails))
+
+    @staticmethod
+    def _validate_email(email: str) -> bool:
+        """Validate email address"""
+        # Skip common false positives
+        invalid_domains = ['example.com', 'test.com', 'localhost', 'domain.com']
+        if any(domain in email for domain in invalid_domains):
+            return False
+
+        # Skip image/file extensions
+        invalid_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.pdf', '.doc']
+        if any(email.endswith(ext) for ext in invalid_extensions):
+            return False
+
+        # Must have valid TLD
+        tld = email.split('.')[-1]
+        if len(tld) < 2 or len(tld) > 10:
+            return False
+
+        return True
+
+    @staticmethod
+    def extract_phones(text: str) -> List[str]:
+        """
+        Extract phone numbers from text
+
+        Returns:
+            List of unique phone numbers
+        """
+        phones = set()
+
+        for pattern in ContactExtractor.PHONE_PATTERNS:
+            matches = re.findall(pattern, text)
+            for phone in matches:
+                phone = ContactExtractor._clean_phone(phone)
+                if ContactExtractor._validate_phone(phone):
+                    phones.add(phone)
+
+        logger.info(f"Extracted {len(phones)} phone numbers")
+        return sorted(list(phones))
+
+    @staticmethod
+    def _clean_phone(phone: str) -> str:
+        """Clean phone number"""
+        # Remove spaces, dashes, parentheses
+        phone = re.sub(r'[\s\-\(\)]', '', phone)
+        return phone
+
+    @staticmethod
+    def _validate_phone(phone: str) -> bool:
+        """Validate phone number"""
+        # Must be at least 7 digits
+        digits = re.sub(r'\D', '', phone)
+        if len(digits) < 7 or len(digits) > 15:
+            return False
+
+        # Skip obvious non-phones (prices, IDs, etc.)
+        # If it's exactly 8 digits and starts with specific patterns, might be CPV
+        if len(digits) == 8 and digits[0] in '0123456789':
+            return False  # Likely a code, not a phone
+
+        return True
+
+
 class CompanyExtractor:
     """
     Extract company names from award decisions and tender documents
@@ -527,6 +629,7 @@ class ResilientDocumentParser:
         self.table_extractor = TableExtractor()
         self.cpv_extractor = CPVExtractor()
         self.company_extractor = CompanyExtractor()
+        self.contact_extractor = ContactExtractor()
 
     def parse_document(self, pdf_path: str) -> ExtractionResult:
         """
@@ -551,7 +654,11 @@ class ResilientDocumentParser:
             # 4. Extract company names
             company_names = self.company_extractor.extract_companies(text)
 
-            # 5. Count pages
+            # 5. Extract contact information (emails, phones)
+            emails = self.contact_extractor.extract_emails(text)
+            phones = self.contact_extractor.extract_phones(text)
+
+            # 6. Count pages
             try:
                 doc = fitz.open(pdf_path)
                 page_count = len(doc)
@@ -568,12 +675,14 @@ class ResilientDocumentParser:
                 tables=tables,
                 cpv_codes=cpv_codes,
                 company_names=company_names,
+                emails=emails,
+                phones=phones,
                 metadata=metadata
             )
 
             logger.info(f"Parsing complete: {len(text)} chars, {page_count} pages, "
                        f"{len(tables)} tables, {len(cpv_codes)} CPV codes, "
-                       f"{len(company_names)} companies")
+                       f"{len(company_names)} companies, {len(emails)} emails, {len(phones)} phones")
 
             return result
 
@@ -588,6 +697,8 @@ class ResilientDocumentParser:
                 tables=[],
                 cpv_codes=[],
                 company_names=[],
+                emails=[],
+                phones=[],
                 metadata={'error': str(e)}
             )
 

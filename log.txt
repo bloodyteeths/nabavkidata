@@ -1,43 +1,12 @@
-23:05:57.164 Running build in Portland, USA (West) – pdx1
-23:05:57.165 Build machine configuration: 2 cores, 8 GB
-23:05:57.280 Cloning github.com/bloodyteeths/nabavkidata (Branch: main, Commit: 84d2b31)
-23:05:58.138 Cloning completed: 858.000ms
-23:05:58.412 Restored build cache from previous deployment (2MAS9zynDRGzrTxatzDFKLWMdxwf)
-23:05:58.928 Running "vercel build"
-23:05:59.339 Vercel CLI 48.10.5
-23:05:59.663 Running "install" command: `npm ci --legacy-peer-deps=false`...
-23:06:11.071 
-23:06:11.072 added 241 packages, and audited 242 packages in 11s
-23:06:11.073 
-23:06:11.073 26 packages are looking for funding
-23:06:11.073   run `npm fund` for details
-23:06:11.073 
-23:06:11.074 found 0 vulnerabilities
-23:06:11.125 Detected Next.js version: 14.2.33
-23:06:11.126 Running "npm run build"
-23:06:11.244 
-23:06:11.244 > nabavkidata-frontend@1.0.0 build
-23:06:11.244 > next build
-23:06:11.245 
-23:06:11.856   ▲ Next.js 14.2.33
-23:06:11.857   - Experiments (use with caution):
-23:06:11.857     · missingSuspenseWithCSRBailout
-23:06:11.858 
-23:06:11.871    Creating an optimized production build ...
-23:06:28.487  ✓ Compiled successfully
-23:06:28.490    Linting and checking validity of types ...
-23:06:39.066 Failed to compile.
-23:06:39.067 
-23:06:39.067 ./middleware.ts:49:7
-23:06:39.067 Type error: Type 'readonly ["user", "admin"] | readonly ["admin"]' is not assignable to type 'string[] | null'.
-23:06:39.067   The type 'readonly ["user", "admin"]' is 'readonly' and cannot be assigned to the mutable type 'string[]'.
-23:06:39.067 
-23:06:39.068 [0m [90m 47 |[39m   [36mfor[39m ([36mconst[39m [route[33m,[39m roles] [36mof[39m [33mObject[39m[33m.[39mentries([33mPROTECTED_ROUTES[39m)) {[0m
-23:06:39.068 [0m [90m 48 |[39m     [36mif[39m (matchesRoute(path[33m,[39m route)) {[0m
-23:06:39.068 [0m[31m[1m>[22m[39m[90m 49 |[39m       [36mreturn[39m roles[33m;[39m[0m
-23:06:39.068 [0m [90m    |[39m       [31m[1m^[22m[39m[0m
-23:06:39.068 [0m [90m 50 |[39m     }[0m
-23:06:39.068 [0m [90m 51 |[39m   }[0m
-23:06:39.068 [0m [90m 52 |[39m   [36mreturn[39m [36mnull[39m[33m;[39m[0m
-23:06:39.095 Next.js build worker exited with code: 1 and signal: null
-23:06:39.117 Error: Command "npm run build" exited with 1
+2117-fb721c5b5012048f.js:1 Error: A <Select.Item /> must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.
+    at 3807-d99f2065e0ee082b.js:1:17728
+    at rE (fd9d1056-dda8f8960881b7f6.js:1:40344)
+    at lA (fd9d1056-dda8f8960881b7f6.js:1:57428)
+    at iZ (fd9d1056-dda8f8960881b7f6.js:1:121331)
+    at ia (fd9d1056-dda8f8960881b7f6.js:1:95165)
+    at fd9d1056-dda8f8960881b7f6.js:1:94987
+    at il (fd9d1056-dda8f8960881b7f6.js:1:94994)
+    at oJ (fd9d1056-dda8f8960881b7f6.js:1:92350)
+    at nb (fd9d1056-dda8f8960881b7f6.js:1:26836)
+    at nw (fd9d1056-dda8f8960881b7f6.js:1:27574)
+window.console.error @ 2117-fb721c5b5012048f.js:1

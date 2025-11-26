@@ -1,0 +1,16 @@
+[Unit]
+Description=Email Enrichment Background Job
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/nabavkidata/scraper
+ExecStart=/home/ubuntu/nabavkidata/venv/bin/python3 /home/ubuntu/nabavkidata/scraper/email_enrichment_job.py --continuous
+Restart=always
+RestartSec=60
+StandardOutput=append:/var/log/email_enrichment.log
+StandardError=append:/var/log/email_enrichment.log
+
+[Install]
+WantedBy=multi-user.target

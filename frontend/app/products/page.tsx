@@ -459,16 +459,16 @@ export default function ProductsPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Year</label>
                   <Select
-                    value={filters.year?.toString() || ""}
+                    value={filters.year?.toString() || "all"}
                     onValueChange={(value) =>
-                      setFilters(prev => ({ ...prev, year: value ? parseInt(value) : undefined }))
+                      setFilters(prev => ({ ...prev, year: value && value !== "all" ? parseInt(value) : undefined }))
                     }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="All years" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All years</SelectItem>
+                      <SelectItem value="all">All years</SelectItem>
                       {availableYears.map(year => (
                         <SelectItem key={year} value={year.toString()}>
                           {year}

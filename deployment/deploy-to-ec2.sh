@@ -2,7 +2,7 @@
 
 set -e
 
-EC2_IP="3.120.26.153"
+EC2_IP="18.197.185.30"
 SSH_KEY="~/.ssh/nabavki-key.pem"
 SSH_USER="ubuntu"
 APP_DIR="/home/ubuntu/nabavkidata"

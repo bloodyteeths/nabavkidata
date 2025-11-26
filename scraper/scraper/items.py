@@ -56,6 +56,13 @@ class TenderItem(scrapy.Item):
     clarifications_data = scrapy.Field()  # JSON array of Q&A objects
     documents_data = scrapy.Field()  # Collected document links/metadata
 
+    # NEW FIELDS: Additional bid and location data
+    highest_bid = scrapy.Field()  # Highest bid amount
+    lowest_bid = scrapy.Field()   # Lowest bid amount
+    delivery_location = scrapy.Field()  # Location for goods/works delivery
+    dossier_id = scrapy.Field()   # UUID from the tender URL (e-nabavki dossie ID)
+    tender_uuid = scrapy.Field()  # Alternative tender UUID if different from dossier_id
+
 class DocumentItem(scrapy.Item):
     """Document data structure"""
     tender_id = scrapy.Field()
