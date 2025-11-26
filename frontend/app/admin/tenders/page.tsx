@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,6 +62,12 @@ export default function AdminTendersPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTender, setSelectedTender] = useState<Tender | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [filters, setFilters] = useState({
     status: 'all',
@@ -231,6 +237,11 @@ export default function AdminTendersPage() {
   };
 
   const totalPages = Math.ceil(pagination.total / pagination.limit);
+
+  // Prevent hydration errors - don't render until mounted
+  if (!mounted) {
+    return null;
+  }
 
   if (loading && tenders.length === 0) return <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div><p className="mt-4 text-muted-foreground">Loading...</p></div></div>;
 
