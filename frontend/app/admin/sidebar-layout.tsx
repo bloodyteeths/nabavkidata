@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import AdminRoute from '@/components/admin/AdminRoute';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 interface DashboardStats {
   total_users: number;
@@ -15,10 +16,17 @@ interface DashboardStats {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user, isLoading, isAuthenticated } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Only fetch stats after auth is confirmed and user is admin
   useEffect(() => {
+    // Don't fetch until auth is loaded and user is confirmed admin
+    if (isLoading || !isAuthenticated || !user || user.role !== 'admin') {
+      return;
+    }
+
     const fetchStats = async () => {
       try {
         const data = await api.getDashboardStats();
@@ -32,7 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const interval = setInterval(fetchStats, 60000); // Refresh every minute
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isLoading, isAuthenticated, user]);
 
   const navigation = [
     {
