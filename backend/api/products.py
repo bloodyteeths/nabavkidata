@@ -194,12 +194,14 @@ async def aggregate_products(
     )
 
 
-@router.get("/by-tender/{tender_id}", response_model=List[ProductItemResponse])
+@router.get("/by-tender/{tender_number}/{tender_year}", response_model=List[ProductItemResponse])
 async def get_products_by_tender(
-    tender_id: str,
+    tender_number: str,
+    tender_year: str,
     db: AsyncSession = Depends(get_db)
 ):
     """Get all product items for a specific tender"""
+    tender_id = f"{tender_number}/{tender_year}"
     query = text("""
         SELECT
             id, tender_id, document_id, item_number, lot_number,

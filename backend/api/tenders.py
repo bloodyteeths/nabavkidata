@@ -566,22 +566,25 @@ async def get_cpv_codes(
 # ============================================================================
 # TENDER DOCUMENTS (Must be before the path parameter route)
 # ============================================================================
+# Routes use /{number}/{year}/... pattern to handle tender IDs with slashes like "19816/2025"
 
-@router.get("/{tender_id}/documents")
+@router.get("/{number}/{year}/documents")
 async def get_tender_documents(
-    tender_id: str,
+    number: str,
+    year: str,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get all documents for a specific tender.
 
     Returns list of documents including file names, URLs, and extraction status.
+    Tender ID format: {number}/{year} e.g. 19816/2025
     """
     from models import Document
     from schemas import DocumentResponse
 
-    # Normalize encoded slash IDs
-    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+    # Construct tender_id from path components
+    tender_id = f"{number}/{year}"
 
     # First verify tender exists
     tender_query = select(Tender).where(Tender.tender_id == tender_id)
@@ -603,18 +606,20 @@ async def get_tender_documents(
     }
 
 
-@router.get("/{tender_id}/bidders")
+@router.get("/{number}/{year}/bidders")
 async def get_tender_bidders(
-    tender_id: str,
+    number: str,
+    year: str,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get all bidders/participants for a specific tender.
 
     Returns list of bidders with their bid amounts, winner status, and ranking.
+    Tender ID format: {number}/{year} e.g. 19816/2025
     """
-    # Parse tender_id which may contain "/" like "12345/2025"
-    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+    # Construct tender_id from path components
+    tender_id = f"{number}/{year}"
 
     # First verify tender exists
     tender_query = select(Tender).where(Tender.tender_id == tender_id)
@@ -652,18 +657,20 @@ async def get_tender_bidders(
     }
 
 
-@router.get("/{tender_id}/lots")
+@router.get("/{number}/{year}/lots")
 async def get_tender_lots(
-    tender_id: str,
+    number: str,
+    year: str,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get all lots for a specific tender.
 
     Returns list of lots with their values, CPV codes, and winner information.
+    Tender ID format: {number}/{year} e.g. 19816/2025
     """
-    # Parse tender_id which may contain "/" like "12345/2025"
-    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+    # Construct tender_id from path components
+    tender_id = f"{number}/{year}"
 
     # First verify tender exists
     tender_query = select(Tender).where(Tender.tender_id == tender_id)
@@ -704,10 +711,10 @@ async def get_tender_lots(
     }
 
 
-@router.get("/{tender_id}/suppliers")
-async def get_tender_suppliers(tender_id: str, db: AsyncSession = Depends(get_db)):
-    """Get suppliers/winners associated with a tender"""
-    tender_id = tender_id.replace("%2F", "/")
+@router.get("/{number}/{year}/suppliers")
+async def get_tender_suppliers(number: str, year: str, db: AsyncSession = Depends(get_db)):
+    """Get suppliers/winners associated with a tender. Tender ID format: {number}/{year}"""
+    tender_id = f"{number}/{year}"
 
     # Get the tender to find winner
     tender = await db.execute(

@@ -313,6 +313,148 @@ async def get_epazar_tender(
 # ITEMS ENDPOINTS
 # ============================================================================
 
+@router.get("/items", response_model=dict)
+async def search_epazar_items(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Search in item name and description"),
+    cpv_code: Optional[str] = Query(None, description="Filter by CPV code prefix"),
+    min_price: Optional[float] = Query(None, description="Minimum unit price (MKD)"),
+    max_price: Optional[float] = Query(None, description="Maximum unit price (MKD)"),
+    unit: Optional[str] = Query(None, description="Filter by unit (e.g., 'kg', 'piece')"),
+    sort_by: str = Query("item_name", description="Sort field"),
+    sort_order: str = Query("asc", description="Sort order: asc or desc"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Search and browse all e-Pazar items across all tenders with filtering and pagination.
+    """
+    try:
+        conditions = []
+        params = {}
+
+        if search:
+            conditions.append("""
+                (item_name ILIKE :search
+                OR item_description ILIKE :search
+                OR cpv_code ILIKE :search)
+            """)
+            params['search'] = f"%{search}%"
+
+        if cpv_code:
+            conditions.append("cpv_code LIKE :cpv_code")
+            params['cpv_code'] = f"{cpv_code}%"
+
+        if min_price is not None:
+            conditions.append("estimated_unit_price_mkd >= :min_price")
+            params['min_price'] = min_price
+
+        if max_price is not None:
+            conditions.append("estimated_unit_price_mkd <= :max_price")
+            params['max_price'] = max_price
+
+        if unit:
+            conditions.append("unit ILIKE :unit")
+            params['unit'] = f"%{unit}%"
+
+        where_clause = " AND " + " AND ".join(conditions) if conditions else ""
+
+        # Validate sort field
+        valid_sort_fields = ['item_name', 'estimated_unit_price_mkd', 'quantity', 'estimated_total_price_mkd', 'cpv_code']
+        if sort_by not in valid_sort_fields:
+            sort_by = 'item_name'
+
+        sort_direction = 'DESC' if sort_order.lower() == 'desc' else 'ASC'
+
+        # Get total count
+        count_result = await db.execute(
+            text(f"SELECT COUNT(*) FROM epazar_items WHERE 1=1 {where_clause}"),
+            params
+        )
+        total = count_result.scalar()
+
+        # Get paginated results with tender info
+        offset = (page - 1) * page_size
+        params['limit'] = page_size
+        params['offset'] = offset
+
+        result = await db.execute(
+            text(f"""
+                SELECT i.*,
+                       t.title as tender_title,
+                       t.contracting_authority,
+                       t.status as tender_status,
+                       t.closing_date as tender_closing_date
+                FROM epazar_items i
+                LEFT JOIN epazar_tenders t ON i.tender_id = t.tender_id
+                WHERE 1=1 {where_clause}
+                ORDER BY {sort_by} {sort_direction} NULLS LAST
+                LIMIT :limit OFFSET :offset
+            """),
+            params
+        )
+        items = result.fetchall()
+
+        return {
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'items': [dict(row._mapping) for row in items]
+        }
+
+    except Exception as e:
+        logger.error(f"Error searching e-Pazar items: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/items/aggregations", response_model=dict)
+async def get_epazar_items_aggregations(
+    search: Optional[str] = Query(None, description="Search term to aggregate"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get price aggregations for e-Pazar items (min, max, avg prices by item name).
+    """
+    try:
+        conditions = []
+        params = {}
+
+        if search:
+            conditions.append("item_name ILIKE :search")
+            params['search'] = f"%{search}%"
+
+        where_clause = " AND " + " AND ".join(conditions) if conditions else ""
+
+        result = await db.execute(
+            text(f"""
+                SELECT
+                    item_name,
+                    unit,
+                    COUNT(*) as occurrence_count,
+                    MIN(estimated_unit_price_mkd) as min_unit_price,
+                    MAX(estimated_unit_price_mkd) as max_unit_price,
+                    AVG(estimated_unit_price_mkd) as avg_unit_price,
+                    SUM(quantity) as total_quantity,
+                    COUNT(DISTINCT tender_id) as tender_count
+                FROM epazar_items
+                WHERE estimated_unit_price_mkd IS NOT NULL AND estimated_unit_price_mkd > 0 {where_clause}
+                GROUP BY item_name, unit
+                ORDER BY occurrence_count DESC
+                LIMIT 50
+            """),
+            params
+        )
+        aggregations = result.fetchall()
+
+        return {
+            'aggregations': [dict(row._mapping) for row in aggregations]
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting e-Pazar items aggregations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/tenders/{tender_id}/items", response_model=List[EPazarItemResponse])
 async def get_epazar_items(
     tender_id: str,

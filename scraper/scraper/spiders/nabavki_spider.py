@@ -1373,6 +1373,12 @@ class NabavkiSpider(scrapy.Spider):
             elif not link.startswith('http'):
                 link = 'https://e-nabavki.gov.mk/' + link
 
+            # Filter out external URLs (only keep e-nabavki.gov.mk documents)
+            # Skip bank guarantee PDFs and other external links
+            if 'e-nabavki.gov.mk' not in link:
+                logger.debug(f"Skipping external document URL: {link}")
+                return
+
             # Extract filename from URL
             import urllib.parse
             parsed = urllib.parse.urlparse(link)

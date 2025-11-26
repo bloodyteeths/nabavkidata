@@ -1169,6 +1169,16 @@ class APIClient {
     return this.request<EPazarStats>('/api/epazar/stats/overview');
   }
 
+  async searchEPazarItems(params?: Record<string, any>) {
+    const query = new URLSearchParams(params || {}).toString();
+    return this.request<EPazarItemsSearchResponse>(`/api/epazar/items?${query}`);
+  }
+
+  async getEPazarItemsAggregations(search?: string) {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.request<EPazarItemsAggregationsResponse>(`/api/epazar/items/aggregations${query}`);
+  }
+
   async summarizeEPazarTender(tenderId: string) {
     const encodedId = encodeURIComponent(tenderId);
     return this.request<{ tender_id: string; summary: string; items_count: number; offers_count: number }>(
@@ -1353,6 +1363,35 @@ export interface EPazarStats {
   status_breakdown: Record<string, { count: number; total_value: number }>;
   recent_tenders: EPazarTender[];
   top_suppliers: EPazarSupplier[];
+}
+
+export interface EPazarItemWithTender extends EPazarItem {
+  tender_title?: string;
+  contracting_authority?: string;
+  tender_status?: string;
+  tender_closing_date?: string;
+}
+
+export interface EPazarItemsSearchResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  items: EPazarItemWithTender[];
+}
+
+export interface EPazarItemAggregation {
+  item_name: string;
+  unit?: string;
+  occurrence_count: number;
+  min_unit_price?: number;
+  max_unit_price?: number;
+  avg_unit_price?: number;
+  total_quantity?: number;
+  tender_count: number;
+}
+
+export interface EPazarItemsAggregationsResponse {
+  aggregations: EPazarItemAggregation[];
 }
 
 export const api = new APIClient();

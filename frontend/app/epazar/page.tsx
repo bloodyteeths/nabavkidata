@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Search,
   Filter,
@@ -13,14 +13,23 @@ import {
   Users,
   FileText,
   TrendingUp,
-  ShoppingCart
+  ShoppingCart,
+  ExternalLink,
+  ArrowUpDown
 } from 'lucide-react';
-import { api, EPazarTender, EPazarStats } from '@/lib/api';
+import { api, EPazarTender, EPazarStats, EPazarItemWithTender, EPazarItemAggregation } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import Link from 'next/link';
 
 function formatCurrency(value: number | undefined | null, currency: string = 'MKD'): string {
@@ -36,6 +45,11 @@ function formatCurrency(value: number | undefined | null, currency: string = 'MK
 function formatDate(dateStr: string | undefined | null): string {
   if (!dateStr) return 'N/A';
   return new Date(dateStr).toLocaleDateString('mk-MK');
+}
+
+function formatQuantity(qty: number | undefined | null, unit: string | undefined | null): string {
+  if (!qty) return '-';
+  return `${qty.toLocaleString('mk-MK')} ${unit || ''}`.trim();
 }
 
 function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -91,18 +105,18 @@ function EPazarCard({ tender }: { tender: EPazarTender }) {
         <CardContent>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Estimated Value:</span>
+              <span className="text-gray-500">Проценета вредност:</span>
               <span className="font-medium">{formatCurrency(tender.estimated_value_mkd)}</span>
             </div>
             {tender.closing_date && (
               <div className="flex justify-between">
-                <span className="text-gray-500">Closing Date:</span>
+                <span className="text-gray-500">Краен рок:</span>
                 <span className="font-medium">{formatDate(tender.closing_date)}</span>
               </div>
             )}
             {tender.procedure_type && (
               <div className="flex justify-between">
-                <span className="text-gray-500">Procedure:</span>
+                <span className="text-gray-500">Постапка:</span>
                 <span className="font-medium text-xs">{tender.procedure_type}</span>
               </div>
             )}
@@ -117,15 +131,22 @@ function StatsCard({
   title,
   value,
   icon: Icon,
-  description
+  description,
+  onClick,
+  active
 }: {
   title: string;
   value: string | number;
   icon: any;
   description?: string;
+  onClick?: () => void;
+  active?: boolean;
 }) {
   return (
-    <Card>
+    <Card
+      className={`${onClick ? 'cursor-pointer hover:border-primary/50 transition-colors' : ''} ${active ? 'border-primary bg-primary/5' : ''}`}
+      onClick={onClick}
+    >
       <CardContent className="pt-6">
         <div className="flex items-center justify-between">
           <div>
@@ -133,29 +154,53 @@ function StatsCard({
             <p className="text-2xl font-bold">{value}</p>
             {description && <p className="text-xs text-gray-400 mt-1">{description}</p>}
           </div>
-          <Icon className="h-8 w-8 text-blue-500 opacity-80" />
+          <Icon className={`h-8 w-8 ${active ? 'text-primary' : 'text-blue-500'} opacity-80`} />
         </div>
       </CardContent>
     </Card>
   );
 }
 
-export default function EPazarPage() {
-  const [tenders, setTenders] = useState<EPazarTender[]>([]);
-  const [stats, setStats] = useState<EPazarStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+type TabType = 'tenders' | 'products';
 
-  // Filters
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<string>('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
+export default function EPazarPage() {
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('tenders');
+
+  // Stats
+  const [stats, setStats] = useState<EPazarStats | null>(null);
+
+  // Tenders state
+  const [tenders, setTenders] = useState<EPazarTender[]>([]);
+  const [tendersLoading, setTendersLoading] = useState(true);
+  const [tendersError, setTendersError] = useState<string | null>(null);
+  const [tendersSearch, setTendersSearch] = useState('');
+  const [tendersStatus, setTendersStatus] = useState<string>('');
+  const [tendersPage, setTendersPage] = useState(1);
+  const [tendersTotalPages, setTendersTotalPages] = useState(1);
+  const [tendersTotal, setTendersTotal] = useState(0);
+
+  // Products state
+  const [products, setProducts] = useState<EPazarItemWithTender[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
+  const [productsSearch, setProductsSearch] = useState('');
+  const [productsPage, setProductsPage] = useState(1);
+  const [productsTotalPages, setProductsTotalPages] = useState(1);
+  const [productsTotal, setProductsTotal] = useState(0);
+  const [productsSortBy, setProductsSortBy] = useState('item_name');
+  const [productsSortOrder, setProductsSortOrder] = useState('asc');
+  const [productsAggregations, setProductsAggregations] = useState<EPazarItemAggregation[]>([]);
+  const [hasSearchedProducts, setHasSearchedProducts] = useState(false);
 
   const pageSize = 12;
 
-  // Status filter tabs
+  // Hydration guard
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  // Status filter tabs for tenders
   const statusTabs = [
     { key: '', label: 'Сите' },
     { key: 'active', label: 'Активни' },
@@ -165,12 +210,23 @@ export default function EPazarPage() {
   ];
 
   useEffect(() => {
+    if (!isHydrated) return;
     loadStats();
-  }, []);
+  }, [isHydrated]);
 
   useEffect(() => {
-    loadTenders();
-  }, [page, status, search]);
+    if (!isHydrated) return;
+    if (activeTab === 'tenders') {
+      loadTenders();
+    }
+  }, [isHydrated, tendersPage, tendersStatus, tendersSearch, activeTab]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (activeTab === 'products' && hasSearchedProducts) {
+      loadProducts();
+    }
+  }, [isHydrated, productsPage, productsSortBy, productsSortOrder, activeTab]);
 
   async function loadStats() {
     try {
@@ -182,34 +238,86 @@ export default function EPazarPage() {
   }
 
   async function loadTenders() {
-    setLoading(true);
-    setError(null);
+    setTendersLoading(true);
+    setTendersError(null);
 
     try {
       const params: Record<string, any> = {
-        page,
+        page: tendersPage,
         page_size: pageSize,
       };
 
-      if (status) params.status = status;
-      if (search) params.search = search;
+      if (tendersStatus) params.status = tendersStatus;
+      if (tendersSearch) params.search = tendersSearch;
 
       const data = await api.getEPazarTenders(params);
       setTenders(data.items);
-      setTotal(data.total);
-      setTotalPages(Math.ceil(data.total / pageSize));
+      setTendersTotal(data.total);
+      setTendersTotalPages(Math.ceil(data.total / pageSize));
     } catch (err) {
       console.error('Failed to load tenders:', err);
-      setError('Failed to load tenders');
+      setTendersError('Не успеавме да ги вчитаме тендерите');
     } finally {
-      setLoading(false);
+      setTendersLoading(false);
     }
   }
 
-  function handleSearch(e: React.FormEvent) {
+  async function loadProducts() {
+    setProductsLoading(true);
+    setProductsError(null);
+
+    try {
+      const params: Record<string, any> = {
+        page: productsPage,
+        page_size: pageSize,
+        sort_by: productsSortBy,
+        sort_order: productsSortOrder,
+      };
+
+      if (productsSearch) params.search = productsSearch;
+
+      const [searchResult, aggResult] = await Promise.all([
+        api.searchEPazarItems(params),
+        productsPage === 1 && productsSearch ? api.getEPazarItemsAggregations(productsSearch) : Promise.resolve(null),
+      ]);
+
+      setProducts(searchResult.items);
+      setProductsTotal(searchResult.total);
+      setProductsTotalPages(Math.ceil(searchResult.total / pageSize));
+
+      if (aggResult) {
+        setProductsAggregations(aggResult.aggregations);
+      }
+    } catch (err) {
+      console.error('Failed to load products:', err);
+      setProductsError('Не успеавме да ги вчитаме производите');
+    } finally {
+      setProductsLoading(false);
+    }
+  }
+
+  function handleTendersSearch(e: React.FormEvent) {
     e.preventDefault();
-    setPage(1);
+    setTendersPage(1);
     loadTenders();
+  }
+
+  function handleProductsSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setProductsPage(1);
+    setHasSearchedProducts(true);
+    loadProducts();
+  }
+
+  // Wait for hydration
+  if (!isHydrated) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-full p-8">
+          <p className="text-muted-foreground">Се вчитува...</p>
+        </div>
+      </DashboardLayout>
+    );
   }
 
   return (
@@ -222,21 +330,26 @@ export default function EPazarPage() {
               <ShoppingCart className="h-6 w-6" />
               е-Пазар Електронски Пазар
             </h1>
-            <p className="text-gray-500">Прегледајте тендери од e-pazar.gov.mk</p>
+            <p className="text-gray-500">Прегледајте тендери и производи од e-pazar.gov.mk</p>
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats - Clickable to switch tabs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatsCard
             title="Вкупно тендери"
             value={stats ? stats.total_tenders.toLocaleString() : '-'}
             icon={FileText}
+            onClick={() => setActiveTab('tenders')}
+            active={activeTab === 'tenders'}
           />
           <StatsCard
             title="Вкупно ставки"
             value={stats ? stats.total_items.toLocaleString() : '-'}
             icon={Package}
+            description="Кликни за пребарување"
+            onClick={() => setActiveTab('products')}
+            active={activeTab === 'products'}
           />
           <StatsCard
             title="Вкупно добавувачи"
@@ -250,115 +363,408 @@ export default function EPazarPage() {
           />
         </div>
 
-        {/* Search and Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <form onSubmit={handleSearch} className="flex gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Пребарај тендери..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Button type="submit">
-                <Filter className="h-4 w-4 mr-2" />
-                Барај
-              </Button>
-            </form>
+        {/* Tab Buttons */}
+        <div className="flex gap-2 border-b pb-2">
+          <Button
+            variant={activeTab === 'tenders' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('tenders')}
+            className="gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Тендери
+          </Button>
+          <Button
+            variant={activeTab === 'products' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('products')}
+            className="gap-2"
+          >
+            <Package className="h-4 w-4" />
+            Производи / Ставки
+          </Button>
+        </div>
 
-            {/* Status Tabs */}
-            <div className="flex gap-2 mt-4">
-              {statusTabs.map((tab) => (
-                <Button
-                  key={tab.key}
-                  variant={status === tab.key ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setStatus(tab.key);
-                    setPage(1);
-                  }}
-                >
-                  {tab.label}
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Results */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={`skeleton-${i}`} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4" />
-                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mt-2" />
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mt-2" />
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
+        {/* TENDERS TAB */}
+        {activeTab === 'tenders' && (
+          <>
+            {/* Search and Filters */}
+            <Card>
+              <CardContent className="pt-6">
+                <form onSubmit={handleTendersSearch} className="flex gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="Пребарај тендери..."
+                      value={tendersSearch}
+                      onChange={(e) => setTendersSearch(e.target.value)}
+                      className="pl-10"
+                    />
                   </div>
+                  <Button type="submit">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Барај
+                  </Button>
+                </form>
+
+                {/* Status Tabs */}
+                <div className="flex gap-2 mt-4 flex-wrap">
+                  {statusTabs.map((tab) => (
+                    <Button
+                      key={tab.key}
+                      variant={tendersStatus === tab.key ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setTendersStatus(tab.key);
+                        setTendersPage(1);
+                      }}
+                    >
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Results */}
+            {tendersLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Card key={`skeleton-${i}`} className="animate-pulse">
+                    <CardHeader>
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4" />
+                      <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mt-2" />
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mt-2" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : tendersError ? (
+              <Card>
+                <CardContent className="pt-6 text-center text-red-500">
+                  {tendersError}
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        ) : error ? (
-          <Card>
-            <CardContent className="pt-6 text-center text-red-500">
-              {error}
-            </CardContent>
-          </Card>
-        ) : tenders.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6 text-center text-gray-500">
-              Не се пронајдени тендери. Обидете се со други критериуми за пребарување.
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <div className="text-sm text-gray-500 mb-2">
-              Прикажани {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} од {total} тендери
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {tenders.map((tender) => (
-                <div key={tender.tender_id}>
-                  <EPazarCard tender={tender} />
+            ) : tenders.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6 text-center text-gray-500">
+                  Не се пронајдени тендери. Обидете се со други критериуми за пребарување.
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className="text-sm text-gray-500 mb-2">
+                  Прикажани {(tendersPage - 1) * pageSize + 1}-{Math.min(tendersPage * pageSize, tendersTotal)} од {tendersTotal} тендери
                 </div>
-              ))}
-            </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-4 mt-6">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Претходна
-                </Button>
-                <span className="text-sm text-gray-500">
-                  Страна {page} од {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  Следна
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {tenders.map((tender) => (
+                    <div key={tender.tender_id}>
+                      <EPazarCard tender={tender} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {tendersTotalPages > 1 && (
+                  <div className="flex justify-center items-center gap-4 mt-6">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTendersPage(p => Math.max(1, p - 1))}
+                      disabled={tendersPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Претходна
+                    </Button>
+                    <span className="text-sm text-gray-500">
+                      Страна {tendersPage} од {tendersTotalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTendersPage(p => Math.min(tendersTotalPages, p + 1))}
+                      disabled={tendersPage === tendersTotalPages}
+                    >
+                      Следна
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* PRODUCTS TAB */}
+        {activeTab === 'products' && (
+          <>
+            {/* Search and Filters */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Пребарување производи</CardTitle>
+                <CardDescription>
+                  Пребарувајте и споредувајте цени на производи од сите е-Пазар тендери
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <form onSubmit={handleProductsSearch} className="flex gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="Пребарај производи (пр. хартија, тонер, канцелариски материјал...)"
+                      value={productsSearch}
+                      onChange={(e) => setProductsSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Button type="submit" disabled={productsLoading}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Барај
+                  </Button>
+                </form>
+
+                {/* Sort options */}
+                {hasSearchedProducts && (
+                  <div className="flex gap-4 items-center">
+                    <span className="text-sm text-muted-foreground">Сортирај по:</span>
+                    <Select
+                      value={productsSortBy}
+                      onValueChange={(value) => {
+                        setProductsSortBy(value);
+                        setProductsPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-48">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="item_name">Име</SelectItem>
+                        <SelectItem value="estimated_unit_price_mkd">Единечна цена</SelectItem>
+                        <SelectItem value="quantity">Количина</SelectItem>
+                        <SelectItem value="estimated_total_price_mkd">Вкупна цена</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setProductsSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+                        setProductsPage(1);
+                      }}
+                    >
+                      <ArrowUpDown className="h-4 w-4 mr-1" />
+                      {productsSortOrder === 'asc' ? 'Растечки' : 'Опаѓачки'}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Products Results */}
+            {!hasSearchedProducts ? (
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <p className="text-muted-foreground">
+                    Внесете термин за пребарување за да ги видите производите и нивните цени
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Примери: хартија А4, тонер, канцелариски материјал, гориво
+                  </p>
+                </CardContent>
+              </Card>
+            ) : productsLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Card key={`skeleton-${i}`} className="animate-pulse">
+                    <CardContent className="pt-6">
+                      <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-2" />
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
+            ) : productsError ? (
+              <Card>
+                <CardContent className="pt-6 text-center text-red-500">
+                  {productsError}
+                </CardContent>
+              </Card>
+            ) : products.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6 text-center text-gray-500">
+                  <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Не се пронајдени производи за "{productsSearch}"</p>
+                  <p className="text-xs mt-2">Обидете се со други термини за пребарување</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Price Aggregations */}
+                {productsAggregations.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5" />
+                        Анализа на цени
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left p-2">Производ</th>
+                              <th className="text-right p-2">Мин. цена</th>
+                              <th className="text-right p-2">Просек</th>
+                              <th className="text-right p-2">Макс. цена</th>
+                              <th className="text-right p-2">Вкупна кол.</th>
+                              <th className="text-right p-2">Тендери</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {productsAggregations.slice(0, 10).map((agg, i) => (
+                              <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
+                                <td className="p-2 font-medium">
+                                  {agg.item_name}
+                                  {agg.unit && <span className="text-xs text-muted-foreground ml-1">({agg.unit})</span>}
+                                </td>
+                                <td className="text-right p-2 text-green-600">{formatCurrency(agg.min_unit_price)}</td>
+                                <td className="text-right p-2">{formatCurrency(agg.avg_unit_price)}</td>
+                                <td className="text-right p-2 text-red-600">{formatCurrency(agg.max_unit_price)}</td>
+                                <td className="text-right p-2">{agg.total_quantity?.toLocaleString() || '-'}</td>
+                                <td className="text-right p-2">{agg.tender_count}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Results count */}
+                <div className="text-sm text-gray-500">
+                  Прикажани {(productsPage - 1) * pageSize + 1}-{Math.min(productsPage * pageSize, productsTotal)} од {productsTotal} производи
+                </div>
+
+                {/* Products List */}
+                <div className="space-y-4">
+                  {products.map((item, idx) => (
+                    <Card key={`${item.item_id}-${idx}`} className="hover:border-primary/50 transition-colors">
+                      <CardContent className="pt-6">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                          {/* Product Info */}
+                          <div className="flex-1 space-y-2">
+                            <h3 className="font-semibold text-lg">{item.item_name}</h3>
+                            {item.item_description && (
+                              <p className="text-sm text-muted-foreground line-clamp-2">{item.item_description}</p>
+                            )}
+
+                            <div className="flex flex-wrap gap-2 text-sm">
+                              {item.quantity && (
+                                <Badge variant="secondary">
+                                  Кол: {formatQuantity(item.quantity, item.unit)}
+                                </Badge>
+                              )}
+                              {item.estimated_unit_price_mkd && (
+                                <Badge variant="outline">
+                                  Ед. цена: {formatCurrency(item.estimated_unit_price_mkd)}
+                                </Badge>
+                              )}
+                              {item.estimated_total_price_mkd && (
+                                <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
+                                  Вкупно: {formatCurrency(item.estimated_total_price_mkd)}
+                                </Badge>
+                              )}
+                              {item.cpv_code && (
+                                <Badge variant="outline" className="font-mono">
+                                  CPV: {item.cpv_code}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {/* Tender Context */}
+                            {item.tender_title && (
+                              <div className="pt-2 border-t mt-2">
+                                <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                                  <Building2 className="h-4 w-4 mt-0.5 shrink-0" />
+                                  <div>
+                                    <p className="font-medium text-foreground line-clamp-1">
+                                      {item.tender_title}
+                                    </p>
+                                    {item.contracting_authority && (
+                                      <p>{item.contracting_authority}</p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
+                                  {item.tender_closing_date && (
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      Рок: {formatDate(item.tender_closing_date)}
+                                    </span>
+                                  )}
+                                  {item.tender_status && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {getStatusLabel(item.tender_status)}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex md:flex-col gap-2">
+                            <Link href={`/epazar/${encodeURIComponent(item.tender_id)}`}>
+                              <Button variant="outline" size="sm">
+                                <ExternalLink className="h-4 w-4 mr-1" />
+                                Тендер
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {productsTotalPages > 1 && (
+                  <div className="flex justify-center items-center gap-4 mt-6">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProductsPage(p => Math.max(1, p - 1))}
+                      disabled={productsPage === 1 || productsLoading}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Претходна
+                    </Button>
+                    <span className="text-sm text-gray-500">
+                      Страна {productsPage} од {productsTotalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProductsPage(p => Math.min(productsTotalPages, p + 1))}
+                      disabled={productsPage === productsTotalPages || productsLoading}
+                    >
+                      Следна
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
