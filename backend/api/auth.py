@@ -4,6 +4,7 @@ Handles user registration, login, password management, and profile updates
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from datetime import datetime, timedelta
@@ -12,15 +13,22 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 import secrets
 import os
+import httpx
+from urllib.parse import urlencode
 from collections import defaultdict
 from time import time
 
+import logging
+
 from database import get_db
 from models import User, AuditLog
+from pydantic import BaseModel
 from schemas import (
     UserCreate, UserLogin, UserResponse, TokenResponse,
     MessageResponse, ErrorResponse
 )
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # CONFIGURATION
@@ -28,16 +36,16 @@ from schemas import (
 
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+REFRESH_TOKEN_EXPIRE_DAYS = 30  # 30 days
 
-# Email configuration
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_FROM = os.getenv("SMTP_FROM", "noreply@nabavkidata.com")
+# Frontend URL for email links
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", f"{FRONTEND_URL}/api/auth/google/callback")
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -169,26 +177,36 @@ async def log_audit(
     await db.commit()
 
 
-async def send_verification_email(email: str, token: str, background_tasks: BackgroundTasks):
-    """Send email verification email (background task)"""
-    # TODO: Implement actual email sending with SMTP
-    verification_url = f"{FRONTEND_URL}/verify-email?token={token}"
+async def send_verification_email_task(email: str, token: str, name: str, background_tasks: BackgroundTasks):
+    """Send email verification email via Mailersend (background task)"""
+    from services.mailer import mailer_service
 
-    def send_email():
-        print(f"[EMAIL] Verification email to {email}: {verification_url}")
-        # Implement SMTP sending here
+    async def send_email():
+        try:
+            result = await mailer_service.send_verification_email(email, token, name)
+            if result:
+                logger.info(f"Verification email sent to {email}")
+            else:
+                logger.error(f"Failed to send verification email to {email}")
+        except Exception as e:
+            logger.error(f"Error sending verification email to {email}: {e}")
 
     background_tasks.add_task(send_email)
 
 
-async def send_password_reset_email(email: str, token: str, background_tasks: BackgroundTasks):
-    """Send password reset email (background task)"""
-    # TODO: Implement actual email sending with SMTP
-    reset_url = f"{FRONTEND_URL}/reset-password?token={token}"
+async def send_password_reset_email_task(email: str, token: str, name: str, background_tasks: BackgroundTasks):
+    """Send password reset email via Mailersend (background task)"""
+    from services.mailer import mailer_service
 
-    def send_email():
-        print(f"[EMAIL] Password reset email to {email}: {reset_url}")
-        # Implement SMTP sending here
+    async def send_email():
+        try:
+            result = await mailer_service.send_password_reset_email(email, token, name)
+            if result:
+                logger.info(f"Password reset email sent to {email}")
+            else:
+                logger.error(f"Failed to send password reset email to {email}")
+        except Exception as e:
+            logger.error(f"Error sending password reset email to {email}: {e}")
 
     background_tasks.add_task(send_email)
 
@@ -290,7 +308,7 @@ async def register(
     await db.refresh(new_user)
 
     # Send verification email
-    await send_verification_email(user_data.email, verification_token, background_tasks)
+    await send_verification_email_task(user_data.email, verification_token, user_data.full_name or "User", background_tasks)
 
     # Log audit
     await log_audit(
@@ -485,7 +503,7 @@ async def resend_verification(
     verification_token = create_verification_token()
 
     # Send verification email
-    await send_verification_email(email, verification_token, background_tasks)
+    await send_verification_email_task(email, verification_token, user.full_name or "User", background_tasks)
 
     return MessageResponse(
         message="Verification email sent",
@@ -497,9 +515,13 @@ async def resend_verification(
 # PASSWORD MANAGEMENT ENDPOINTS
 # ============================================================================
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
 @router.post("/forgot-password", response_model=MessageResponse)
 async def forgot_password(
-    email: str,
+    data: ForgotPasswordRequest,
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
@@ -511,6 +533,8 @@ async def forgot_password(
     - Sends reset email
     - Rate limited to 3 attempts per hour per email
     """
+    email = data.email
+
     # Rate limiting
     if not rate_limiter.check_rate_limit(email, limit=3, window_seconds=3600, attempt_type="password_reset"):
         raise HTTPException(
@@ -529,7 +553,7 @@ async def forgot_password(
     reset_token = create_verification_token()
 
     # Send reset email
-    await send_password_reset_email(email, reset_token, background_tasks)
+    await send_password_reset_email_task(email, reset_token, user.full_name or "User", background_tasks)
 
     # Log audit
     await log_audit(
@@ -678,3 +702,151 @@ async def update_user_profile(
     )
 
     return UserResponse.model_validate(current_user)
+
+
+# ============================================================================
+# GOOGLE OAUTH ENDPOINTS
+# ============================================================================
+
+@router.get("/google")
+async def google_login():
+    """
+    Initiate Google OAuth login flow
+
+    Redirects user to Google's OAuth consent screen
+    """
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured"
+        )
+
+    # Build Google OAuth URL
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "select_account"
+    }
+
+    google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+    return RedirectResponse(url=google_auth_url)
+
+
+@router.get("/google/callback")
+async def google_callback(
+    code: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Handle Google OAuth callback
+
+    - Exchanges authorization code for tokens
+    - Gets user info from Google
+    - Creates or updates user account
+    - Returns JWT tokens
+    """
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured"
+        )
+
+    try:
+        # Exchange authorization code for tokens
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": GOOGLE_REDIRECT_URI
+                }
+            )
+
+            if token_response.status_code != 200:
+                logger.error(f"Google token exchange failed: {token_response.text}")
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/auth/login?error=google_auth_failed"
+                )
+
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
+
+            # Get user info from Google
+            user_info_response = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+
+            if user_info_response.status_code != 200:
+                logger.error(f"Google user info failed: {user_info_response.text}")
+                return RedirectResponse(
+                    url=f"{FRONTEND_URL}/auth/login?error=google_auth_failed"
+                )
+
+            google_user = user_info_response.json()
+
+        email = google_user.get("email")
+        full_name = google_user.get("name")
+        google_id = google_user.get("id")
+
+        if not email:
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/auth/login?error=email_required"
+            )
+
+        # Check if user exists
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        if user:
+            # Update existing user
+            user.last_login = datetime.utcnow()
+            if not user.email_verified:
+                user.email_verified = True  # Google emails are verified
+            if not user.full_name and full_name:
+                user.full_name = full_name
+            await db.commit()
+
+            # Log audit
+            await log_audit(db, str(user.user_id), "google_login", {"email": email}, None)
+        else:
+            # Create new user
+            import uuid
+            user = User(
+                user_id=uuid.uuid4(),
+                email=email,
+                password_hash="",  # No password for OAuth users
+                full_name=full_name,
+                email_verified=True,  # Google emails are verified
+                subscription_tier="free",
+                role="user",
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+
+            # Log audit
+            await log_audit(db, str(user.user_id), "google_registration", {"email": email}, None)
+
+        # Create JWT tokens
+        jwt_access_token = create_access_token(data={"sub": str(user.user_id)})
+        jwt_refresh_token = create_refresh_token(data={"sub": str(user.user_id)})
+
+        # Redirect to frontend with tokens
+        redirect_url = f"{FRONTEND_URL}/auth/callback?access_token={jwt_access_token}&refresh_token={jwt_refresh_token}"
+        return RedirectResponse(url=redirect_url)
+
+    except Exception as e:
+        logger.error(f"Google OAuth error: {str(e)}")
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/auth/login?error=google_auth_failed"
+        )

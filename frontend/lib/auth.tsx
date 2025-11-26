@@ -37,6 +37,7 @@ interface AuthContextType {
   resetPassword: (token: string, newPassword: string) => Promise<void>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  setTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   error: string | null;
   clearError: () => void;
 }
@@ -485,6 +486,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
   };
 
+  // Set tokens from OAuth callback
+  const setTokensFromOAuth = async (accessToken: string, refreshTokenStr: string) => {
+    if (typeof window === 'undefined') return;
+
+    localStorage.setItem(TOKEN_KEY, accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshTokenStr);
+
+    // Set expiry (7 days for new tokens)
+    const expiryTime = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+
+    // Fetch user profile
+    await fetchUser();
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
@@ -499,6 +515,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetPassword,
     changePassword,
     updateProfile,
+    setTokens: setTokensFromOAuth,
     error,
     clearError,
   };
