@@ -929,7 +929,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* CPV Codes - Searchable dropdown with multi-select */}
-        <Card>
+        <Card className={`relative ${showCpvDropdown ? 'z-[200]' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               CPV Кодови
@@ -966,7 +966,7 @@ export default function SettingsPage() {
 
               {/* Dropdown with CPV codes */}
               {showCpvDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-background border rounded-lg shadow-xl z-[100] max-h-80 overflow-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-background border rounded-lg shadow-xl z-[250] max-h-80 overflow-auto">
                   <div className="sticky top-0 bg-muted/50 backdrop-blur-sm px-3 py-2 border-b">
                     <p className="text-xs text-muted-foreground">
                       {filteredCpvCodes.length} кодови пронајдени - кликнете за да изберете
@@ -1002,10 +1002,10 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* Click outside to close */}
+            {/* Click outside to close - positioned behind the dropdown but above other content */}
             {showCpvDropdown && (
               <div
-                className="fixed inset-0 z-[99]"
+                className="fixed inset-0 z-[199]"
                 onClick={() => setShowCpvDropdown(false)}
               />
             )}
@@ -1038,8 +1038,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Entities - With autocomplete - FIXED z-index */}
-        <Card className="relative z-[80]">
+        {/* Entities - With autocomplete */}
+        <Card className="relative z-[50]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Набавувачки организации
