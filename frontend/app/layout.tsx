@@ -24,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="mk">
-      <body className={inter.className}>
+    <html lang="mk" suppressHydrationWarning>
+      <body className={inter.className} suppressHydrationWarning>
         <AuthProviderWrapper>
           {children}
           <Toaster position="top-center" richColors />
