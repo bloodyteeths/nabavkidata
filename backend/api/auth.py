@@ -807,7 +807,7 @@ async def google_callback(
 
         if user:
             # Update existing user
-            user.last_login = datetime.utcnow()
+            user.updated_at = datetime.utcnow()
             if not user.email_verified:
                 user.email_verified = True  # Google emails are verified
             if not user.full_name and full_name:
