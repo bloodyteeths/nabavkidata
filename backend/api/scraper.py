@@ -567,13 +567,42 @@ SCRAPER_CONFIGS = {
 )
 async def list_available_scrapers():
     """List all available scrapers that can be triggered manually"""
+    import subprocess
+
+    # Check which scrapers are currently running
+    running_patterns = {}
+    try:
+        ps_output = subprocess.run(
+            ["pgrep", "-af", "scrapy"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if ps_output.stdout:
+            for line in ps_output.stdout.strip().split('\n'):
+                if 'nabavki' in line:
+                    if 'categories=active' in line and 'awarded' not in line and 'cancelled' not in line:
+                        running_patterns['nabavki_active'] = True
+                    elif 'categories=awarded' in line:
+                        running_patterns['nabavki_awarded'] = True
+                    elif 'categories=cancelled' in line:
+                        running_patterns['nabavki_cancelled'] = True
+                    elif 'active,awarded,cancelled' in line:
+                        running_patterns['nabavki_full'] = True
+                elif 'epazar' in line:
+                    running_patterns['epazar'] = True
+    except Exception:
+        pass
+
     return {
         "scrapers": [
             {
                 "id": key,
                 "name": config["name"],
                 "description": config["description"],
-                "log_file": config["log_file"]
+                "command": config["command"],
+                "log_file": config["log_file"],
+                "is_running": running_patterns.get(key, False)
             }
             for key, config in SCRAPER_CONFIGS.items()
         ]
@@ -688,11 +717,8 @@ async def get_cron_status():
     import os
     from pathlib import Path
 
-    result = {
-        "crontab": [],
-        "recent_logs": [],
-        "log_directory": "/var/log/nabavkidata"
-    }
+    cron_entries = []
+    log_files = []
 
     # Get crontab entries
     try:
@@ -703,10 +729,30 @@ async def get_cron_status():
             timeout=5
         )
         if cron_result.returncode == 0:
-            lines = [line.strip() for line in cron_result.stdout.split('\n') if line.strip() and not line.startswith('#')]
-            result["crontab"] = lines
+            for line in cron_result.stdout.split('\n'):
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    # Parse cron line: schedule (5 fields) + command
+                    parts = line.split(None, 5)
+                    if len(parts) >= 6:
+                        schedule = ' '.join(parts[:5])
+                        command = parts[5]
+                        # Generate description from command
+                        if 'nabavki' in command:
+                            desc = "E-Nabavki scraper"
+                        elif 'epazar' in command:
+                            desc = "E-Pazar scraper"
+                        elif 'document' in command.lower():
+                            desc = "Document processor"
+                        else:
+                            desc = "Scheduled task"
+                        cron_entries.append({
+                            "schedule": schedule,
+                            "command": command[:100],  # Truncate long commands
+                            "description": desc
+                        })
     except Exception as e:
-        result["crontab_error"] = str(e)
+        pass  # If crontab fails, we just return empty list
 
     # Get recent log files
     log_dirs = [
@@ -714,19 +760,17 @@ async def get_cron_status():
         "/tmp"
     ]
 
-    log_files = []
     for log_dir in log_dirs:
         if os.path.exists(log_dir):
             try:
                 for f in os.listdir(log_dir):
-                    if any(pattern in f for pattern in ['nabavki', 'epazar', 'scraper', 'documents']):
+                    if any(pattern in f for pattern in ['nabavki', 'epazar', 'scraper', 'documents', 'spider']):
                         filepath = os.path.join(log_dir, f)
                         if os.path.isfile(filepath):
                             stat = os.stat(filepath)
                             log_files.append({
                                 "name": f,
-                                "path": filepath,
-                                "size_kb": round(stat.st_size / 1024, 2),
+                                "size": stat.st_size,  # Frontend expects 'size' in bytes
                                 "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
                             })
             except Exception:
@@ -734,9 +778,12 @@ async def get_cron_status():
 
     # Sort by modification time, newest first
     log_files.sort(key=lambda x: x["modified"], reverse=True)
-    result["recent_logs"] = log_files[:20]  # Limit to 20 most recent
 
-    return result
+    # Return in format expected by frontend
+    return {
+        "cron_entries": cron_entries,
+        "log_files": log_files[:20]  # Limit to 20 most recent
+    }
 
 
 @router.get(
