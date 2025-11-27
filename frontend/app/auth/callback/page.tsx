@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
@@ -10,34 +10,52 @@ export default function AuthCallbackPage() {
   const searchParams = useSearchParams();
   const { setTokens } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const processedRef = useRef(false);
 
   useEffect(() => {
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
-    const errorParam = searchParams.get('error');
+    // Prevent double processing in strict mode
+    if (processedRef.current) return;
 
-    if (errorParam) {
-      setError(getErrorMessage(errorParam));
-      setTimeout(() => router.push('/auth/login'), 3000);
-      return;
-    }
+    const processAuth = async () => {
+      const accessToken = searchParams.get('access_token');
+      const refreshToken = searchParams.get('refresh_token');
+      const errorParam = searchParams.get('error');
 
-    if (accessToken && refreshToken) {
-      // Store tokens
-      localStorage.setItem('auth_token', accessToken);
-      localStorage.setItem('refresh_token', refreshToken);
-
-      // Trigger auth state update if setTokens is available
-      if (setTokens) {
-        setTokens(accessToken, refreshToken);
+      if (errorParam) {
+        setError(getErrorMessage(errorParam));
+        setTimeout(() => router.push('/auth/login'), 3000);
+        return;
       }
 
-      // Redirect to dashboard
-      router.push('/dashboard');
-    } else {
-      setError('Недостасуваат токени за автентикација');
-      setTimeout(() => router.push('/auth/login'), 3000);
-    }
+      if (accessToken && refreshToken) {
+        processedRef.current = true;
+
+        try {
+          // Use setTokens which handles localStorage and fetches user
+          if (setTokens) {
+            await setTokens(accessToken, refreshToken);
+          } else {
+            // Fallback: store tokens directly
+            localStorage.setItem('auth_token', accessToken);
+            localStorage.setItem('refresh_token', refreshToken);
+            const expiryTime = Date.now() + 7 * 24 * 60 * 60 * 1000;
+            localStorage.setItem('token_expiry', expiryTime.toString());
+          }
+
+          // Redirect to dashboard after auth is complete
+          router.push('/dashboard');
+        } catch (err) {
+          console.error('Failed to process OAuth callback:', err);
+          setError('Грешка при автентикација. Обидете се повторно.');
+          setTimeout(() => router.push('/auth/login'), 3000);
+        }
+      } else {
+        setError('Недостасуваат токени за автентикација');
+        setTimeout(() => router.push('/auth/login'), 3000);
+      }
+    };
+
+    processAuth();
   }, [searchParams, router, setTokens]);
 
   const getErrorMessage = (error: string): string => {

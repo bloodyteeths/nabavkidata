@@ -77,13 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(TOKEN_KEY, tokens.access_token);
     localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
 
-    // JWT tokens are typically valid for 15-30 minutes
-    // Store expiry time (default to 15 minutes)
-    const expiryTime = Date.now() + 15 * 60 * 1000;
+    // JWT access tokens are valid for 7 days (matching backend config)
+    const expiryTime = Date.now() + 7 * 24 * 60 * 60 * 1000;
     localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
 
     // Also set cookie for middleware authentication
-    // Cookie expires in 15 minutes (same as token)
     const expires = new Date(expiryTime).toUTCString();
     document.cookie = `auth_token=${tokens.access_token}; path=/; expires=${expires}; SameSite=Lax`;
   };
@@ -521,9 +519,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(TOKEN_KEY, accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, refreshTokenStr);
 
-    // Set expiry (7 days for new tokens)
+    // Set expiry (7 days for access tokens, matching backend JWT config)
     const expiryTime = Date.now() + 7 * 24 * 60 * 60 * 1000;
     localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+
+    // Also set cookie for middleware authentication
+    const expires = new Date(expiryTime).toUTCString();
+    document.cookie = `auth_token=${accessToken}; path=/; expires=${expires}; SameSite=Lax`;
 
     // Fetch user profile
     await fetchUser();

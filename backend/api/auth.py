@@ -113,6 +113,9 @@ rate_limiter = RateLimiter()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against hash"""
+    # OAuth users have empty password_hash - they cannot use password login
+    if not hashed_password:
+        return False
     return pwd_context.verify(plain_password, hashed_password)
 
 
@@ -463,6 +466,21 @@ async def login(
 
     # Authenticate user
     user = await get_user_by_email(db, form_data.username)
+
+    # Check if user exists but registered via OAuth (empty password)
+    if user and not user.password_hash:
+        await log_audit(
+            db,
+            str(user.user_id),
+            "login_failed_oauth_user",
+            {"email": form_data.username, "reason": "oauth_user_password_login"},
+            client_ip
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account was created using Google Sign-In. Please use the 'Sign in with Google' button to log in.",
+        )
+
     if not user or not verify_password(form_data.password, user.password_hash):
         await log_audit(
             db,
