@@ -37,13 +37,15 @@ export default function TendersPage() {
   }, []);
 
   useEffect(() => {
+    if (!isHydrated) return;
     loadTenders();
-  }, [page, filters, dataset, quickFilters]);
+  }, [isHydrated, page, filters, dataset, quickFilters]);
 
   useEffect(() => {
+    if (!isHydrated) return;
     loadStats();
     checkHistoricalData();
-  }, []);
+  }, [isHydrated]);
 
   async function checkHistoricalData() {
     try {
