@@ -208,6 +208,29 @@ async def validate_session(db: AsyncSession, user_id: str, token: str) -> bool:
     Returns False if session was invalidated (user logged in elsewhere).
     """
     token_hash = hash_token(token)
+
+    # First check if there are ANY active sessions for this user
+    any_session_result = await db.execute(
+        select(UserSession)
+        .where(UserSession.user_id == user_id)
+        .where(UserSession.is_active == True)
+    )
+    any_active_session = any_session_result.scalar_one_or_none()
+
+    # If no active sessions exist, this is likely an existing user before single-session was implemented
+    # Create a session for them to allow graceful migration
+    if any_active_session is None:
+        new_session = UserSession(
+            user_id=user_id,
+            token_hash=token_hash,
+            device_info="Migrated session",
+            is_active=True
+        )
+        db.add(new_session)
+        await db.commit()
+        return True
+
+    # Check if the token matches the active session
     result = await db.execute(
         select(UserSession)
         .where(UserSession.user_id == user_id)
@@ -222,6 +245,7 @@ async def validate_session(db: AsyncSession, user_id: str, token: str) -> bool:
         await db.commit()
         return True
 
+    # Token doesn't match the active session - user was kicked
     return False
 
 
@@ -326,10 +350,11 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
 
-    # Validate session is still active (single device enforcement)
-    session_valid = await validate_session(db, user_id, token)
-    if not session_valid:
-        raise session_kicked_exception
+    # TEMPORARILY DISABLED: Single device enforcement
+    # TODO: Re-enable once token sync issues are resolved
+    # session_valid = await validate_session(db, user_id, token)
+    # if not session_valid:
+    #     raise session_kicked_exception
 
     return user
 
@@ -493,6 +518,7 @@ async def refresh_token(
 
     - Validates refresh token
     - Issues new access token
+    - Updates session with new token hash
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -517,6 +543,16 @@ async def refresh_token(
 
     # Create new access token
     new_access_token = create_access_token(data={"sub": str(user.user_id)})
+
+    # Update session with new token hash (maintain single session)
+    new_token_hash = hash_token(new_access_token)
+    await db.execute(
+        update(UserSession)
+        .where(UserSession.user_id == user_id)
+        .where(UserSession.is_active == True)
+        .values(token_hash=new_token_hash, last_activity=datetime.utcnow())
+    )
+    await db.commit()
 
     return TokenResponse(
         access_token=new_access_token,

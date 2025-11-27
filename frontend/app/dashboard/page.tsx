@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { api, type DashboardData } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Clock } from "lucide-react";
-import { motion } from "framer-motion";
+import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import Link from "next/link";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -89,31 +89,11 @@ export default function DashboardPage() {
     );
   }
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
-
-  const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 }
-  };
-
   return (
-    <motion.div
-      variants={container}
-      initial="hidden"
-      animate="show"
-      className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6 lg:space-y-8"
-    >
+    <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6 lg:space-y-8">
       {/* Free Tier Upgrade Banner - Only show for FREE plan users */}
       {user?.subscription_tier?.toLowerCase() === 'free' && (
-        <motion.div variants={item}>
+        <div>
           <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 border-primary/30">
             <CardContent className="p-4 md:p-6">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -128,21 +108,21 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-                <a href="/settings" className="w-full md:w-auto">
+                <Link href="/settings" className="w-full md:w-auto">
                   <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg">
                     <Award className="mr-2 h-4 w-4" />
                     <span className="hidden sm:inline">Надогради сега</span>
                     <span className="sm:hidden">Надогради</span>
                   </Button>
-                </a>
+                </Link>
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       )}
 
       {/* Header */}
-      <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
             Персонализирана Табла
@@ -160,11 +140,11 @@ export default function DashboardPage() {
           <span className="hidden sm:inline">{loading ? 'Анализирам...' : 'Нова Анализа'}</span>
           <span className="sm:hidden">{loading ? '...' : 'Анализа'}</span>
         </Button>
-      </motion.div>
+      </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <motion.div variants={item}>
+        <div>
           <Card className="bg-primary/10 border-primary/20">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2 text-primary">
@@ -179,9 +159,9 @@ export default function DashboardPage() {
               <p className="text-xs text-primary/70 mt-1">Тендери за вас</p>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
-        <motion.div variants={item}>
+        <div>
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-400">
@@ -196,9 +176,9 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground mt-1">Активности</p>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
-        <motion.div variants={item}>
+        <div>
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-400">
@@ -213,9 +193,9 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground mt-1">AI анализи</p>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
-        <motion.div variants={item}>
+        <div>
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-400">
@@ -230,12 +210,12 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground mt-1">Активни тендери</p>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
         {/* Recommended Tenders */}
-        <motion.div variants={item} className="lg:col-span-2">
+        <div className="lg:col-span-2">
           <Card className="h-full">
             <CardHeader>
               <CardTitle>Препорачани Тендери</CardTitle>
@@ -247,16 +227,13 @@ export default function DashboardPage() {
                   <div className="text-center py-8 text-muted-foreground">
                     <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p className="text-sm">Нема препорачани тендери моментално.</p>
-                    <p className="text-xs mt-1">Кликнете на "Нова Анализа" за да ги освежите резултатите.</p>
+                    <p className="text-xs mt-1">Кликнете на &quot;Нова Анализа&quot; за да ги освежите резултатите.</p>
                   </div>
                 )}
-                {(data?.recommended_tenders || []).slice(0, 5).map((tender, idx) => (
-                  <motion.a
+                {(data?.recommended_tenders || []).slice(0, 5).map((tender) => (
+                  <Link
                     key={tender.tender_id}
                     href={`/tenders/${encodeURIComponent(tender.tender_id)}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
                     className="group flex items-start justify-between p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all hover:border-primary/20 cursor-pointer block"
                   >
                     <div className="flex-1">
@@ -291,17 +268,17 @@ export default function DashboardPage() {
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0">
                       <ArrowRight className="h-4 w-4 text-primary" />
                     </div>
-                  </motion.a>
+                  </Link>
                 ))}
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* Sidebar Column */}
         <div className="space-y-8">
           {/* AI Insights */}
-          <motion.div variants={item}>
+          <div>
             <Card className="bg-gradient-to-b from-primary/10 to-transparent border-primary/20">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -333,11 +310,11 @@ export default function DashboardPage() {
                 )}
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
           {/* Competitor Activity */}
           {data?.competitor_activity && data.competitor_activity.length > 0 && (
-            <motion.div variants={item}>
+            <div>
               <Card>
                 <CardHeader>
                   <CardTitle>Активности</CardTitle>
@@ -360,10 +337,10 @@ export default function DashboardPage() {
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
