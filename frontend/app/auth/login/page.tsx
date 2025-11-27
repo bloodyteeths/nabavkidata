@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, FormEvent, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ const GoogleIcon = () => (
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
@@ -29,6 +30,14 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [sessionKicked, setSessionKicked] = useState(false);
+
+  // Check if user was kicked from another device
+  useEffect(() => {
+    if (searchParams.get('kicked') === 'true') {
+      setSessionKicked(true);
+    }
+  }, [searchParams]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -90,6 +99,11 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {sessionKicked && (
+              <div className="p-3 rounded-md bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-sm border border-amber-300 dark:border-amber-700">
+                <strong>Сесија прекината:</strong> Вашата сесија е прекината бидејќи се најавивте од друг уред. Дозволена е само една активна сесија.
+              </div>
+            )}
             {errors.general && (
               <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
                 {errors.general}

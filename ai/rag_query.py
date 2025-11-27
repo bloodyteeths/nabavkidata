@@ -258,7 +258,18 @@ class PromptBuilder:
         Returns:
             Full prompt string for Gemini
         """
-        prompt_parts = [cls.SYSTEM_PROMPT, "\n\n"]
+        # Add current date/time context
+        from datetime import datetime
+        now = datetime.now()
+        date_context = f"""
+ТЕКОВЕН ДАТУМ И ВРЕМЕ: {now.strftime('%d.%m.%Y %H:%M')} (ден: {now.strftime('%A')})
+
+Ова е важно за:
+- Определување дали тендер е сè уште отворен (ако краен рок < денес = затворен)
+- Колку време остава до краен рок
+- Временски релевантни прашања
+"""
+        prompt_parts = [cls.SYSTEM_PROMPT, date_context, "\n\n"]
 
         # Add conversation history if provided
         if conversation_history:

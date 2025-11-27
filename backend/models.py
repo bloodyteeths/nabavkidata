@@ -25,6 +25,21 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class UserSession(Base):
+    """Track active user sessions for single-device enforcement"""
+    __tablename__ = "user_sessions"
+
+    session_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(255), nullable=False, index=True)
+    device_info = Column(Text)
+    ip_address = Column(INET)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_activity = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+
+
 class Organization(Base):
     __tablename__ = "organizations"
 

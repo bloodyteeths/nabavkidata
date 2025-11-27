@@ -180,8 +180,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(userData);
         scheduleTokenRefresh();
       } else if (response.status === 401) {
-        // Try to refresh token
-        await refreshTokenSilently();
+        // Check if session was kicked (logged in from another device)
+        const sessionKicked = response.headers.get('X-Session-Kicked');
+        const errorData = await response.json().catch(() => ({}));
+
+        if (sessionKicked === 'true' || errorData.detail?.includes('another device')) {
+          // Session was invalidated - user logged in elsewhere
+          clearTokens();
+          setUser(null);
+          setError('Вашата сесија е прекината бидејќи се најавивте од друг уред.');
+          router.push('/auth/login?kicked=true');
+        } else {
+          // Try to refresh token
+          await refreshTokenSilently();
+        }
       } else {
         clearTokens();
       }

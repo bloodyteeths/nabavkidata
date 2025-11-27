@@ -21,8 +21,9 @@ from time import time
 import logging
 
 from database import get_db
-from models import User, AuditLog
+from models import User, AuditLog, UserSession
 from pydantic import BaseModel
+import hashlib
 from schemas import (
     UserCreate, UserLogin, UserResponse, TokenResponse,
     MessageResponse, ErrorResponse
@@ -159,6 +160,83 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
     return result.scalar_one_or_none()
 
 
+# ============================================================================
+# SESSION MANAGEMENT (Single Device Enforcement)
+# ============================================================================
+
+def hash_token(token: str) -> str:
+    """Create a hash of the token for storage"""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+async def create_session(
+    db: AsyncSession,
+    user_id: str,
+    token: str,
+    device_info: Optional[str] = None,
+    ip_address: Optional[str] = None
+) -> UserSession:
+    """
+    Create a new session for user, invalidating any existing active sessions.
+    This enforces single-device login.
+    """
+    # Deactivate all existing sessions for this user
+    await db.execute(
+        update(UserSession)
+        .where(UserSession.user_id == user_id)
+        .where(UserSession.is_active == True)
+        .values(is_active=False)
+    )
+
+    # Create new session
+    session = UserSession(
+        user_id=user_id,
+        token_hash=hash_token(token),
+        device_info=device_info,
+        ip_address=ip_address,
+        is_active=True
+    )
+    db.add(session)
+    await db.commit()
+
+    return session
+
+
+async def validate_session(db: AsyncSession, user_id: str, token: str) -> bool:
+    """
+    Validate that the token belongs to an active session.
+    Returns False if session was invalidated (user logged in elsewhere).
+    """
+    token_hash = hash_token(token)
+    result = await db.execute(
+        select(UserSession)
+        .where(UserSession.user_id == user_id)
+        .where(UserSession.token_hash == token_hash)
+        .where(UserSession.is_active == True)
+    )
+    session = result.scalar_one_or_none()
+
+    if session:
+        # Update last activity
+        session.last_activity = datetime.utcnow()
+        await db.commit()
+        return True
+
+    return False
+
+
+async def invalidate_session(db: AsyncSession, user_id: str, token: str):
+    """Invalidate a specific session (for logout)"""
+    token_hash = hash_token(token)
+    await db.execute(
+        update(UserSession)
+        .where(UserSession.user_id == user_id)
+        .where(UserSession.token_hash == token_hash)
+        .values(is_active=False)
+    )
+    await db.commit()
+
+
 async def log_audit(
     db: AsyncSession,
     user_id: Optional[str],
@@ -226,6 +304,13 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    # Session kicked exception (different from credentials_exception)
+    session_kicked_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Session expired. You have been logged out because your account was accessed from another device.",
+        headers={"WWW-Authenticate": "Bearer", "X-Session-Kicked": "true"},
+    )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
@@ -240,6 +325,11 @@ async def get_current_user(
     user = await get_user_by_id(db, user_id=user_id)
     if user is None:
         raise credentials_exception
+
+    # Validate session is still active (single device enforcement)
+    session_valid = await validate_session(db, user_id, token)
+    if not session_valid:
+        raise session_kicked_exception
 
     return user
 
@@ -366,12 +456,22 @@ async def login(
     access_token = create_access_token(data={"sub": str(user.user_id)})
     refresh_token = create_refresh_token(data={"sub": str(user.user_id)})
 
+    # Create session (invalidates any existing sessions - single device enforcement)
+    device_info = request.headers.get("User-Agent", "Unknown") if request else "Unknown"
+    await create_session(
+        db,
+        str(user.user_id),
+        access_token,
+        device_info=device_info,
+        ip_address=client_ip
+    )
+
     # Log audit
     await log_audit(
         db,
         str(user.user_id),
         "user_login",
-        {"email": user.email},
+        {"email": user.email, "single_session_enforced": True},
         client_ip
     )
 
@@ -840,6 +940,15 @@ async def google_callback(
         # Create JWT tokens
         jwt_access_token = create_access_token(data={"sub": str(user.user_id)})
         jwt_refresh_token = create_refresh_token(data={"sub": str(user.user_id)})
+
+        # Create session (invalidates any existing sessions - single device enforcement)
+        await create_session(
+            db,
+            str(user.user_id),
+            jwt_access_token,
+            device_info="Google OAuth Login",
+            ip_address=None
+        )
 
         # Redirect to frontend with tokens
         redirect_url = f"{FRONTEND_URL}/auth/callback?access_token={jwt_access_token}&refresh_token={jwt_refresh_token}"

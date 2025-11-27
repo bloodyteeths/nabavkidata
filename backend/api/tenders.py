@@ -34,18 +34,51 @@ async def get_tender_stats(
     """
     Get tender statistics overview
 
-    Returns counts, totals, and breakdowns
+    Returns counts, totals, and breakdowns.
+
+    Note: A tender is considered "effectively closed" if:
+    - status is 'closed' OR 'awarded', OR
+    - closing_date is in the past (even if status='open')
     """
+    from datetime import date as date_type
+
+    today = date_type.today()
+
     # Total tenders
     total_query = select(func.count()).select_from(Tender)
     total_tenders = await db.scalar(total_query)
 
-    # Tenders by status
-    open_query = select(func.count()).select_from(Tender).where(Tender.status == "open")
+    # Effectively OPEN tenders:
+    # - status is 'open' AND (closing_date is NULL OR closing_date >= today)
+    open_query = select(func.count()).select_from(Tender).where(
+        and_(
+            Tender.status == "open",
+            or_(
+                Tender.closing_date.is_(None),
+                Tender.closing_date >= today
+            )
+        )
+    )
     open_tenders = await db.scalar(open_query)
 
-    closed_query = select(func.count()).select_from(Tender).where(Tender.status == "closed")
+    # Effectively CLOSED tenders:
+    # - status is 'closed', OR
+    # - status is 'open' but closing_date < today
+    closed_query = select(func.count()).select_from(Tender).where(
+        or_(
+            Tender.status == "closed",
+            and_(
+                Tender.status == "open",
+                Tender.closing_date.isnot(None),
+                Tender.closing_date < today
+            )
+        )
+    )
     closed_tenders = await db.scalar(closed_query)
+
+    # Awarded tenders
+    awarded_query = select(func.count()).select_from(Tender).where(Tender.status == "awarded")
+    awarded_tenders = await db.scalar(awarded_query)
 
     # Total value
     value_query = select(func.sum(Tender.estimated_value_mkd)).select_from(Tender)
@@ -87,10 +120,12 @@ async def get_tender_stats(
         "total_tenders": total_tenders,
         "open_tenders": open_tenders,
         "closed_tenders": closed_tenders,
+        "awarded_tenders": awarded_tenders,
         "total_value_mkd": float(total_value),
         "avg_value_mkd": float(avg_value),
         "tenders_by_category": categories,
-        "tenders_by_source_category": source_categories
+        "tenders_by_source_category": source_categories,
+        "current_date": today.isoformat()  # For UI reference
     }
 
 

@@ -101,9 +101,32 @@ class TenderResponse(TenderBase):
     scraped_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    effective_status: Optional[str] = None  # Computed: considers closing_date
 
     class Config:
         from_attributes = True
+
+    @validator('effective_status', pre=True, always=True)
+    def compute_effective_status(cls, v, values):
+        """
+        Compute effective status based on closing_date:
+        - If status is 'awarded' or 'cancelled' -> use as-is
+        - If status is 'open' but closing_date < today -> 'closed'
+        - Otherwise -> use original status
+        """
+        status = values.get('status', 'open')
+        closing_date = values.get('closing_date')
+
+        if status in ('awarded', 'cancelled'):
+            return status
+
+        if status == 'open' and closing_date:
+            from datetime import date as date_type
+            today = date_type.today()
+            if closing_date < today:
+                return 'closed'
+
+        return status
 
 
 class TenderListResponse(BaseModel):
