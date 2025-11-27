@@ -19,11 +19,11 @@ export default function TendersPage() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({});
   const [stats, setStats] = useState({ total: 0, open: 0, closed: 0, awarded: 0 });
-  const [dataset, setDataset] = useState<"active" | "awarded" | "cancelled" | "historical">(
+  const [dataset, setDataset] = useState<"active" | "awarded" | "cancelled">(
     "active"
   );
   const [error, setError] = useState<string | null>(null);
-  const [hasHistoricalData, setHasHistoricalData] = useState(false);
+  const [awardedCount, setAwardedCount] = useState(0);
   const [quickFilters, setQuickFilters] = useState({
     procedureType: null as string | null,
     statusFilter: null as string | null,
@@ -44,32 +44,24 @@ export default function TendersPage() {
   useEffect(() => {
     if (!isHydrated) return;
     loadStats();
-    checkHistoricalData();
+    loadAwardedCount();
   }, [isHydrated]);
 
-  async function checkHistoricalData() {
+  async function loadAwardedCount() {
     try {
       const result = await api.getTenders({
-        source_category: "historical",
+        source_category: "awarded",
         page: 1,
         page_size: 1
       });
-      setHasHistoricalData(result.total > 0);
+      setAwardedCount(result.total || 0);
     } catch (err) {
-      console.error("Failed to check historical data:", err);
-      setHasHistoricalData(false);
+      console.error("Failed to get awarded count:", err);
+      setAwardedCount(0);
     }
   }
 
   async function loadTenders() {
-    // Historical dataset - check if available
-    if (dataset === "historical" && !hasHistoricalData) {
-      setTenders([]);
-      setTotal(0);
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
@@ -113,25 +105,11 @@ export default function TendersPage() {
   async function loadStats() {
     try {
       const result = await api.getTenderStats();
-
-      // Get awarded count from awarded dataset
-      let awardedCount = 0;
-      try {
-        const awardedResult = await api.getTenders({
-          source_category: "awarded",
-          page: 1,
-          page_size: 1
-        });
-        awardedCount = awardedResult.total || 0;
-      } catch (err) {
-        console.error("Failed to get awarded count:", err);
-      }
-
       setStats({
         total: result.total_tenders || 0,
         open: result.open_tenders || 0,
         closed: result.closed_tenders || 0,
-        awarded: awardedCount,
+        awarded: result.awarded_tenders || 0,
       });
     } catch (error) {
       console.error("Failed to load stats:", error);
@@ -193,27 +171,19 @@ export default function TendersPage() {
 
       {/* Dataset Tabs */}
       <div className="flex flex-wrap gap-2">
-        {(["active", "awarded", "cancelled", "historical"] as const).map((key) => {
+        {(["active", "awarded", "cancelled"] as const).map((key) => {
           const labels: Record<typeof key, string> = {
             active: "Активни",
-            awarded: "Доделени",
+            awarded: `Доделени (${awardedCount.toLocaleString()})`,
             cancelled: "Поништени",
-            historical: hasHistoricalData ? "Архива" : "Архива (во подготовка)",
           };
           const isActive = dataset === key;
-          // Historical is disabled if no data
-          const disabled = key === "historical" && !hasHistoricalData;
           return (
             <Button
               key={key}
               variant={isActive ? "default" : "outline"}
               size="sm"
-              disabled={disabled}
               onClick={() => {
-                if (disabled) {
-                  toast.info("Архивата ќе се вклучи наскоро.");
-                  return;
-                }
                 setDataset(key);
                 setPage(1);
               }}
@@ -223,13 +193,6 @@ export default function TendersPage() {
           );
         })}
       </div>
-
-      {/* Placeholder notice for historical (not yet available) */}
-      {dataset === "historical" && !hasHistoricalData && (
-        <div className="rounded-md border border-dashed border-muted-foreground/30 p-4 text-sm text-muted-foreground">
-          Архивата на договори ќе биде активирана наскоро.
-        </div>
-      )}
 
       {/* Quick Filters */}
       <div className="space-y-3">
@@ -316,7 +279,7 @@ export default function TendersPage() {
           {/* Results Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <p className="text-xs md:text-sm text-muted-foreground">
-              {total} резултати {filters.search && `за "${filters.search}"`}
+              {total.toLocaleString()} резултати {filters.search && `за "${filters.search}"`}
               {dataset === "active" && " · активни тендери"}
               {dataset === "awarded" && " · доделени договори"}
               {dataset === "cancelled" && " · поништени тендери"}

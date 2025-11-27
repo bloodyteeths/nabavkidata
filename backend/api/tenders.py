@@ -36,30 +36,41 @@ async def get_tender_stats(
 
     Returns counts, totals, and breakdowns.
 
-    Note: A tender is considered "effectively closed" if:
-    - status is 'closed' OR 'awarded', OR
-    - closing_date is in the past (even if status='open')
+    Note: A tender is considered:
+    - "open": status='open' AND closing_date >= today (verified open)
+    - "closing_soon": status='open' AND closing_date is within 7 days
+    - "closed": status='closed' OR (status='open' AND closing_date < today)
+    - "unknown": status='open' but closing_date is NULL (can't verify)
     """
-    from datetime import date as date_type
+    from datetime import date as date_type, timedelta
 
     today = date_type.today()
+    week_from_now = today + timedelta(days=7)
 
     # Total tenders
     total_query = select(func.count()).select_from(Tender)
     total_tenders = await db.scalar(total_query)
 
-    # Effectively OPEN tenders:
-    # - status is 'open' AND (closing_date is NULL OR closing_date >= today)
+    # VERIFIED OPEN tenders (have closing_date >= today)
     open_query = select(func.count()).select_from(Tender).where(
         and_(
             Tender.status == "open",
-            or_(
-                Tender.closing_date.is_(None),
-                Tender.closing_date >= today
-            )
+            Tender.closing_date.isnot(None),
+            Tender.closing_date >= today
         )
     )
     open_tenders = await db.scalar(open_query)
+
+    # CLOSING SOON (within 7 days)
+    closing_soon_query = select(func.count()).select_from(Tender).where(
+        and_(
+            Tender.status == "open",
+            Tender.closing_date.isnot(None),
+            Tender.closing_date >= today,
+            Tender.closing_date <= week_from_now
+        )
+    )
+    closing_soon_tenders = await db.scalar(closing_soon_query)
 
     # Effectively CLOSED tenders:
     # - status is 'closed', OR
@@ -79,6 +90,15 @@ async def get_tender_stats(
     # Awarded tenders
     awarded_query = select(func.count()).select_from(Tender).where(Tender.status == "awarded")
     awarded_tenders = await db.scalar(awarded_query)
+
+    # UNKNOWN status (open but no closing_date - can't verify)
+    unknown_query = select(func.count()).select_from(Tender).where(
+        and_(
+            Tender.status == "open",
+            Tender.closing_date.is_(None)
+        )
+    )
+    unknown_tenders = await db.scalar(unknown_query)
 
     # Total value
     value_query = select(func.sum(Tender.estimated_value_mkd)).select_from(Tender)
@@ -118,9 +138,11 @@ async def get_tender_stats(
 
     return {
         "total_tenders": total_tenders,
-        "open_tenders": open_tenders,
+        "open_tenders": open_tenders,  # Verified open (have closing_date >= today)
+        "closing_soon_tenders": closing_soon_tenders,  # Closing within 7 days
         "closed_tenders": closed_tenders,
         "awarded_tenders": awarded_tenders,
+        "unknown_status_tenders": unknown_tenders,  # No closing_date, can't verify
         "total_value_mkd": float(total_value),
         "avg_value_mkd": float(avg_value),
         "tenders_by_category": categories,
