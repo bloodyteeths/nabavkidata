@@ -56,15 +56,15 @@ export function formatDate(
 
   const month =
     monthOpt === "long"
-      ? MONTHS_LONG_MK[d.getMonth()]
+      ? MONTHS_LONG_MK[d.getUTCMonth()]
       : monthOpt === "short"
-      ? MONTHS_SHORT_MK[d.getMonth()]
+      ? MONTHS_SHORT_MK[d.getUTCMonth()]
       : monthOpt === "2-digit"
-      ? pad2(d.getMonth() + 1)
-      : (d.getMonth() + 1).toString();
+      ? pad2(d.getUTCMonth() + 1)
+      : (d.getUTCMonth() + 1).toString();
 
-  const day = dayOpt === "2-digit" ? pad2(d.getDate()) : d.getDate().toString();
-  const year = yearOpt === "numeric" ? d.getFullYear().toString() : "";
+  const day = dayOpt === "2-digit" ? pad2(d.getUTCDate()) : d.getUTCDate().toString();
+  const year = yearOpt === "numeric" ? d.getUTCFullYear().toString() : "";
 
   // Common formats used across the app; join parts that exist.
   const parts = [day, month, year].filter(Boolean);
@@ -91,8 +91,8 @@ export function formatDateTime(
 
   const d = toDate(date);
   const datePart = mappedOptions.year || mappedOptions.month || mappedOptions.day ? formatDate(d, mappedOptions) : "";
-  const hour = mappedOptions.hour ? pad2(d.getHours()) : "";
-  const minute = mappedOptions.minute ? pad2(d.getMinutes()) : "";
+  const hour = mappedOptions.hour ? pad2(d.getUTCHours()) : "";
+  const minute = mappedOptions.minute ? pad2(d.getUTCMinutes()) : "";
   const timePart = hour && minute ? `${hour}:${minute}` : hour || minute;
 
   if (datePart && timePart) return `${datePart} ${timePart}`;
