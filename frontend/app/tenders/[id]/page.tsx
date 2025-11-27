@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot, type ProductSearchResult } from "@/lib/api";
+import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -64,8 +64,23 @@ export default function TenderDetailPage() {
   const [lots, setLots] = useState<TenderLot[]>([]);
   const [lotsLoading, setLotsLoading] = useState(false);
   const [hasLots, setHasLots] = useState(false);
-  const [products, setProducts] = useState<ProductSearchResult[]>([]);
+  // AI-extracted products
+  const [aiProducts, setAiProducts] = useState<{
+    products: Array<{
+      name: string;
+      quantity?: string;
+      unit?: string;
+      unit_price?: string;
+      total_price?: string;
+      specifications?: string;
+      category?: string;
+    }>;
+    summary?: string;
+    extraction_status: string;
+    source_documents: number;
+  } | null>(null);
   const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tenderId) return;
@@ -172,11 +187,18 @@ export default function TenderDetailPage() {
     if (!tenderId) return;
     try {
       setProductsLoading(true);
-      const result = await api.getProductsByTender(tenderId);
-      setProducts(result || []);
+      setProductsError(null);
+      const result = await api.getAIExtractedProducts(tenderId);
+      setAiProducts({
+        products: result.products || [],
+        summary: result.summary,
+        extraction_status: result.extraction_status,
+        source_documents: result.source_documents
+      });
     } catch (error) {
-      console.error("Failed to load products:", error);
-      setProducts([]);
+      console.error("Failed to load AI products:", error);
+      setProductsError("Грешка при извлекување на производи. Обидете се повторно.");
+      setAiProducts(null);
     } finally {
       setProductsLoading(false);
     }
@@ -382,12 +404,10 @@ export default function TenderDetailPage() {
                   Лотови ({lots.length})
                 </TabsTrigger>
               )}
-              {products.length > 0 && (
-                <TabsTrigger value="products">
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Производи ({products.length})
-                </TabsTrigger>
-              )}
+              <TabsTrigger value="products">
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Производи {aiProducts?.products?.length ? `(${aiProducts.products.length})` : ''}
+              </TabsTrigger>
               <TabsTrigger value="chat">
                 <MessageSquare className="h-4 w-4 mr-2" />
                 AI Асистент
@@ -820,74 +840,112 @@ export default function TenderDetailPage() {
             <TabsContent value="products" className="mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Производи / Ставки</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    AI Извлечени Производи / Ставки
+                  </CardTitle>
                   <CardDescription>
-                    Список на производи и ставки извлечени од тендерската документација
+                    Производи и услуги автоматски извлечени од тендерската документација со помош на AI
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {productsLoading ? (
-                    <p className="text-sm text-muted-foreground">Се вчитуваат производи...</p>
-                  ) : products.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                      <p className="text-sm text-muted-foreground">AI анализира документи...</p>
+                      <p className="text-xs text-muted-foreground mt-1">Ова може да потрае неколку секунди</p>
+                    </div>
+                  ) : productsError ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <XCircle className="h-12 w-12 mb-2 text-destructive opacity-50" />
+                      <p className="text-sm text-muted-foreground">{productsError}</p>
+                      <Button variant="outline" size="sm" className="mt-4" onClick={loadProducts}>
+                        Обиди се повторно
+                      </Button>
+                    </div>
+                  ) : !aiProducts || aiProducts.extraction_status === 'no_documents' ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
                       <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
-                      <p className="text-sm">Нема извлечени производи</p>
+                      <p className="text-sm">{aiProducts?.summary || "Нема достапни документи за анализа"}</p>
+                    </div>
+                  ) : aiProducts.products.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                      <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
+                      <p className="text-sm">{aiProducts.summary || "Не се пронајдени производи во документацијата"}</p>
+                      <p className="text-xs mt-2">Анализирани документи: {aiProducts.source_documents}</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {products.map((product) => (
-                        <div
-                          key={product.id}
-                          className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="text-sm font-semibold">{product.name}</h4>
-                            {product.extraction_confidence && (
-                              <Badge variant={product.extraction_confidence > 0.8 ? "default" : "secondary"}>
-                                {Math.round(product.extraction_confidence * 100)}% точност
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                            {product.quantity && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">Количина</p>
-                                <p className="font-medium">
-                                  {product.quantity} {product.unit || ''}
-                                </p>
-                              </div>
-                            )}
-                            {product.unit_price && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">Единечна цена</p>
-                                <p className="font-medium">{formatCurrency(product.unit_price)}</p>
-                              </div>
-                            )}
-                            {product.total_price && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">Вкупна цена</p>
-                                <p className="font-semibold text-primary">
-                                  {formatCurrency(product.total_price)}
-                                </p>
-                              </div>
-                            )}
-                            {product.cpv_code && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">CPV Код</p>
-                                <p className="font-mono text-xs">{product.cpv_code}</p>
-                              </div>
-                            )}
-                          </div>
-                          {product.specifications && Object.keys(product.specifications).length > 0 && (
-                            <div className="mt-2 pt-2 border-t">
-                              <p className="text-xs text-muted-foreground mb-1">Спецификации:</p>
-                              <p className="text-xs text-muted-foreground">
-                                {JSON.stringify(product.specifications)}
-                              </p>
+                    <div className="space-y-4">
+                      {/* AI Summary */}
+                      {aiProducts.summary && (
+                        <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                          <div className="flex items-start gap-2">
+                            <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-sm font-medium text-primary mb-1">AI Резиме</p>
+                              <p className="text-sm text-muted-foreground">{aiProducts.summary}</p>
                             </div>
-                          )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2 text-right">
+                            Извор: {aiProducts.source_documents} документ(и)
+                          </p>
                         </div>
-                      ))}
+                      )}
+
+                      {/* Products List */}
+                      <div className="space-y-3">
+                        {aiProducts.products.map((product, idx) => (
+                          <div
+                            key={idx}
+                            className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="text-sm font-semibold">{product.name}</h4>
+                              {product.category && (
+                                <Badge variant="outline" className="text-xs">
+                                  {product.category}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                              {product.quantity && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Количина</p>
+                                  <p className="font-medium">
+                                    {product.quantity} {product.unit || ''}
+                                  </p>
+                                </div>
+                              )}
+                              {product.unit_price && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Единечна цена</p>
+                                  <p className="font-medium">{product.unit_price}</p>
+                                </div>
+                              )}
+                              {product.total_price && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Вкупна цена</p>
+                                  <p className="font-semibold text-primary">{product.total_price}</p>
+                                </div>
+                              )}
+                            </div>
+                            {product.specifications && (
+                              <div className="mt-2 pt-2 border-t">
+                                <p className="text-xs text-muted-foreground mb-1">Спецификации:</p>
+                                <p className="text-xs">{product.specifications}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Refresh button */}
+                      <div className="flex justify-center pt-4">
+                        <Button variant="outline" size="sm" onClick={loadProducts} disabled={productsLoading}>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Анализирај повторно
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CardContent>

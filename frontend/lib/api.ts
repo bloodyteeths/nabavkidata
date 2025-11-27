@@ -1123,6 +1123,24 @@ class APIClient {
     }>('/api/products/stats');
   }
 
+  async getAIExtractedProducts(tenderId: string) {
+    return this.request<{
+      tender_id: string;
+      extraction_status: 'success' | 'no_documents' | 'extraction_failed';
+      products: Array<{
+        name: string;
+        quantity?: string;
+        unit?: string;
+        unit_price?: string;
+        total_price?: string;
+        specifications?: string;
+        category?: string;
+      }>;
+      summary?: string;
+      source_documents: number;
+    }>(`/api/tenders/by-id/${encodeURIComponent(tenderId)}/ai-products`);
+  }
+
   // ============================================================================
   // E-PAZAR METHODS
   // ============================================================================

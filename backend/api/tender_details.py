@@ -388,3 +388,234 @@ async def get_tender_documents(
         documents=documents,
         documents_by_category=docs_by_category
     )
+
+
+# ============================================================================
+# AI PRODUCTS EXTRACTION ENDPOINT
+# ============================================================================
+
+class AIExtractedProduct(BaseModel):
+    """Product/service extracted by AI from tender documents"""
+    name: str
+    quantity: Optional[str] = None
+    unit: Optional[str] = None
+    unit_price: Optional[str] = None
+    total_price: Optional[str] = None
+    specifications: Optional[str] = None
+    category: Optional[str] = None
+
+
+class AIProductsResponse(BaseModel):
+    """Response for AI-extracted products"""
+    tender_id: str
+    extraction_status: str  # 'success', 'no_documents', 'extraction_failed'
+    products: List[AIExtractedProduct]
+    summary: Optional[str] = None
+    source_documents: int = 0
+
+
+@router.get("/by-id/{tender_number}/{tender_year}/ai-products", response_model=AIProductsResponse)
+async def extract_products_with_ai(
+    tender_number: str,
+    tender_year: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Extract products/services from tender documents using AI.
+
+    This endpoint:
+    1. Fetches all documents for the tender with content_text
+    2. Sends the content to Gemini AI for extraction
+    3. Returns structured product data (items, quantities, prices, specifications)
+
+    Parameters:
+    - tender_number: The tender number part (e.g., "21307")
+    - tender_year: The tender year part (e.g., "2025")
+
+    Returns:
+    - List of AI-extracted products with quantities, prices, specifications
+    """
+    import os
+    import json
+    import asyncio
+    import google.generativeai as genai
+
+    tender_id = f"{tender_number}/{tender_year}"
+
+    # Verify tender exists
+    tender = await db.execute(
+        select(Tender).where(Tender.tender_id == tender_id)
+    )
+    tender_row = tender.scalar_one_or_none()
+    if not tender_row:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Get documents with content_text
+    docs_query = text("""
+        SELECT doc_id, file_name, content_text, specifications_json
+        FROM documents
+        WHERE tender_id = :tender_id
+          AND content_text IS NOT NULL
+          AND LENGTH(content_text) > 100
+        ORDER BY upload_date DESC
+        LIMIT 5
+    """)
+
+    result = await db.execute(docs_query, {"tender_id": tender_id})
+    docs = result.fetchall()
+
+    if not docs:
+        return AIProductsResponse(
+            tender_id=tender_id,
+            extraction_status="no_documents",
+            products=[],
+            summary="Нема достапни документи со извлечена содржина за овој тендер.",
+            source_documents=0
+        )
+
+    # Combine document content (limit to ~15k chars for context)
+    combined_content = ""
+    for doc in docs:
+        content = doc.content_text or ""
+        if len(combined_content) + len(content) < 15000:
+            combined_content += f"\n\n=== Документ: {doc.file_name} ===\n{content}"
+        else:
+            # Add truncated content
+            remaining = 15000 - len(combined_content)
+            if remaining > 500:
+                combined_content += f"\n\n=== Документ: {doc.file_name} ===\n{content[:remaining]}..."
+            break
+
+    if len(combined_content) < 100:
+        return AIProductsResponse(
+            tender_id=tender_id,
+            extraction_status="no_documents",
+            products=[],
+            summary="Содржината на документите е премала за извлекување.",
+            source_documents=len(docs)
+        )
+
+    # Configure Gemini
+    gemini_api_key = os.getenv('GEMINI_API_KEY')
+    if not gemini_api_key:
+        raise HTTPException(status_code=503, detail="AI service not configured")
+
+    genai.configure(api_key=gemini_api_key)
+    model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+
+    # Build extraction prompt
+    extraction_prompt = f"""Ти си експерт за анализа на тендерска документација. Од следниот текст извлечен од PDF документи, идентификувај ги сите ПРОИЗВОДИ, УСЛУГИ или СТАВКИ што се бараат во тендерот.
+
+За секој производ/услуга извлечи:
+- name: Име на производот/услугата
+- quantity: Количина (број)
+- unit: Мерна единица (парчиња, kg, l, m², часови, итн.)
+- unit_price: Единечна цена (ако е наведена)
+- total_price: Вкупна цена (ако е наведена)
+- specifications: Технички спецификации или барања
+- category: Категорија (канцелариски материјали, медицинска опрема, градежни материјали, IT опрема, итн.)
+
+ВАЖНО:
+- Извлечи САМО реални производи/услуги, НЕ наслови на документи или административни податоци
+- Ако има табела со ставки, извлечи ги сите ставки
+- Цените можат да бидат во МКД или EUR
+- Ако некој податок не е достапен, остави го празно
+
+Врати JSON во следниот формат:
+{{
+  "products": [
+    {{
+      "name": "Име на производ",
+      "quantity": "100",
+      "unit": "парчиња",
+      "unit_price": "500 МКД",
+      "total_price": "50000 МКД",
+      "specifications": "Технички детали...",
+      "category": "Канцелариски материјали"
+    }}
+  ],
+  "summary": "Кратко резиме на набавката (2-3 реченици)"
+}}
+
+Ако нема производи/ставки за извлекување, врати:
+{{"products": [], "summary": "Не се пронајдени производи или ставки во документацијата."}}
+
+ДОКУМЕНТ СОДРЖИНА:
+{combined_content}
+
+ИЗВЛЕЧЕНИ ПОДАТОЦИ (JSON):"""
+
+    try:
+        def _sync_generate():
+            model_obj = genai.GenerativeModel(model_name)
+            response = model_obj.generate_content(
+                extraction_prompt,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.1,  # Low temperature for structured extraction
+                    max_output_tokens=2000
+                )
+            )
+            return response.text
+
+        response_text = await asyncio.to_thread(_sync_generate)
+
+        # Clean up response - extract JSON from markdown if needed
+        response_text = response_text.strip()
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+        response_text = response_text.strip()
+
+        # Parse JSON response
+        try:
+            extracted_data = json.loads(response_text)
+        except json.JSONDecodeError:
+            # Try to find JSON in the response
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', response_text)
+            if json_match:
+                extracted_data = json.loads(json_match.group())
+            else:
+                return AIProductsResponse(
+                    tender_id=tender_id,
+                    extraction_status="extraction_failed",
+                    products=[],
+                    summary="AI не успеа да извлече структурирани податоци.",
+                    source_documents=len(docs)
+                )
+
+        # Convert to response model
+        products = []
+        for p in extracted_data.get("products", []):
+            products.append(AIExtractedProduct(
+                name=p.get("name", "Непознат производ"),
+                quantity=p.get("quantity"),
+                unit=p.get("unit"),
+                unit_price=p.get("unit_price"),
+                total_price=p.get("total_price"),
+                specifications=p.get("specifications"),
+                category=p.get("category")
+            ))
+
+        return AIProductsResponse(
+            tender_id=tender_id,
+            extraction_status="success",
+            products=products,
+            summary=extracted_data.get("summary"),
+            source_documents=len(docs)
+        )
+
+    except Exception as e:
+        import traceback
+        print(f"AI extraction error: {str(e)}")
+        print(traceback.format_exc())
+        return AIProductsResponse(
+            tender_id=tender_id,
+            extraction_status="extraction_failed",
+            products=[],
+            summary=f"Грешка при AI анализа: {str(e)}",
+            source_documents=len(docs)
+        )
