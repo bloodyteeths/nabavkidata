@@ -33,6 +33,11 @@ export interface Tender {
   // Additional Fields
   num_bidders?: number;
   evaluation_method?: string;
+  // Requirements fields
+  payment_terms?: string;
+  delivery_location?: string;
+  security_deposit_mkd?: number;
+  performance_guarantee_mkd?: number;
   scraped_at?: string;
   updated_at?: string;
   created_at: string;

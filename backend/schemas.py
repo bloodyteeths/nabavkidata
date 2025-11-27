@@ -49,6 +49,12 @@ class TenderBase(BaseModel):
     num_bidders: Optional[int] = None
     evaluation_method: Optional[str] = None
 
+    # Requirements / Contract Details - Added 2025-11-27
+    payment_terms: Optional[str] = None
+    delivery_location: Optional[str] = None
+    security_deposit_mkd: Optional[Decimal] = None
+    performance_guarantee_mkd: Optional[Decimal] = None
+
 
 class TenderCreate(TenderBase):
     """Schema for creating tender"""
@@ -81,6 +87,12 @@ class TenderUpdate(BaseModel):
     contracting_entity_category: Optional[str] = None
     procurement_holder: Optional[str] = None
     bureau_delivery_date: Optional[date] = None
+
+    # Requirements / Contract Details - Added 2025-11-27
+    payment_terms: Optional[str] = None
+    delivery_location: Optional[str] = None
+    security_deposit_mkd: Optional[Decimal] = None
+    performance_guarantee_mkd: Optional[Decimal] = None
 
 
 class TenderResponse(TenderBase):

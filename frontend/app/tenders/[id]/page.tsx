@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
+import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot, type ProductSearchResult } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -31,6 +31,10 @@ import {
   Trophy,
   XCircle,
   Award,
+  ShoppingCart,
+  Clock,
+  MapPin,
+  CreditCard,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -60,6 +64,8 @@ export default function TenderDetailPage() {
   const [lots, setLots] = useState<TenderLot[]>([]);
   const [lotsLoading, setLotsLoading] = useState(false);
   const [hasLots, setHasLots] = useState(false);
+  const [products, setProducts] = useState<ProductSearchResult[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
 
   useEffect(() => {
     if (!tenderId) return;
@@ -69,6 +75,7 @@ export default function TenderDetailPage() {
     loadDocuments();
     loadBidders();
     loadLots();
+    loadProducts();
   }, [tenderId]);
 
   async function loadTender() {
@@ -158,6 +165,20 @@ export default function TenderDetailPage() {
       setHasLots(false);
     } finally {
       setLotsLoading(false);
+    }
+  }
+
+  async function loadProducts() {
+    if (!tenderId) return;
+    try {
+      setProductsLoading(true);
+      const result = await api.getProductsByTender(tenderId);
+      setProducts(result || []);
+    } catch (error) {
+      console.error("Failed to load products:", error);
+      setProducts([]);
+    } finally {
+      setProductsLoading(false);
     }
   }
 
@@ -361,6 +382,12 @@ export default function TenderDetailPage() {
                   Лотови ({lots.length})
                 </TabsTrigger>
               )}
+              {products.length > 0 && (
+                <TabsTrigger value="products">
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Производи ({products.length})
+                </TabsTrigger>
+              )}
               <TabsTrigger value="chat">
                 <MessageSquare className="h-4 w-4 mr-2" />
                 AI Асистент
@@ -506,6 +533,66 @@ export default function TenderDetailPage() {
                           >
                             {tender.contact_phone}
                           </a>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Requirements / Contract Details */}
+              {(tender.contract_duration || tender.payment_terms || tender.delivery_location || tender.security_deposit_mkd || tender.performance_guarantee_mkd) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Барања и услови</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {tender.contract_duration && (
+                      <div className="flex items-start gap-3">
+                        <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Времетраење на договор</p>
+                          <p className="text-sm text-muted-foreground">{tender.contract_duration}</p>
+                        </div>
+                      </div>
+                    )}
+                    {tender.payment_terms && (
+                      <div className="flex items-start gap-3">
+                        <CreditCard className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Услови за плаќање</p>
+                          <p className="text-sm text-muted-foreground">{tender.payment_terms}</p>
+                        </div>
+                      </div>
+                    )}
+                    {tender.delivery_location && (
+                      <div className="flex items-start gap-3">
+                        <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Место на испорака</p>
+                          <p className="text-sm text-muted-foreground">{tender.delivery_location}</p>
+                        </div>
+                      </div>
+                    )}
+                    {tender.security_deposit_mkd && (
+                      <div className="flex items-start gap-3">
+                        <Tag className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Гаранција за понуда</p>
+                          <p className="text-sm text-muted-foreground font-semibold">
+                            {formatCurrency(tender.security_deposit_mkd)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {tender.performance_guarantee_mkd && (
+                      <div className="flex items-start gap-3">
+                        <Tag className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Гаранција за извршување</p>
+                          <p className="text-sm text-muted-foreground font-semibold">
+                            {formatCurrency(tender.performance_guarantee_mkd)}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -722,6 +809,83 @@ export default function TenderDetailPage() {
                               </div>
                             )}
                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="products" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Производи / Ставки</CardTitle>
+                  <CardDescription>
+                    Список на производи и ставки извлечени од тендерската документација
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {productsLoading ? (
+                    <p className="text-sm text-muted-foreground">Се вчитуваат производи...</p>
+                  ) : products.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                      <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
+                      <p className="text-sm">Нема извлечени производи</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {products.map((product) => (
+                        <div
+                          key={product.id}
+                          className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="text-sm font-semibold">{product.name}</h4>
+                            {product.extraction_confidence && (
+                              <Badge variant={product.extraction_confidence > 0.8 ? "default" : "secondary"}>
+                                {Math.round(product.extraction_confidence * 100)}% точност
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                            {product.quantity && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Количина</p>
+                                <p className="font-medium">
+                                  {product.quantity} {product.unit || ''}
+                                </p>
+                              </div>
+                            )}
+                            {product.unit_price && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Единечна цена</p>
+                                <p className="font-medium">{formatCurrency(product.unit_price)}</p>
+                              </div>
+                            )}
+                            {product.total_price && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Вкупна цена</p>
+                                <p className="font-semibold text-primary">
+                                  {formatCurrency(product.total_price)}
+                                </p>
+                              </div>
+                            )}
+                            {product.cpv_code && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">CPV Код</p>
+                                <p className="font-mono text-xs">{product.cpv_code}</p>
+                              </div>
+                            )}
+                          </div>
+                          {product.specifications && Object.keys(product.specifications).length > 0 && (
+                            <div className="mt-2 pt-2 border-t">
+                              <p className="text-xs text-muted-foreground mb-1">Спецификации:</p>
+                              <p className="text-xs text-muted-foreground">
+                                {JSON.stringify(product.specifications)}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
