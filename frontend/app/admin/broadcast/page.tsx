@@ -214,9 +214,7 @@ export default function AdminBroadcastPage() {
                 </p>
                 <div className="text-xs text-green-600 space-y-1">
                   <p>Recipients: {lastBroadcast.recipients} users</p>
-                  <p>
-                    Sent: {formatDateTime(lastBroadcast.timestamp, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US')}
-                  </p>
+                    <p>Sent: {formatDateTime(lastBroadcast.timestamp, { dateStyle: 'medium', timeStyle: 'short' })}</p>
                 </div>
               </CardContent>
             </Card>

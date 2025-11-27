@@ -426,7 +426,7 @@ export default function AdminDashboard() {
                         {activity.user}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDateTime(activity.timestamp, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US')}
+                        {formatDateTime(activity.timestamp, { dateStyle: 'medium', timeStyle: 'short' })}
                       </p>
                     </div>
                   </div>

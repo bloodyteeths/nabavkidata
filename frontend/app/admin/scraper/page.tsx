@@ -375,7 +375,7 @@ export default function AdminScraperPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm">
-              {status.last_run ? formatDateTime(status.last_run, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US') : 'Never'}
+              {status.last_run ? formatDateTime(status.last_run, { dateStyle: 'medium', timeStyle: 'short' }) : 'Never'}
             </p>
           </CardContent>
         </Card>
@@ -386,7 +386,7 @@ export default function AdminScraperPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm">
-              {status.next_run ? formatDateTime(status.next_run, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US') : 'Not scheduled'}
+              {status.next_run ? formatDateTime(status.next_run, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not scheduled'}
             </p>
           </CardContent>
         </Card>
@@ -463,7 +463,7 @@ export default function AdminScraperPage() {
             )}
 
             <p className="text-xs text-muted-foreground">
-              Last updated: {formatDateTime(liveStatus.timestamp, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US')}
+              Last updated: {formatDateTime(liveStatus.timestamp, { dateStyle: 'medium', timeStyle: 'short' })}
             </p>
           </CardContent>
         </Card>

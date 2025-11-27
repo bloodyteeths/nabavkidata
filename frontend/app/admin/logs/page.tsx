@@ -321,7 +321,7 @@ export default function AdminLogsPage() {
                   filteredLogs.map((log) => (
                     <TableRow key={log.id} className="hover:bg-gray-50">
                       <TableCell className="font-mono text-sm text-gray-700">
-                        {formatDateTime(log.timestamp, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US')}
+                        {formatDateTime(log.timestamp, { dateStyle: 'medium', timeStyle: 'short' })}
                       </TableCell>
                       <TableCell>{getLevelBadge(log.level)}</TableCell>
                       <TableCell className="font-medium text-gray-900">{log.user}</TableCell>
