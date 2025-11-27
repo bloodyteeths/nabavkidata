@@ -2,6 +2,9 @@
 nabavkidata.com Backend API
 FastAPI REST server
 """
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file before any other imports
+
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
