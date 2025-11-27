@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Send, Users, AlertCircle, CheckCircle } from 'lucide-react';
 import { toast } from "sonner";
+import { formatDateTime } from '@/lib/utils';
 
 export default function AdminBroadcastPage() {
   const [message, setMessage] = useState('');
@@ -214,7 +215,7 @@ export default function AdminBroadcastPage() {
                 <div className="text-xs text-green-600 space-y-1">
                   <p>Recipients: {lastBroadcast.recipients} users</p>
                   <p>
-                    Sent: {new Date(lastBroadcast.timestamp).toLocaleString('en-US')}
+                    Sent: {formatDateTime(lastBroadcast.timestamp, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US')}
                   </p>
                 </div>
               </CardContent>

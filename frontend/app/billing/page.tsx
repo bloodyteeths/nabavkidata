@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CreditCard, Download, Calendar, TrendingUp, AlertCircle } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
 
 export default function BillingPage() {
   const router = useRouter();
@@ -89,13 +90,8 @@ export default function BillingPage() {
     );
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('mk-MK', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
+  const formatDateDisplay = (date: string) =>
+    formatDate(date, { year: 'numeric', month: 'long', day: 'numeric' });
 
   if (loading) {
     return (
@@ -157,11 +153,11 @@ export default function BillingPage() {
                 <div className="space-y-2 pt-4 border-t">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Започнува:</span>
-                    <span>{formatDate(subscription.current_period_start)}</span>
+                    <span>{formatDateDisplay(subscription.current_period_start)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Обновување:</span>
-                    <span>{formatDate(subscription.current_period_end)}</span>
+                    <span>{formatDateDisplay(subscription.current_period_end)}</span>
                   </div>
                   {subscription.cancel_at_period_end && (
                     <div className="flex items-center gap-2 text-sm text-destructive">
@@ -283,7 +279,7 @@ export default function BillingPage() {
                   key={invoice.id}
                   className="grid grid-cols-4 gap-4 py-3 border-b last:border-0 text-sm"
                 >
-                  <div>{formatDate(invoice.created_at)}</div>
+                  <div>{formatDateDisplay(invoice.created_at)}</div>
                   <div className="font-medium">
                     {invoice.amount.toLocaleString()} ден
                   </div>

@@ -31,6 +31,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, CheckCircle, XCircle, Edit, Trash2 } from 'lucide-react';
 import { toast } from "sonner";
+import { formatDate } from '@/lib/utils';
 
 interface Tender {
   id: string;
@@ -295,7 +296,7 @@ export default function AdminTendersPage() {
                   <TableCell className="text-gray-900 font-medium">€{tender.budget.toLocaleString()}</TableCell>
                   <TableCell>{getStatusBadge(tender.status)}</TableCell>
                   <TableCell className="text-gray-700">
-                    {new Date(tender.deadline).toLocaleDateString('mk-MK')}
+                    {formatDate(tender.deadline)}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">

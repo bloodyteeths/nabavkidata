@@ -37,6 +37,7 @@ import {
 } from 'recharts';
 import { Download, TrendingUp, Users, DollarSign, Activity } from 'lucide-react';
 import { toast } from "sonner";
+import { formatDate } from '@/lib/utils';
 
 interface AnalyticsData {
   userGrowth: Array<{ date: string; users: number; newUsers: number }>;
@@ -114,7 +115,7 @@ export default function AdminAnalyticsPage() {
         const prevCount = index > 0 ? userGrowthEntries[index - 1][1] : count;
         const newUsers = count - prevCount;
         return {
-          date: new Date(date).toLocaleDateString('mk-MK', { month: '2-digit', day: '2-digit' }),
+          date: formatDate(date, { month: '2-digit', day: '2-digit' }),
           users: count,
           newUsers: Math.max(0, newUsers),
         };

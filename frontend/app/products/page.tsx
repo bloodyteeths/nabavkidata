@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatDate } from "@/lib/utils";
 
 // Utility functions
 function formatPrice(price: number | undefined): string {
@@ -788,7 +789,7 @@ export default function ProductsPage() {
                             {product.opening_date && (
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {new Date(product.opening_date).toLocaleDateString("mk-MK")}
+                                {formatDate(product.opening_date)}
                               </span>
                             )}
                             {product.status && (

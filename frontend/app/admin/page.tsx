@@ -30,6 +30,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { formatDateTime } from '@/lib/utils';
 
 interface DashboardStats {
   totalUsers: number;
@@ -425,7 +426,7 @@ export default function AdminDashboard() {
                         {activity.user}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(activity.timestamp).toLocaleString('en-US')}
+                        {formatDateTime(activity.timestamp, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US')}
                       </p>
                     </div>
                   </div>

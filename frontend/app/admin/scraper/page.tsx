@@ -15,6 +15,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PlayCircle, StopCircle, RefreshCw, Clock, CheckCircle, XCircle, AlertCircle, Terminal, Database, FileText, Calendar, ScrollText, Loader2 } from 'lucide-react';
 import { toast } from "sonner";
+import { formatDateTime } from '@/lib/utils';
 
 interface ScraperStatus {
   status: 'idle' | 'running' | 'completed' | 'failed';
@@ -374,7 +375,7 @@ export default function AdminScraperPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm">
-              {status.last_run ? new Date(status.last_run).toLocaleString('en-US') : 'Never'}
+              {status.last_run ? formatDateTime(status.last_run, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US') : 'Never'}
             </p>
           </CardContent>
         </Card>
@@ -385,7 +386,7 @@ export default function AdminScraperPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm">
-              {status.next_run ? new Date(status.next_run).toLocaleString('en-US') : 'Not scheduled'}
+              {status.next_run ? formatDateTime(status.next_run, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US') : 'Not scheduled'}
             </p>
           </CardContent>
         </Card>
@@ -462,7 +463,7 @@ export default function AdminScraperPage() {
             )}
 
             <p className="text-xs text-muted-foreground">
-              Last updated: {new Date(liveStatus.timestamp).toLocaleString()}
+              Last updated: {formatDateTime(liveStatus.timestamp, { dateStyle: 'medium', timeStyle: 'short' }, 'en-US')}
             </p>
           </CardContent>
         </Card>

@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import Link from 'next/link';
+import { formatDate } from '@/lib/utils';
 
 function formatCurrency(value: number | undefined | null, currency: string = 'MKD'): string {
   if (!value) return 'N/A';
@@ -40,11 +41,6 @@ function formatCurrency(value: number | undefined | null, currency: string = 'MK
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-function formatDate(dateStr: string | undefined | null): string {
-  if (!dateStr) return 'N/A';
-  return new Date(dateStr).toLocaleDateString('mk-MK');
 }
 
 function formatQuantity(qty: number | undefined | null, unit: string | undefined | null): string {

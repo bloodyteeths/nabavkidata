@@ -28,6 +28,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatDate } from '@/lib/utils';
 
 export default function SupplierDetailPage() {
   const params = useParams();
@@ -69,11 +70,6 @@ export default function SupplierDetailPage() {
   const formatPercent = (value?: number) => {
     if (value === null || value === undefined) return '-';
     return `${(value * 100).toFixed(1)}%`;
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('mk-MK');
   };
 
   if (loading) {

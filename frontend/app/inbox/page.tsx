@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Mail, Inbox, Bell, CheckCircle, Circle, AlertCircle } from "lucide-react"
-import { formatDate } from "@/lib/utils"
+import { formatDate, formatDateTime } from "@/lib/utils"
 import { useAuth } from "@/lib/auth"
 import { api } from "@/lib/api"
 
@@ -201,7 +201,7 @@ export default function InboxPage() {
                               <div className="flex items-center gap-2 mb-1">
                                 {digest.sent ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Circle className="h-4 w-4 text-blue-600" />}
                                 <h3 className={`font-semibold text-sm ${!digest.sent ? "font-bold" : ""}`}>
-                                  Дигест - {new Date(digest.date).toLocaleDateString("mk-MK", { year: "numeric", month: "long", day: "numeric" })}
+                                  Дигест - {formatDate(digest.date, { year: "numeric", month: "long", day: "numeric" })}
                                 </h3>
                               </div>
                               <p className="text-xs text-muted-foreground mb-2">{formatDate(digest.date)}</p>
@@ -229,7 +229,7 @@ export default function InboxPage() {
                       <Card>
                         <CardHeader>
                           <CardTitle className="text-lg">
-                            Дигест - {new Date(selectedDigest.date).toLocaleDateString("mk-MK", { year: "numeric", month: "long", day: "numeric" })}
+                            Дигест - {formatDate(selectedDigest.date, { year: "numeric", month: "long", day: "numeric" })}
                           </CardTitle>
                           <CardDescription>{formatDate(selectedDigest.date)}</CardDescription>
                         </CardHeader>
@@ -297,7 +297,12 @@ export default function InboxPage() {
                               {alert.severity === "info" && "Информација"}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(alert.date).toLocaleString("mk-MK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                              {formatDateTime(alert.date, {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
                             </span>
                           </div>
                           <p className={`text-sm ${!alert.read ? "font-semibold" : ""}`}>{alert.message}</p>

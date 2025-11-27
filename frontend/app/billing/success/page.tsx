@@ -6,6 +6,7 @@ import { api, UserSubscription } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, ArrowRight } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,13 +74,21 @@ export default function SuccessPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Започнува:</span>
                   <span className="font-medium">
-                    {new Date(subscription.current_period_start).toLocaleDateString('mk-MK')}
+                    {formatDate(subscription.current_period_start, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Следно обновување:</span>
                   <span className="font-medium">
-                    {new Date(subscription.current_period_end).toLocaleDateString('mk-MK')}
+                    {formatDate(subscription.current_period_end, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
                   </span>
                 </div>
               </div>

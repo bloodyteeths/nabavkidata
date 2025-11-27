@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Bookmark, Play, Trash2, Bell, BellOff } from "lucide-react";
+import { formatDate } from "@/lib/utils";
 
 interface SavedSearch {
   id: string;
@@ -160,7 +161,7 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{search.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(search.createdAt).toLocaleDateString("mk-MK")}
+                    {formatDate(search.createdAt, { year: "numeric", month: "2-digit", day: "2-digit" })}
                   </p>
                 </div>
                 <div className="flex gap-1">

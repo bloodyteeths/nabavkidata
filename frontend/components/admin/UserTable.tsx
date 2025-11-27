@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Edit, Ban, Trash2, CheckCircle } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
 
 interface User {
   id: string;
@@ -183,7 +184,7 @@ export default function UserTable({
                   )}
                 </TableCell>
                 <TableCell className="text-gray-700">
-                  {new Date(user.created_at).toLocaleDateString('mk-MK')}
+                  {formatDate(user.created_at)}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
