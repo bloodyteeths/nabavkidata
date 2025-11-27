@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api, type DashboardData, type CompetitorActivity } from "@/lib/api";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { Building2, TrendingUp, Trophy, Search, Calendar, X, CheckCircle, Loader2 } from "lucide-react";
 
@@ -27,6 +27,7 @@ interface CompetitorStats {
 
 export default function CompetitorsPage() {
   const { user } = useAuth();
+  const [isHydrated, setIsHydrated] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [winnersLoading, setWinnersLoading] = useState(false);
@@ -35,6 +36,10 @@ export default function CompetitorsPage() {
   const [trackedCompetitors, setTrackedCompetitors] = useState<string[]>([]);
   const [knownWinners, setKnownWinners] = useState<Winner[]>([]);
   const [savingPrefs, setSavingPrefs] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     loadInitialData();
@@ -164,7 +169,7 @@ export default function CompetitorsPage() {
     (a) => a.status === "won" || a.status === "добиен"
   ).length;
 
-  if (loading) {
+  if (!isHydrated || loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
