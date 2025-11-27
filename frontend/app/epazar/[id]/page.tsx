@@ -25,17 +25,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatDate } from '@/lib/utils';
-
-function formatCurrency(value: number | undefined | null, currency: string = 'MKD'): string {
-  if (!value) return 'N/A';
-  return new Intl.NumberFormat('mk-MK', {
-    style: 'currency',
-    currency: currency === 'EUR' ? 'EUR' : 'MKD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (status?.toLowerCase()) {

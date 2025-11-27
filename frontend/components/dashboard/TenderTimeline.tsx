@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { formatDate } from "@/lib/utils"
 
 interface TimelineData {
   date: string
@@ -20,43 +21,11 @@ interface TenderTimelineProps {
   data: TimelineData[]
 }
 
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString)
-  const months = [
-    "јан",
-    "фев",
-    "мар",
-    "апр",
-    "мај",
-    "јун",
-    "јул",
-    "авг",
-    "сеп",
-    "окт",
-    "ное",
-    "дек",
-  ]
-  return `${date.getDate()} ${months[date.getMonth()]}`
-}
+const formatTickDate = (dateString: string): string =>
+  formatDate(dateString, { day: "numeric", month: "short" })
 
-const formatTooltipDate = (dateString: string): string => {
-  const date = new Date(dateString)
-  const months = [
-    "јануари",
-    "февруари",
-    "март",
-    "април",
-    "мај",
-    "јуни",
-    "јули",
-    "август",
-    "септември",
-    "октомври",
-    "ноември",
-    "декември",
-  ]
-  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`
-}
+const formatTooltipDate = (dateString: string): string =>
+  formatDate(dateString, { day: "numeric", month: "long", year: "numeric" })
 
 export default function TenderTimeline({ data }: TenderTimelineProps) {
   return (
@@ -78,7 +47,7 @@ export default function TenderTimeline({ data }: TenderTimelineProps) {
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
               dataKey="date"
-              tickFormatter={formatDate}
+              tickFormatter={formatTickDate}
               tick={{ fontSize: 12 }}
               interval="preserveStartEnd"
             />

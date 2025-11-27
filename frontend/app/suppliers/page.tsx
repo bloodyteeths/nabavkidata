@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/table';
 import { Building2, Trophy, FileText, TrendingUp, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { formatCurrency } from '@/lib/utils';
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -69,15 +70,6 @@ export default function SuppliersPage() {
     if (e.key === 'Enter') {
       handleSearch();
     }
-  };
-
-  const formatCurrency = (value?: number) => {
-    if (!value) return '-';
-    return new Intl.NumberFormat('mk-MK', {
-      style: 'currency',
-      currency: 'MKD',
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   const formatPercent = (value?: number) => {

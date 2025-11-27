@@ -31,17 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import Link from 'next/link';
-import { formatDate } from '@/lib/utils';
-
-function formatCurrency(value: number | undefined | null, currency: string = 'MKD'): string {
-  if (!value) return 'N/A';
-  return new Intl.NumberFormat('mk-MK', {
-    style: 'currency',
-    currency: currency === 'EUR' ? 'EUR' : 'MKD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 function formatQuantity(qty: number | undefined | null, unit: string | undefined | null): string {
   if (!qty) return '-';

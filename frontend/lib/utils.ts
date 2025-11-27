@@ -12,13 +12,24 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(value: number | undefined, currency: string = "MKD"): string {
-  if (!value) return "N/A";
-  return new Intl.NumberFormat(DEFAULT_LOCALE, {
-    style: "currency",
-    currency: currency,
+  if (value === undefined || value === null) return "N/A";
+
+  const formatter = new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: "decimal",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+    useGrouping: true,
+  });
+
+  const symbol = currency === "EUR" ? "€" : currency === "USD" ? "$" : "ден";
+  const formatted = formatter.format(value);
+
+  // Place symbol consistently to avoid environment-specific currency layout differences.
+  if (currency === "EUR" || currency === "USD") {
+    return `${symbol}${formatted}`;
+  }
+
+  return `${formatted} ${symbol}`;
 }
 
 export function formatDate(

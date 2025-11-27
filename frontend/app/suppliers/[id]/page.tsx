@@ -28,7 +28,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
-import { formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 export default function SupplierDetailPage() {
   const params = useParams();
@@ -56,15 +56,6 @@ export default function SupplierDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value?: number) => {
-    if (!value) return '-';
-    return new Intl.NumberFormat('mk-MK', {
-      style: 'currency',
-      currency: 'MKD',
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   const formatPercent = (value?: number) => {
