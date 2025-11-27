@@ -27,7 +27,7 @@ import json
 import re
 import logging
 from datetime import datetime
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union
 from scrapy_playwright.page import PageMethod
 from scraper.items import TenderItem
 
@@ -99,6 +99,7 @@ class ContractsSpider(scrapy.Spider):
             current_page = 1
             consecutive_empty = 0
 
+            consecutive_errors = 0
             while current_page <= self.max_pages:
                 try:
                     # Extract data from current page's table rows
@@ -109,9 +110,11 @@ class ContractsSpider(scrapy.Spider):
                         if consecutive_empty >= 3:
                             logger.warning("No rows found for 3 consecutive pages, stopping")
                             break
+                        await page.wait_for_timeout(2000)
                         continue
                     else:
                         consecutive_empty = 0
+                        consecutive_errors = 0  # Reset error counter on success
 
                     logger.info(f"Page {current_page}: Processing {len(rows)} contract rows")
 
@@ -125,8 +128,8 @@ class ContractsSpider(scrapy.Spider):
                             logger.warning(f"Error extracting row: {e}")
                             continue
 
-                    # Progress logging
-                    if current_page % 100 == 0:
+                    # Progress logging every 50 pages
+                    if current_page % 50 == 0:
                         logger.warning(f"Progress: Page {current_page}, Contracts: {self.contracts_scraped}, Bidders: {self.bidders_extracted}")
 
                     # Try to go to next page
@@ -138,8 +141,14 @@ class ContractsSpider(scrapy.Spider):
                     current_page += 1
 
                 except Exception as e:
-                    logger.error(f"Error on page {current_page}: {e}")
-                    break
+                    consecutive_errors += 1
+                    logger.error(f"Error on page {current_page} (attempt {consecutive_errors}): {e}")
+                    if consecutive_errors >= 5:
+                        logger.error("Too many consecutive errors, stopping")
+                        break
+                    # Wait and try to recover
+                    await page.wait_for_timeout(5000)
+                    continue
 
             logger.warning(f"✓ Scraping complete: {self.contracts_scraped} contracts, {self.bidders_extracted} bidders")
 
@@ -233,24 +242,24 @@ class ContractsSpider(scrapy.Spider):
                     'disqualified': False
                 }], ensure_ascii=False)
 
-            return {
-                'tender_id': tender_id,
-                'tender_number': tender_number,
-                'title': contract_subject,
-                'contracting_authority': contracting_authority,
-                'contract_type': contract_type,
-                'procedure_type': procedure_type,
-                'contract_date': contract_date_parsed,
-                'publication_date': publication_date_parsed,
-                'estimated_value_mkd': estimated_value,
-                'actual_value_mkd': contract_value,
-                'winner': winner_name,
-                'bidders_data': bidders_data,
-                'status': 'awarded',
-                'source_category': 'contracts',
-                'source_url': tender_link,
-                'scraped_at': datetime.now().isoformat(),
-            }
+            # Return a TenderItem for proper database pipeline handling
+            item = TenderItem()
+            item['tender_id'] = tender_id
+            item['title'] = contract_subject
+            item['procuring_entity'] = contracting_authority
+            item['category'] = contract_type  # Стоки/Услуги/Работи
+            item['procedure_type'] = procedure_type
+            item['contract_signing_date'] = contract_date_parsed
+            item['publication_date'] = publication_date_parsed
+            item['estimated_value_mkd'] = estimated_value
+            item['actual_value_mkd'] = contract_value
+            item['winner'] = winner_name
+            item['bidders_data'] = bidders_data
+            item['status'] = 'awarded'
+            item['source_category'] = 'awarded'  # Use 'awarded' to match UI filter
+            item['source_url'] = tender_link
+            item['scraped_at'] = datetime.now().isoformat()
+            return item
 
         except Exception as e:
             logger.warning(f"Error extracting row data: {e}")
@@ -287,25 +296,33 @@ class ContractsSpider(scrapy.Spider):
 
     async def _click_next_page(self, page) -> bool:
         """Click the Next button in pagination, return False if no more pages"""
-        try:
-            # Look for the Next button that's not disabled
-            next_btn = await page.query_selector('li.next:not(.disabled) a')
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Look for the Next button that's not disabled
+                next_btn = await page.query_selector('li.next:not(.disabled) a')
 
-            if not next_btn:
-                return False
+                if not next_btn:
+                    return False
 
-            await next_btn.click()
-            await page.wait_for_timeout(2000)  # Wait for page to load
+                await next_btn.click()
+                await page.wait_for_timeout(3000)  # Wait for page to load
 
-            # Wait for table to update
-            await page.wait_for_selector('table#contracts-grid tbody tr', timeout=30000)
-            await page.wait_for_timeout(1000)
+                # Wait for table to update with longer timeout
+                await page.wait_for_selector('table#contracts-grid tbody tr', timeout=120000)
+                await page.wait_for_timeout(1500)
 
-            return True
+                return True
 
-        except Exception as e:
-            logger.warning(f"Error clicking next page: {e}")
-            return False
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Pagination attempt {attempt + 1} failed: {e}, retrying...")
+                    await page.wait_for_timeout(5000)  # Wait before retry
+                    continue
+                else:
+                    logger.warning(f"Pagination failed after {max_retries} attempts: {e}")
+                    return False
+        return False
 
     async def errback_playwright(self, failure):
         """Handle Playwright errors"""

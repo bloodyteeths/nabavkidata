@@ -217,23 +217,28 @@ class PDFExtractionPipeline:
             adapter['file_size_bytes'] = file_stats.st_size
             adapter['page_count'] = result.page_count
 
-            # Store extracted metadata as JSON
+            # Store extracted metadata as JSON in specifications_json
+            import json
             metadata = {
                 'engine_used': result.engine_used,
                 'has_tables': result.has_tables,
                 'table_count': len(result.tables),
                 'cpv_codes': result.cpv_codes,
                 'company_names': result.company_names,
+                'emails': result.emails,
+                'phones': result.phones,
             }
+            adapter['specifications_json'] = json.dumps(metadata, ensure_ascii=False)
 
             # Verify Cyrillic preservation
             if self._contains_cyrillic(result.text):
                 logger.info(f"✓ Cyrillic text preserved in: {adapter.get('file_name')}")
 
             logger.info(
-                f"Extracted {len(result.text)} characters from {adapter.get('file_name')} "
-                f"using {result.engine_used} engine. "
-                f"CPV codes: {len(result.cpv_codes)}, Companies: {len(result.company_names)}"
+                f"Extracted {len(result.text)} chars from {adapter.get('file_name')} "
+                f"using {result.engine_used}. "
+                f"CPV: {len(result.cpv_codes)}, Companies: {len(result.company_names)}, "
+                f"Emails: {len(result.emails)}, Phones: {len(result.phones)}"
             )
 
         except Exception as e:
@@ -626,6 +631,9 @@ class DatabasePipeline:
                 actual_value_mkd = EXCLUDED.actual_value_mkd,
                 actual_value_eur = EXCLUDED.actual_value_eur,
                 procedure_type = EXCLUDED.procedure_type,
+                opening_date = COALESCE(EXCLUDED.opening_date, tenders.opening_date),
+                closing_date = COALESCE(EXCLUDED.closing_date, tenders.closing_date),
+                publication_date = COALESCE(EXCLUDED.publication_date, tenders.publication_date),
                 contract_signing_date = EXCLUDED.contract_signing_date,
                 contract_duration = EXCLUDED.contract_duration,
                 contracting_entity_category = EXCLUDED.contracting_entity_category,
@@ -741,14 +749,15 @@ class DatabasePipeline:
         # Parse upload_date from item (may come from document metadata)
         upload_date = self._parse_date_string(item.get('upload_date'))
 
-        # Insert new document with categorization fields
+        # Insert new document with categorization fields and extracted metadata
         await self.conn.execute("""
             INSERT INTO documents (
                 tender_id, doc_type, file_name, file_path, file_url,
                 content_text, extraction_status, file_size_bytes,
                 page_count, mime_type,
-                doc_category, doc_version, upload_date, file_hash
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                doc_category, doc_version, upload_date, file_hash,
+                specifications_json
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             ON CONFLICT (doc_id) DO UPDATE SET
                 content_text = EXCLUDED.content_text,
                 extraction_status = EXCLUDED.extraction_status,
@@ -758,7 +767,8 @@ class DatabasePipeline:
                 doc_category = EXCLUDED.doc_category,
                 doc_version = EXCLUDED.doc_version,
                 upload_date = EXCLUDED.upload_date,
-                file_hash = EXCLUDED.file_hash
+                file_hash = EXCLUDED.file_hash,
+                specifications_json = EXCLUDED.specifications_json
         """,
             item.get('tender_id'),
             item.get('doc_type'),
@@ -773,7 +783,8 @@ class DatabasePipeline:
             item.get('doc_category'),  # New field - NULL allowed
             item.get('doc_version'),   # New field - NULL allowed
             upload_date,               # New field - NULL allowed
-            file_hash                  # New field - for deduplication
+            file_hash,                 # New field - for deduplication
+            item.get('specifications_json')  # JSON with CPV codes, emails, phones, company names
         )
 
         # Add to cache

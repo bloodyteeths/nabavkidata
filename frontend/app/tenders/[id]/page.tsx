@@ -977,6 +977,15 @@ export default function TenderDetailPage() {
                   </div>
                 </div>
               )}
+              {tender.contract_signing_date && (
+                <div className="flex items-start gap-2">
+                  <Calendar className="h-4 w-4 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-medium text-green-600">Датум на договор</p>
+                    <p className="text-sm">{formatDate(tender.contract_signing_date)}</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

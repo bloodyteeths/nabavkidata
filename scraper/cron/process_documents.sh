@@ -190,6 +190,17 @@ async def process_other_docs():
 asyncio.run(process_other_docs())
 "
 
+log "========================================"
+log "Phase 4: PDF Metadata Extraction (Backfill)"
+log "========================================"
+
+# Run the backfill script to extract CPV codes, emails, phones from PDFs
+# This processes documents that have file_path but no specifications_json
+python3 backfill_pdf_extraction.py 200 || {
+    RC=$?
+    log "WARNING: PDF backfill failed with exit code $RC"
+}
+
 # Deactivate virtual environment
 deactivate 2>/dev/null || true
 

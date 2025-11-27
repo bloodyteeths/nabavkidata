@@ -81,3 +81,4 @@ class DocumentItem(scrapy.Item):
     doc_version = scrapy.Field()
     upload_date = scrapy.Field()
     file_hash = scrapy.Field()  # SHA-256 for duplicate detection
+    specifications_json = scrapy.Field()  # JSON with CPV codes, emails, phones, company names extracted from PDF

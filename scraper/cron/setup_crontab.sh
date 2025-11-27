@@ -31,20 +31,17 @@ CRON_ENTRIES="
 # Active tenders - scrape every hour (24/7)
 0 * * * * $CRON_DIR/scrape_active.sh >> $LOG_DIR/active_\$(date +\\%Y\\%m\\%d).log 2>&1
 
+# Contracts/Winners - scrape daily at 5 AM (uses Playwright)
+0 5 * * * $CRON_DIR/scrape_contracts.sh >> $LOG_DIR/contracts_\$(date +\\%Y\\%m\\%d).log 2>&1
+
+# E-Pazar products - scrape daily at 6 AM
+0 6 * * * $CRON_DIR/scrape_epazar.sh >> $LOG_DIR/epazar_\$(date +\\%Y\\%m\\%d).log 2>&1
+
+# Document processing - run every 4 hours to extract PDFs
+0 */4 * * * $CRON_DIR/process_documents.sh >> $LOG_DIR/docs_\$(date +\\%Y\\%m\\%d).log 2>&1
+
 # Log cleanup - monthly on the 1st at 4 AM
 0 4 1 * * $CRON_DIR/cleanup_logs.sh >> $LOG_DIR/cleanup.log 2>&1
-
-# ============================================
-# NOTE: Awarded/Cancelled/Historical categories
-# are not available on the public portal.
-# These jobs are disabled until routes are found.
-# ============================================
-# Awarded tenders daily at 2 AM (DISABLED)
-# 0 2 * * * $CRON_DIR/scrape_awarded.sh
-# Cancelled tenders daily at 3 AM (DISABLED)
-# 0 3 * * * $CRON_DIR/scrape_cancelled.sh
-# Historical backfill weekly Sunday 3 AM (DISABLED)
-# 0 3 * * 0 $CRON_DIR/scrape_historical.sh
 "
 
 # Get existing crontab (if any)

@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Calendar, Building2, Tag, ExternalLink, Clock, User, Mail, Phone } from "lucide-react";
+import { Calendar, Building2, Tag, ExternalLink, Clock, User, Mail, Phone, Trophy, FileText } from "lucide-react";
 import type { Tender } from "@/lib/api";
 import Link from "next/link";
 
@@ -87,6 +87,40 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
               </p>
             )}
 
+            {/* Winner Section for Awarded Contracts - Prominent Display */}
+            {tender.winner && (
+              <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md">
+                <div className="flex items-center gap-2 mb-2">
+                  <Trophy className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <span className="font-semibold text-green-800 dark:text-green-300">Добитник на договор</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-green-700/70 dark:text-green-400/70">Компанија</span>
+                    <span className="font-semibold text-green-900 dark:text-green-200">
+                      {tender.winner}
+                    </span>
+                  </div>
+                  {tender.actual_value_mkd && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-green-700/70 dark:text-green-400/70">Вредност на договор</span>
+                      <span className="font-semibold text-green-900 dark:text-green-200">
+                        {formatCurrency(tender.actual_value_mkd)}
+                      </span>
+                    </div>
+                  )}
+                  {tender.contract_signing_date && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-green-700/70 dark:text-green-400/70">Датум на договор</span>
+                      <span className="font-medium text-green-900 dark:text-green-200">
+                        {formatDate(tender.contract_signing_date)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Key Procurement Data - Highlighted */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-muted/30 rounded-md">
               {/* Estimated Value */}
@@ -95,6 +129,16 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
                   <span className="text-xs text-muted-foreground">Проценета вредност</span>
                   <span className="font-semibold text-foreground">
                     {formatCurrency(tender.estimated_value_mkd)}
+                  </span>
+                </div>
+              )}
+
+              {/* Actual Contract Value (if available and no winner section) */}
+              {tender.actual_value_mkd && !tender.winner && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Вредност на договор</span>
+                  <span className="font-semibold text-foreground">
+                    {formatCurrency(tender.actual_value_mkd)}
                   </span>
                 </div>
               )}
@@ -115,6 +159,16 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
                   <span className="text-xs text-muted-foreground">Понудувачи</span>
                   <span className="font-semibold text-foreground">
                     {tender.num_bidders} {tender.num_bidders === 1 ? 'понудувач' : 'понудувачи'}
+                  </span>
+                </div>
+              )}
+
+              {/* Contract Signing Date (if available and no winner section) */}
+              {tender.contract_signing_date && !tender.winner && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Датум на договор</span>
+                  <span className="font-medium text-foreground">
+                    {formatDate(tender.contract_signing_date)}
                   </span>
                 </div>
               )}
