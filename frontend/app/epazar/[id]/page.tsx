@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Building2,
@@ -304,12 +303,7 @@ export default function EPazarDetailPage() {
 
   return (
     <DashboardLayout>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="space-y-6"
-      >
+      <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
@@ -498,7 +492,7 @@ export default function EPazarDetailPage() {
             </div>
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
     </DashboardLayout>
   );
 }
