@@ -90,7 +90,7 @@ export default function UserTable({
 
     return (
       <Badge className={colors[status] || 'bg-gray-500 text-white'}>
-        {status === 'active' ? 'Активен' : status === 'banned' ? 'Банан' : 'Неактивен'}
+        {status === 'active' ? 'Активен' : status === 'banned' ? 'Баниран' : 'Неактивен'}
       </Badge>
     );
   };

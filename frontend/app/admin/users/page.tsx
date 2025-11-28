@@ -101,7 +101,7 @@ export default function AdminUsersPage() {
           email: user.email,
           name: user.full_name || user.email.split('@')[0],
           role: user.role,
-          status: user.is_active ? 'active' : 'inactive',
+          status: user.role === 'banned' ? 'banned' : (user.is_active ? 'active' : 'inactive'),
           subscription: user.subscription_tier || 'free',
           verified: user.email_verified,
           created_at: user.created_at,
@@ -192,8 +192,8 @@ export default function AdminUsersPage() {
   const handleBan = (userId: string) => {
     // Check if user is already banned by finding the user
     const user = users.find(u => u.id === userId);
-    if (user?.status === 'inactive') {
-      // User is banned/inactive, so unban them
+    if (user?.status === 'banned') {
+      // User is banned, so unban them
       handleAction(userId, 'unban', 'POST');
     } else {
       // User is active, so ban them
