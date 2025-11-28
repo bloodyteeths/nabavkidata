@@ -84,7 +84,7 @@ class AutoEmbeddingPipeline:
             AND NOT EXISTS (
                 SELECT 1 FROM embeddings e WHERE e.doc_id = d.doc_id
             )
-            ORDER BY d.created_at DESC
+            ORDER BY d.uploaded_at DESC NULLS LAST
         """
 
         if limit:
@@ -136,11 +136,11 @@ class AutoEmbeddingPipeline:
             JOIN tenders t ON d.tender_id = t.tender_id
             WHERE d.extraction_status = 'success'
             AND d.content_text IS NOT NULL
-            AND d.created_at >= $1
+            AND d.uploaded_at >= $1
             AND NOT EXISTS (
                 SELECT 1 FROM embeddings e WHERE e.doc_id = d.doc_id
             )
-            ORDER BY d.created_at DESC
+            ORDER BY d.uploaded_at DESC NULLS LAST
         """
 
         params = [since]
