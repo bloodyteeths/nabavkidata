@@ -19,6 +19,9 @@ from dataclasses import dataclass
 from datetime import datetime
 import google.generativeai as genai
 
+# Import shared connection pool
+from db_pool import get_pool, get_connection
+
 # Import optimized chunker
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'embeddings'))
 try:
@@ -362,25 +365,26 @@ class VectorStore:
     """
     Store and retrieve vectors using pgvector
 
-    Handles database operations for embeddings
+    Handles database operations for embeddings.
+    Uses shared connection pool to prevent connection exhaustion.
     """
 
     def __init__(self, database_url: str):
-        # Convert SQLAlchemy URL format to asyncpg format
-        # asyncpg doesn't understand postgresql+asyncpg://
+        # database_url kept for compatibility but we use shared pool
         self.database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
-        self.conn = None
+        self._pool = None
 
     async def connect(self):
-        """Establish database connection"""
-        if not self.conn:
-            self.conn = await asyncpg.connect(self.database_url)
+        """Get reference to shared connection pool"""
+        if not self._pool:
+            self._pool = await get_pool()
 
     async def close(self):
-        """Close database connection"""
-        if self.conn:
-            await self.conn.close()
-            self.conn = None
+        """
+        Release reference to pool (does not close the shared pool).
+        The shared pool is managed by db_pool module.
+        """
+        self._pool = None
 
     async def store_embedding(
         self,
@@ -403,20 +407,21 @@ class VectorStore:
         # Convert metadata dict to JSON string
         metadata_json = json.dumps(metadata or {})
 
-        result = await self.conn.fetchrow("""
-            INSERT INTO embeddings (
-                vector, chunk_text, chunk_index,
-                tender_id, doc_id, metadata
-            ) VALUES ($1::vector, $2, $3, $4, $5, $6::jsonb)
-            RETURNING embed_id
-        """,
-            vector_str,
-            chunk_text,
-            chunk_index,
-            tender_id,
-            doc_id,
-            metadata_json
-        )
+        async with self._pool.acquire() as conn:
+            result = await conn.fetchrow("""
+                INSERT INTO embeddings (
+                    vector, chunk_text, chunk_index,
+                    tender_id, doc_id, metadata
+                ) VALUES ($1::vector, $2, $3, $4, $5, $6::jsonb)
+                RETURNING embed_id
+            """,
+                vector_str,
+                chunk_text,
+                chunk_index,
+                tender_id,
+                doc_id,
+                metadata_json
+            )
 
         return str(result['embed_id'])
 
@@ -436,17 +441,28 @@ class VectorStore:
         embed_ids = []
 
         # Use transaction for batch insert
-        async with self.conn.transaction():
-            for chunk, vector in embeddings:
-                embed_id = await self.store_embedding(
-                    vector=vector,
-                    chunk_text=chunk.text,
-                    chunk_index=chunk.chunk_index,
-                    tender_id=chunk.tender_id,
-                    doc_id=chunk.doc_id,
-                    metadata=chunk.metadata
-                )
-                embed_ids.append(embed_id)
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                for chunk, vector in embeddings:
+                    # Convert vector list to pgvector format
+                    vector_str = '[' + ','.join(map(str, vector)) + ']'
+                    metadata_json = json.dumps(chunk.metadata or {})
+
+                    result = await conn.fetchrow("""
+                        INSERT INTO embeddings (
+                            vector, chunk_text, chunk_index,
+                            tender_id, doc_id, metadata
+                        ) VALUES ($1::vector, $2, $3, $4, $5, $6::jsonb)
+                        RETURNING embed_id
+                    """,
+                        vector_str,
+                        chunk.text,
+                        chunk.chunk_index,
+                        chunk.tender_id,
+                        chunk.doc_id,
+                        metadata_json
+                    )
+                    embed_ids.append(str(result['embed_id']))
 
         logger.info(f"Stored {len(embed_ids)} embeddings")
         return embed_ids
@@ -471,39 +487,40 @@ class VectorStore:
         # Convert vector list to pgvector format
         vector_str = '[' + ','.join(map(str, query_vector)) + ']'
 
-        if tender_id:
-            # Filter by tender
-            query = """
-                SELECT
-                    embed_id,
-                    chunk_text,
-                    chunk_index,
-                    tender_id,
-                    doc_id,
-                    metadata,
-                    1 - (vector <=> $1::vector) as similarity
-                FROM embeddings
-                WHERE tender_id = $2
-                ORDER BY vector <=> $1::vector
-                LIMIT $3
-            """
-            rows = await self.conn.fetch(query, vector_str, tender_id, limit)
-        else:
-            # Search all embeddings
-            query = """
-                SELECT
-                    embed_id,
-                    chunk_text,
-                    chunk_index,
-                    tender_id,
-                    doc_id,
-                    metadata,
-                    1 - (vector <=> $1::vector) as similarity
-                FROM embeddings
-                ORDER BY vector <=> $1::vector
-                LIMIT $2
-            """
-            rows = await self.conn.fetch(query, vector_str, limit)
+        async with self._pool.acquire() as conn:
+            if tender_id:
+                # Filter by tender
+                query = """
+                    SELECT
+                        embed_id,
+                        chunk_text,
+                        chunk_index,
+                        tender_id,
+                        doc_id,
+                        metadata,
+                        1 - (vector <=> $1::vector) as similarity
+                    FROM embeddings
+                    WHERE tender_id = $2
+                    ORDER BY vector <=> $1::vector
+                    LIMIT $3
+                """
+                rows = await conn.fetch(query, vector_str, tender_id, limit)
+            else:
+                # Search all embeddings
+                query = """
+                    SELECT
+                        embed_id,
+                        chunk_text,
+                        chunk_index,
+                        tender_id,
+                        doc_id,
+                        metadata,
+                        1 - (vector <=> $1::vector) as similarity
+                    FROM embeddings
+                    ORDER BY vector <=> $1::vector
+                    LIMIT $2
+                """
+                rows = await conn.fetch(query, vector_str, limit)
 
         results = [dict(row) for row in rows]
         logger.info(f"Found {len(results)} similar vectors")
