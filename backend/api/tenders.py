@@ -1180,14 +1180,17 @@ async def get_tender_suppliers(number: str, year: str, db: AsyncSession = Depend
 # GET SINGLE TENDER (Path parameter - must be LAST among GET routes)
 # ============================================================================
 
-@router.get("/{tender_id:path}", response_model=TenderResponse)
+@router.get("/{tender_id:path}")
 async def get_tender(
     tender_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get tender by ID. Supports IDs containing slashes (encoded in the path).
+    Returns tender data with bidders parsed from raw_data_json.
     """
+    import json
+
     # Normalize encoded slash IDs
     tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
     query = select(Tender).where(Tender.tender_id == tender_id)
@@ -1197,7 +1200,40 @@ async def get_tender(
     if not tender:
         raise HTTPException(status_code=404, detail="Tender not found")
 
-    return TenderResponse.from_orm(tender)
+    # Build response with parsed bidders from raw_data_json
+    response = TenderResponse.from_orm(tender).dict()
+
+    # Parse bidders_data from raw_data_json if available
+    bidders = []
+    lots = []
+    if tender.raw_data_json:
+        try:
+            raw_json = tender.raw_data_json if isinstance(tender.raw_data_json, dict) else json.loads(tender.raw_data_json)
+
+            # Extract bidders_data
+            bidders_data = raw_json.get('bidders_data')
+            if bidders_data:
+                if isinstance(bidders_data, str):
+                    bidders = json.loads(bidders_data)
+                elif isinstance(bidders_data, list):
+                    bidders = bidders_data
+
+            # Extract lots_data
+            lots_data = raw_json.get('lots_data')
+            if lots_data:
+                if isinstance(lots_data, str):
+                    lots = json.loads(lots_data)
+                elif isinstance(lots_data, list):
+                    lots = lots_data
+        except (json.JSONDecodeError, TypeError) as e:
+            # Log but don't fail - just return empty bidders
+            pass
+
+    response['bidders'] = bidders
+    response['lots'] = lots
+    response['raw_data_json'] = tender.raw_data_json
+
+    return response
 
 
 # ============================================================================

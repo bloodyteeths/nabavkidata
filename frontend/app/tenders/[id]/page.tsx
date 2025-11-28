@@ -103,11 +103,17 @@ export default function TenderDetailPage() {
     loadTender();
     loadNotifyPreference();
     loadDocuments();
-    loadBidders();
-    loadLots();
     loadProducts();
     loadPriceHistory();
   }, [tenderId]);
+
+  // Load bidders and lots after tender is loaded (to use embedded data first)
+  useEffect(() => {
+    if (tender) {
+      loadBidders();
+      loadLots();
+    }
+  }, [tender]);
 
   useEffect(() => {
     loadTier();
@@ -196,15 +202,31 @@ export default function TenderDetailPage() {
 
   async function loadBidders() {
     if (!tenderId) return;
+    setBiddersLoading(true);
     try {
-      // Parse tender ID (format: "12345/2025")
+      // First check if tender has embedded bidders (from raw_data_json)
+      if (tender?.bidders && tender.bidders.length > 0) {
+        // Map embedded bidders to TenderBidder format
+        const mappedBidders: TenderBidder[] = tender.bidders.map((b, idx) => ({
+          bidder_id: `embedded-${idx}`,
+          company_name: b.company_name,
+          bid_amount_mkd: b.bid_amount_mkd,
+          is_winner: b.is_winner || false,
+          is_disqualified: b.disqualified || false,
+          rank: b.rank,
+        }));
+        setBidders(mappedBidders);
+        return;
+      }
+
+      // Fallback: Try separate bidders API for old format tenders
       const parts = tenderId.split('/');
       if (parts.length !== 2) {
-        console.log("Invalid tender ID format for bidders");
+        console.log("Invalid tender ID format for bidders, and no embedded bidders");
+        setBidders([]);
         return;
       }
       const [tenderNumber, tenderYear] = parts;
-      setBiddersLoading(true);
       const result = await api.getTenderBidders(tenderNumber, tenderYear);
       setBidders(result.bidders || []);
     } catch (error) {
@@ -217,15 +239,33 @@ export default function TenderDetailPage() {
 
   async function loadLots() {
     if (!tenderId) return;
+    setLotsLoading(true);
     try {
-      // Parse tender ID (format: "12345/2025")
+      // First check if tender has embedded lots (from raw_data_json)
+      if (tender?.lots && tender.lots.length > 0) {
+        // Map embedded lots to TenderLot format
+        const mappedLots: TenderLot[] = tender.lots.map((l, idx) => ({
+          lot_id: `embedded-${idx}`,
+          lot_number: l.lot_number || idx + 1,
+          title: l.title || `Лот ${idx + 1}`,
+          estimated_value_mkd: l.estimated_value_mkd,
+          actual_value_mkd: l.actual_value_mkd,
+          winner: l.winner,
+        }));
+        setLots(mappedLots);
+        setHasLots(true);
+        return;
+      }
+
+      // Fallback: Try separate lots API for old format tenders
       const parts = tenderId.split('/');
       if (parts.length !== 2) {
-        console.log("Invalid tender ID format for lots");
+        console.log("Invalid tender ID format for lots, and no embedded lots");
+        setLots([]);
+        setHasLots(false);
         return;
       }
       const [tenderNumber, tenderYear] = parts;
-      setLotsLoading(true);
       const result = await api.getTenderLots(tenderNumber, tenderYear);
       setLots(result.lots || []);
       setHasLots(result.has_lots || false);

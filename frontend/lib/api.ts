@@ -41,6 +41,22 @@ export interface Tender {
   scraped_at?: string;
   updated_at?: string;
   created_at: string;
+  // Embedded bidders/lots from raw_data_json (for awarded tenders)
+  bidders?: Array<{
+    company_name: string;
+    bid_amount_mkd?: number;
+    is_winner?: boolean;
+    rank?: number;
+    disqualified?: boolean;
+  }>;
+  lots?: Array<{
+    lot_number?: number;
+    title?: string;
+    estimated_value_mkd?: number;
+    actual_value_mkd?: number;
+    winner?: string;
+  }>;
+  raw_data_json?: Record<string, any>;
 }
 
 export interface TenderDocument {
