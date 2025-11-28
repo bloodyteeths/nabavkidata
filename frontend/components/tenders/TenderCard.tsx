@@ -62,7 +62,7 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
             <div className="flex items-start gap-2 flex-wrap">
               <Link
                 href={`/tenders/${tenderPath}`}
-                className="font-semibold text-lg hover:text-primary transition-colors flex-1 min-w-0"
+                className="font-semibold text-lg hover:text-primary transition-colors flex-1 min-w-0 break-words"
               >
                 {tender.title}
               </Link>

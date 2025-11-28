@@ -19,12 +19,7 @@ export default function TendersPage() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({});
   const [stats, setStats] = useState({ total: 0, open: 0, closed: 0, awarded: 0 });
-  const [dataset, setDataset] = useState<"active" | "awarded" | "cancelled">(
-    "active"
-  );
   const [error, setError] = useState<string | null>(null);
-  const [awardedCount, setAwardedCount] = useState(0);
-  // Quick filters removed - they were overriding main filters
   const limit = 20;
 
   const [showFilters, setShowFilters] = useState(false);
@@ -37,28 +32,12 @@ export default function TendersPage() {
   useEffect(() => {
     if (!isHydrated) return;
     loadTenders();
-    // Only auto-load on page change, dataset change - NOT on regular filter changes
-  }, [isHydrated, page, dataset]);
+  }, [isHydrated, page]);
 
   useEffect(() => {
     if (!isHydrated) return;
     loadStats();
-    loadAwardedCount();
   }, [isHydrated]);
-
-  async function loadAwardedCount() {
-    try {
-      const result = await api.getTenders({
-        source_category: "awarded",
-        page: 1,
-        page_size: 1
-      });
-      setAwardedCount(result.total || 0);
-    } catch (err) {
-      console.error("Failed to get awarded count:", err);
-      setAwardedCount(0);
-    }
-  }
 
   async function loadTenders() {
     try {
@@ -67,18 +46,14 @@ export default function TendersPage() {
       const params: Record<string, any> = {
         page: page,
         page_size: limit,
-        source_category: dataset, // Filter by source_category (active, awarded, cancelled)
       };
 
       // Apply text search
       if (filters.search) params.search = filters.search;
 
-      // Status filter - use main filters only
+      // Status filter
       if (filters.status) {
         params.status = filters.status;
-      } else if (dataset === "active") {
-        // Default to open for active dataset only if no status filter is applied
-        params.status = "open";
       }
 
       // Category filter - pass exactly as selected
@@ -164,33 +139,8 @@ export default function TendersPage() {
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">Истражувач на Тендери</h1>
         <p className="text-sm md:text-base text-muted-foreground">
-          Пребарувајте и филтрирајте тендери по категорија: активни, доделени или поништени
+          Пребарувајте и филтрирајте тендери по статус, категорија, буџет и други критериуми
         </p>
-      </div>
-
-      {/* Dataset Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {(["active", "awarded", "cancelled"] as const).map((key) => {
-          const labels: Record<typeof key, string> = {
-            active: "Активни",
-            awarded: `Доделени (${awardedCount.toLocaleString()})`,
-            cancelled: "Поништени",
-          };
-          const isActive = dataset === key;
-          return (
-            <Button
-              key={key}
-              variant={isActive ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setDataset(key);
-                setPage(1);
-              }}
-            >
-              {labels[key]}
-            </Button>
-          );
-        })}
       </div>
 
       {/* Stats */}
@@ -241,9 +191,6 @@ export default function TendersPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <p className="text-xs md:text-sm text-muted-foreground">
               {total.toLocaleString()} резултати {filters.search && `за "${filters.search}"`}
-              {dataset === "active" && " · активни тендери"}
-              {dataset === "awarded" && " · доделени договори"}
-              {dataset === "cancelled" && " · поништени тендери"}
             </p>
             <div className="flex items-center gap-2">
               <p className="text-xs md:text-sm text-muted-foreground">
@@ -252,7 +199,7 @@ export default function TendersPage() {
               {tenders.length > 0 && (
                 <ExportButton
                   data={tenders}
-                  filename={`тендери-${dataset}-${new Date().toISOString().split('T')[0]}`}
+                  filename={`тендери-${new Date().toISOString().split('T')[0]}`}
                   columns={[
                     { key: 'tender_id', label: 'ID' },
                     { key: 'title', label: 'Наслов' },
