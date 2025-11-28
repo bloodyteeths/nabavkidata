@@ -278,13 +278,33 @@ class EmbeddingGenerator:
             return []
 
         try:
-            # Gemini batch embedding
-            result = await asyncio.to_thread(
-                genai.embed_content,
-                model=self.model,
-                content=texts,
-                task_type="retrieval_document"
-            )
+            # Ensure genai is configured with the current API key
+            genai.configure(api_key=self.api_key)
+
+            # Gemini batch embedding with retry for rate limits
+            max_retries = 3
+            retry_delay = 5
+
+            for attempt in range(max_retries):
+                try:
+                    result = await asyncio.to_thread(
+                        genai.embed_content,
+                        model=self.model,
+                        content=texts,
+                        task_type="retrieval_document"
+                    )
+                    break  # Success
+                except Exception as api_error:
+                    error_str = str(api_error).lower()
+                    if "rate" in error_str or "quota" in error_str or "429" in error_str:
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Rate limit hit, waiting {retry_delay}s before retry {attempt + 2}/{max_retries}")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                        else:
+                            raise
+                    else:
+                        raise
 
             # Extract vectors
             if isinstance(result['embedding'][0], list):

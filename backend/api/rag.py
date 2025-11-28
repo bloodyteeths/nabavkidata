@@ -30,6 +30,14 @@ from schemas import (
 )
 from api.auth import get_current_user
 
+# Import fraud prevention for tier enforcement
+try:
+    from services.fraud_prevention import check_rate_limit, increment_query_count, TIER_LIMITS
+    FRAUD_PREVENTION_AVAILABLE = True
+except ImportError:
+    FRAUD_PREVENTION_AVAILABLE = False
+    print("Warning: Fraud prevention not available. Tier limits not enforced.")
+
 # Import RAG components
 try:
     from rag_query import RAGQueryPipeline, search_tenders as rag_search_tenders
@@ -73,6 +81,23 @@ async def query_rag(
             detail="RAG service not available. Check configuration."
         )
 
+    # PHASE 4: Check tier-based rate limits before processing query
+    if FRAUD_PREVENTION_AVAILABLE:
+        is_allowed, reason, info = await check_rate_limit(db, current_user.user_id, current_user)
+        if not is_allowed:
+            tier = getattr(current_user, 'subscription_tier', 'free').lower()
+            tier_config = TIER_LIMITS.get(tier, TIER_LIMITS['free'])
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "message": reason,
+                    "tier": tier,
+                    "daily_limit": tier_config['daily_queries'],
+                    "monthly_limit": tier_config['monthly_queries'],
+                    "upgrade_url": "/pricing"
+                }
+            )
+
     start_time = time.time()
 
     try:
@@ -105,6 +130,13 @@ async def query_rag(
         except Exception as db_error:
             # Log but don't fail the request if history save fails
             print(f"Warning: Failed to save query history: {db_error}")
+
+        # PHASE 4: Increment query count for tier tracking
+        if FRAUD_PREVENTION_AVAILABLE:
+            try:
+                await increment_query_count(db, current_user.user_id)
+            except Exception as e:
+                print(f"Warning: Failed to increment query count: {e}")
 
         # Convert sources to response format
         sources_response = [
@@ -164,6 +196,23 @@ async def query_rag_stream(
             status_code=503,
             detail="RAG service not available. Check configuration."
         )
+
+    # PHASE 4: Check tier-based rate limits before processing query
+    if FRAUD_PREVENTION_AVAILABLE:
+        is_allowed, reason, info = await check_rate_limit(db, current_user.user_id, current_user)
+        if not is_allowed:
+            tier = getattr(current_user, 'subscription_tier', 'free').lower()
+            tier_config = TIER_LIMITS.get(tier, TIER_LIMITS['free'])
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "message": reason,
+                    "tier": tier,
+                    "daily_limit": tier_config['daily_queries'],
+                    "monthly_limit": tier_config['monthly_queries'],
+                    "upgrade_url": "/pricing"
+                }
+            )
 
     async def generate_stream() -> AsyncGenerator[str, None]:
         """Generate SSE stream for RAG response"""
@@ -436,12 +485,62 @@ async def embed_documents_batch(
 
     Returns:
     - results: Dict mapping doc_id to embed_ids
+
+    Rate limits:
+    - Free tier: 10 documents per request, 50 per day
+    - Starter: 50 documents per request, 200 per day
+    - Professional: 200 documents per request, 1000 per day
+    - Enterprise: Unlimited
     """
     if not RAG_AVAILABLE:
         raise HTTPException(
             status_code=503,
             detail="Embedding service not available. Check configuration."
         )
+
+    # Rate limiting based on user tier
+    tier = getattr(current_user, 'plan_tier', 'free')
+    tier_limits = {
+        'free': {'per_request': 10, 'daily': 50},
+        'starter': {'per_request': 50, 'daily': 200},
+        'professional': {'per_request': 200, 'daily': 1000},
+        'enterprise': {'per_request': 10000, 'daily': 100000},
+    }
+
+    limits = tier_limits.get(tier, tier_limits['free'])
+
+    # Check per-request limit
+    if len(documents) > limits['per_request']:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many documents. Your {tier} tier allows {limits['per_request']} documents per request. Upgrade for higher limits."
+        )
+
+    # Check daily limit (query usage tracking)
+    try:
+        from sqlalchemy import text
+        daily_count_result = await db.execute(
+            text("""
+                SELECT COALESCE(SUM(JSONB_ARRAY_LENGTH(COALESCE(embed_ids::jsonb, '[]'::jsonb))), 0) as count
+                FROM query_history
+                WHERE user_id = :user_id
+                  AND created_at > NOW() - INTERVAL '24 hours'
+                  AND embed_ids IS NOT NULL
+            """),
+            {"user_id": str(current_user.user_id)}
+        )
+        daily_count = daily_count_result.scalar() or 0
+
+        if daily_count + len(documents) > limits['daily']:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily embedding limit exceeded. Your {tier} tier allows {limits['daily']} embeddings per day. Used: {daily_count}."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log but don't fail if rate limit check fails
+        print(f"Warning: Rate limit check failed: {e}")
 
     try:
         # Initialize pipeline

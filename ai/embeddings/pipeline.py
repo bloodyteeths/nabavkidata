@@ -16,6 +16,19 @@ import asyncpg
 from typing import List, Dict, Optional
 from datetime import datetime
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+# Try multiple .env locations
+env_paths = [
+    os.path.join(os.path.dirname(__file__), '../../.env'),
+    os.path.join(os.path.dirname(__file__), '../../../.env'),
+    '/home/ubuntu/nabavkidata/.env',
+]
+for env_path in env_paths:
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        break
+
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
