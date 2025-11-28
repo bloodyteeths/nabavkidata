@@ -136,7 +136,7 @@ class QueryHistory(Base):
     question = Column(Text, nullable=False)
     answer = Column(Text)
     sources = Column(JSONB)
-    confidence = Column(Numeric(3, 2))
+    confidence = Column(String(20))  # 'high', 'medium', 'low'
     query_time_ms = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 

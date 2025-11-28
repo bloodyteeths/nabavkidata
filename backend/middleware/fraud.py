@@ -48,6 +48,10 @@ class FraudPreventionMiddleware(BaseHTTPMiddleware):
         """
         Process the request through fraud prevention checks
         """
+        # Skip OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         path = request.url.path
 
         # Skip exempt endpoints

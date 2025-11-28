@@ -10,7 +10,7 @@ import { RefreshCcw } from "lucide-react";
 
 export default function TrendsPage() {
   const [cpv, setCpv] = useState("");
-  const [data, setData] = useState<{ trends: any[]; summary: any } | null>(null);
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,11 +32,15 @@ export default function TrendsPage() {
     }
   }
 
+  // Map API response to chart data - API returns { categories: [...], period, generated_at }
   const chartData =
-    data?.trends?.map((t) => ({
-      date: t.date || t.period || "",
-      value: t.total_value_mkd || t.avg_value_mkd || 0,
-    })) || [];
+    data?.categories?.flatMap((cat: any) =>
+      cat.monthly_trend?.map((t: any) => ({
+        date: t.month || "",
+        value: t.value || 0,
+        category: cat.category
+      })) || []
+    ) || [];
 
   return (
     <div className="p-6 space-y-6">
@@ -64,20 +68,30 @@ export default function TrendsPage() {
 
       {!loading && !error && (
         <>
-          {data?.summary && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Резиме</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {Object.entries(data.summary).map(([key, value]) => (
-                  <div key={key} className="flex justify-between">
-                    <span className="capitalize">{key.replace(/_/g, " ")}</span>
-                    <span className="font-medium">{typeof value === "number" ? value.toLocaleString() : String(value)}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+          {data?.categories && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {data.categories.map((cat: any) => (
+                <Card key={cat.category}>
+                  <CardHeader>
+                    <CardTitle>{cat.category}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Број на тендери</span>
+                      <span className="font-medium">{cat.tender_count?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Вкупна вредност (МКД)</span>
+                      <span className="font-medium">{cat.total_value_mkd?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Просечна вредност (МКД)</span>
+                      <span className="font-medium">{Math.round(cat.avg_value_mkd || 0).toLocaleString()}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
 
           {chartData.length > 0 ? (

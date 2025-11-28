@@ -29,8 +29,17 @@ export default function AnalyticsPage() {
     }
   }
 
-  const cards = data?.cards || [];
-  const charts = data?.charts || {};
+  // Map API response to display format
+  const cards = data ? [
+    { title: "Вкупно тендери", value: data.total_tenders?.toLocaleString() || 0 },
+    { title: "Вкупна вредност (МКД)", value: data.total_value_mkd?.toLocaleString() || 0 },
+    { title: "Отворени тендери", value: data.open_tenders?.toLocaleString() || 0 },
+    { title: "Набрзо се затвораат", value: data.closing_soon?.toLocaleString() || 0, subtitle: "Рок до 7 дена" },
+  ] : [];
+
+  const topCategories = data?.top_categories || [];
+  const topEntities = data?.top_entities || [];
+  const valueDistribution = data?.value_distribution || {};
 
   return (
     <div className="p-6 space-y-6">
@@ -78,18 +87,50 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          {charts?.by_status && (
+          {topCategories.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Статуси</CardTitle>
+                <CardTitle>Топ категории</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                {charts.by_status.map((row: any, idx: number) => (
+                {topCategories.map((cat: any, idx: number) => (
                   <div key={idx} className="flex justify-between border-b py-1">
-                    <span className="capitalize">{row.status || "n/a"}</span>
-                    <span className="font-medium">{row.count?.toLocaleString() ?? "-"}</span>
+                    <span>{cat.category || "N/A"}</span>
+                    <span className="font-medium">{cat.count?.toLocaleString() || 0} тендери</span>
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {topEntities.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Топ институции (по број на тендери)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm max-h-80 overflow-y-auto">
+                {topEntities.slice(0, 10).map((entity: any, idx: number) => (
+                  <div key={idx} className="flex justify-between border-b py-1 gap-2">
+                    <span className="truncate flex-1 text-xs">{entity.entity || "N/A"}</span>
+                    <span className="font-medium whitespace-nowrap">{entity.count?.toLocaleString() || 0}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {Object.keys(valueDistribution).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Дистрибуција по вредност</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between"><span>Под 100,000 МКД</span><span className="font-medium">{valueDistribution.under_100k || 0}</span></div>
+                <div className="flex justify-between"><span>100K - 500K МКД</span><span className="font-medium">{valueDistribution["100k_500k"] || 0}</span></div>
+                <div className="flex justify-between"><span>500K - 1M МКД</span><span className="font-medium">{valueDistribution["500k_1m"] || 0}</span></div>
+                <div className="flex justify-between"><span>1M - 5M МКД</span><span className="font-medium">{valueDistribution["1m_5m"] || 0}</span></div>
+                <div className="flex justify-between"><span>5M - 10M МКД</span><span className="font-medium">{valueDistribution["5m_10m"] || 0}</span></div>
+                <div className="flex justify-between"><span>Над 10M МКД</span><span className="font-medium">{valueDistribution.over_10m || 0}</span></div>
               </CardContent>
             </Card>
           )}
