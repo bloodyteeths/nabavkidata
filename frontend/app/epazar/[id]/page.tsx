@@ -248,7 +248,6 @@ export default function EPazarDetailPage() {
 
   useEffect(() => {
     loadTender();
-    generateSummary(); // Auto-generate summary on page load
   }, [tenderId]);
 
   async function loadTender() {
@@ -265,6 +264,8 @@ export default function EPazarDetailPage() {
       if (winnerOffer?.supplier_id) {
         void loadSupplierStats(winnerOffer.supplier_id);
       }
+      // Generate summary after tender data is loaded
+      void generateSummaryWithData(data);
     } catch (err) {
       console.error('Failed to load tender:', err);
       setError('Failed to load tender details');
@@ -273,29 +274,77 @@ export default function EPazarDetailPage() {
     }
   }
 
-  async function generateSummary() {
+  async function generateSummaryWithData(tenderData: EPazarTenderDetail) {
     if (!tenderId) return;
 
     setSummaryLoading(true);
     try {
-      // Use RAG query for consistent AI experience across tender types
-      const result = await api.queryRAG(
-        "Дај ми краток резиме на овој тендер во 3-4 реченици. Вклучи информации за артиклите и понудите.",
-        tenderId
-      );
-      setSummary(result.answer);
-    } catch (err) {
-      console.error('Failed to generate summary:', err);
-      // Fallback to the original method
-      try {
-        const result = await api.summarizeEPazarTender(tenderId);
+      // First try to get the structured summary from the tender itself
+      const result = await api.summarizeEPazarTender(tenderId);
+      if (result.summary) {
         setSummary(result.summary);
-      } catch {
-        setSummary("Неможе да се генерира резиме.");
+      } else {
+        // Generate local summary from tender data
+        generateLocalSummary(tenderData);
+      }
+    } catch (err) {
+      console.error('Failed to generate summary via API:', err);
+      // Try RAG as fallback
+      try {
+        const ragResult = await api.queryRAG(
+          "Дај ми краток резиме на овој тендер во 3-4 реченици. Вклучи информации за артиклите и понудите.",
+          tenderId
+        );
+        setSummary(ragResult.answer);
+      } catch (ragErr) {
+        console.error('RAG also failed:', ragErr);
+        // Final fallback - generate local summary from loaded data
+        generateLocalSummary(tenderData);
       }
     } finally {
       setSummaryLoading(false);
     }
+  }
+
+  // For the button click (when tender is already in state)
+  async function generateSummary() {
+    if (!tenderId || !tender) return;
+    await generateSummaryWithData(tender);
+  }
+
+  function generateLocalSummary(tenderData: EPazarTenderDetail) {
+    if (!tenderData) {
+      setSummary("Нема достапни информации за генерирање на резиме.");
+      return;
+    }
+
+    const parts: string[] = [];
+
+    if (tenderData.contracting_authority) {
+      parts.push(`Набавка од ${tenderData.contracting_authority}.`);
+    }
+
+    if (tenderData.estimated_value_mkd) {
+      parts.push(`Проценета вредност: ${tenderData.estimated_value_mkd.toLocaleString()} МКД.`);
+    }
+
+    if (tenderData.items && tenderData.items.length > 0) {
+      parts.push(`Вклучува ${tenderData.items.length} артикли.`);
+    }
+
+    if (tenderData.offers && tenderData.offers.length > 0) {
+      const winningOffer = tenderData.offers.find(o => o.is_winner);
+      parts.push(`Добиени ${tenderData.offers.length} понуди.`);
+      if (winningOffer) {
+        parts.push(`Победник: ${winningOffer.supplier_name} со понуда од ${winningOffer.total_bid_mkd?.toLocaleString()} МКД.`);
+      }
+    }
+
+    if (tenderData.status) {
+      parts.push(`Статус: ${tenderData.status}.`);
+    }
+
+    setSummary(parts.join(' ') || "Нема доволно информации за резиме.");
   }
 
   async function handleChatSend(message: string) {

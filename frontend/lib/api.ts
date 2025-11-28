@@ -464,16 +464,17 @@ class APIClient {
   }
 
   // CPV APIs (expanded)
-  async searchCPVCodes(query: string, limit: number = 20) {
+  async searchCPVCodes(prefix: string, limit: number = 20) {
     const params = new URLSearchParams();
-    params.append('q', query);
+    params.append('prefix', prefix);
     params.append('limit', String(limit));
     return this.request<{
-      total: number;
-      items: Array<{
-        cpv_code: string;
-        title: string;
-        path?: string[];
+      results: Array<{
+        code: string;
+        name: string;
+        name_mk: string;
+        tender_count?: number;
+        total_value_mkd?: number;
       }>;
     }>(`/api/cpv-codes/search?${params.toString()}`);
   }
@@ -481,19 +482,73 @@ class APIClient {
   async getCPVCodes(limit: number = 100) {
     const params = new URLSearchParams();
     params.append('limit', String(limit));
-    return this.request<{ cpv_codes: Array<{ cpv_code: string; title: string; level?: number; parent?: string | null }> }>(
-      `/api/cpv-codes?${params.toString()}`
-    );
+    const response = await this.request<{
+      total: number;
+      cpv_codes: Array<{
+        code: string;
+        name: string;
+        name_mk: string;
+        parent_code?: string;
+        level?: number;
+        tender_count?: number;
+        total_value_mkd?: number;
+      }>;
+    }>(`/api/cpv-codes?${params.toString()}`);
+    // Map response to expected format
+    return {
+      cpv_codes: response.cpv_codes.map(c => ({
+        cpv_code: c.code,
+        title: c.name_mk || c.name,
+        level: c.level,
+        parent: c.parent_code,
+        tender_count: c.tender_count,
+        total_value_mkd: c.total_value_mkd,
+      }))
+    };
   }
 
   async getCPVDivisions() {
-    return this.request<{ divisions: Array<{ cpv_code: string; title: string; level: number }> }>(`/api/cpv-codes/divisions`);
+    const response = await this.request<{
+      total: number;
+      divisions: Array<{
+        code: string;
+        name: string;
+        name_mk: string;
+        tender_count?: number;
+        total_value_mkd?: number;
+      }>;
+    }>(`/api/cpv-codes/divisions`);
+    // Map response to expected format
+    return {
+      divisions: response.divisions.map(d => ({
+        cpv_code: d.code,
+        title: d.name_mk || d.name,
+        level: 2, // Divisions are level 2 in CPV hierarchy
+      }))
+    };
   }
 
   async getCPVCode(code: string) {
-    return this.request<{ cpv_code: string; title: string; path: string[]; children?: Array<{ cpv_code: string; title: string }> }>(
-      `/api/cpv-codes/${encodeURIComponent(code)}`
-    );
+    const response = await this.request<{
+      code: string;
+      name: string;
+      name_mk: string;
+      parent_code?: string;
+      level?: number;
+      tender_count?: number;
+      total_value_mkd?: number;
+      recent_tenders?: Array<any>;
+      top_entities?: Array<any>;
+      monthly_trend?: Array<any>;
+    }>(`/api/cpv-codes/${encodeURIComponent(code)}`);
+    // The CPVBrowser expects cpv_code and title fields with children
+    // Since we don't have children from API, return empty array
+    return {
+      cpv_code: response.code,
+      title: response.name_mk || response.name,
+      path: [],
+      children: [],
+    };
   }
 
   // Saved Searches
@@ -548,7 +603,23 @@ class APIClient {
 
   // Tender AI summary
   async getTenderAISummary(tenderId: string) {
-    return this.request<{ tender_id: string; summary: string; confidence?: string; sources?: any[] }>(
+    return this.request<{
+      tender_id: string;
+      title: string;
+      summary: {
+        overview: string;
+        key_requirements: string[];
+        estimated_complexity: string;
+        complexity_factors: string[];
+        suggested_cpv_codes: string[];
+        deadline_urgency: string;
+        days_remaining: number | null;
+        competition_level: string;
+      };
+      generated_at: string;
+      model: string;
+      note: string;
+    }>(
       `/api/tenders/${encodeURIComponent(tenderId)}/ai_summary`
     );
   }

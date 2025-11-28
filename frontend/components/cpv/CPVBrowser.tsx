@@ -70,7 +70,12 @@ export function CPVBrowser({ onSelect }: CPVBrowserProps) {
     try {
       setSearchLoading(true);
       const res = await api.searchCPVCodes(q, 20);
-      setResults(res.items || []);
+      // Map API response format (code, name) to CPVNode format (cpv_code, title)
+      const mapped = (res.results || []).map(r => ({
+        cpv_code: r.code,
+        title: r.name_mk || r.name
+      }));
+      setResults(mapped);
     } catch (err) {
       console.error("Failed to search CPV:", err);
       setResults([]);

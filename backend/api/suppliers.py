@@ -242,7 +242,7 @@ async def get_supplier(
     )
 
     if include_participations:
-        # Get recent tender participations
+        # Get recent tender participations by matching company_name
         participations_query = text("""
             SELECT
                 t.tender_id, t.title, t.procuring_entity,
@@ -250,7 +250,8 @@ async def get_supplier(
                 t.status, t.closing_date
             FROM tender_bidders tb
             JOIN tenders t ON tb.tender_id = t.tender_id
-            WHERE tb.supplier_id = :supplier_id
+            JOIN suppliers s ON tb.company_name = s.company_name
+            WHERE s.supplier_id = :supplier_id
             ORDER BY t.closing_date DESC NULLS LAST
             LIMIT :limit
         """)
@@ -280,7 +281,8 @@ async def get_supplier(
             SELECT t.category, COUNT(*) as win_count
             FROM tender_bidders tb
             JOIN tenders t ON tb.tender_id = t.tender_id
-            WHERE tb.supplier_id = :supplier_id AND tb.is_winner = TRUE
+            JOIN suppliers s ON tb.company_name = s.company_name
+            WHERE s.supplier_id = :supplier_id AND tb.is_winner = TRUE
             GROUP BY t.category
         """)
         cat_result = await db.execute(category_query, {"supplier_id": supplier_id})
@@ -291,7 +293,8 @@ async def get_supplier(
             SELECT t.procuring_entity, COUNT(*) as win_count
             FROM tender_bidders tb
             JOIN tenders t ON tb.tender_id = t.tender_id
-            WHERE tb.supplier_id = :supplier_id AND tb.is_winner = TRUE
+            JOIN suppliers s ON tb.company_name = s.company_name
+            WHERE s.supplier_id = :supplier_id AND tb.is_winner = TRUE
             GROUP BY t.procuring_entity
             ORDER BY win_count DESC
             LIMIT 10

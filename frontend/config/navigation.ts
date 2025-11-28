@@ -1,4 +1,4 @@
-import { LayoutDashboard, Search, TrendingUp, Mail, MessageSquare, Settings, Package, ShoppingCart, Building2 } from 'lucide-react';
+import { LayoutDashboard, Search, TrendingUp, Mail, MessageSquare, Settings, Package, ShoppingCart, Building2, BarChart3, LineChart, Users } from 'lucide-react';
 
 export const navigation = [
   {
@@ -27,9 +27,19 @@ export const navigation = [
     icon: Building2,
   },
   {
+    name: 'Аналитика',
+    href: '/analytics',
+    icon: BarChart3,
+  },
+  {
     name: 'Конкуренти',
     href: '/competitors',
-    icon: TrendingUp,
+    icon: Users,
+  },
+  {
+    name: 'Трендови',
+    href: '/trends',
+    icon: LineChart,
   },
   {
     name: 'Пораки',

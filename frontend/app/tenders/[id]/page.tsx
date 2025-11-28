@@ -81,7 +81,15 @@ export default function TenderDetailPage() {
   } | null>(null);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
-  const [aiSummaryData, setAiSummaryData] = useState<{ summary: string; confidence?: string } | null>(null);
+  const [aiSummaryData, setAiSummaryData] = useState<{
+    overview: string;
+    key_requirements: string[];
+    estimated_complexity: string;
+    complexity_factors: string[];
+    deadline_urgency: string;
+    days_remaining: number | null;
+    competition_level: string;
+  } | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
   const [priceHistory, setPriceHistory] = useState<Array<{ date: string; estimated_value_mkd?: number; awarded_value_mkd?: number }>>([]);
@@ -125,8 +133,9 @@ export default function TenderDetailPage() {
       setAiSummaryLoading(true);
       setAiSummaryError(null);
       const result = await api.getTenderAISummary(tenderId);
-      setAiSummaryData({ summary: result.summary, confidence: result.confidence });
-      setAiSummary(result.summary);
+      // The API returns summary as an object with structured data
+      setAiSummaryData(result.summary);
+      setAiSummary(result.summary.overview || "");
     } catch (error) {
       console.error("Failed to load AI summary:", error);
       setAiSummaryError("AI резимето не е достапно моментално.");
@@ -432,8 +441,87 @@ export default function TenderDetailPage() {
             </div>
           ) : aiSummaryError ? (
             <p className="text-sm text-destructive">{aiSummaryError}</p>
+          ) : aiSummaryData ? (
+            <div className="space-y-4">
+              {/* Overview */}
+              <p className="text-sm">{aiSummaryData.overview}</p>
+
+              {/* Key Requirements */}
+              {aiSummaryData.key_requirements && aiSummaryData.key_requirements.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Клучни барања:</p>
+                  <ul className="list-disc list-inside text-sm space-y-0.5">
+                    {aiSummaryData.key_requirements.map((req, idx) => (
+                      <li key={idx}>{req}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Quick Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                {/* Complexity */}
+                <div className="text-center p-2 rounded-md bg-background/50">
+                  <p className="text-xs text-muted-foreground">Комплексност</p>
+                  <Badge variant={
+                    aiSummaryData.estimated_complexity === 'high' ? 'destructive' :
+                    aiSummaryData.estimated_complexity === 'medium' ? 'default' : 'secondary'
+                  } className="mt-1">
+                    {aiSummaryData.estimated_complexity === 'high' ? 'Висока' :
+                     aiSummaryData.estimated_complexity === 'medium' ? 'Средна' : 'Ниска'}
+                  </Badge>
+                </div>
+
+                {/* Competition */}
+                <div className="text-center p-2 rounded-md bg-background/50">
+                  <p className="text-xs text-muted-foreground">Конкуренција</p>
+                  <Badge variant={
+                    aiSummaryData.competition_level === 'high' ? 'destructive' :
+                    aiSummaryData.competition_level === 'medium' ? 'default' : 'secondary'
+                  } className="mt-1">
+                    {aiSummaryData.competition_level === 'high' ? 'Висока' :
+                     aiSummaryData.competition_level === 'medium' ? 'Средна' :
+                     aiSummaryData.competition_level === 'low' ? 'Ниска' : 'Непозната'}
+                  </Badge>
+                </div>
+
+                {/* Deadline Urgency */}
+                <div className="text-center p-2 rounded-md bg-background/50">
+                  <p className="text-xs text-muted-foreground">Итност</p>
+                  <Badge variant={
+                    aiSummaryData.deadline_urgency === 'critical' ? 'destructive' :
+                    aiSummaryData.deadline_urgency === 'urgent' ? 'default' :
+                    aiSummaryData.deadline_urgency === 'closed' ? 'secondary' : 'outline'
+                  } className="mt-1">
+                    {aiSummaryData.deadline_urgency === 'critical' ? 'Критична' :
+                     aiSummaryData.deadline_urgency === 'urgent' ? 'Итна' :
+                     aiSummaryData.deadline_urgency === 'soon' ? 'Наскоро' :
+                     aiSummaryData.deadline_urgency === 'closed' ? 'Затворен' : 'Нормална'}
+                  </Badge>
+                </div>
+
+                {/* Days Remaining */}
+                <div className="text-center p-2 rounded-md bg-background/50">
+                  <p className="text-xs text-muted-foreground">Преостанати денови</p>
+                  <p className="text-lg font-bold mt-1">
+                    {aiSummaryData.days_remaining !== null && aiSummaryData.days_remaining >= 0
+                      ? aiSummaryData.days_remaining
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Complexity Factors */}
+              {aiSummaryData.complexity_factors && aiSummaryData.complexity_factors.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {aiSummaryData.complexity_factors.map((factor, idx) => (
+                    <Badge key={idx} variant="outline" className="text-xs">{factor}</Badge>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
-            <p className="text-sm">{aiSummary}</p>
+            <p className="text-sm text-muted-foreground">Нема достапно резиме.</p>
           )}
         </CardContent>
       </Card>

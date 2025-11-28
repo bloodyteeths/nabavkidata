@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Bookmark, Play, Trash2, Bell, BellOff } from "lucide-react";
+import { Bookmark, Play, Trash2, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 interface SavedSearch {
   id: string;
@@ -23,9 +25,7 @@ interface SavedSearch {
     dateFrom?: string;
     dateTo?: string;
   };
-  alertEnabled: boolean;
-  createdAt: string;
-  lastRun?: string;
+  created_at: string;
 }
 
 interface SavedSearchesProps {
@@ -37,55 +37,64 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [newSearchName, setNewSearchName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Load saved searches from localStorage
-    const saved = localStorage.getItem("nabavki_saved_searches");
-    if (saved) {
-      setSearches(JSON.parse(saved));
-    }
+    loadSearches();
   }, []);
 
-  const saveSearch = () => {
+  const loadSearches = async () => {
+    try {
+      setLoading(true);
+      const result = await api.getSavedSearches();
+      setSearches(result.items || []);
+    } catch (error) {
+      console.error("Failed to load saved searches:", error);
+      // Fallback to localStorage if API fails
+      const saved = localStorage.getItem("nabavki_saved_searches");
+      if (saved) {
+        setSearches(JSON.parse(saved));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSearch = async () => {
     if (!newSearchName.trim()) return;
 
-    const newSearch: SavedSearch = {
-      id: Date.now().toString(),
-      name: newSearchName,
-      filters: currentFilters,
-      alertEnabled: false,
-      createdAt: new Date().toISOString(),
-    };
-
-    const updated = [...searches, newSearch];
-    setSearches(updated);
-    localStorage.setItem("nabavki_saved_searches", JSON.stringify(updated));
-    setNewSearchName("");
-    setIsDialogOpen(false);
+    try {
+      setSaving(true);
+      const result = await api.createSavedSearch({
+        name: newSearchName,
+        filters: currentFilters
+      });
+      setSearches(prev => [...prev, result]);
+      setNewSearchName("");
+      setIsDialogOpen(false);
+      toast.success("Пребарувањето е зачувано");
+    } catch (error: any) {
+      console.error("Failed to save search:", error);
+      toast.error(error.message || "Не успеавме да зачуваме пребарување");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const deleteSearch = (id: string) => {
-    const updated = searches.filter(s => s.id !== id);
-    setSearches(updated);
-    localStorage.setItem("nabavki_saved_searches", JSON.stringify(updated));
-  };
-
-  const toggleAlert = (id: string) => {
-    const updated = searches.map(s =>
-      s.id === id ? { ...s, alertEnabled: !s.alertEnabled } : s
-    );
-    setSearches(updated);
-    localStorage.setItem("nabavki_saved_searches", JSON.stringify(updated));
+  const deleteSearch = async (id: string) => {
+    try {
+      await api.deleteSavedSearch(id);
+      setSearches(prev => prev.filter(s => s.id !== id));
+      toast.success("Пребарувањето е избришано");
+    } catch (error) {
+      console.error("Failed to delete saved search:", error);
+      toast.error("Бришењето не успеа");
+    }
   };
 
   const runSearch = (search: SavedSearch) => {
     onLoadSearch(search.filters);
-    // Update lastRun
-    const updated = searches.map(s =>
-      s.id === search.id ? { ...s, lastRun: new Date().toISOString() } : s
-    );
-    setSearches(updated);
-    localStorage.setItem("nabavki_saved_searches", JSON.stringify(updated));
   };
 
   const hasActiveFilters = Object.values(currentFilters).some(v => v && v !== "");
@@ -143,7 +152,8 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
                     )}
                   </div>
                 </div>
-                <Button onClick={saveSearch} className="w-full" disabled={!newSearchName.trim()}>
+                <Button onClick={saveSearch} className="w-full" disabled={!newSearchName.trim() || saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Зачувај
                 </Button>
               </div>
@@ -152,7 +162,12 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
         </div>
       </CardHeader>
       <CardContent>
-        {searches.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Се вчитуваат...
+          </div>
+        ) : searches.length === 0 ? (
           <p className="text-sm text-muted-foreground">Нема зачувани пребарувања</p>
         ) : (
           <div className="space-y-2">
@@ -161,15 +176,12 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{search.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatDate(search.createdAt, { year: "numeric", month: "2-digit", day: "2-digit" })}
+                    {formatDate(search.created_at, { year: "numeric", month: "2-digit", day: "2-digit" })}
                   </p>
                 </div>
                 <div className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => runSearch(search)} title="Изврши">
                     <Play className="h-4 w-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost" onClick={() => toggleAlert(search.id)} title="Известувања">
-                    {search.alertEnabled ? <Bell className="h-4 w-4 text-primary" /> : <BellOff className="h-4 w-4" />}
                   </Button>
                   <Button size="icon" variant="ghost" onClick={() => deleteSearch(search.id)} title="Избриши">
                     <Trash2 className="h-4 w-4 text-destructive" />
