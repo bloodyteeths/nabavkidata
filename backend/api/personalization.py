@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from database import get_db
 from models import User
 from models_user_personalization import UserPreferences, UserBehavior
+from api.auth import get_current_user
 from schemas_user_personalization import (
     PreferencesCreate,
     PreferencesUpdate,
@@ -133,10 +134,11 @@ def generate_match_reasons(tender, user_prefs: Optional[UserPreferences]) -> Lis
 @router.post("/preferences", response_model=PreferencesResponse, status_code=201)
 async def create_preferences(
     prefs: PreferencesCreate,
-    user_id: UUID,  # TODO: Get from auth
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Create user preferences"""
+    user_id = current_user.user_id
 
     # Check if exists
     query = select(UserPreferences).where(UserPreferences.user_id == user_id)
@@ -156,12 +158,13 @@ async def create_preferences(
 
 @router.get("/preferences", response_model=PreferencesResponse)
 async def get_preferences(
-    user_id: UUID,  # TODO: Get from auth
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get user preferences - creates default preferences if none exist"""
     from datetime import datetime
     from uuid import uuid4
+    user_id = current_user.user_id
 
     query = select(UserPreferences).where(UserPreferences.user_id == user_id)
     result = await db.execute(query)
@@ -191,10 +194,11 @@ async def get_preferences(
 @router.put("/preferences", response_model=PreferencesResponse)
 async def update_preferences(
     prefs_update: PreferencesUpdate,
-    user_id: UUID,  # TODO: Get from auth
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Update user preferences - creates them if they don't exist (upsert)"""
+    user_id = current_user.user_id
 
     query = select(UserPreferences).where(UserPreferences.user_id == user_id)
     result = await db.execute(query)
@@ -222,10 +226,11 @@ async def update_preferences(
 @router.post("/behavior", response_model=BehaviorResponse, status_code=201)
 async def log_behavior(
     behavior: BehaviorLog,
-    user_id: UUID,  # TODO: Get from auth
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Log user behavior"""
+    user_id = current_user.user_id
 
     db_behavior = UserBehavior(
         user_id=user_id,
@@ -240,11 +245,12 @@ async def log_behavior(
 
 @router.get("/behavior", response_model=List[BehaviorResponse])
 async def get_behavior_history(
-    user_id: UUID,  # TODO: Get from auth
     limit: int = 50,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get user behavior history"""
+    user_id = current_user.user_id
 
     query = select(UserBehavior).where(
         UserBehavior.user_id == user_id
@@ -264,11 +270,12 @@ async def get_behavior_history(
 
 @router.get("/dashboard", response_model=DashboardResponse)
 async def get_personalized_dashboard(
-    user_id: UUID,  # TODO: Get from auth
     limit: int = 20,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get personalized dashboard"""
+    user_id = current_user.user_id
 
     # Get user preferences for match reasons
     prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
@@ -320,10 +327,11 @@ async def get_personalized_dashboard(
 
 @router.get("/insights")
 async def get_insights(
-    user_id: UUID,  # TODO: Get from auth
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get personalized insights only"""
+    user_id = current_user.user_id
 
     insight_generator = InsightGenerator(db)
     insights = await insight_generator.generate_insights(user_id)
@@ -337,10 +345,11 @@ async def get_insights(
 
 @router.get("/interest-vector", response_model=InterestVectorResponse)
 async def get_interest_vector(
-    user_id: UUID,  # TODO: Get from auth
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get user interest vector metadata"""
+    user_id = current_user.user_id
 
     from models_user_personalization import UserInterestVector
 
@@ -356,10 +365,11 @@ async def get_interest_vector(
 
 @router.post("/interest-vector/refresh")
 async def refresh_interest_vector(
-    user_id: UUID,  # TODO: Get from auth
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Manually refresh user interest vector"""
+    user_id = current_user.user_id
 
     from services.personalization_engine import InterestVectorBuilder
 
@@ -375,12 +385,13 @@ async def refresh_interest_vector(
 
 @router.get("/digests")
 async def get_user_digests(
-    user_id: UUID,  # TODO: Get from auth
     limit: int = 50,
     offset: int = 0,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get user's email digests"""
+    user_id = current_user.user_id
     from sqlalchemy import text
 
     # Check if table exists first
@@ -435,10 +446,11 @@ async def get_user_digests(
 @router.get("/digests/{digest_id}")
 async def get_digest_detail(
     digest_id: UUID,
-    user_id: UUID,  # TODO: Get from auth
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get detailed digest content"""
+    user_id = current_user.user_id
     from sqlalchemy import text
 
     # Check if table exists first
@@ -486,10 +498,11 @@ async def get_digest_detail(
 @router.post("/search-history", status_code=201)
 async def log_search(
     search: SearchHistoryLog,
-    user_id: UUID,  # TODO: Get from auth
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Log a search query for personalization"""
+    user_id = current_user.user_id
     try:
         # Check if table exists
         check_query = text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'search_history')")
@@ -522,11 +535,12 @@ async def log_search(
 
 @router.get("/search-history")
 async def get_search_history(
-    user_id: UUID,  # TODO: Get from auth
     limit: int = 20,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get user's recent search history"""
+    user_id = current_user.user_id
     try:
         # Check if table exists
         check_query = text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'search_history')")

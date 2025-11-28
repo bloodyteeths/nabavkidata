@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, SlidersHorizontal, X, Loader2 } from "lucide-react";
 
 export interface FilterState {
   search?: string;
@@ -22,9 +22,16 @@ interface TenderFiltersProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   onReset: () => void;
+  cpvAutocomplete?: {
+    value: string;
+    onChange: (v: string) => void;
+    options: Array<{ cpv_code: string; title: string }>;
+    loading: boolean;
+    onSelect: (code: string) => void;
+  };
 }
 
-export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFiltersProps) {
+export function TenderFilters({ filters, onFiltersChange, onReset, cpvAutocomplete }: TenderFiltersProps) {
   const updateFilter = (key: keyof FilterState, value: any) => {
     onFiltersChange({ ...filters, [key]: value });
   };
@@ -110,11 +117,40 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
         {/* CPV Code */}
         <div>
           <label className="text-sm font-medium mb-2 block">CPV Код</label>
-          <Input
-            placeholder="Внеси CPV код"
-            value={filters.cpvCode || ""}
-            onChange={(e) => updateFilter("cpvCode", e.target.value)}
-          />
+          <div className="space-y-2">
+            <div className="relative">
+              <Input
+                placeholder="Внеси или пребарај CPV"
+                value={cpvAutocomplete ? cpvAutocomplete.value : filters.cpvCode || ""}
+                onChange={(e) => {
+                  if (cpvAutocomplete) {
+                    cpvAutocomplete.onChange(e.target.value);
+                  } else {
+                    updateFilter("cpvCode", e.target.value);
+                  }
+                }}
+              />
+              {cpvAutocomplete?.loading && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
+              )}
+            </div>
+            {cpvAutocomplete && cpvAutocomplete.options.length > 0 && (
+              <div className="max-h-40 overflow-auto border rounded-md p-2 space-y-1 bg-background">
+                {cpvAutocomplete.options.map((opt) => (
+                  <button
+                    key={opt.cpv_code}
+                    className="w-full text-left text-sm hover:bg-accent rounded px-2 py-1"
+                    onClick={() => {
+                      cpvAutocomplete.onSelect(opt.cpv_code);
+                    }}
+                  >
+                    <span className="font-mono text-xs mr-2">{opt.cpv_code}</span>
+                    {opt.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Entity */}

@@ -555,8 +555,13 @@ class ContractsSpider(scrapy.Spider):
                     detail_url = tender_link
 
             # Fallback: use tender number as ID
-            if not tender_id:
+            if not tender_id and tender_number:
                 tender_id = tender_number.replace('/', '_')
+
+            # If still no tender_id, skip this row
+            if not tender_id:
+                logger.warning(f"Skipping row: no tender_id could be extracted (number: '{tender_number}')")
+                return None, None
 
             # Extract other fields
             contracting_authority = (await cells[1].inner_text()).strip() if len(cells) > 1 else ''
@@ -644,6 +649,16 @@ class ContractsSpider(scrapy.Spider):
             item = TenderItem()
             for key, value in basic_data.items():
                 item[key] = value
+            # Ensure tender_id is always set from meta
+            if not item.get('tender_id') and tender_id:
+                item['tender_id'] = tender_id
+
+            # Final fallback: generate UUID if still no tender_id
+            if not item.get('tender_id'):
+                import uuid
+                generated_id = f"contract_{uuid.uuid4().hex[:12]}"
+                logger.warning(f"Generated fallback tender_id: {generated_id}")
+                item['tender_id'] = generated_id
 
             # Extract additional data from detail page
             html_content = await page.content()
@@ -720,10 +735,20 @@ class ContractsSpider(scrapy.Spider):
         except Exception as e:
             logger.error(f"Error scraping detail for {tender_id}: {e}")
             self.stats['errors'].append(f"Detail error {tender_id}: {str(e)}")
-            # Still yield basic data
+            # Still yield basic data - ensure tender_id is set
             item = TenderItem()
             for key, value in basic_data.items():
                 item[key] = value
+            # Ensure tender_id is always set
+            if not item.get('tender_id') and tender_id:
+                item['tender_id'] = tender_id
+            # Final fallback: generate UUID if still no tender_id
+            if not item.get('tender_id'):
+                import uuid
+                generated_id = f"contract_err_{uuid.uuid4().hex[:12]}"
+                logger.warning(f"Generated fallback tender_id on error: {generated_id}")
+                item['tender_id'] = generated_id
+            # Now yield with guaranteed tender_id
             yield item
 
         finally:

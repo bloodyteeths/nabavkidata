@@ -28,6 +28,9 @@ export default function TendersPage() {
     procedureType: null as string | null,
     statusFilter: null as string | null,
   });
+  const [cpvSearch, setCpvSearch] = useState("");
+  const [cpvOptions, setCpvOptions] = useState<Array<{ cpv_code: string; title: string }>>([]);
+  const [cpvLoading, setCpvLoading] = useState(false);
 
   const limit = 20;
 
@@ -46,6 +49,30 @@ export default function TendersPage() {
     loadStats();
     loadAwardedCount();
   }, [isHydrated]);
+
+  useEffect(() => {
+    if (cpvSearch.length < 2) {
+      setCpvOptions([]);
+      return;
+    }
+    const handler = setTimeout(() => {
+      void loadCpvOptions(cpvSearch);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [cpvSearch]);
+
+  async function loadCpvOptions(search: string) {
+    try {
+      setCpvLoading(true);
+      const result = await api.searchCPVCodes(search, 15);
+      setCpvOptions(result.items || []);
+    } catch (error) {
+      console.error("Failed to search CPV codes:", error);
+      setCpvOptions([]);
+    } finally {
+      setCpvLoading(false);
+    }
+  }
 
   async function loadAwardedCount() {
     try {
@@ -267,6 +294,16 @@ export default function TendersPage() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onReset={handleReset}
+            cpvAutocomplete={{
+              value: cpvSearch,
+              onChange: setCpvSearch,
+              options: cpvOptions,
+              loading: cpvLoading,
+              onSelect: (code: string) => {
+                setFilters((prev) => ({ ...prev, cpvCode: code }));
+                setCpvSearch(code);
+              },
+            }}
           />
           <SavedSearches
             currentFilters={filters}

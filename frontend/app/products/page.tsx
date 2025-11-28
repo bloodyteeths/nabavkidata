@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExportButton } from "@/components/ExportButton";
-import { PriceHistoryChart } from "@/components/charts/PriceHistoryChart";
+import { CPVBrowser } from "@/components/cpv/CPVBrowser";
 import { api, type ProductSearchResult, type ProductAggregation } from "@/lib/api";
 import {
   Search,
@@ -74,9 +74,7 @@ export default function ProductsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [cpvCodes, setCpvCodes] = useState<Array<{ cpv_code: string; tender_count: number; total_value_mkd: number | null }> | null>(null);
-  const [cpvLoading, setCpvLoading] = useState(false);
-  const [cpvError, setCpvError] = useState<string | null>(null);
+  const [cpvCodes, setCpvCodes] = useState<Array<{ cpv_code: string; title?: string; tender_count?: number; total_value_mkd?: number | null }> | null>(null);
 
   // Pagination & Filters
   const [page, setPage] = useState(1);
@@ -122,14 +120,11 @@ export default function ProductsPage() {
 
   async function loadCpvCodes() {
     try {
-      setCpvLoading(true);
-      const result = await api.getCpvCodes();
+      const result = await api.getCPVCodes();
       setCpvCodes(result.cpv_codes || []);
     } catch (error) {
       console.error("Failed to load CPV codes:", error);
-      setCpvError("CPV кодовите моментално не се достапни.");
-    } finally {
-      setCpvLoading(false);
+      setCpvCodes(null);
     }
   }
 
@@ -381,40 +376,10 @@ export default function ProductsPage() {
         </>
       )}
 
-      {/* CPV Browser (UI-only) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">CPV Browser</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Преглед на најчесто користени CPV кодови (placeholder; backend ќе врати детали).
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {cpvLoading && <p className="text-sm text-muted-foreground">Се вчитува CPV листа...</p>}
-          {cpvError && (
-            <div className="text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md p-3">
-              {cpvError}
-            </div>
-          )}
-          {cpvCodes && cpvCodes.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {cpvCodes.slice(0, 9).map((code) => (
-                <div key={code.cpv_code} className="border rounded-md p-3 bg-muted/30">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono text-sm">{code.cpv_code}</span>
-                    <Badge variant="outline">{code.tender_count} тендери</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Вкупна вредност: {code.total_value_mkd ? formatPrice(code.total_value_mkd) : "n/a"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            !cpvLoading && <p className="text-sm text-muted-foreground">Нема CPV податоци моментално.</p>
-          )}
-        </CardContent>
-      </Card>
+      {/* CPV Browser (only when data exists) */}
+      {cpvCodes && cpvCodes.length > 0 && (
+        <CPVBrowser onSelect={(code) => setFilters((prev) => ({ ...prev, cpv_code: code }))} />
+      )}
 
       {/* Search Form */}
       <Card>
@@ -706,19 +671,6 @@ export default function ProductsPage() {
                 )}
               </CardContent>
             </Card>
-          )}
-
-          {/* Price History Chart */}
-          {aggregations.length > 0 && aggregations[0].years && aggregations[0].years.length > 0 && (
-            <PriceHistoryChart
-              data={aggregations[0].years.map((year) => ({
-                period: year.toString(),
-                avg_estimated: aggregations[0].avg_unit_price || 0,
-                avg_awarded: (aggregations[0].avg_unit_price || 0) * 0.95, // Mock data
-                count: aggregations[0].tender_count,
-              }))}
-              title={`Price History - ${aggregations[0].product_name}`}
-            />
           )}
 
           {/* Results Header */}

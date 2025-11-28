@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { ChatMessage } from '@/components/chat/ChatMessage';
 import { ChatInput } from '@/components/chat/ChatInput';
+import { PriceHistoryChart } from '@/components/charts/PriceHistoryChart';
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -238,6 +239,12 @@ export default function EPazarDetailPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [itemPriceHistory, setItemPriceHistory] = useState<Array<{ date: string; price_mkd?: number }>>([]);
+  const [itemPriceLoading, setItemPriceLoading] = useState(false);
+  const [itemPriceError, setItemPriceError] = useState<string | null>(null);
+  const [supplierStats, setSupplierStats] = useState<any | null>(null);
+  const [supplierStatsLoading, setSupplierStatsLoading] = useState(false);
+  const [supplierStatsError, setSupplierStatsError] = useState<string | null>(null);
 
   useEffect(() => {
     loadTender();
@@ -251,6 +258,13 @@ export default function EPazarDetailPage() {
     try {
       const data = await api.getEPazarTender(tenderId);
       setTender(data);
+      if (data.items && data.items.length > 0 && data.items[0].item_id) {
+        void loadItemPriceHistory(data.items[0].item_id);
+      }
+      const winnerOffer = data.offers?.find((o) => (o as any).supplier_id || o.is_winner) as any;
+      if (winnerOffer?.supplier_id) {
+        void loadSupplierStats(winnerOffer.supplier_id);
+      }
     } catch (err) {
       console.error('Failed to load tender:', err);
       setError('Failed to load tender details');
@@ -309,6 +323,36 @@ export default function EPazarDetailPage() {
       ]);
     } finally {
       setChatLoading(false);
+    }
+  }
+
+  async function loadItemPriceHistory(itemId: string) {
+    try {
+      setItemPriceLoading(true);
+      setItemPriceError(null);
+      const result = await api.getEpazarItemPriceHistory(itemId);
+      setItemPriceHistory(result.points || []);
+    } catch (error) {
+      console.error("Failed to load item price history:", error);
+      setItemPriceHistory([]);
+      setItemPriceError("Историјата на цени за овој артикл не е достапна.");
+    } finally {
+      setItemPriceLoading(false);
+    }
+  }
+
+  async function loadSupplierStats(supplierId: string) {
+    try {
+      setSupplierStatsLoading(true);
+      setSupplierStatsError(null);
+      const result = await api.getEpazarSupplierStats(supplierId);
+      setSupplierStats(result.stats || result);
+    } catch (error) {
+      console.error("Failed to load supplier stats:", error);
+      setSupplierStats(null);
+      setSupplierStatsError("Статистиките за добавувачот не се достапни.");
+    } finally {
+      setSupplierStatsLoading(false);
     }
   }
 
@@ -495,10 +539,42 @@ export default function EPazarDetailPage() {
             </CardHeader>
             <CardContent>
               <TabsContent value="items">
+                {itemPriceLoading ? (
+                  <p className="text-sm text-gray-500 mb-3">Се вчитува историја на цени за артиклите...</p>
+                ) : itemPriceError ? (
+                  <p className="text-sm text-red-600 mb-3">{itemPriceError}</p>
+                ) : itemPriceHistory.length > 0 ? (
+                  <div className="mb-4">
+                    <PriceHistoryChart
+                      data={itemPriceHistory.map((p) => ({ date: formatDate(p.date), price_mkd: p.price_mkd }))}
+                      series={[{ key: "price_mkd", label: "Цена" }]}
+                      title="Историја на цени за артиклите"
+                    />
+                  </div>
+                ) : null}
                 <ItemsTable items={tender.items || []} />
               </TabsContent>
               <TabsContent value="offers">
                 <OffersTable offers={tender.offers || []} />
+                {supplierStatsLoading ? (
+                  <p className="text-sm text-gray-500 mt-3">Се вчитуваат статистики за добавувачот...</p>
+                ) : supplierStatsError ? (
+                  <p className="text-sm text-red-600 mt-3">{supplierStatsError}</p>
+                ) : supplierStats ? (
+                  <Card className="mt-4">
+                    <CardHeader>
+                      <CardTitle className="text-base">Статистика на добавувач</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm text-gray-700 space-y-1">
+                      {Object.entries(supplierStats).map(([key, value]) => (
+                        <div key={key} className="flex justify-between">
+                          <span className="capitalize">{key.replace(/_/g, " ")}</span>
+                          <span className="font-medium">{typeof value === "number" ? value.toLocaleString() : String(value)}</span>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                ) : null}
               </TabsContent>
               <TabsContent value="awarded">
                 <AwardedItemsTable items={tender.awarded_items || []} />

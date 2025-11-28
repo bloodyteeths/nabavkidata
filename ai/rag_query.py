@@ -271,12 +271,26 @@ class PromptBuilder:
 """
         prompt_parts = [cls.SYSTEM_PROMPT, date_context, "\n\n"]
 
-        # Add conversation history if provided
+        # Add conversation history if provided (with token limit)
         if conversation_history:
             prompt_parts.append("Previous conversation:\n")
-            for turn in conversation_history[-3:]:  # Last 3 turns only
-                prompt_parts.append(f"Q: {turn['question']}\n")
-                prompt_parts.append(f"A: {turn['answer']}\n\n")
+            history_tokens = 0
+            max_history_tokens = 1000  # Limit history to ~1000 tokens
+
+            # Process only last 3 turns, with token limit
+            for turn in conversation_history[-3:]:
+                q_text = turn.get('question', '')[:500]  # Truncate long questions
+                a_text = turn.get('answer', '')[:1000]   # Truncate long answers
+
+                # Approximate token count (4 chars per token)
+                turn_tokens = (len(q_text) + len(a_text)) // 4
+
+                if history_tokens + turn_tokens > max_history_tokens:
+                    break
+
+                prompt_parts.append(f"Q: {q_text}\n")
+                prompt_parts.append(f"A: {a_text}\n\n")
+                history_tokens += turn_tokens
 
         # Add current query with context
         prompt_parts.append("Контекст од документи за тендери:\n\n")
@@ -674,53 +688,245 @@ class RAGQueryPipeline:
             if self.enable_personalization:
                 await self.personalization_scorer.close()
 
+    def _extract_search_keywords(self, question: str) -> List[str]:
+        """
+        Extract meaningful search keywords from user question.
+
+        Handles Macedonian, English, and common product terms.
+        Returns list of keywords for product search.
+        """
+        import re
+
+        # Convert to lowercase for matching
+        q = question.lower()
+
+        # Common product keywords in Macedonian and English
+        product_patterns = [
+            # Office supplies
+            r'\b(тонер|toner|картриџ|cartridge|мастило|ink)\b',
+            r'\b(хартија|paper|копир|copier|принтер|printer)\b',
+            # Construction
+            r'\b(плочк[иае]|tiles?|керамик[аи]|ceramic|под|floor)\b',
+            r'\b(цемент|cement|бетон|concrete|песок|sand)\b',
+            r'\b(цигл[иае]|brick|блок|block|малтер|mortar)\b',
+            # IT Equipment
+            r'\b(компјутер|computer|лаптоп|laptop|монитор|monitor)\b',
+            r'\b(сервер|server|мрежа|network|рутер|router)\b',
+            # Medical
+            r'\b(лек|medicine|медицин|medical|фармацевт|pharma)\b',
+            r'\b(маск[иае]|mask|ракавиц[иае]|glove|шприц|syringe)\b',
+            # Food
+            r'\b(храна|food|месо|meat|млеко|milk|леб|bread)\b',
+            # Vehicles
+            r'\b(возил[оа]|vehicle|автомобил|car|камион|truck)\b',
+            r'\b(гори[во]|fuel|бензин|petrol|нафта|diesel)\b',
+            # Furniture
+            r'\b(мебел|furniture|стол|chair|маса|table|биро|desk)\b',
+            # Cleaning
+            r'\b(чист|clean|детергент|detergent|сапун|soap)\b',
+            # General goods
+            r'\b(опрема|equipment|машин|machine|алат|tool)\b',
+        ]
+
+        keywords = []
+        for pattern in product_patterns:
+            matches = re.findall(pattern, q)
+            keywords.extend(matches)
+
+        # Also extract any quoted terms
+        quoted = re.findall(r'"([^"]+)"', question)
+        keywords.extend(quoted)
+
+        # Extract capitalized words (likely product names)
+        caps = re.findall(r'\b[A-ZА-Ш][a-zа-ш]+(?:\s+[A-ZА-Ш][a-zа-ш]+)*\b', question)
+        keywords.extend([c.lower() for c in caps if len(c) > 3])
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_keywords = []
+        for kw in keywords:
+            if kw.lower() not in seen:
+                seen.add(kw.lower())
+                unique_keywords.append(kw)
+
+        return unique_keywords[:10]  # Limit to 10 keywords
+
     async def _fallback_sql_search(
         self,
         question: str,
         tender_id: Optional[str] = None
     ) -> Tuple[List[SearchResult], str]:
         """
-        Fallback: Query tenders table directly when no embeddings exist.
+        Fallback: Query tenders AND epazar tables directly when no embeddings exist.
 
-        This is a simple keyword-based search that doesn't require embeddings.
+        This searches both tenders and epazar_items tables for comprehensive results.
         Returns tender data formatted as context for Gemini.
         """
         # Convert SQLAlchemy URL to asyncpg format
         db_url = self.database_url.replace('postgresql+asyncpg://', 'postgresql://')
-        conn = await asyncpg.connect(db_url)
+
+        # Use connection pool for better resource management
+        pool = await asyncpg.create_pool(db_url, min_size=1, max_size=5)
 
         try:
-            # Query recent tenders (limit to 20 for context size)
-            if tender_id:
-                rows = await conn.fetch("""
-                    SELECT tender_id, title, description, category, procuring_entity,
-                           estimated_value_mkd, estimated_value_eur, status,
-                           publication_date, closing_date, procedure_type, winner
-                    FROM tenders
-                    WHERE tender_id = $1
-                    LIMIT 1
-                """, tender_id)
-            else:
-                # Get recent tenders ordered by publication date
-                rows = await conn.fetch("""
-                    SELECT tender_id, title, description, category, procuring_entity,
-                           estimated_value_mkd, estimated_value_eur, status,
-                           publication_date, closing_date, procedure_type, winner
-                    FROM tenders
-                    ORDER BY publication_date DESC NULLS LAST, created_at DESC
-                    LIMIT 20
-                """)
+            async with pool.acquire() as conn:
+                # Extract search keywords from question for product search
+                search_keywords = self._extract_search_keywords(question)
 
-            if not rows:
-                return [], ""
+                # Query recent tenders (limit to 20 for context size)
+                if tender_id:
+                    # Check if it's an e-pazar tender (starts with EPAZAR-)
+                    if tender_id.startswith('EPAZAR-'):
+                        rows = await conn.fetch("""
+                            SELECT tender_id, title, description, category, contracting_authority as procuring_entity,
+                                   estimated_value_mkd, estimated_value_eur, status,
+                                   publication_date, closing_date, procedure_type,
+                                   (SELECT supplier_name FROM epazar_offers WHERE tender_id = et.tender_id AND is_winner = true LIMIT 1) as winner
+                            FROM epazar_tenders et
+                            WHERE tender_id = $1
+                            LIMIT 1
+                        """, tender_id)
 
-            # Build context from tender data
-            context_parts = []
-            search_results = []
+                        # Also get items for this e-pazar tender
+                        items = await conn.fetch("""
+                            SELECT item_name, item_description, quantity, unit,
+                                   estimated_unit_price_mkd, estimated_total_price_mkd
+                            FROM epazar_items
+                            WHERE tender_id = $1
+                            ORDER BY line_number
+                            LIMIT 50
+                        """, tender_id)
 
-            for i, row in enumerate(rows):
-                # Format tender info as text
-                tender_text = f"""
+                        # Get offers for this e-pazar tender
+                        offers = await conn.fetch("""
+                            SELECT supplier_name, total_bid_mkd, is_winner, ranking
+                            FROM epazar_offers
+                            WHERE tender_id = $1
+                            ORDER BY ranking NULLS LAST, total_bid_mkd ASC
+                            LIMIT 20
+                        """, tender_id)
+                    else:
+                        rows = await conn.fetch("""
+                            SELECT tender_id, title, description, category, procuring_entity,
+                                   estimated_value_mkd, estimated_value_eur, status,
+                                   publication_date, closing_date, procedure_type, winner
+                            FROM tenders
+                            WHERE tender_id = $1
+                            LIMIT 1
+                        """, tender_id)
+                        items = []
+                        offers = []
+                else:
+                    # Search both tenders and epazar tables
+                    rows = await conn.fetch("""
+                        SELECT tender_id, title, description, category, procuring_entity,
+                               estimated_value_mkd, estimated_value_eur, status,
+                               publication_date, closing_date, procedure_type, winner
+                        FROM tenders
+                        ORDER BY publication_date DESC NULLS LAST, created_at DESC
+                        LIMIT 15
+                    """)
+
+                    # Also search e-pazar tenders
+                    epazar_rows = await conn.fetch("""
+                        SELECT tender_id, title, description, category, contracting_authority as procuring_entity,
+                               estimated_value_mkd, estimated_value_eur, status,
+                               publication_date, closing_date, procedure_type,
+                               (SELECT supplier_name FROM epazar_offers WHERE tender_id = et.tender_id AND is_winner = true LIMIT 1) as winner
+                        FROM epazar_tenders et
+                        ORDER BY publication_date DESC NULLS LAST
+                        LIMIT 10
+                    """)
+
+                    # Search epazar_items by product name if keywords present
+                    items = []
+                    offers = []
+                    if search_keywords:
+                        items = await conn.fetch("""
+                            SELECT ei.tender_id, ei.item_name, ei.item_description, ei.quantity, ei.unit,
+                                   ei.estimated_unit_price_mkd, ei.estimated_total_price_mkd,
+                                   et.title as tender_title, et.contracting_authority
+                            FROM epazar_items ei
+                            JOIN epazar_tenders et ON ei.tender_id = et.tender_id
+                            WHERE ei.item_name ILIKE ANY($1)
+                               OR ei.item_description ILIKE ANY($1)
+                            ORDER BY et.publication_date DESC NULLS LAST
+                            LIMIT 30
+                        """, [f'%{kw}%' for kw in search_keywords])
+
+                        # Get offers for matching items
+                        if items:
+                            tender_ids = list(set(item['tender_id'] for item in items))[:10]
+                            offers = await conn.fetch("""
+                                SELECT tender_id, supplier_name, total_bid_mkd, is_winner, ranking
+                                FROM epazar_offers
+                                WHERE tender_id = ANY($1)
+                                ORDER BY tender_id, ranking NULLS LAST
+                            """, tender_ids)
+
+                    rows = list(rows) + list(epazar_rows)
+
+                if not rows and not items:
+                    return [], ""
+
+                # Build context from tender data
+                context_parts = []
+                search_results = []
+
+                # Add product/items context first (most relevant for product searches)
+                if items:
+                    items_text = "=== ПРОИЗВОДИ / АРТИКЛИ ОД Е-ПАЗАР ===\n\n"
+                    for i, item in enumerate(items):
+                        item_tender_id = item.get('tender_id', 'N/A')
+                        item_text = f"""Производ {i+1}: {item['item_name']}
+Опис: {item.get('item_description') or 'N/A'}
+Количина: {item.get('quantity') or 'N/A'} {item.get('unit') or ''}
+Единечна цена: {item.get('estimated_unit_price_mkd') or 'N/A'} МКД
+Вкупна цена: {item.get('estimated_total_price_mkd') or 'N/A'} МКД
+Тендер: {item.get('tender_title') or item_tender_id}
+Набавувач: {item.get('contracting_authority') or 'N/A'}
+"""
+                        items_text += item_text + "\n"
+
+                        search_results.append(SearchResult(
+                            embed_id=f"epazar-item-{i}",
+                            chunk_text=item_text,
+                            chunk_index=i,
+                            tender_id=item_tender_id,
+                            doc_id=None,
+                            chunk_metadata={
+                                'tender_title': item.get('tender_title', ''),
+                                'item_name': item['item_name'],
+                                'source': 'epazar_items'
+                            },
+                            similarity=0.95
+                        ))
+
+                    context_parts.append(items_text)
+
+                # Add offers context
+                if offers:
+                    offers_by_tender = {}
+                    for offer in offers:
+                        tid = offer.get('tender_id', 'unknown')
+                        if tid not in offers_by_tender:
+                            offers_by_tender[tid] = []
+                        offers_by_tender[tid].append(offer)
+
+                    offers_text = "\n=== ПОНУДИ / ЦЕНИ ===\n\n"
+                    for tid, tender_offers in offers_by_tender.items():
+                        offers_text += f"Тендер {tid}:\n"
+                        for offer in tender_offers:
+                            winner_badge = " ✓ ПОБЕДНИК" if offer.get('is_winner') else ""
+                            offers_text += f"  - {offer['supplier_name']}: {offer.get('total_bid_mkd') or 'N/A'} МКД (Ранг: #{offer.get('ranking') or 'N/A'}){winner_badge}\n"
+                        offers_text += "\n"
+
+                    context_parts.append(offers_text)
+
+                # Add tender context
+                for i, row in enumerate(rows):
+                    # Format tender info as text
+                    tender_text = f"""
 Тендер: {row['title']}
 ID: {row['tender_id']}
 Категорија: {row['category'] or 'N/A'}
@@ -735,30 +941,30 @@ ID: {row['tender_id']}
 Опис: {row['description'] or 'Нема опис'}
 """.strip()
 
-                context_parts.append(f"[Тендер {i+1}]\n{tender_text}")
+                    context_parts.append(f"[Тендер {i+1}]\n{tender_text}")
 
-                # Create SearchResult for source attribution
-                search_results.append(SearchResult(
-                    embed_id=f"sql-{row['tender_id']}",
-                    chunk_text=tender_text,
-                    chunk_index=0,
-                    tender_id=row['tender_id'],
-                    doc_id=None,
-                    chunk_metadata={
-                        'tender_title': row['title'],
-                        'tender_category': row['category'],
-                        'source': 'sql_fallback'
-                    },
-                    similarity=1.0  # Direct match
-                ))
+                    # Create SearchResult for source attribution
+                    search_results.append(SearchResult(
+                        embed_id=f"sql-{row['tender_id']}",
+                        chunk_text=tender_text,
+                        chunk_index=0,
+                        tender_id=row['tender_id'],
+                        doc_id=None,
+                        chunk_metadata={
+                            'tender_title': row['title'],
+                            'tender_category': row['category'],
+                            'source': 'sql_fallback'
+                        },
+                        similarity=0.9
+                    ))
 
-            context = "\n\n---\n\n".join(context_parts)
-            logger.info(f"SQL fallback: Found {len(rows)} tenders")
+                context = "\n\n---\n\n".join(context_parts)
+                logger.info(f"SQL fallback: Found {len(rows)} tenders, {len(items)} items, {len(offers)} offers")
 
-            return search_results, context
+                return search_results, context
 
         finally:
-            await conn.close()
+            await pool.close()
 
     async def _generate_with_gemini(self, prompt: str, model: str) -> str:
         """

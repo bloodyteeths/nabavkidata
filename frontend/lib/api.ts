@@ -463,6 +463,120 @@ class APIClient {
     }>(`/api/tenders/cpv-codes?${params.toString()}`);
   }
 
+  // CPV APIs (expanded)
+  async searchCPVCodes(query: string, limit: number = 20) {
+    const params = new URLSearchParams();
+    params.append('q', query);
+    params.append('limit', String(limit));
+    return this.request<{
+      total: number;
+      items: Array<{
+        cpv_code: string;
+        title: string;
+        path?: string[];
+      }>;
+    }>(`/api/cpv-codes/search?${params.toString()}`);
+  }
+
+  async getCPVCodes(limit: number = 100) {
+    const params = new URLSearchParams();
+    params.append('limit', String(limit));
+    return this.request<{ cpv_codes: Array<{ cpv_code: string; title: string; level?: number; parent?: string | null }> }>(
+      `/api/cpv-codes?${params.toString()}`
+    );
+  }
+
+  async getCPVDivisions() {
+    return this.request<{ divisions: Array<{ cpv_code: string; title: string; level: number }> }>(`/api/cpv-codes/divisions`);
+  }
+
+  async getCPVCode(code: string) {
+    return this.request<{ cpv_code: string; title: string; path: string[]; children?: Array<{ cpv_code: string; title: string }> }>(
+      `/api/cpv-codes/${encodeURIComponent(code)}`
+    );
+  }
+
+  // Saved Searches
+  async getSavedSearches() {
+    return this.request<{ items: Array<{ id: string; name: string; filters: Record<string, any>; created_at: string }> }>(
+      `/api/search/saved`
+    );
+  }
+
+  async createSavedSearch(payload: { name: string; filters: Record<string, any> }) {
+    return this.request<{ id: string; name: string; filters: Record<string, any>; created_at: string }>(`/api/search/saved`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteSavedSearch(id: string) {
+    return this.request<{ message: string }>(`/api/search/saved/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Analytics
+  async getMarketOverview(params?: { start_date?: string; end_date?: string }) {
+    const query = new URLSearchParams(params as any).toString();
+    return this.request<{ cards: any; charts: any }>(`/api/analytics/market-overview${query ? `?${query}` : ''}`);
+  }
+
+  async getCompetitorAnalysis(params?: { start_date?: string; end_date?: string; limit?: number }) {
+    const query = new URLSearchParams(params as any).toString();
+    return this.request<{ competitors: any[]; summary: any }>(`/api/analytics/competitor-analysis${query ? `?${query}` : ''}`);
+  }
+
+  async getCategoryTrends(params?: { start_date?: string; end_date?: string; cpv_code?: string }) {
+    const query = new URLSearchParams(params as any).toString();
+    return this.request<{ trends: any[]; summary: any }>(`/api/analytics/category-trends${query ? `?${query}` : ''}`);
+  }
+
+  // Supplier strength
+  async getSupplierStrength(supplierId: string) {
+    return this.request<{ supplier_id: string; score: number; metrics: any; breakdown: any }>(
+      `/api/analytics/supplier-strength/${encodeURIComponent(supplierId)}`
+    );
+  }
+
+  // Tender price history
+  async getTenderPriceHistory(tenderId: string) {
+    return this.request<{ tender_id: string; points: Array<{ date: string; estimated_value_mkd?: number; awarded_value_mkd?: number }> }>(
+      `/api/tenders/${encodeURIComponent(tenderId)}/price_history`
+    );
+  }
+
+  // Tender AI summary
+  async getTenderAISummary(tenderId: string) {
+    return this.request<{ tender_id: string; summary: string; confidence?: string; sources?: any[] }>(
+      `/api/tenders/${encodeURIComponent(tenderId)}/ai_summary`
+    );
+  }
+
+  // Tender raw JSON
+  async getTenderRawJSON(tenderId: string) {
+    return this.request<{ tender_id: string; raw: Record<string, any> }>(`/api/tenders/${encodeURIComponent(tenderId)}/raw`);
+  }
+
+  // Epazar price history and supplier stats
+  async getEpazarItemPriceHistory(itemId: string) {
+    return this.request<{ item_id: string; points: Array<{ date: string; price_mkd?: number }> }>(
+      `/api/epazar/items/${encodeURIComponent(itemId)}/price-history`
+    );
+  }
+
+  async getEpazarSupplierStats(supplierId: string) {
+    return this.request<{ supplier_id: string; stats: any }>(`/api/epazar/suppliers/${encodeURIComponent(supplierId)}/stats`);
+  }
+
+  // Tender comparison
+  async compareTenders(tenderIds: string[]) {
+    return this.request<{ items: Array<any> }>(`/api/tenders/compare`, {
+      method: 'POST',
+      body: JSON.stringify({ tender_ids: tenderIds }),
+    });
+  }
+
   // Entities (Procuring Organizations)
   async getEntities(params?: {
     page?: number;

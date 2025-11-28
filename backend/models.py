@@ -94,6 +94,9 @@ class Tender(Base):
     amendment_count = Column(Integer, default=0)
     last_amendment_date = Column(Date, nullable=True)
 
+    # RAW DATA - Complete scraped JSON for data recovery
+    raw_data_json = Column(JSONB, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
