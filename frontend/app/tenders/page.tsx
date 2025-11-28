@@ -27,6 +27,8 @@ export default function TendersPage() {
   // Quick filters removed - they were overriding main filters
   const limit = 20;
 
+  const [showFilters, setShowFilters] = useState(false);
+
   // Hydration guard
   useEffect(() => {
     setIsHydrated(true);
@@ -140,6 +142,10 @@ export default function TendersPage() {
     setFilters(savedFilters);
     setPage(1);
     toast.success("Пребарувањето е вчитано");
+    // On mobile, close filters after loading a search
+    if (window.innerWidth < 1024) {
+      setShowFilters(false);
+    }
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -195,14 +201,32 @@ export default function TendersPage() {
         awarded={stats.awarded}
       />
 
+      {/* Mobile Filter Toggle */}
+      <div className="lg:hidden">
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setShowFilters(!showFilters)}
+        >
+          <ChevronRight className={`mr-2 h-4 w-4 transition-transform ${showFilters ? 'rotate-90' : ''}`} />
+          {showFilters ? 'Сокриј филтри' : 'Прикажи филтри'}
+        </Button>
+      </div>
+
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
         {/* Filters Sidebar */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className={`lg:col-span-1 space-y-4 ${showFilters ? 'block' : 'hidden lg:block'}`}>
           <TenderFilters
             filters={filters}
             onFiltersChange={handleFiltersChange}
-            onApplyFilters={loadTenders}
+            onApplyFilters={() => {
+              loadTenders();
+              // On mobile, close filters after applying
+              if (window.innerWidth < 1024) {
+                setShowFilters(false);
+              }
+            }}
             onReset={handleReset}
           />
           <SavedSearches

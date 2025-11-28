@@ -56,8 +56,8 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
   return (
     <Card className="hover:bg-accent/50 transition-colors">
       <CardContent className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 space-y-3">
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+          <div className="flex-1 space-y-3 w-full">
             {/* Title and Status */}
             <div className="flex items-start gap-2 flex-wrap">
               <Link
@@ -244,24 +244,25 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
           </div>
 
           {/* Actions */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto mt-4 sm:mt-0">
             <Button
               size="sm"
               variant="default"
               asChild
+              className="flex-1 sm:flex-none"
             >
               <Link href={`/tenders/${tenderPath}`}>
                 Детали
               </Link>
             </Button>
             {sourceUrl ? (
-              <Button size="sm" variant="outline" asChild>
+              <Button size="sm" variant="outline" asChild className="flex-1 sm:flex-none">
                 <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </Button>
             ) : (
-              <Button size="sm" variant="outline" disabled title="Нема изворна врска">
+              <Button size="sm" variant="outline" disabled title="Нема изворна врска" className="flex-1 sm:flex-none">
                 <ExternalLink className="h-4 w-4" />
               </Button>
             )}

@@ -141,8 +141,8 @@ export default function SuppliersPage() {
                 <p className="text-2xl font-bold">
                   {suppliers.length > 0
                     ? formatPercent(
-                        suppliers.reduce((sum, s) => sum + (s.win_rate || 0), 0) / suppliers.length
-                      )
+                      suppliers.reduce((sum, s) => sum + (s.win_rate || 0), 0) / suppliers.length
+                    )
                     : '-'}
                 </p>
               </div>
@@ -205,7 +205,7 @@ export default function SuppliersPage() {
 
       {/* Suppliers Table */}
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
