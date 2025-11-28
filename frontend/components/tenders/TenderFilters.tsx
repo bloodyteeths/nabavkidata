@@ -43,6 +43,20 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
   const [entityLoading, setEntityLoading] = useState(false);
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
 
+  // Initialize date filters with last 2 months on first render
+  useEffect(() => {
+    // Only set defaults if no filters are set yet
+    if (!filters.dateFrom && !filters.dateTo && Object.keys(filters).length === 0) {
+      const now = new Date();
+      const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
+      const defaultFilters = {
+        dateFrom: twoMonthsAgo.toISOString().split('T')[0],
+        dateTo: now.toISOString().split('T')[0],
+      };
+      setPendingFilters(defaultFilters);
+    }
+  }, []);
+
   // Sync pending filters with parent filters
   useEffect(() => {
     setPendingFilters(filters);
@@ -199,9 +213,12 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
         {/* CPV Code - Dropdown with search */}
         <div>
           <label className="text-sm font-medium mb-2 block">CPV Код</label>
+          <p className="text-xs text-muted-foreground mb-1">
+            Внесете код (пр. 33) или категорија (пр. медицинска)
+          </p>
           <div className="relative">
             <Input
-              placeholder="Пребарај CPV код..."
+              placeholder="33 или медицинска опрема..."
               value={cpvSearch || pendingFilters.cpvCode || ""}
               onChange={(e) => {
                 setCpvSearch(e.target.value);

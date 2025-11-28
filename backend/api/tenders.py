@@ -340,15 +340,21 @@ async def get_price_history(
 async def list_tenders(
     page: int = Query(1, ge=1, description="Page number (1-indexed, must be >= 1)"),
     page_size: int = Query(20, ge=1, le=200, description="Items per page (1-200)"),
+    search: Optional[str] = Query(None, description="Search in title, description"),
     category: Optional[str] = None,
     status: Optional[str] = None,
     source_category: Optional[str] = Query(None, description="Filter by source category (active, awarded, cancelled, etc.)"),
     procuring_entity: Optional[str] = None,
     cpv_code: Optional[str] = None,
+    procedure_type: Optional[str] = Query(None, description="Filter by procedure type"),
     min_estimated_mkd: Optional[Decimal] = Query(None, description="Minimum estimated value in MKD"),
     max_estimated_mkd: Optional[Decimal] = Query(None, description="Maximum estimated value in MKD"),
     min_estimated_eur: Optional[Decimal] = Query(None, description="Minimum estimated value in EUR"),
     max_estimated_eur: Optional[Decimal] = Query(None, description="Maximum estimated value in EUR"),
+    opening_date_from: Optional[date] = Query(None, description="Filter by opening date from"),
+    opening_date_to: Optional[date] = Query(None, description="Filter by opening date to"),
+    closing_date_from: Optional[date] = Query(None, description="Filter by closing date from"),
+    closing_date_to: Optional[date] = Query(None, description="Filter by closing date to"),
     sort_by: str = Query("created_at", description="Field to sort by"),
     sort_order: str = Query("desc", description="asc or desc"),
     db: AsyncSession = Depends(get_db)
@@ -376,6 +382,16 @@ async def list_tenders(
 
     # Apply filters
     filters = []
+
+    # Text search in title and description
+    if search:
+        text_filter = or_(
+            Tender.title.ilike(f"%{search}%"),
+            Tender.description.ilike(f"%{search}%"),
+            Tender.procuring_entity.ilike(f"%{search}%")
+        )
+        filters.append(text_filter)
+
     if category:
         filters.append(Tender.category == category)
     if status:
@@ -386,6 +402,9 @@ async def list_tenders(
         filters.append(Tender.procuring_entity.ilike(f"%{procuring_entity}%"))
     if cpv_code:
         filters.append(Tender.cpv_code.startswith(cpv_code))
+    if procedure_type:
+        filters.append(Tender.procedure_type == procedure_type)
+
     # Estimated value filters (MKD)
     if min_estimated_mkd is not None:
         filters.append(Tender.estimated_value_mkd >= min_estimated_mkd)
@@ -396,6 +415,16 @@ async def list_tenders(
         filters.append(Tender.estimated_value_eur >= min_estimated_eur)
     if max_estimated_eur is not None:
         filters.append(Tender.estimated_value_eur <= max_estimated_eur)
+
+    # Date range filters
+    if opening_date_from:
+        filters.append(Tender.opening_date >= opening_date_from)
+    if opening_date_to:
+        filters.append(Tender.opening_date <= opening_date_to)
+    if closing_date_from:
+        filters.append(Tender.closing_date >= closing_date_from)
+    if closing_date_to:
+        filters.append(Tender.closing_date <= closing_date_to)
 
     if filters:
         query = query.where(and_(*filters))

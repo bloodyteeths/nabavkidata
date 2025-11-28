@@ -71,24 +71,45 @@ export default function TendersPage() {
         source_category: dataset, // Filter by source_category (active, awarded, cancelled)
       };
 
-      // Force open status only when browsing the active dataset
-      if (dataset === "active") {
+      // Apply text search
+      if (filters.search) params.search = filters.search;
+
+      // Status filter logic:
+      // - User can filter by status within the selected dataset
+      // - The quick filter buttons also set status
+      // Priority: quickFilters.statusFilter > filters.status > dataset default
+      if (quickFilters.statusFilter) {
+        params.status = quickFilters.statusFilter;
+      } else if (filters.status) {
+        params.status = filters.status;
+      } else if (dataset === "active") {
+        // Default to open for active dataset only if no status filter is applied
         params.status = "open";
       }
 
-      if (filters.search) params.search = filters.search;
-      if (filters.status) params.status = filters.status;
+      // Category filter - pass exactly as selected
       if (filters.category) params.category = filters.category;
-      if (filters.minBudget) params.min_estimated_mkd = filters.minBudget;
-      if (filters.maxBudget) params.max_estimated_mkd = filters.maxBudget;
-      if (filters.cpvCode) params.cpv_code = filters.cpvCode;
-      if (filters.entity) params.procuring_entity = filters.entity;
-      if (filters.dateFrom) params.date_from = filters.dateFrom;
-      if (filters.dateTo) params.date_to = filters.dateTo;
 
-      // Apply quick filters
+      // Budget filters - map to backend parameter names
+      if (filters.minBudget && filters.minBudget > 0) {
+        params.min_estimated_mkd = filters.minBudget;
+      }
+      if (filters.maxBudget && filters.maxBudget > 0) {
+        params.max_estimated_mkd = filters.maxBudget;
+      }
+
+      // CPV code filter
+      if (filters.cpvCode) params.cpv_code = filters.cpvCode;
+
+      // Entity filter
+      if (filters.entity) params.procuring_entity = filters.entity;
+
+      // Date filters - map to backend parameter names (opening_date_from/to)
+      if (filters.dateFrom) params.opening_date_from = filters.dateFrom;
+      if (filters.dateTo) params.opening_date_to = filters.dateTo;
+
+      // Procedure type quick filter
       if (quickFilters.procedureType) params.procedure_type = quickFilters.procedureType;
-      if (quickFilters.statusFilter) params.status = quickFilters.statusFilter;
 
       const result = await api.getTenders(params);
       setTenders(result.items);

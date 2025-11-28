@@ -203,46 +203,136 @@ async def list_cpv_codes(
 
 @router.get("/search")
 async def search_cpv_codes(
-    prefix: str = Query(..., min_length=1, description="CPV code prefix to search"),
+    prefix: str = Query(..., min_length=1, description="CPV code or category name to search"),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Search CPV codes by prefix.
+    Search CPV codes by code prefix OR category name.
+
+    The search parameter can be:
+    - A numeric CPV code prefix (e.g., "33" for medical equipment)
+    - A text category name in English or Macedonian (e.g., "medical", "медицинска")
 
     Returns matching CPV codes with statistics and hierarchy information.
     """
-    query = text("""
-        SELECT
-            cpv_code,
-            COUNT(*) as tender_count,
-            SUM(estimated_value_mkd) as total_value_mkd,
-            AVG(estimated_value_mkd) as avg_value_mkd
-        FROM tenders
-        WHERE cpv_code IS NOT NULL
-          AND cpv_code != ''
-          AND cpv_code LIKE :prefix
-        GROUP BY cpv_code
-        ORDER BY COUNT(*) DESC
-        LIMIT :limit
-    """)
-
-    result = await db.execute(query, {"prefix": f"{prefix}%", "limit": limit})
-    rows = result.fetchall()
-
     cpv_codes = []
-    for row in rows:
-        name, name_mk = get_cpv_name(row.cpv_code)
-        cpv_codes.append({
-            "code": row.cpv_code,
-            "name": name,
-            "name_mk": name_mk,
-            "parent_code": get_parent_code(row.cpv_code),
-            "level": get_cpv_level(row.cpv_code),
-            "tender_count": row.tender_count,
-            "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else None,
-            "avg_value_mkd": float(row.avg_value_mkd) if row.avg_value_mkd else None
-        })
+
+    # Check if the prefix is numeric (CPV code search) or text (name search)
+    is_numeric = prefix.replace("-", "").isdigit()
+
+    if is_numeric:
+        # Search by CPV code prefix
+        query = text("""
+            SELECT
+                cpv_code,
+                COUNT(*) as tender_count,
+                SUM(estimated_value_mkd) as total_value_mkd,
+                AVG(estimated_value_mkd) as avg_value_mkd
+            FROM tenders
+            WHERE cpv_code IS NOT NULL
+              AND cpv_code != ''
+              AND cpv_code LIKE :prefix
+            GROUP BY cpv_code
+            ORDER BY COUNT(*) DESC
+            LIMIT :limit
+        """)
+        result = await db.execute(query, {"prefix": f"{prefix}%", "limit": limit})
+        rows = result.fetchall()
+
+        for row in rows:
+            name, name_mk = get_cpv_name(row.cpv_code)
+            cpv_codes.append({
+                "code": row.cpv_code,
+                "name": name,
+                "name_mk": name_mk,
+                "parent_code": get_parent_code(row.cpv_code),
+                "level": get_cpv_level(row.cpv_code),
+                "tender_count": row.tender_count,
+                "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else None,
+                "avg_value_mkd": float(row.avg_value_mkd) if row.avg_value_mkd else None
+            })
+    else:
+        # Search by category name in CPV_DIVISIONS
+        search_lower = prefix.lower()
+        matching_divisions = []
+
+        for code, info in CPV_DIVISIONS.items():
+            if (search_lower in info["name"].lower() or
+                search_lower in info["name_mk"].lower()):
+                matching_divisions.append(code)
+
+        if matching_divisions:
+            # Get tenders for matching divisions
+            placeholders = ",".join([f":div{i}" for i in range(len(matching_divisions))])
+            params = {f"div{i}": div for i, div in enumerate(matching_divisions)}
+            params["limit"] = limit
+
+            like_conditions = " OR ".join([f"cpv_code LIKE :pattern{i}" for i in range(len(matching_divisions))])
+            for i, div in enumerate(matching_divisions):
+                params[f"pattern{i}"] = f"{div}%"
+
+            query = text(f"""
+                SELECT
+                    cpv_code,
+                    COUNT(*) as tender_count,
+                    SUM(estimated_value_mkd) as total_value_mkd,
+                    AVG(estimated_value_mkd) as avg_value_mkd
+                FROM tenders
+                WHERE cpv_code IS NOT NULL
+                  AND cpv_code != ''
+                  AND ({like_conditions})
+                GROUP BY cpv_code
+                ORDER BY COUNT(*) DESC
+                LIMIT :limit
+            """)
+            result = await db.execute(query, params)
+            rows = result.fetchall()
+
+            for row in rows:
+                name, name_mk = get_cpv_name(row.cpv_code)
+                cpv_codes.append({
+                    "code": row.cpv_code,
+                    "name": name,
+                    "name_mk": name_mk,
+                    "parent_code": get_parent_code(row.cpv_code),
+                    "level": get_cpv_level(row.cpv_code),
+                    "tender_count": row.tender_count,
+                    "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else None,
+                    "avg_value_mkd": float(row.avg_value_mkd) if row.avg_value_mkd else None
+                })
+        else:
+            # No divisions matched, try to search in tender titles/descriptions
+            # and get CPV codes associated with those tenders
+            query = text("""
+                SELECT
+                    cpv_code,
+                    COUNT(*) as tender_count,
+                    SUM(estimated_value_mkd) as total_value_mkd,
+                    AVG(estimated_value_mkd) as avg_value_mkd
+                FROM tenders
+                WHERE cpv_code IS NOT NULL
+                  AND cpv_code != ''
+                  AND (title ILIKE :search OR description ILIKE :search)
+                GROUP BY cpv_code
+                ORDER BY COUNT(*) DESC
+                LIMIT :limit
+            """)
+            result = await db.execute(query, {"search": f"%{prefix}%", "limit": limit})
+            rows = result.fetchall()
+
+            for row in rows:
+                name, name_mk = get_cpv_name(row.cpv_code)
+                cpv_codes.append({
+                    "code": row.cpv_code,
+                    "name": name,
+                    "name_mk": name_mk,
+                    "parent_code": get_parent_code(row.cpv_code),
+                    "level": get_cpv_level(row.cpv_code),
+                    "tender_count": row.tender_count,
+                    "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else None,
+                    "avg_value_mkd": float(row.avg_value_mkd) if row.avg_value_mkd else None
+                })
 
     return {
         "query": prefix,

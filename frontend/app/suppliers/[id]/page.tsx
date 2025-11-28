@@ -30,12 +30,15 @@ import {
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
+const ITEMS_PER_PAGE = 10;
+
 export default function SupplierDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [supplier, setSupplier] = useState<SupplierDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [participationsPage, setParticipationsPage] = useState(1);
 
   const supplierId = params.id as string;
 
@@ -270,10 +273,13 @@ export default function SupplierDetailPage() {
         </Card>
       </div>
 
-      {/* Recent Participations */}
+      {/* Recent Participations with Pagination */}
       <Card className="mt-6">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Последни учества во тендери</CardTitle>
+          <span className="text-sm text-muted-foreground">
+            Вкупно: {supplier.recent_participations.length} од {supplier.total_wins} победи
+          </span>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -295,7 +301,9 @@ export default function SupplierDetailPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                supplier.recent_participations.map((participation) => (
+                supplier.recent_participations
+                  .slice((participationsPage - 1) * ITEMS_PER_PAGE, participationsPage * ITEMS_PER_PAGE)
+                  .map((participation) => (
                   <TableRow key={participation.tender_id} className="hover:bg-muted/50">
                     <TableCell>
                       <Link
@@ -335,6 +343,36 @@ export default function SupplierDetailPage() {
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls */}
+          {supplier.recent_participations.length > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <div className="text-sm text-muted-foreground">
+                Прикажани {((participationsPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(participationsPage * ITEMS_PER_PAGE, supplier.recent_participations.length)} од {supplier.recent_participations.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setParticipationsPage(p => Math.max(1, p - 1))}
+                  disabled={participationsPage === 1}
+                >
+                  Претходна
+                </Button>
+                <span className="text-sm">
+                  Страница {participationsPage} од {Math.ceil(supplier.recent_participations.length / ITEMS_PER_PAGE)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setParticipationsPage(p => Math.min(Math.ceil(supplier.recent_participations.length / ITEMS_PER_PAGE), p + 1))}
+                  disabled={participationsPage >= Math.ceil(supplier.recent_participations.length / ITEMS_PER_PAGE)}
+                >
+                  Следна
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

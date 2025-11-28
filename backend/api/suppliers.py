@@ -182,7 +182,7 @@ async def list_suppliers(
 async def get_supplier(
     supplier_id: str,
     include_participations: bool = Query(True, description="Include recent tender participations"),
-    participation_limit: int = Query(20, ge=1, le=100, description="Max participations to return"),
+    participation_limit: int = Query(100, ge=1, le=500, description="Max participations to return"),
     db: AsyncSession = Depends(get_db)
 ):
     """
