@@ -84,10 +84,15 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
 
     Returns:
         bool: True if signature is valid, False otherwise
+
+    Security:
+        NEVER accepts webhooks without proper signature verification.
+        STRIPE_WEBHOOK_SECRET must be configured in production.
     """
     if not STRIPE_WEBHOOK_SECRET:
-        logger.warning("STRIPE_WEBHOOK_SECRET not set - skipping signature verification (DEV ONLY)")
-        return True  # Skip verification in development
+        logger.error("SECURITY: STRIPE_WEBHOOK_SECRET not configured - rejecting webhook. "
+                    "Set this in production to accept Stripe webhooks.")
+        return False  # SECURITY: Never accept unverified webhooks
 
     try:
         stripe.Webhook.construct_event(

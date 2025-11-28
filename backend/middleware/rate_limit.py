@@ -54,9 +54,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
         # Store request counts per IP per endpoint
+        # WARNING: In-memory storage - resets on restart, not shared across workers
+        # TODO: Implement Redis-backed rate limiting for production (Phase 4)
         self.request_counts: Dict[str, Dict[str, list]] = defaultdict(lambda: defaultdict(list))
         # Start cleanup task
         self._cleanup_task = None
+        logger.warning(
+            "RateLimitMiddleware: Using in-memory storage. Rate limits reset on restart "
+            "and are not shared across workers. For production scale, implement Redis-backed rate limiting."
+        )
 
     async def dispatch(self, request: Request, call_next: Callable):
         """

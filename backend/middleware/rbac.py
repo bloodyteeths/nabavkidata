@@ -35,9 +35,14 @@ class UserRole(str, Enum):
 
 
 # JWT Configuration - Use same SECRET_KEY as auth.py for token validation
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("CRITICAL: SECRET_KEY environment variable must be set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+
+# Email verification configuration
+REQUIRE_EMAIL_VERIFICATION = os.getenv("REQUIRE_EMAIL_VERIFICATION", "false").lower() == "true"
 
 
 # ============================================================================
@@ -160,7 +165,7 @@ async def get_current_active_user(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """
-    Verify that the current user is active and verified
+    Verify that the current user is active and verified (if verification is required)
 
     Args:
         current_user: Current authenticated user
@@ -169,14 +174,13 @@ async def get_current_active_user(
         User object if active
 
     Raises:
-        HTTPException: If user is not verified
+        HTTPException: If user is not verified and verification is required
     """
-    # TEMPORARY: Email verification disabled for testing (AWS SES in sandbox mode)
-    # if not current_user.email_verified:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Email not verified. Please verify your email to access this resource.",
-    #     )
+    if REQUIRE_EMAIL_VERIFICATION and not current_user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please verify your email to access this resource.",
+        )
 
     return current_user
 

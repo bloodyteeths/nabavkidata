@@ -1,6 +1,10 @@
 """
 Document API endpoints
 Document retrieval and management
+
+Security:
+- List/view documents: Requires authentication
+- Create/delete documents: Requires admin role
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,8 +13,9 @@ from typing import Optional
 from uuid import UUID
 
 from database import get_db
-from models import Document, Tender
+from models import Document, Tender, User
 from schemas import DocumentResponse, DocumentListResponse, DocumentCreate, MessageResponse
+from middleware.rbac import get_current_user, require_admin
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -21,9 +26,10 @@ async def list_documents(
     extraction_status: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """List documents with optional filtering"""
+    """List documents with optional filtering. Requires authentication."""
     query = select(Document)
     filters = []
 
@@ -55,8 +61,12 @@ async def list_documents(
 
 
 @router.get("/{doc_id}", response_model=DocumentResponse)
-async def get_document(doc_id: UUID, db: AsyncSession = Depends(get_db)):
-    """Get document by ID"""
+async def get_document(
+    doc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get document by ID. Requires authentication."""
     query = select(Document).where(Document.doc_id == doc_id)
     result = await db.execute(query)
     document = result.scalar_one_or_none()
@@ -70,9 +80,10 @@ async def get_document(doc_id: UUID, db: AsyncSession = Depends(get_db)):
 @router.post("", response_model=DocumentResponse, status_code=201)
 async def create_document(
     document: DocumentCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin)
 ):
-    """Create new document"""
+    """Create new document. Requires admin role."""
     # Verify tender exists
     tender_query = select(Tender).where(Tender.tender_id == document.tender_id)
     tender_result = await db.execute(tender_query)
@@ -88,8 +99,12 @@ async def create_document(
 
 
 @router.delete("/{doc_id}", response_model=MessageResponse)
-async def delete_document(doc_id: UUID, db: AsyncSession = Depends(get_db)):
-    """Delete document"""
+async def delete_document(
+    doc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """Delete document. Requires admin role."""
     query = select(Document).where(Document.doc_id == doc_id)
     result = await db.execute(query)
     document = result.scalar_one_or_none()

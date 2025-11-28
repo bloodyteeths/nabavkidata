@@ -29,6 +29,7 @@ app = FastAPI(
 )
 
 # CORS Middleware - must be first
+# Security: Explicitly list allowed methods and headers (no wildcards)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -36,11 +37,12 @@ app.add_middleware(
         "http://localhost:3001",
         "https://nabavkidata.com",
         "https://www.nabavkidata.com",
-        "https://nabavkidata.vercel.app"
+        "https://nabavkidata.vercel.app",
+        "https://api.nabavkidata.com"
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Device-Fingerprint", "X-Requested-With"],
 )
 
 # Security Middlewares
@@ -132,24 +134,29 @@ async def _database_health(db: AsyncSession):
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
-    """Health check endpoint"""
-    db_status, tender_count, doc_count, category_counts = await _database_health(db)
-    scraper_health = _read_scraper_health()
+    """
+    Public health check endpoint for external monitoring.
+    Returns minimal information to avoid information disclosure.
+    """
+    try:
+        await db.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception:
+        db_status = "error"
+
     return {
         "status": "healthy" if db_status == "ok" else "degraded",
         "service": "backend-api",
-        "timestamp": datetime.utcnow().isoformat(),
-        "database": db_status,
-        "tenders": tender_count,
-        "documents": doc_count,
-        "tenders_by_category": category_counts,
-        "rag": "enabled" if os.getenv('OPENAI_API_KEY') else "disabled",
-        "scraper": scraper_health,
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 
 @app.get("/api/health")
 async def api_health(db: AsyncSession = Depends(get_db)):
+    """
+    Detailed health check endpoint for internal monitoring.
+    TODO: Consider adding authentication for production to prevent information disclosure.
+    """
     db_status, tender_count, doc_count, category_counts = await _database_health(db)
     scraper_health = _read_scraper_health()
     cron_status = "unknown"
@@ -166,5 +173,5 @@ async def api_health(db: AsyncSession = Depends(get_db)):
         },
         "scraper": scraper_health,
         "cron": cron_status,
-        "rag": "enabled" if os.getenv('OPENAI_API_KEY') else "disabled"
+        "rag": "enabled" if os.getenv('GEMINI_API_KEY') else "disabled"
     }
