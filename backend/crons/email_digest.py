@@ -19,7 +19,7 @@ load_dotenv(env_path)
 from sqlalchemy import select, and_
 from database import AsyncSessionLocal
 from models import User, Tender
-from services.mailer import mailer_service
+from services.postmark import postmark_service
 
 # Personalization disabled - table doesn't exist yet
 HAS_PERSONALIZATION = False
@@ -79,7 +79,7 @@ async def generate_digest_html(
     </p>
     """
 
-    return mailer_service._get_email_template(
+    return postmark_service._get_email_template(
         title=f"{period} Tender Digest",
         content=content,
         button_text="View All Tenders",
@@ -130,7 +130,7 @@ async def send_digest_to_user(
     period = "Daily" if frequency == "daily" else "Weekly"
     subject = f"{period} Tender Digest - {len(tenders)} New Opportunities"
 
-    return await mailer_service.send_transactional_email(
+    return await postmark_service.send_email(
         to=email,
         subject=subject,
         html_content=html_content,

@@ -1458,7 +1458,7 @@ async def broadcast_email(
     - target_verified_only: Send only to verified users
     - send_notification: Also create in-app notification (default: True)
     """
-    from services.mailer import mailer_service
+    from services.postmark import postmark_service
 
     # Build user query
     query = select(User.user_id, User.email, User.full_name)
@@ -1499,14 +1499,14 @@ async def broadcast_email(
             <p style="margin-top: 20px;">If you have any questions, please don't hesitate to contact our support team.</p>
             """
 
-            html_content = mailer_service._get_email_template(
+            html_content = postmark_service._get_email_template(
                 title=broadcast.subject,
                 content=content,
                 button_text="Go to Dashboard",
                 button_link=f"{frontend_url}/dashboard"
             )
 
-            success = await mailer_service.send_transactional_email(
+            success = await postmark_service.send_email(
                 to=email,
                 subject=broadcast.subject,
                 html_content=html_content,
