@@ -617,9 +617,13 @@ async def logout(
 # EMAIL VERIFICATION ENDPOINTS
 # ============================================================================
 
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
 @router.post("/verify-email", response_model=MessageResponse)
 async def verify_email(
-    token: str,
+    data: VerifyEmailRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -630,7 +634,7 @@ async def verify_email(
     """
     from services.auth_service import verify_email as verify_email_service
 
-    success = await verify_email_service(db, token)
+    success = await verify_email_service(db, data.token)
 
     if not success:
         raise HTTPException(
@@ -644,9 +648,13 @@ async def verify_email(
     )
 
 
+class ResendVerificationRequest(BaseModel):
+    email: str
+
+
 @router.post("/resend-verification", response_model=MessageResponse)
 async def resend_verification(
-    email: str,
+    data: ResendVerificationRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
@@ -656,7 +664,7 @@ async def resend_verification(
     - Generates new verification token
     - Sends verification email
     """
-    user = await get_user_by_email(db, email)
+    user = await get_user_by_email(db, data.email)
     if not user:
         # Don't reveal if user exists
         return MessageResponse(
@@ -671,10 +679,10 @@ async def resend_verification(
 
     # Generate and store new token
     from services.auth_service import generate_verification_token
-    verification_token = generate_verification_token(user.user_id, email)
+    verification_token = generate_verification_token(user.user_id, data.email)
 
     # Send verification email
-    await send_verification_email_task(email, verification_token, user.full_name or "User", background_tasks)
+    await send_verification_email_task(data.email, verification_token, user.full_name or "User", background_tasks)
 
     return MessageResponse(
         message="Verification email sent",

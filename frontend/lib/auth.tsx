@@ -32,7 +32,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
-  resendVerification: () => Promise<void>;
+  resendVerification: (email?: string) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
@@ -286,10 +286,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(errorData.detail || 'Registration failed');
       }
 
-      const tokens: AuthTokens = await response.json();
-      storeTokens(tokens);
-      await fetchUser();
-      router.push('/');
+      // Store email for resend verification
+      localStorage.setItem('pending_verification_email', email);
+
+      // Redirect to verify email page
+      router.push('/auth/verify-email');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed';
       setError(message);
@@ -357,21 +358,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const resendVerification = async () => {
+  const resendVerification = async (email?: string) => {
     try {
       setIsLoading(true);
       setError(null);
-      const { accessToken } = getTokens();
 
-      if (!accessToken) {
-        throw new Error('Not authenticated');
+      // Try to get email from user state, parameter, or localStorage
+      const userEmail = email || user?.email || localStorage.getItem('pending_verification_email');
+
+      if (!userEmail) {
+        throw new Error('Email address is required');
       }
 
       const response = await fetch(`${API_URL}/api/auth/resend-verification`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ email: userEmail }),
       });
 
       if (!response.ok) {
