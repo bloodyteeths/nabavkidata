@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
@@ -35,6 +36,9 @@ import {
   Clock,
   MapPin,
   CreditCard,
+  AlertCircle,
+  Braces,
+  Bug,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -81,6 +85,13 @@ export default function TenderDetailPage() {
   } | null>(null);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
+  const [jsonOpen, setJsonOpen] = useState(false);
+  const [jsonTab, setJsonTab] = useState("raw");
+  const [aiPanelTab, setAiPanelTab] = useState("summary");
+  const [showDevTools, setShowDevTools] = useState(false);
+  const [showRawJson, setShowRawJson] = useState(false);
+  const [aiDebugPayload, setAiDebugPayload] = useState<any | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tenderId) return;
@@ -214,6 +225,12 @@ export default function TenderDetailPage() {
   async function handleChatSend(message: string) {
     setChatMessages((prev) => [...prev, { role: "user", content: message }]);
     setChatLoading(true);
+    setChatError(null);
+    setAiDebugPayload({
+      question: message,
+      tender_id: tenderId,
+      sent_at: new Date().toISOString(),
+    });
 
     try {
       const result = await api.queryRAG(message, tenderId!);
@@ -227,6 +244,7 @@ export default function TenderDetailPage() {
       ]);
     } catch (error) {
       console.error("Failed to get AI response:", error);
+      setChatError("Грешка при добивање одговор. Обидете се повторно.");
       setChatMessages((prev) => [
         ...prev,
         {
@@ -292,6 +310,37 @@ export default function TenderDetailPage() {
     "Постојат ли гаранции или депозити?",
   ];
 
+  const confidenceBar = (confidence?: string) => {
+    if (!confidence) return null;
+    const normalized = confidence.toLowerCase();
+    const percent = normalized.includes("high")
+      ? 100
+      : normalized.includes("medium")
+      ? 65
+      : 35;
+    return (
+      <div className="mt-2">
+        <p className="text-xs text-muted-foreground mb-1">Доверливост</p>
+        <div className="h-2 rounded-full bg-muted">
+          <div
+            className={`h-2 rounded-full ${percent >= 80 ? "bg-green-500" : percent >= 50 ? "bg-amber-500" : "bg-red-500"}`}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const rawJsonPayload = tender
+    ? {
+        ...tender,
+        documents_preview: documents.slice(0, 3),
+        bidders_preview: bidders.slice(0, 3),
+        lots_preview: lots.slice(0, 3),
+        ai_summary: aiSummary,
+      }
+    : {};
+
   const handleOpenSource = () => {
     if (!tender?.source_url) return;
     void logBehavior("open_source");
@@ -340,6 +389,16 @@ export default function TenderDetailPage() {
         <div className="flex gap-2">
           <Button
             variant="outline"
+            onClick={() => {
+              setJsonOpen(true);
+              setShowRawJson(true);
+            }}
+          >
+            <Braces className="h-4 w-4 mr-2" />
+            Raw JSON
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => logBehavior("save")}
           >
             <Bookmark className="h-4 w-4 mr-2" />
@@ -373,10 +432,46 @@ export default function TenderDetailPage() {
         </CardHeader>
         <CardContent>
           {summaryLoading ? (
-            <p className="text-sm text-muted-foreground">Генерирање...</p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">AI ги пребарува документите...</p>
+              <div className="h-2 w-full rounded bg-white/40 animate-pulse" />
+              <div className="h-2 w-5/6 rounded bg-white/30 animate-pulse" />
+            </div>
           ) : (
-            <p className="text-sm">{aiSummary}</p>
+            <div className="space-y-2">
+              <p className="text-sm">{aiSummary}</p>
+              <div className="rounded-md border border-primary/20 bg-white/40 p-3">
+                <p className="text-xs text-muted-foreground mb-2">Sources used (placeholder)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-9 rounded bg-primary/10" />
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
+          <div className="mt-4">
+            <Tabs value={aiPanelTab} onValueChange={setAiPanelTab}>
+              <TabsList className="grid grid-cols-4">
+                <TabsTrigger value="summary">AI Summary</TabsTrigger>
+                <TabsTrigger value="competitive">Competitive Insights</TabsTrigger>
+                <TabsTrigger value="pricing">Price Estimation</TabsTrigger>
+                <TabsTrigger value="specs">Specification Extract</TabsTrigger>
+              </TabsList>
+              <TabsContent value="summary" className="text-xs text-muted-foreground pt-3">
+                Кратко резиме на најважните точки (placeholder).
+              </TabsContent>
+              <TabsContent value="competitive" className="text-xs text-muted-foreground pt-3">
+                Клучни конкуренти, добитници и трендови (placeholder).
+              </TabsContent>
+              <TabsContent value="pricing" className="text-xs text-muted-foreground pt-3">
+                Проценети опсези на цена според слични тендери (placeholder).
+              </TabsContent>
+              <TabsContent value="specs" className="text-xs text-muted-foreground pt-3">
+                Извлечени технички спецификации и барања (placeholder).
+              </TabsContent>
+            </Tabs>
+          </div>
         </CardContent>
       </Card>
 
@@ -961,6 +1056,12 @@ export default function TenderDetailPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {chatError && (
+                    <div className="rounded-md border border-destructive/50 bg-destructive/10 text-destructive px-3 py-2 text-sm flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{chatError}</span>
+                    </div>
+                  )}
                   {/* Chat Messages */}
                   <div className="space-y-4 min-h-[400px] max-h-[500px] overflow-y-auto">
                     {chatMessages.length === 0 ? (
@@ -970,16 +1071,39 @@ export default function TenderDetailPage() {
                       </div>
                     ) : (
                       chatMessages.map((msg, idx) => (
-                        <ChatMessage
-                          key={idx}
-                          role={msg.role}
-                          content={msg.content}
-                          sources={msg.sources}
-                        />
+                        <div key={idx} className="space-y-2">
+                          <ChatMessage
+                            role={msg.role}
+                            content={msg.content}
+                            sources={msg.sources}
+                          />
+                          {msg.role === "assistant" && (
+                            <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+                              <p className="text-xs text-muted-foreground">Sources used (placeholder)</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {(msg.sources && msg.sources.length > 0 ? msg.sources.slice(0, 4) : [1, 2, 3, 4]).map((src, i) => (
+                                  <div key={i} className="rounded bg-background border p-2 text-[11px] text-muted-foreground">
+                                    {typeof src === "number"
+                                      ? "Документ / Тендер"
+                                      : src.tender_id || src.doc_id || "Документ"}
+                                  </div>
+                                ))}
+                              </div>
+                              {confidenceBar(msg.sources?.length ? "medium" : undefined)}
+                            </div>
+                          )}
+                        </div>
                       ))
                     )}
                     {chatLoading && (
-                      <div className="text-sm text-muted-foreground">AI пишува...</div>
+                      <div className="rounded-md border bg-muted/50 p-3 space-y-2">
+                        <p className="text-xs text-muted-foreground">AI ги пребарува документите...</p>
+                        <div className="space-y-1">
+                          <div className="h-2 w-full rounded bg-muted-foreground/30 animate-pulse" />
+                          <div className="h-2 w-5/6 rounded bg-muted-foreground/20 animate-pulse" />
+                          <div className="h-2 w-2/3 rounded bg-muted-foreground/10 animate-pulse" />
+                        </div>
+                      </div>
                     )}
                   </div>
 
@@ -1003,6 +1127,52 @@ export default function TenderDetailPage() {
                     disabled={chatLoading}
                     placeholder="Прашај нешто за овој тендер..."
                   />
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3"
+                        checked={showDevTools}
+                        onChange={(e) => setShowDevTools(e.target.checked)}
+                      />
+                      Show AI Logs
+                    </label>
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3"
+                        checked={showRawJson}
+                        onChange={(e) => setShowRawJson(e.target.checked)}
+                      />
+                      Show Raw JSON
+                    </label>
+                  </div>
+                  {(showDevTools || showRawJson) && (
+                    <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-2">
+                      <div className="flex items-center gap-2 font-medium">
+                        <Bug className="h-4 w-4" />
+                        Debug Panel (frontend only)
+                      </div>
+                      {showDevTools && (
+                        <div className="rounded border bg-background p-2">
+                          <p className="text-[11px] font-mono break-all">
+                            {aiDebugPayload ? JSON.stringify(aiDebugPayload) : "Нема испратени барања уште."}
+                          </p>
+                        </div>
+                      )}
+                      {showRawJson && (
+                        <div className="rounded border bg-background p-2">
+                          <pre className="text-[11px] whitespace-pre-wrap">
+{`{
+  "tender_id": "${tenderId}",
+  "question": "${aiDebugPayload?.question || "n/a"}",
+  "context": "documents + tenders (placeholder)"
+}`}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1074,5 +1244,79 @@ export default function TenderDetailPage() {
         </div>
       </div>
     </div>
+
+      <Dialog open={jsonOpen} onOpenChange={setJsonOpen}>
+        <DialogContent className="sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Raw JSON & AI Views</DialogTitle>
+          </DialogHeader>
+          <Tabs value={jsonTab} onValueChange={setJsonTab} className="space-y-3">
+            <TabsList className="grid grid-cols-4">
+              <TabsTrigger value="raw">Raw JSON</TabsTrigger>
+              <TabsTrigger value="ai">AI Extracted View</TabsTrigger>
+              <TabsTrigger value="products">Products Detected</TabsTrigger>
+              <TabsTrigger value="requirements">Buyer Requirements</TabsTrigger>
+            </TabsList>
+            <TabsContent value="raw" className="max-h-[400px] overflow-auto rounded border bg-muted/40 p-3">
+              <pre className="text-xs whitespace-pre-wrap">
+                {JSON.stringify(rawJsonPayload, null, 2)}
+              </pre>
+            </TabsContent>
+            <TabsContent value="ai" className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Placeholder for AI-extracted structured view (backend will supply fields).
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {["Key dates", "Entities", "Values", "Contacts"].map((label) => (
+                  <div key={label} className="rounded border bg-muted/30 p-3">
+                    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                    <div className="h-2 rounded bg-muted-foreground/30 mt-2 animate-pulse" />
+                    <div className="h-2 rounded bg-muted-foreground/20 mt-1 animate-pulse w-5/6" />
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
+            <TabsContent value="products" className="space-y-2">
+              <p className="text-sm text-muted-foreground">AI detected products (placeholder until backend fills).</p>
+              <div className="rounded border bg-muted/30 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Products count</span>
+                  <Badge variant="outline">{aiProducts?.products?.length ?? 0}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(aiProducts?.products || [{ name: "Placeholder product", specifications: "Спецификација" }]).slice(0, 4).map((product, idx) => (
+                    <div key={idx} className="rounded border bg-background p-2">
+                      <p className="text-sm font-medium">{product.name || "Product"}</p>
+                      {product.specifications && <p className="text-xs text-muted-foreground line-clamp-2">{product.specifications}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="requirements" className="space-y-3">
+              <p className="text-sm text-muted-foreground">Buyer requirements and CPV suggestions (UI only).</p>
+              <div className="rounded border bg-muted/20 p-3 space-y-2">
+                <p className="text-xs uppercase text-muted-foreground">CPV Suggestions</p>
+                <div className="flex flex-wrap gap-2">
+                  {(tender?.cpv_code ? [tender.cpv_code] : ["33600000", "45000000", "30200000"]).map((code) => (
+                    <Badge key={code} variant="secondary" className="font-mono">
+                      {code}
+                    </Badge>
+                  ))}
+                  <Badge variant="outline">Suggest more (placeholder)</Badge>
+                </div>
+              </div>
+              <div className="rounded border bg-muted/30 p-3 space-y-2">
+                <p className="text-xs uppercase text-muted-foreground">Requirements</p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground">
+                  <li>Доставка / испорака (placeholder)</li>
+                  <li>Гаранција / депозит (placeholder)</li>
+                  <li>Клучни документи (placeholder)</li>
+                </ul>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
   );
 }

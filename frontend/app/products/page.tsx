@@ -74,6 +74,9 @@ export default function ProductsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [cpvCodes, setCpvCodes] = useState<Array<{ cpv_code: string; tender_count: number; total_value_mkd: number | null }> | null>(null);
+  const [cpvLoading, setCpvLoading] = useState(false);
+  const [cpvError, setCpvError] = useState<string | null>(null);
 
   // Pagination & Filters
   const [page, setPage] = useState(1);
@@ -105,6 +108,7 @@ export default function ProductsPage() {
   useEffect(() => {
     if (!isHydrated) return;
     loadStats();
+    loadCpvCodes();
   }, [isHydrated]);
 
   async function loadStats() {
@@ -113,6 +117,19 @@ export default function ProductsPage() {
       setStats(result);
     } catch (error) {
       console.error("Failed to load product stats:", error);
+    }
+  }
+
+  async function loadCpvCodes() {
+    try {
+      setCpvLoading(true);
+      const result = await api.getCpvCodes();
+      setCpvCodes(result.cpv_codes || []);
+    } catch (error) {
+      console.error("Failed to load CPV codes:", error);
+      setCpvError("CPV кодовите моментално не се достапни.");
+    } finally {
+      setCpvLoading(false);
     }
   }
 
@@ -348,7 +365,7 @@ export default function ProductsPage() {
                 <p className="text-xs text-muted-foreground">Tenders with Products</p>
               </CardContent>
             </Card>
-          </div>
+      </div>
           {stats.total_products === 0 && (
             <Card className="border-dashed">
               <CardContent className="pt-6 text-center">
@@ -363,6 +380,41 @@ export default function ProductsPage() {
           )}
         </>
       )}
+
+      {/* CPV Browser (UI-only) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">CPV Browser</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Преглед на најчесто користени CPV кодови (placeholder; backend ќе врати детали).
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {cpvLoading && <p className="text-sm text-muted-foreground">Се вчитува CPV листа...</p>}
+          {cpvError && (
+            <div className="text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md p-3">
+              {cpvError}
+            </div>
+          )}
+          {cpvCodes && cpvCodes.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {cpvCodes.slice(0, 9).map((code) => (
+                <div key={code.cpv_code} className="border rounded-md p-3 bg-muted/30">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-mono text-sm">{code.cpv_code}</span>
+                    <Badge variant="outline">{code.tender_count} тендери</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Вкупна вредност: {code.total_value_mkd ? formatPrice(code.total_value_mkd) : "n/a"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            !cpvLoading && <p className="text-sm text-muted-foreground">Нема CPV податоци моментално.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Search Form */}
       <Card>

@@ -17,15 +17,24 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  MessageSquare
 } from 'lucide-react';
-import { api, EPazarTenderDetail, EPazarItem, EPazarOffer, EPazarDocument, EPazarAwardedItem } from '@/lib/api';
+import { api, EPazarTenderDetail, EPazarItem, EPazarOffer, EPazarDocument, EPazarAwardedItem, RAGQueryResponse } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { ChatMessage } from '@/components/chat/ChatMessage';
+import { ChatInput } from '@/components/chat/ChatInput';
+
+interface ChatMsg {
+  role: "user" | "assistant";
+  content: string;
+  sources?: RAGQueryResponse["sources"];
+}
 
 function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (status?.toLowerCase()) {
@@ -227,9 +236,12 @@ export default function EPazarDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     loadTender();
+    generateSummary(); // Auto-generate summary on page load
   }, [tenderId]);
 
   async function loadTender() {
@@ -248,18 +260,63 @@ export default function EPazarDetailPage() {
   }
 
   async function generateSummary() {
-    if (!tender) return;
+    if (!tenderId) return;
 
     setSummaryLoading(true);
     try {
-      const result = await api.summarizeEPazarTender(tenderId);
-      setSummary(result.summary);
+      // Use RAG query for consistent AI experience across tender types
+      const result = await api.queryRAG(
+        "Дај ми краток резиме на овој тендер во 3-4 реченици. Вклучи информации за артиклите и понудите.",
+        tenderId
+      );
+      setSummary(result.answer);
     } catch (err) {
       console.error('Failed to generate summary:', err);
+      // Fallback to the original method
+      try {
+        const result = await api.summarizeEPazarTender(tenderId);
+        setSummary(result.summary);
+      } catch {
+        setSummary("Неможе да се генерира резиме.");
+      }
     } finally {
       setSummaryLoading(false);
     }
   }
+
+  async function handleChatSend(message: string) {
+    setChatMessages((prev) => [...prev, { role: "user", content: message }]);
+    setChatLoading(true);
+
+    try {
+      const result = await api.queryRAG(message, tenderId);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: result.answer,
+          sources: result.sources,
+        },
+      ]);
+    } catch (error) {
+      console.error("Failed to get AI response:", error);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Грешка при добивање одговор. Ве молиме обидете се повторно.",
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  const quickPrompts = [
+    "Кои артикли се бараат?",
+    "Кои се понудувачите и нивните цени?",
+    "Кој е победникот?",
+  ];
 
   if (loading) {
     return (
@@ -367,26 +424,31 @@ export default function EPazarDetailPage() {
         </div>
 
         {/* AI Summary */}
-        <Card>
+        <Card className="border-primary/50 bg-primary/5">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-yellow-500" />
-                AI Summary
+                AI Резиме
               </CardTitle>
-              {!summary && (
+              {!summary && !summaryLoading && (
                 <Button onClick={generateSummary} disabled={summaryLoading} size="sm">
-                  {summaryLoading ? 'Generating...' : 'Generate Summary'}
+                  Генерирај резиме
                 </Button>
               )}
             </div>
           </CardHeader>
           <CardContent>
-            {summary ? (
+            {summaryLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                Генерирање на AI резиме...
+              </div>
+            ) : summary ? (
               <p className="text-gray-700 whitespace-pre-wrap">{summary}</p>
             ) : (
               <p className="text-gray-500 text-sm">
-                Click "Generate Summary" to get an AI-powered analysis of this tender, including item details and competition overview.
+                Кликни на "Генерирај резиме" за AI анализа на овој тендер, вклучувајќи детали за артиклите и конкуренцијата.
               </p>
             )}
           </CardContent>
@@ -404,7 +466,7 @@ export default function EPazarDetailPage() {
           </Card>
         )}
 
-        {/* Tabs for Items, Offers, Documents */}
+        {/* Tabs for Items, Offers, Documents, AI Agent */}
         <Card>
           <Tabs defaultValue="items">
             <CardHeader>
@@ -425,6 +487,10 @@ export default function EPazarDetailPage() {
                   <FileText className="h-4 w-4" />
                   Documents ({tender.documents?.length || 0})
                 </TabsTrigger>
+                <TabsTrigger value="chat" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  AI Асистент
+                </TabsTrigger>
               </TabsList>
             </CardHeader>
             <CardContent>
@@ -439,6 +505,57 @@ export default function EPazarDetailPage() {
               </TabsContent>
               <TabsContent value="documents">
                 <DocumentsList documents={tender.documents || []} />
+              </TabsContent>
+              <TabsContent value="chat">
+                <div className="space-y-4">
+                  <CardDescription>
+                    Постави прашања за овој тендер - за артикли, цени, понудувачи и повеќе
+                  </CardDescription>
+
+                  {/* Chat Messages */}
+                  <div className="space-y-4 min-h-[300px] max-h-[400px] overflow-y-auto border rounded-lg p-4 bg-gray-50">
+                    {chatMessages.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 py-8">
+                        <MessageSquare className="h-12 w-12 mb-2 opacity-20" />
+                        <p className="text-sm">Постави прашање за да започнеш</p>
+                      </div>
+                    ) : (
+                      chatMessages.map((msg, idx) => (
+                        <ChatMessage
+                          key={idx}
+                          role={msg.role}
+                          content={msg.content}
+                          sources={msg.sources}
+                        />
+                      ))
+                    )}
+                    {chatLoading && (
+                      <div className="text-sm text-gray-500">AI пишува...</div>
+                    )}
+                  </div>
+
+                  {/* Quick Prompts */}
+                  <div className="flex flex-wrap gap-2">
+                    {quickPrompts.map((prompt) => (
+                      <Button
+                        key={prompt}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChatSend(prompt)}
+                        disabled={chatLoading}
+                      >
+                        {prompt}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* Chat Input */}
+                  <ChatInput
+                    onSend={handleChatSend}
+                    disabled={chatLoading}
+                    placeholder="Прашај нешто за овој тендер..."
+                  />
+                </div>
               </TabsContent>
             </CardContent>
           </Tabs>
