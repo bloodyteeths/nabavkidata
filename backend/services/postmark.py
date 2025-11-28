@@ -324,6 +324,103 @@ class PostmarkService:
         )
 
 
+    async def send_tender_notification(
+        self,
+        email: str,
+        name: str,
+        tender_title: str,
+        tender_id: str,
+        contracting_authority: str,
+        estimated_value: Optional[str] = None,
+        deadline: Optional[str] = None,
+        category: Optional[str] = None
+    ) -> bool:
+        """Send tender notification email to user."""
+        tender_link = f"{self.frontend_url}/tenders/{tender_id}"
+
+        details_html = f"""
+        <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Contracting Authority:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">{contracting_authority}</td>
+        </tr>
+        """
+
+        if estimated_value:
+            details_html += f"""
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Estimated Value:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">{estimated_value}</td>
+            </tr>
+            """
+
+        if deadline:
+            details_html += f"""
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Deadline:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #dc2626;">{deadline}</td>
+            </tr>
+            """
+
+        if category:
+            details_html += f"""
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Category:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">{category}</td>
+            </tr>
+            """
+
+        content = f"""
+        <p>Hello <strong>{name}</strong>,</p>
+        <p>A new tender matching your criteria has been published:</p>
+        <div style="margin: 25px 0; padding: 20px; background-color: #f0f9ff; border-radius: 8px; border-left: 4px solid #2563eb;">
+            <h3 style="margin: 0 0 15px 0; color: #1e40af; font-size: 18px;">{tender_title}</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                {details_html}
+            </table>
+        </div>
+        <p>Click below to view full tender details and documents:</p>
+        """
+
+        html_content = self._get_email_template(
+            title="New Tender Alert",
+            content=content,
+            button_text="View Tender Details",
+            button_link=tender_link
+        )
+
+        return await self.send_email(
+            to=email,
+            subject=f"New Tender: {tender_title[:50]}..." if len(tender_title) > 50 else f"New Tender: {tender_title}",
+            html_content=html_content,
+            tag="tender-alert",
+            reply_to="support@nabavkidata.com"
+        )
+
+    async def send_test_email(self, to: str) -> bool:
+        """Send a test email to verify configuration."""
+        content = """
+        <p>This is a test email from NabavkiData.</p>
+        <p>If you received this email, your email configuration is working correctly.</p>
+        <p style="margin-top: 20px; padding: 15px; background-color: #d1fae5; border-left: 4px solid #10b981; color: #065f46;">
+            <strong>Success!</strong> Your Postmark integration is configured correctly.
+        </p>
+        """
+
+        html_content = self._get_email_template(
+            title="Test Email - NabavkiData",
+            content=content,
+            button_text="Visit NabavkiData",
+            button_link=self.frontend_url
+        )
+
+        return await self.send_email(
+            to=to,
+            subject="Test Email - NabavkiData",
+            html_content=html_content,
+            tag="test"
+        )
+
+
 # Global postmark service instance
 postmark_service = PostmarkService()
 
@@ -347,3 +444,25 @@ async def send_welcome_email(email: str, name: str) -> bool:
 async def send_password_changed_email(email: str, name: str) -> bool:
     """Send password changed confirmation email to user."""
     return await postmark_service.send_password_changed_email(email, name)
+
+
+async def send_tender_notification(
+    email: str,
+    name: str,
+    tender_title: str,
+    tender_id: str,
+    contracting_authority: str,
+    estimated_value: Optional[str] = None,
+    deadline: Optional[str] = None,
+    category: Optional[str] = None
+) -> bool:
+    """Send tender notification email to user."""
+    return await postmark_service.send_tender_notification(
+        email, name, tender_title, tender_id, contracting_authority,
+        estimated_value, deadline, category
+    )
+
+
+async def send_test_email(to: str) -> bool:
+    """Send test email."""
+    return await postmark_service.send_test_email(to)
