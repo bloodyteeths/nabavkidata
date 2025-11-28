@@ -289,12 +289,12 @@ async def log_audit(
 
 
 async def send_verification_email_task(email: str, token: str, name: str, background_tasks: BackgroundTasks):
-    """Send email verification email via Mailersend (background task)"""
-    from services.mailer import mailer_service
+    """Send email verification email via Postmark (background task)"""
+    from services.postmark import postmark_service
 
     async def send_email():
         try:
-            result = await mailer_service.send_verification_email(email, token, name)
+            result = await postmark_service.send_verification_email(email, token, name)
             if result:
                 logger.info(f"Verification email sent to {email}")
             else:
@@ -306,12 +306,12 @@ async def send_verification_email_task(email: str, token: str, name: str, backgr
 
 
 async def send_password_reset_email_task(email: str, token: str, name: str, background_tasks: BackgroundTasks):
-    """Send password reset email via Mailersend (background task)"""
-    from services.mailer import mailer_service
+    """Send password reset email via Postmark (background task)"""
+    from services.postmark import postmark_service
 
     async def send_email():
         try:
-            result = await mailer_service.send_password_reset_email(email, token, name)
+            result = await postmark_service.send_password_reset_email(email, token, name)
             if result:
                 logger.info(f"Password reset email sent to {email}")
             else:
