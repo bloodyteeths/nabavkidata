@@ -1,6 +1,12 @@
 """
 Scrapy pipelines for PDF handling and database insertion
 Includes: PDF download, Cyrillic extraction, database storage
+
+PHASE 2 Enhancements:
+- Authenticated PDF downloads using saved session cookies
+- Login page detection (prevents storing HTML as PDF)
+- Raw JSON storage for debugging and data recovery
+- Improved extraction status tracking
 """
 import asyncpg
 import asyncio
@@ -15,8 +21,13 @@ from scrapy.utils.defer import deferred_from_coro
 from scraper.items import DocumentItem
 import aiofiles
 import fitz  # PyMuPDF
+from yarl import URL
 
 logger = logging.getLogger(__name__)
+
+# Cookie file paths (shared with spiders)
+AUTH_COOKIE_FILE = Path('/tmp/nabavki_auth_cookies.json')
+CONTRACTS_COOKIE_FILE = Path('/tmp/contracts_auth_cookies.json')
 
 
 class PDFDownloadPipeline:
@@ -25,13 +36,18 @@ class PDFDownloadPipeline:
 
     Downloads PDF files from URLs and saves them locally.
     Handles large files with streaming and proper error handling.
-    Enhanced with actual file download functionality.
+
+    PHASE 2 Enhancement: Authenticated downloads using saved session cookies.
+    Documents on e-nabavki.gov.mk require authentication - without cookies,
+    the server returns a login page HTML instead of the actual PDF.
     """
 
     def __init__(self, files_store):
         self.files_store = Path(files_store)
         self.files_store.mkdir(parents=True, exist_ok=True)
         self.session = None
+        self.cookies = None
+        self.auth_loaded = False
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -39,11 +55,55 @@ class PDFDownloadPipeline:
             files_store=crawler.settings.get('FILES_STORE', 'downloads/files')
         )
 
+    def _load_auth_cookies(self):
+        """
+        Load saved authentication cookies from spider session files.
+        Tries both nabavki_auth and contracts spider cookie files.
+        """
+        cookie_files = [AUTH_COOKIE_FILE, CONTRACTS_COOKIE_FILE]
+
+        for cookie_file in cookie_files:
+            if cookie_file.exists():
+                try:
+                    with open(cookie_file, 'r') as f:
+                        self.cookies = json.load(f)
+                    logger.info(f"✓ Loaded {len(self.cookies)} auth cookies from {cookie_file}")
+                    self.auth_loaded = True
+                    return True
+                except Exception as e:
+                    logger.warning(f"Could not load cookies from {cookie_file}: {e}")
+
+        logger.warning("⚠ No auth cookies found - PDF downloads may fail for protected documents")
+        return False
+
     def open_spider(self, spider):
         logger.info(f"PDFDownloadPipeline: Storing files in {self.files_store}")
-        # Create aiohttp session for downloads
+
+        # Load saved authentication cookies
+        self._load_auth_cookies()
+
+        # Create aiohttp session with cookie jar
         import aiohttp
-        self.session = aiohttp.ClientSession()
+        jar = aiohttp.CookieJar()
+        self.session = aiohttp.ClientSession(cookie_jar=jar)
+
+        # Add cookies to session for e-nabavki.gov.mk domain
+        if self.cookies:
+            for cookie in self.cookies:
+                try:
+                    domain = cookie.get('domain', 'e-nabavki.gov.mk')
+                    # Ensure domain doesn't start with a dot
+                    if domain.startswith('.'):
+                        domain = domain[1:]
+
+                    self.session.cookie_jar.update_cookies(
+                        {cookie['name']: cookie['value']},
+                        URL(f"https://{domain}/")
+                    )
+                except Exception as e:
+                    logger.debug(f"Could not add cookie {cookie.get('name')}: {e}")
+
+            logger.info(f"✓ Added {len(self.cookies)} cookies to download session")
 
     async def _close_spider_async(self, spider):
         """Close aiohttp session"""
@@ -143,6 +203,43 @@ class PDFDownloadPipeline:
                     logger.warning(f"Downloaded file is too small: {filename} ({actual_size} bytes)")
                     adapter['extraction_status'] = 'download_corrupted'
                     file_path.unlink()  # Delete corrupted file
+                    return item
+
+                # PHASE 2: Detect if downloaded file is a login page (HTML) instead of actual PDF
+                # This happens when authentication cookies are missing or expired
+                with open(file_path, 'rb') as f:
+                    file_header = f.read(1024)
+
+                is_valid_pdf = file_header.startswith(b'%PDF')
+                is_html_page = (
+                    b'<html' in file_header.lower() or
+                    b'<!doctype' in file_header.lower() or
+                    b'<head>' in file_header.lower()
+                )
+                # Check for login page indicators in HTML
+                is_login_page = is_html_page and (
+                    b'login' in file_header.lower() or
+                    b'password' in file_header.lower() or
+                    # Macedonian: "Корисничко име" (username), "Лозинка" (password)
+                    'корисничко'.encode('utf-8') in file_header.lower() or
+                    'лозинка'.encode('utf-8') in file_header.lower()
+                )
+
+                if is_login_page:
+                    logger.warning(f"⚠ Downloaded file is LOGIN PAGE (auth required): {filename}")
+                    adapter['extraction_status'] = 'auth_required'
+                    file_path.unlink()  # Delete invalid file
+                    return item
+                elif is_html_page and not is_valid_pdf:
+                    logger.warning(f"⚠ Downloaded file is HTML (not PDF): {filename}")
+                    adapter['extraction_status'] = 'download_invalid'
+                    file_path.unlink()  # Delete invalid file
+                    return item
+                elif not is_valid_pdf and actual_size < 5000:
+                    # Small file that's not a PDF - likely an error page
+                    logger.warning(f"⚠ Downloaded file is not a valid PDF: {filename}")
+                    adapter['extraction_status'] = 'download_invalid'
+                    file_path.unlink()
                     return item
 
         except asyncio.TimeoutError:
@@ -603,6 +700,48 @@ class DatabasePipeline:
         content_hash = item.get('content_hash')
         source_category = item.get('source_category')
 
+        # PHASE 2: Build raw_data_json from all scraped fields for debugging and data recovery
+        raw_data = {
+            'tender_id': item.get('tender_id'),
+            'title': item.get('title'),
+            'description': item.get('description'),
+            'category': item.get('category'),
+            'procuring_entity': item.get('procuring_entity'),
+            'opening_date': item.get('opening_date'),
+            'closing_date': item.get('closing_date'),
+            'publication_date': item.get('publication_date'),
+            'estimated_value_mkd': str(item.get('estimated_value_mkd')) if item.get('estimated_value_mkd') else None,
+            'estimated_value_eur': str(item.get('estimated_value_eur')) if item.get('estimated_value_eur') else None,
+            'actual_value_mkd': str(item.get('actual_value_mkd')) if item.get('actual_value_mkd') else None,
+            'actual_value_eur': str(item.get('actual_value_eur')) if item.get('actual_value_eur') else None,
+            'cpv_code': item.get('cpv_code'),
+            'status': status,
+            'winner': item.get('winner'),
+            'source_url': item.get('source_url'),
+            'procedure_type': item.get('procedure_type'),
+            'contract_signing_date': item.get('contract_signing_date'),
+            'contract_duration': item.get('contract_duration'),
+            'contracting_entity_category': item.get('contracting_entity_category'),
+            'procurement_holder': item.get('procurement_holder'),
+            'bureau_delivery_date': item.get('bureau_delivery_date'),
+            'contact_person': contact_person,
+            'contact_email': contact_email,
+            'contact_phone': contact_phone,
+            'num_bidders': num_bidders,
+            'security_deposit_mkd': str(security_deposit_mkd) if security_deposit_mkd else None,
+            'performance_guarantee_mkd': str(performance_guarantee_mkd) if performance_guarantee_mkd else None,
+            'payment_terms': payment_terms,
+            'evaluation_method': evaluation_method,
+            'has_lots': has_lots,
+            'num_lots': num_lots,
+            'bidders_data': item.get('bidders_data'),
+            'lots_data': item.get('lots_data'),
+            'documents_data': [doc if isinstance(doc, dict) else str(doc) for doc in (item.get('documents_data') or [])],
+            'scraped_at': item.get('scraped_at'),
+            'source_category': source_category,
+        }
+        raw_data_json = json.dumps(raw_data, ensure_ascii=False, default=str)
+
         # Determine if this is a new tender (for first_scraped_at)
         is_new = change_result == 'new'
 
@@ -619,8 +758,9 @@ class DatabasePipeline:
                 num_bidders, security_deposit_mkd, performance_guarantee_mkd,
                 payment_terms, evaluation_method, award_criteria,
                 has_lots, num_lots, amendment_count, last_amendment_date,
-                content_hash, source_category, first_scraped_at, scrape_count, last_modified
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42)
+                content_hash, source_category, first_scraped_at, scrape_count, last_modified,
+                raw_data_json
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43)
             ON CONFLICT (tender_id) DO UPDATE SET
                 title = EXCLUDED.title,
                 description = EXCLUDED.description,
@@ -656,7 +796,8 @@ class DatabasePipeline:
                 source_category = EXCLUDED.source_category,
                 scrape_count = tenders.scrape_count + 1,
                 last_modified = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
+                updated_at = CURRENT_TIMESTAMP,
+                raw_data_json = EXCLUDED.raw_data_json
         """,
             item.get('tender_id'),
             item.get('title'),
@@ -699,7 +840,8 @@ class DatabasePipeline:
             source_category,
             scraped_at if is_new else None,  # first_scraped_at - only set for new tenders
             1,  # scrape_count starts at 1
-            datetime.utcnow() if change_result == 'updated' else None  # last_modified
+            datetime.utcnow() if change_result == 'updated' else None,  # last_modified
+            raw_data_json  # $43 - PHASE 2: Store raw scraped data for debugging
         )
 
         logger.info(f"Tender saved ({change_result}): {item.get('tender_id')}")
