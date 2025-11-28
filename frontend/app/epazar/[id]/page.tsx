@@ -441,9 +441,9 @@ export default function EPazarDetailPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-2">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-2 pl-0 hover:bg-transparent">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to e-Pazar
             </Button>
@@ -451,13 +451,13 @@ export default function EPazarDetailPage() {
               <Badge variant={getStatusBadgeVariant(tender.status)} className="text-sm">
                 {tender.status}
               </Badge>
-              <span className="text-gray-500">{tender.tender_id}</span>
+              <span className="text-gray-500 text-sm">{tender.tender_id}</span>
             </div>
-            <h1 className="text-2xl font-bold mt-2">{tender.title}</h1>
+            <h1 className="text-xl md:text-2xl font-bold mt-2 break-words">{tender.title}</h1>
           </div>
           {tender.source_url && (
-            <a href={tender.source_url} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline">
+            <a href={tender.source_url} target="_blank" rel="noopener noreferrer" className="w-full md:w-auto">
+              <Button variant="outline" className="w-full md:w-auto">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 View Original
               </Button>
@@ -563,28 +563,30 @@ export default function EPazarDetailPage() {
         <Card>
           <Tabs defaultValue="items">
             <CardHeader>
-              <TabsList>
-                <TabsTrigger value="items" className="flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  Items ({tender.items?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger value="offers" className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Offers ({tender.offers?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger value="awarded" className="flex items-center gap-2">
-                  <Trophy className="h-4 w-4" />
-                  Awarded ({tender.awarded_items?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger value="documents" className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Documents ({tender.documents?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger value="chat" className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4" />
-                  AI Асистент
-                </TabsTrigger>
-              </TabsList>
+              <div className="w-full overflow-x-auto pb-2">
+                <TabsList className="w-full justify-start inline-flex min-w-max">
+                  <TabsTrigger value="items" className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Items ({tender.items?.length || 0})
+                  </TabsTrigger>
+                  <TabsTrigger value="offers" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Offers ({tender.offers?.length || 0})
+                  </TabsTrigger>
+                  <TabsTrigger value="awarded" className="flex items-center gap-2">
+                    <Trophy className="h-4 w-4" />
+                    Awarded ({tender.awarded_items?.length || 0})
+                  </TabsTrigger>
+                  <TabsTrigger value="documents" className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Documents ({tender.documents?.length || 0})
+                  </TabsTrigger>
+                  <TabsTrigger value="chat" className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    AI Асистент
+                  </TabsTrigger>
+                </TabsList>
+              </div>
             </CardHeader>
             <CardContent>
               <TabsContent value="items">

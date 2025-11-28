@@ -415,26 +415,27 @@ export default function TenderDetailPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
-          <Button asChild variant="ghost" size="sm" className="mb-2">
-            <Link href="/tenders">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <Button asChild variant="ghost" size="sm" className="mb-2 pl-0 hover:bg-transparent">
+            <Link href="/tenders" className="flex items-center text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Назад
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold">{tender.title || "Без наслов"}</h1>
-          <div className="flex items-center gap-2 mt-2">
+          <h1 className="text-xl md:text-3xl font-bold break-words">{tender.title || "Без наслов"}</h1>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
             {tender.status ? <Badge>{tender.status}</Badge> : <Badge variant="outline">активен</Badge>}
             {tender.category && <Badge variant="outline">{tender.category}</Badge>}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
           <Button
             variant="outline"
             onClick={() => logBehavior("save")}
+            className="flex-1 md:flex-none"
           >
             <Bookmark className="h-4 w-4 mr-2" />
             Зачувај
@@ -442,17 +443,19 @@ export default function TenderDetailPage() {
           <Button
             variant={notifyEnabled ? "default" : "outline"}
             onClick={toggleNotify}
+            className="flex-1 md:flex-none"
           >
             <Sparkles className="h-4 w-4 mr-2" />
-            {notifyEnabled ? "Известувања вклучени" : "Вклучи известувања"}
+            {notifyEnabled ? "Вклучени" : "Известувања"}
           </Button>
           <Button
             onClick={handleOpenSource}
             disabled={!tender.source_url}
             variant={tender.source_url ? "default" : "outline"}
+            className="flex-1 md:flex-none"
           >
             <ExternalLink className="h-4 w-4 mr-2" />
-            {tender.source_url ? "Отвори извор" : "Нема извор"}
+            {tender.source_url ? "Извор" : "Нема извор"}
           </Button>
         </div>
       </div>
@@ -505,10 +508,10 @@ export default function TenderDetailPage() {
                   <p className="text-xs text-muted-foreground">Комплексност</p>
                   <Badge variant={
                     aiSummaryData.estimated_complexity === 'high' ? 'destructive' :
-                    aiSummaryData.estimated_complexity === 'medium' ? 'default' : 'secondary'
+                      aiSummaryData.estimated_complexity === 'medium' ? 'default' : 'secondary'
                   } className="mt-1">
                     {aiSummaryData.estimated_complexity === 'high' ? 'Висока' :
-                     aiSummaryData.estimated_complexity === 'medium' ? 'Средна' : 'Ниска'}
+                      aiSummaryData.estimated_complexity === 'medium' ? 'Средна' : 'Ниска'}
                   </Badge>
                 </div>
 
@@ -517,11 +520,11 @@ export default function TenderDetailPage() {
                   <p className="text-xs text-muted-foreground">Конкуренција</p>
                   <Badge variant={
                     aiSummaryData.competition_level === 'high' ? 'destructive' :
-                    aiSummaryData.competition_level === 'medium' ? 'default' : 'secondary'
+                      aiSummaryData.competition_level === 'medium' ? 'default' : 'secondary'
                   } className="mt-1">
                     {aiSummaryData.competition_level === 'high' ? 'Висока' :
-                     aiSummaryData.competition_level === 'medium' ? 'Средна' :
-                     aiSummaryData.competition_level === 'low' ? 'Ниска' : 'Непозната'}
+                      aiSummaryData.competition_level === 'medium' ? 'Средна' :
+                        aiSummaryData.competition_level === 'low' ? 'Ниска' : 'Непозната'}
                   </Badge>
                 </div>
 
@@ -530,13 +533,13 @@ export default function TenderDetailPage() {
                   <p className="text-xs text-muted-foreground">Итност</p>
                   <Badge variant={
                     aiSummaryData.deadline_urgency === 'critical' ? 'destructive' :
-                    aiSummaryData.deadline_urgency === 'urgent' ? 'default' :
-                    aiSummaryData.deadline_urgency === 'closed' ? 'secondary' : 'outline'
+                      aiSummaryData.deadline_urgency === 'urgent' ? 'default' :
+                        aiSummaryData.deadline_urgency === 'closed' ? 'secondary' : 'outline'
                   } className="mt-1">
                     {aiSummaryData.deadline_urgency === 'critical' ? 'Критична' :
-                     aiSummaryData.deadline_urgency === 'urgent' ? 'Итна' :
-                     aiSummaryData.deadline_urgency === 'soon' ? 'Наскоро' :
-                     aiSummaryData.deadline_urgency === 'closed' ? 'Затворен' : 'Нормална'}
+                      aiSummaryData.deadline_urgency === 'urgent' ? 'Итна' :
+                        aiSummaryData.deadline_urgency === 'soon' ? 'Наскоро' :
+                          aiSummaryData.deadline_urgency === 'closed' ? 'Затворен' : 'Нормална'}
                   </Badge>
                 </div>
 
@@ -605,34 +608,36 @@ export default function TenderDetailPage() {
         {/* Left Column - Details */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="details">
-            <TabsList>
-              <TabsTrigger value="details">
-                <FileText className="h-4 w-4 mr-2" />
-                Детали
-              </TabsTrigger>
-              <TabsTrigger value="documents">
-                <File className="h-4 w-4 mr-2" />
-                Документи ({documents.length})
-              </TabsTrigger>
-              <TabsTrigger value="bidders">
-                <Users className="h-4 w-4 mr-2" />
-                Понудувачи ({bidders.length})
-              </TabsTrigger>
-              {hasLots && (
-                <TabsTrigger value="lots">
-                  <Package className="h-4 w-4 mr-2" />
-                  Лотови ({lots.length})
+            <div className="w-full overflow-x-auto pb-2">
+              <TabsList className="w-full justify-start inline-flex min-w-max">
+                <TabsTrigger value="details">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Детали
                 </TabsTrigger>
-              )}
-              <TabsTrigger value="products">
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                Производи {aiProducts?.products?.length ? `(${aiProducts.products.length})` : ''}
-              </TabsTrigger>
-              <TabsTrigger value="chat">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                AI Асистент
-              </TabsTrigger>
-            </TabsList>
+                <TabsTrigger value="documents">
+                  <File className="h-4 w-4 mr-2" />
+                  Документи ({documents.length})
+                </TabsTrigger>
+                <TabsTrigger value="bidders">
+                  <Users className="h-4 w-4 mr-2" />
+                  Понудувачи ({bidders.length})
+                </TabsTrigger>
+                {hasLots && (
+                  <TabsTrigger value="lots">
+                    <Package className="h-4 w-4 mr-2" />
+                    Лотови ({lots.length})
+                  </TabsTrigger>
+                )}
+                <TabsTrigger value="products">
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Производи {aiProducts?.products?.length ? `(${aiProducts.products.length})` : ''}
+                </TabsTrigger>
+                <TabsTrigger value="chat">
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  AI Асистент
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="details" className="space-y-4 mt-4">
               {/* Description */}
