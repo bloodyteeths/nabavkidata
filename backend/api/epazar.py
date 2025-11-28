@@ -975,3 +975,293 @@ async def analyze_supplier(
     except Exception as e:
         logger.error(f"Error analyzing supplier {supplier_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ITEM PRICE HISTORY
+# ============================================================================
+
+@router.get("/items/{item_id}/price-history")
+async def get_epazar_item_price_history(
+    item_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get price history for a specific e-Pazar item across all tenders.
+
+    Returns historical prices, statistics, and price trend analysis.
+    """
+    try:
+        # First get the item to find its name
+        item_query = text("""
+            SELECT item_id, item_name, item_description, unit, cpv_code
+            FROM epazar_items
+            WHERE item_id = :item_id
+        """)
+        item_result = await db.execute(item_query, {'item_id': item_id})
+        item = item_result.fetchone()
+
+        if not item:
+            raise HTTPException(status_code=404, detail="Item not found")
+
+        # Get price history for this item and similar items
+        history_query = text("""
+            SELECT
+                i.tender_id,
+                t.closing_date,
+                t.contracting_authority,
+                t.status as tender_status,
+                i.estimated_unit_price_mkd as unit_price,
+                i.quantity,
+                i.estimated_total_price_mkd as total_price,
+                o.supplier_name,
+                o.is_winner,
+                oi.unit_price_mkd as winning_unit_price
+            FROM epazar_items i
+            JOIN epazar_tenders t ON i.tender_id = t.tender_id
+            LEFT JOIN epazar_offers o ON i.tender_id = o.tender_id AND o.is_winner = TRUE
+            LEFT JOIN epazar_offer_items oi ON o.offer_id = oi.offer_id AND oi.item_id = i.item_id
+            WHERE i.item_id = :item_id
+               OR (i.item_name ILIKE :item_name AND i.item_id != :item_id)
+            ORDER BY t.closing_date DESC NULLS LAST
+            LIMIT 100
+        """)
+
+        history_result = await db.execute(history_query, {
+            'item_id': item_id,
+            'item_name': f"%{item.item_name}%"
+        })
+        history_rows = history_result.fetchall()
+
+        # Build price history
+        price_history = []
+        prices = []
+        for row in history_rows:
+            price = float(row.unit_price) if row.unit_price else None
+            winning_price = float(row.winning_unit_price) if row.winning_unit_price else None
+
+            if price:
+                prices.append(price)
+
+            price_history.append({
+                "tender_id": row.tender_id,
+                "date": row.closing_date.isoformat() if row.closing_date else None,
+                "contracting_authority": row.contracting_authority,
+                "unit_price_mkd": price,
+                "winning_unit_price_mkd": winning_price,
+                "quantity": float(row.quantity) if row.quantity else None,
+                "total_price_mkd": float(row.total_price) if row.total_price else None,
+                "supplier": row.supplier_name,
+                "is_winning_price": row.is_winner or False
+            })
+
+        # Calculate statistics
+        statistics = {
+            "min_price": min(prices) if prices else None,
+            "max_price": max(prices) if prices else None,
+            "avg_price": sum(prices) / len(prices) if prices else None,
+            "occurrence_count": len(price_history),
+            "price_trend": "stable"
+        }
+
+        # Determine price trend
+        if len(prices) >= 3:
+            recent_avg = sum(prices[:len(prices)//3]) / (len(prices)//3)
+            older_avg = sum(prices[2*len(prices)//3:]) / (len(prices) - 2*len(prices)//3)
+            if recent_avg > older_avg * 1.1:
+                statistics["price_trend"] = "rising"
+            elif recent_avg < older_avg * 0.9:
+                statistics["price_trend"] = "falling"
+
+        return {
+            "item_id": item_id,
+            "item_name": item.item_name,
+            "item_description": item.item_description,
+            "unit": item.unit,
+            "cpv_code": item.cpv_code,
+            "price_history": price_history,
+            "statistics": statistics
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching price history for item {item_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# SUPPLIER DETAILED STATS
+# ============================================================================
+
+@router.get("/suppliers/{supplier_id}/stats")
+async def get_epazar_supplier_stats(
+    supplier_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get detailed statistics for an e-Pazar supplier.
+
+    Returns comprehensive performance metrics, trends, and category breakdown.
+    """
+    try:
+        # Get supplier basic info
+        supplier_query = text("""
+            SELECT * FROM epazar_suppliers WHERE supplier_id = :supplier_id
+        """)
+        supplier_result = await db.execute(supplier_query, {'supplier_id': supplier_id})
+        supplier = supplier_result.fetchone()
+
+        if not supplier:
+            raise HTTPException(status_code=404, detail="Supplier not found")
+
+        # Get detailed statistics
+        stats_query = text("""
+            SELECT
+                COUNT(*) as total_offers,
+                COUNT(*) FILTER (WHERE is_winner) as total_wins,
+                AVG(total_bid_mkd) as avg_bid_amount,
+                MIN(total_bid_mkd) as min_bid,
+                MAX(total_bid_mkd) as max_bid,
+                SUM(total_bid_mkd) FILTER (WHERE is_winner) as total_won_value,
+                COUNT(DISTINCT tender_id) as unique_tenders,
+                MIN(offer_date) as first_offer_date,
+                MAX(offer_date) as last_offer_date
+            FROM epazar_offers
+            WHERE supplier_name = :supplier_name
+        """)
+        stats_result = await db.execute(stats_query, {'supplier_name': supplier.company_name})
+        stats = stats_result.fetchone()
+
+        # Calculate average discount vs estimated value
+        discount_query = text("""
+            SELECT AVG(
+                CASE
+                    WHEN t.estimated_value_mkd > 0
+                    THEN (t.estimated_value_mkd - o.total_bid_mkd) / t.estimated_value_mkd * 100
+                    ELSE 0
+                END
+            ) as avg_discount_percent
+            FROM epazar_offers o
+            JOIN epazar_tenders t ON o.tender_id = t.tender_id
+            WHERE o.supplier_name = :supplier_name
+              AND o.is_winner = TRUE
+              AND t.estimated_value_mkd > 0
+        """)
+        discount_result = await db.execute(discount_query, {'supplier_name': supplier.company_name})
+        avg_discount = discount_result.scalar() or 0
+
+        # Category breakdown
+        categories_query = text("""
+            SELECT
+                t.category,
+                COUNT(*) as offers,
+                COUNT(*) FILTER (WHERE o.is_winner) as wins
+            FROM epazar_offers o
+            JOIN epazar_tenders t ON o.tender_id = t.tender_id
+            WHERE o.supplier_name = :supplier_name
+              AND t.category IS NOT NULL
+            GROUP BY t.category
+            ORDER BY wins DESC, offers DESC
+            LIMIT 10
+        """)
+        categories_result = await db.execute(categories_query, {'supplier_name': supplier.company_name})
+        categories = [
+            {"category": row.category, "offers": row.offers, "wins": row.wins}
+            for row in categories_result.fetchall()
+        ]
+
+        # Monthly activity trend (last 12 months)
+        trend_query = text("""
+            SELECT
+                date_trunc('month', o.offer_date) as month,
+                COUNT(*) as offers,
+                COUNT(*) FILTER (WHERE o.is_winner) as wins,
+                SUM(o.total_bid_mkd) as total_bid_value
+            FROM epazar_offers o
+            WHERE o.supplier_name = :supplier_name
+              AND o.offer_date >= NOW() - INTERVAL '12 months'
+            GROUP BY date_trunc('month', o.offer_date)
+            ORDER BY month
+        """)
+        trend_result = await db.execute(trend_query, {'supplier_name': supplier.company_name})
+        monthly_trend = [
+            {
+                "month": row.month.strftime("%Y-%m") if row.month else None,
+                "offers": row.offers,
+                "wins": row.wins,
+                "total_bid_value": float(row.total_bid_value) if row.total_bid_value else None
+            }
+            for row in trend_result.fetchall()
+        ]
+
+        # Calculate win rate trends
+        win_rate_6m_query = text("""
+            SELECT
+                COUNT(*) FILTER (WHERE is_winner)::float / NULLIF(COUNT(*), 0) * 100 as win_rate
+            FROM epazar_offers
+            WHERE supplier_name = :supplier_name
+              AND offer_date >= NOW() - INTERVAL '6 months'
+        """)
+        win_rate_6m_result = await db.execute(win_rate_6m_query, {'supplier_name': supplier.company_name})
+        win_rate_6m = win_rate_6m_result.scalar() or 0
+
+        win_rate_12m_query = text("""
+            SELECT
+                COUNT(*) FILTER (WHERE is_winner)::float / NULLIF(COUNT(*), 0) * 100 as win_rate
+            FROM epazar_offers
+            WHERE supplier_name = :supplier_name
+              AND offer_date >= NOW() - INTERVAL '12 months'
+        """)
+        win_rate_12m_result = await db.execute(win_rate_12m_query, {'supplier_name': supplier.company_name})
+        win_rate_12m = win_rate_12m_result.scalar() or 0
+
+        # Repeat customer analysis
+        repeat_query = text("""
+            SELECT COUNT(DISTINCT t.contracting_authority) as unique_customers,
+                   COUNT(*) FILTER (WHERE o.is_winner) as total_wins
+            FROM epazar_offers o
+            JOIN epazar_tenders t ON o.tender_id = t.tender_id
+            WHERE o.supplier_name = :supplier_name AND o.is_winner = TRUE
+        """)
+        repeat_result = await db.execute(repeat_query, {'supplier_name': supplier.company_name})
+        repeat_row = repeat_result.fetchone()
+
+        total_wins = stats.total_wins or 0
+        unique_customers = repeat_row.unique_customers or 0
+        repeat_rate = ((total_wins - unique_customers) / total_wins * 100) if total_wins > unique_customers else 0
+
+        return {
+            "supplier_id": supplier_id,
+            "company_name": supplier.company_name,
+            "statistics": {
+                "total_offers": stats.total_offers or 0,
+                "total_wins": stats.total_wins or 0,
+                "win_rate": float(supplier.win_rate) if supplier.win_rate else 0,
+                "total_contract_value_mkd": float(stats.total_won_value) if stats.total_won_value else 0,
+                "avg_bid_amount": float(stats.avg_bid_amount) if stats.avg_bid_amount else None,
+                "min_bid": float(stats.min_bid) if stats.min_bid else None,
+                "max_bid": float(stats.max_bid) if stats.max_bid else None,
+                "avg_discount_percent": round(float(avg_discount), 2),
+                "unique_tenders": stats.unique_tenders or 0,
+                "active_since": stats.first_offer_date.isoformat() if stats.first_offer_date else None,
+                "last_activity": stats.last_offer_date.isoformat() if stats.last_offer_date else None
+            },
+            "performance": {
+                "repeat_customer_rate": round(repeat_rate, 2),
+                "unique_customers": unique_customers
+            },
+            "trends": {
+                "win_rate_6m": round(float(win_rate_6m), 2),
+                "win_rate_12m": round(float(win_rate_12m), 2),
+                "activity_trend": "stable"  # Could calculate more precisely
+            },
+            "categories": categories,
+            "monthly_trend": monthly_trend
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching stats for supplier {supplier_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

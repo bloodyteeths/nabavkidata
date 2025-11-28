@@ -15,7 +15,7 @@ import os
 from database import init_db, close_db, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics
 from middleware.fraud import FraudPreventionMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 
@@ -76,6 +76,7 @@ app.include_router(tender_details.router, prefix="/api")  # Tender bidders/lots/
 app.include_router(tenders.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
+app.include_router(ai.router, prefix="/api")  # AI endpoints (CPV suggest, requirements extraction, competitor analysis)
 app.include_router(scraper.router, prefix="/api")  # Scraper API
 app.include_router(entities.router, prefix="/api")  # Entity profiles
 app.include_router(analytics.router, prefix="/api")  # Analytics & trends
@@ -85,6 +86,9 @@ app.include_router(epazar.router)  # e-Pazar marketplace data
 app.include_router(admin.router)  # Admin router has its own prefix
 app.include_router(fraud_endpoints.router)  # Fraud router has its own prefix
 app.include_router(personalization.router)  # Personalization router has its own prefix
+app.include_router(cpv_codes.router, prefix="/api")  # CPV codes browser
+app.include_router(saved_searches.router, prefix="/api")  # Saved searches/alerts
+app.include_router(market_analytics.router, prefix="/api")  # Market analytics endpoints
 
 
 # Root endpoints
