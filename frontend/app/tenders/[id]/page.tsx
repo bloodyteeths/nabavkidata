@@ -1243,7 +1243,6 @@ export default function TenderDetailPage() {
           </Card>
         </div>
       </div>
-    </div>
 
       <Dialog open={jsonOpen} onOpenChange={setJsonOpen}>
         <DialogContent className="sm:max-w-5xl">
@@ -1318,5 +1317,6 @@ export default function TenderDetailPage() {
           </Tabs>
         </DialogContent>
       </Dialog>
+    </div>
   );
 }
