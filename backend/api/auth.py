@@ -416,19 +416,22 @@ async def register(
 
     # Create user
     hashed_password = get_password_hash(user_data.password)
-    verification_token = create_verification_token()
 
     new_user = User(
         email=user_data.email,
         password_hash=hashed_password,
         full_name=user_data.full_name,
-        email_verified=True, # TEMPORARY: Auto-verify for testing
+        email_verified=False,  # Requires email verification
         subscription_tier="free"
     )
 
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+
+    # Generate and store verification token
+    from services.auth_service import generate_verification_token
+    verification_token = generate_verification_token(new_user.user_id, user_data.email)
 
     # Send verification email
     await send_verification_email_task(user_data.email, verification_token, user_data.full_name or "User", background_tasks)
@@ -625,11 +628,19 @@ async def verify_email(
     - Validates verification token
     - Marks email as verified
     """
-    # TODO: Implement token storage and validation
-    # For now, this is a placeholder
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Email verification token validation not yet implemented"
+    from services.auth_service import verify_email as verify_email_service
+
+    success = await verify_email_service(db, token)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token"
+        )
+
+    return MessageResponse(
+        message="Email verified successfully",
+        detail="You can now log in to your account"
     )
 
 
@@ -658,8 +669,9 @@ async def resend_verification(
             detail="Email already verified"
         )
 
-    # Generate new token
-    verification_token = create_verification_token()
+    # Generate and store new token
+    from services.auth_service import generate_verification_token
+    verification_token = generate_verification_token(user.user_id, email)
 
     # Send verification email
     await send_verification_email_task(email, verification_token, user.full_name or "User", background_tasks)

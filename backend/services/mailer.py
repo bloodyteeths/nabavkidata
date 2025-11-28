@@ -229,7 +229,7 @@ class MailerService:
         Returns:
             bool: True if sent successfully
         """
-        verification_link = f"{self.frontend_url}/verify-email?token={token}"
+        verification_link = f"{self.frontend_url}/auth/verify-email?token={token}"
 
         content = f"""
         <p>Hello <strong>{name}</strong>,</p>
@@ -268,7 +268,7 @@ class MailerService:
         Returns:
             bool: True if sent successfully
         """
-        reset_link = f"{self.frontend_url}/reset-password?token={token}"
+        reset_link = f"{self.frontend_url}/auth/reset-password?token={token}"
 
         content = f"""
         <p>Hello <strong>{name}</strong>,</p>
