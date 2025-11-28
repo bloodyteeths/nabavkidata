@@ -139,16 +139,28 @@ async def query_rag(
                 print(f"Warning: Failed to increment query count: {e}")
 
         # Convert sources to response format
-        sources_response = [
-            RAGSource(
+        sources_response = []
+        for source in answer.sources:
+            # Convert doc_id to string if it's a UUID
+            doc_id_str = str(source.doc_id) if source.doc_id else None
+
+            # Parse chunk_metadata if it's a JSON string
+            chunk_meta = source.chunk_metadata
+            if isinstance(chunk_meta, str):
+                try:
+                    chunk_meta = json.loads(chunk_meta)
+                except (json.JSONDecodeError, TypeError):
+                    chunk_meta = {}
+            elif chunk_meta is None:
+                chunk_meta = {}
+
+            sources_response.append(RAGSource(
                 tender_id=source.tender_id,
-                doc_id=source.doc_id,
+                doc_id=doc_id_str,
                 chunk_text=source.chunk_text,
                 similarity=source.similarity,
-                chunk_metadata=source.chunk_metadata
-            )
-            for source in answer.sources
-        ]
+                chunk_metadata=chunk_meta
+            ))
 
         return RAGQueryResponse(
             question=answer.question,
@@ -389,17 +401,29 @@ async def semantic_search(
             results = [r for r in results if r.tender_id == request.tender_id]
 
         # Convert to response format
-        search_results = [
-            SemanticSearchResult(
+        search_results = []
+        for result in results:
+            # Convert doc_id to string if it's a UUID
+            doc_id_str = str(result.doc_id) if result.doc_id else None
+
+            # Parse chunk_metadata if it's a JSON string
+            chunk_meta = result.chunk_metadata
+            if isinstance(chunk_meta, str):
+                try:
+                    chunk_meta = json.loads(chunk_meta)
+                except (json.JSONDecodeError, TypeError):
+                    chunk_meta = {}
+            elif chunk_meta is None:
+                chunk_meta = {}
+
+            search_results.append(SemanticSearchResult(
                 tender_id=result.tender_id,
-                doc_id=result.doc_id,
+                doc_id=doc_id_str,
                 chunk_text=result.chunk_text,
                 chunk_index=result.chunk_index,
                 similarity=result.similarity,
-                chunk_metadata=result.chunk_metadata
-            )
-            for result in results
-        ]
+                chunk_metadata=chunk_meta
+            ))
 
         return SemanticSearchResponse(
             query=request.query,
