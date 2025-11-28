@@ -24,10 +24,7 @@ export default function TendersPage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [awardedCount, setAwardedCount] = useState(0);
-  const [quickFilters, setQuickFilters] = useState({
-    procedureType: null as string | null,
-    statusFilter: null as string | null,
-  });
+  // Quick filters removed - they were overriding main filters
   const limit = 20;
 
   // Hydration guard
@@ -38,8 +35,8 @@ export default function TendersPage() {
   useEffect(() => {
     if (!isHydrated) return;
     loadTenders();
-    // Only auto-load on page change, dataset change, or quick filters - NOT on regular filter changes
-  }, [isHydrated, page, dataset, quickFilters]);
+    // Only auto-load on page change, dataset change - NOT on regular filter changes
+  }, [isHydrated, page, dataset]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -74,13 +71,8 @@ export default function TendersPage() {
       // Apply text search
       if (filters.search) params.search = filters.search;
 
-      // Status filter logic:
-      // - User can filter by status within the selected dataset
-      // - The quick filter buttons also set status
-      // Priority: quickFilters.statusFilter > filters.status > dataset default
-      if (quickFilters.statusFilter) {
-        params.status = quickFilters.statusFilter;
-      } else if (filters.status) {
+      // Status filter - use main filters only
+      if (filters.status) {
         params.status = filters.status;
       } else if (dataset === "active") {
         // Default to open for active dataset only if no status filter is applied
@@ -107,9 +99,6 @@ export default function TendersPage() {
       // Date filters - map to backend parameter names (opening_date_from/to)
       if (filters.dateFrom) params.opening_date_from = filters.dateFrom;
       if (filters.dateTo) params.opening_date_to = filters.dateTo;
-
-      // Procedure type quick filter
-      if (quickFilters.procedureType) params.procedure_type = quickFilters.procedureType;
 
       const result = await api.getTenders(params);
       setTenders(result.items);
@@ -144,7 +133,6 @@ export default function TendersPage() {
 
   const handleReset = () => {
     setFilters({});
-    setQuickFilters({ procedureType: null, statusFilter: null });
     setPage(1);
   };
 
@@ -152,22 +140,6 @@ export default function TendersPage() {
     setFilters(savedFilters);
     setPage(1);
     toast.success("Пребарувањето е вчитано");
-  };
-
-  const handleQuickProcedureFilter = (type: string) => {
-    setQuickFilters(prev => ({
-      ...prev,
-      procedureType: prev.procedureType === type ? null : type
-    }));
-    setPage(1);
-  };
-
-  const handleQuickStatusFilter = (status: string) => {
-    setQuickFilters(prev => ({
-      ...prev,
-      statusFilter: prev.statusFilter === status ? null : status
-    }));
-    setPage(1);
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -213,63 +185,6 @@ export default function TendersPage() {
             </Button>
           );
         })}
-      </div>
-
-      {/* Quick Filters */}
-      <div className="space-y-3">
-        <div className="flex flex-col gap-2">
-          {/* Procedure Type Filters */}
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Брзо филтрирање по тип на постапка:</span>
-            <div className="flex flex-wrap gap-2">
-              {["Отворена постапка", "Ограничена постапка", "Преговарачка постапка", "Конкурентен дијалог"].map((type) => (
-                <Button
-                  key={type}
-                  variant={quickFilters.procedureType === type ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleQuickProcedureFilter(type)}
-                >
-                  {type}
-                </Button>
-              ))}
-              {quickFilters.procedureType && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setQuickFilters(prev => ({ ...prev, procedureType: null }))}
-                >
-                  Откажи
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Status Quick Filters - only show if not on specific dataset */}
-          {dataset === "active" && (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Брзо филтрирање по статус:</span>
-              <div className="flex flex-wrap gap-2">
-                {["open", "closed"].map((status) => (
-                  <Button
-                    key={status}
-                    variant={quickFilters.statusFilter === status ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleQuickStatusFilter(status)}
-                  >
-                    {status === "open" ? "Отворени" : "Затворени"}
-                  </Button>
-                ))}
-                <Button
-                  variant={quickFilters.statusFilter === null ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setQuickFilters(prev => ({ ...prev, statusFilter: null }))}
-                >
-                  Сите
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Stats */}

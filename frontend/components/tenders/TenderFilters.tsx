@@ -43,24 +43,30 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
   const [entityLoading, setEntityLoading] = useState(false);
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
 
-  // Initialize date filters with last 2 months on first render
+  // Initialize date filters with last 2 months on mount
+  const [initialized, setInitialized] = useState(false);
+
   useEffect(() => {
-    // Only set defaults if no filters are set yet
-    if (!filters.dateFrom && !filters.dateTo && Object.keys(filters).length === 0) {
+    if (!initialized) {
       const now = new Date();
       const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
       const defaultFilters = {
-        dateFrom: twoMonthsAgo.toISOString().split('T')[0],
-        dateTo: now.toISOString().split('T')[0],
+        ...filters,
+        dateFrom: filters.dateFrom || twoMonthsAgo.toISOString().split('T')[0],
+        dateTo: filters.dateTo || now.toISOString().split('T')[0],
       };
       setPendingFilters(defaultFilters);
+      onFiltersChange(defaultFilters);
+      setInitialized(true);
     }
-  }, []);
+  }, [initialized]);
 
-  // Sync pending filters with parent filters
+  // Sync pending filters with parent filters (but skip on mount)
   useEffect(() => {
-    setPendingFilters(filters);
-  }, [filters]);
+    if (initialized) {
+      setPendingFilters(filters);
+    }
+  }, [filters, initialized]);
 
   const updatePendingFilter = (key: keyof FilterState, value: any) => {
     setPendingFilters(prev => ({ ...prev, [key]: value }));
