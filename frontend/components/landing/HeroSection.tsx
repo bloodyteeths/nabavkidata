@@ -51,7 +51,7 @@ export default function HeroSection() {
                 >
                     <Link href="/auth/register">
                         <Button size="lg" className="h-12 px-8 text-lg bg-primary hover:bg-primary/90 text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300">
-                            Започни Веднаш <ArrowRight className="ml-2 h-5 w-5" />
+                            Пробај Бесплатно <ArrowRight className="ml-2 h-5 w-5" />
                         </Button>
                     </Link>
                     <Link href="#how-it-works">
