@@ -616,3 +616,207 @@ async def get_popular_searches(
     except Exception as e:
         print(f"Failed to get popular searches: {e}")
         return {"items": []}
+
+
+# ============================================================================
+# TRACKED COMPETITORS
+# ============================================================================
+
+class TrackedCompetitorAdd(BaseModel):
+    company_name: str
+
+
+class TrackedCompetitorRemove(BaseModel):
+    company_name: str
+
+
+@router.get("/tracked-competitors")
+async def get_tracked_competitors(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of tracked competitors for the user"""
+    user_id = current_user.user_id
+
+    query = select(UserPreferences).where(UserPreferences.user_id == user_id)
+    result = await db.execute(query)
+    prefs = result.scalar_one_or_none()
+
+    if not prefs or not prefs.competitor_companies:
+        return {"tracked_competitors": [], "count": 0}
+
+    return {
+        "tracked_competitors": prefs.competitor_companies,
+        "count": len(prefs.competitor_companies)
+    }
+
+
+@router.post("/tracked-competitors")
+async def add_tracked_competitor(
+    data: TrackedCompetitorAdd,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add a company to tracked competitors"""
+    user_id = current_user.user_id
+
+    query = select(UserPreferences).where(UserPreferences.user_id == user_id)
+    result = await db.execute(query)
+    prefs = result.scalar_one_or_none()
+
+    if not prefs:
+        # Create preferences if they don't exist
+        prefs = UserPreferences(
+            user_id=user_id,
+            sectors=[],
+            cpv_codes=[],
+            entities=[],
+            competitor_companies=[data.company_name],
+            exclude_keywords=[],
+            notification_frequency="daily",
+            email_enabled=True
+        )
+        db.add(prefs)
+    else:
+        # Add to existing list if not already tracked
+        if prefs.competitor_companies is None:
+            prefs.competitor_companies = []
+        if data.company_name not in prefs.competitor_companies:
+            prefs.competitor_companies = prefs.competitor_companies + [data.company_name]
+
+    await db.commit()
+    await db.refresh(prefs)
+
+    return {
+        "message": f"Компанијата '{data.company_name}' е додадена на листата за следење",
+        "tracked_competitors": prefs.competitor_companies
+    }
+
+
+@router.delete("/tracked-competitors")
+async def remove_tracked_competitor(
+    data: TrackedCompetitorRemove,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Remove a company from tracked competitors"""
+    user_id = current_user.user_id
+
+    query = select(UserPreferences).where(UserPreferences.user_id == user_id)
+    result = await db.execute(query)
+    prefs = result.scalar_one_or_none()
+
+    if not prefs or not prefs.competitor_companies:
+        raise HTTPException(status_code=404, detail="Компанијата не е на листата за следење")
+
+    if data.company_name not in prefs.competitor_companies:
+        raise HTTPException(status_code=404, detail="Компанијата не е на листата за следење")
+
+    # Remove from list
+    prefs.competitor_companies = [c for c in prefs.competitor_companies if c != data.company_name]
+
+    await db.commit()
+    await db.refresh(prefs)
+
+    return {
+        "message": f"Компанијата '{data.company_name}' е отстранета од листата за следење",
+        "tracked_competitors": prefs.competitor_companies
+    }
+
+
+@router.get("/tracked-competitors/activity")
+async def get_tracked_competitor_activity(
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get recent activity for tracked competitors (wins, bids)"""
+    user_id = current_user.user_id
+
+    # Get user preferences with tracked competitors
+    prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
+    result = await db.execute(prefs_query)
+    prefs = result.scalar_one_or_none()
+
+    if not prefs or not prefs.competitor_companies:
+        return {
+            "activities": [],
+            "total": 0,
+            "tracked_count": 0
+        }
+
+    # Get activity using CompetitorTracker
+    tracker = CompetitorTracker(db)
+    activities = await tracker.get_competitor_activity(user_id, limit=limit)
+
+    # Also get recent bids (not just wins) from tender_bidders
+    additional_activities = []
+    try:
+        for competitor in prefs.competitor_companies[:5]:  # Limit to avoid heavy queries
+            bid_query = text("""
+                SELECT
+                    t.tender_id,
+                    t.title,
+                    t.status,
+                    t.estimated_value_mkd,
+                    t.closing_date,
+                    tb.company_name,
+                    tb.bid_amount_mkd,
+                    tb.is_winner,
+                    tb.rank
+                FROM tender_bidders tb
+                JOIN tenders t ON tb.tender_id = t.tender_id
+                WHERE LOWER(tb.company_name) LIKE LOWER(:search)
+                ORDER BY t.created_at DESC
+                LIMIT 5
+            """)
+            bid_result = await db.execute(bid_query, {"search": f"%{competitor}%"})
+            bids = bid_result.fetchall()
+
+            for bid in bids:
+                additional_activities.append({
+                    "tender_id": bid[0],
+                    "title": bid[1],
+                    "status": bid[2],
+                    "estimated_value_mkd": float(bid[3]) if bid[3] else None,
+                    "closing_date": bid[4].isoformat() if bid[4] else None,
+                    "competitor_name": bid[5],
+                    "bid_amount_mkd": float(bid[6]) if bid[6] else None,
+                    "is_winner": bid[7],
+                    "rank": bid[8],
+                    "activity_type": "win" if bid[7] else "bid"
+                })
+    except Exception as e:
+        print(f"Error getting bid activity: {e}")
+
+    # Combine and deduplicate
+    seen_ids = set()
+    all_activities = []
+
+    # Add from CompetitorTracker (wins)
+    for act in activities:
+        key = (act.tender_id, act.competitor_name)
+        if key not in seen_ids:
+            seen_ids.add(key)
+            all_activities.append({
+                "tender_id": act.tender_id,
+                "title": act.title,
+                "competitor_name": act.competitor_name,
+                "status": act.status,
+                "estimated_value_mkd": float(act.estimated_value_mkd) if act.estimated_value_mkd else None,
+                "closing_date": act.closing_date.isoformat() if act.closing_date else None,
+                "activity_type": "win"
+            })
+
+    # Add additional bid activities
+    for act in additional_activities:
+        key = (act["tender_id"], act["competitor_name"])
+        if key not in seen_ids:
+            seen_ids.add(key)
+            all_activities.append(act)
+
+    return {
+        "activities": all_activities[:limit],
+        "total": len(all_activities),
+        "tracked_count": len(prefs.competitor_companies)
+    }

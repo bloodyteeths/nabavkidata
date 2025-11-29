@@ -820,23 +820,27 @@ class APIClient {
   }
 
   // Personalization
-  async getPersonalizedDashboard(userId: string) {
-    return this.request<DashboardData>(`/api/personalization/dashboard?user_id=${userId}`);
+  async getPersonalizedDashboard(_userId?: string) {
+    // user_id is extracted from auth token on the backend, no need to pass it
+    return this.request<DashboardData>(`/api/personalization/dashboard`);
   }
 
-  async getPreferences(userId: string) {
-    return this.request<UserPreferences>(`/api/personalization/preferences?user_id=${userId}`);
+  async getPreferences(_userId?: string) {
+    // user_id is extracted from auth token on the backend
+    return this.request<UserPreferences>(`/api/personalization/preferences`);
   }
 
-  async createPreferences(userId: string, prefs: Partial<UserPreferences>) {
-    return this.request<UserPreferences>(`/api/personalization/preferences?user_id=${userId}`, {
+  async createPreferences(_userId: string, prefs: Partial<UserPreferences>) {
+    // user_id is extracted from auth token on the backend
+    return this.request<UserPreferences>(`/api/personalization/preferences`, {
       method: 'POST',
       body: JSON.stringify(prefs),
     });
   }
 
-  async updatePreferences(userId: string, prefs: Partial<UserPreferences>) {
-    return this.request<UserPreferences>(`/api/personalization/preferences?user_id=${userId}`, {
+  async updatePreferences(_userId: string, prefs: Partial<UserPreferences>) {
+    // user_id is extracted from auth token on the backend
+    return this.request<UserPreferences>(`/api/personalization/preferences`, {
       method: 'PUT',
       body: JSON.stringify(prefs),
     });
@@ -854,27 +858,30 @@ class APIClient {
     }
   }
 
-  async logBehavior(userId: string, behavior: { tender_id: string; action: string; duration_seconds?: number }) {
-    return this.request(`/api/personalization/behavior?user_id=${userId}`, {
+  async logBehavior(_userId: string, behavior: { tender_id: string; action: string; duration_seconds?: number }) {
+    // user_id is extracted from auth token on the backend
+    return this.request(`/api/personalization/behavior`, {
       method: 'POST',
       body: JSON.stringify(behavior),
     });
   }
 
   // Search History Tracking
-  async logSearch(userId: string, search: {
+  async logSearch(_userId: string, search: {
     query_text?: string;
     filters?: Record<string, any>;
     results_count?: number;
     clicked_tender_id?: string;
   }) {
-    return this.request(`/api/personalization/search-history?user_id=${userId}`, {
+    // user_id is extracted from auth token on the backend
+    return this.request(`/api/personalization/search-history`, {
       method: 'POST',
       body: JSON.stringify(search),
     });
   }
 
-  async getSearchHistory(userId: string, limit: number = 20) {
+  async getSearchHistory(_userId: string, limit: number = 20) {
+    // user_id is extracted from auth token on the backend
     return this.request<{ total: number; items: Array<{
       id: string;
       query_text?: string;
@@ -882,7 +889,7 @@ class APIClient {
       results_count?: number;
       clicked_tender_id?: string;
       created_at?: string;
-    }> }>(`/api/personalization/search-history?user_id=${userId}&limit=${limit}`);
+    }> }>(`/api/personalization/search-history?limit=${limit}`);
   }
 
   async getPopularSearches(limit: number = 10) {
@@ -1259,7 +1266,8 @@ class APIClient {
   }
 
   // Digest Methods
-  async getDigests(userId: string, limit: number = 50, offset: number = 0) {
+  async getDigests(_userId?: string, limit: number = 50, offset: number = 0) {
+    // user_id is extracted from auth token on the backend
     return this.request<{
       total: number;
       items: Array<{
@@ -1273,10 +1281,11 @@ class APIClient {
           text: string;
         };
       }>;
-    }>(`/api/personalization/digests?user_id=${userId}&limit=${limit}&offset=${offset}`);
+    }>(`/api/personalization/digests?limit=${limit}&offset=${offset}`);
   }
 
-  async getDigestDetail(digestId: string, userId: string) {
+  async getDigestDetail(digestId: string, _userId?: string) {
+    // user_id is extracted from auth token on the backend
     return this.request<{
       id: string;
       date: string;
@@ -1286,7 +1295,7 @@ class APIClient {
       text: string;
       sent: boolean;
       sent_at: string | null;
-    }>(`/api/personalization/digests/${digestId}?user_id=${userId}`);
+    }>(`/api/personalization/digests/${digestId}`);
   }
 
   // Product Search Methods
@@ -1431,6 +1440,56 @@ class APIClient {
       `/api/epazar/suppliers/${supplierId}/analyze`,
       { method: 'POST' }
     );
+  }
+
+  // ============================================================================
+  // TRACKED COMPETITORS
+  // ============================================================================
+
+  async getTrackedCompetitors() {
+    return this.request<{
+      tracked_competitors: string[];
+      count: number;
+    }>('/api/personalization/tracked-competitors');
+  }
+
+  async addTrackedCompetitor(companyName: string) {
+    return this.request<{
+      message: string;
+      tracked_competitors: string[];
+    }>('/api/personalization/tracked-competitors', {
+      method: 'POST',
+      body: JSON.stringify({ company_name: companyName }),
+    });
+  }
+
+  async removeTrackedCompetitor(companyName: string) {
+    return this.request<{
+      message: string;
+      tracked_competitors: string[];
+    }>('/api/personalization/tracked-competitors', {
+      method: 'DELETE',
+      body: JSON.stringify({ company_name: companyName }),
+    });
+  }
+
+  async getTrackedCompetitorActivity(limit: number = 20) {
+    return this.request<{
+      activities: Array<{
+        tender_id: string;
+        title: string;
+        competitor_name: string;
+        status: string;
+        estimated_value_mkd?: number;
+        closing_date?: string;
+        bid_amount_mkd?: number;
+        is_winner?: boolean;
+        rank?: number;
+        activity_type: 'win' | 'bid';
+      }>;
+      total: number;
+      tracked_count: number;
+    }>(`/api/personalization/tracked-competitors/activity?limit=${limit}`);
   }
 }
 

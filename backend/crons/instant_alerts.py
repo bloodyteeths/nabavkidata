@@ -220,6 +220,9 @@ async def send_instant_alert(
 
 async def process_instant_alerts():
     """Main function to process instant alerts"""
+    from services.cron_logger import log_cron_start, log_cron_complete, log_cron_failed
+
+    job_name = "instant_alerts"
 
     print(f"\n{'='*60}")
     print(f"INSTANT ALERT PROCESSOR")
@@ -230,73 +233,95 @@ async def process_instant_alerts():
     print(f"Checking for tenders since: {last_check.strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
     async with AsyncSessionLocal() as db:
-        # Get new tenders since last check
-        query = select(Tender).where(
-            and_(
-                Tender.status == 'open',
-                Tender.created_at >= last_check
+        # Log cron start
+        execution_id = await log_cron_start(db, job_name, {"last_check": last_check.isoformat()})
+
+        try:
+            # Get new tenders since last check
+            query = select(Tender).where(
+                and_(
+                    Tender.status == 'open',
+                    Tender.created_at >= last_check
+                )
+            ).order_by(Tender.created_at.desc())
+
+            result = await db.execute(query)
+            new_tenders = result.scalars().all()
+
+            print(f"Found {len(new_tenders)} new tenders")
+
+            if not new_tenders:
+                save_last_check_time()
+                print("No new tenders. Exiting.")
+                await log_cron_complete(db, execution_id, 0, {"message": "No new tenders", "tenders_checked": 0})
+                return
+
+            # Get users with instant notifications enabled
+            users_query = select(User, UserPreferences).join(
+                UserPreferences, User.user_id == UserPreferences.user_id
+            ).where(
+                and_(
+                    User.email_verified == True,
+                    UserPreferences.notification_frequency == "instant",
+                    UserPreferences.email_enabled == True
+                )
             )
-        ).order_by(Tender.created_at.desc())
 
-        result = await db.execute(query)
-        new_tenders = result.scalars().all()
+            users_result = await db.execute(users_query)
+            users_with_prefs = users_result.all()
 
-        print(f"Found {len(new_tenders)} new tenders")
+            print(f"Found {len(users_with_prefs)} users with instant alerts enabled")
 
-        if not new_tenders:
+            if not users_with_prefs:
+                save_last_check_time()
+                print("No users with instant alerts. Exiting.")
+                await log_cron_complete(db, execution_id, 0, {
+                    "message": "No users with instant alerts",
+                    "tenders_checked": len(new_tenders)
+                })
+                return
+
+            # Match tenders to users
+            alerts_sent = 0
+            alerts_failed = 0
+
+            for tender in new_tenders:
+                for user, prefs in users_with_prefs:
+                    matches, reasons = tender_matches_preferences(tender, prefs)
+
+                    if matches:
+                        success = await send_instant_alert(user, tender, reasons)
+
+                        if success:
+                            alerts_sent += 1
+                            print(f"  ✓ Alert sent to {user.email} for tender {tender.tender_id[:20]}...")
+                        else:
+                            alerts_failed += 1
+                            print(f"  ✗ Failed to send to {user.email}")
+
+            # Save last check time
             save_last_check_time()
-            print("No new tenders. Exiting.")
-            return
 
-        # Get users with instant notifications enabled
-        users_query = select(User, UserPreferences).join(
-            UserPreferences, User.user_id == UserPreferences.user_id
-        ).where(
-            and_(
-                User.email_verified == True,
-                UserPreferences.notification_frequency == "instant",
-                UserPreferences.email_enabled == True
-            )
-        )
+            print(f"\n{'='*60}")
+            print(f"INSTANT ALERT SUMMARY")
+            print(f"{'='*60}")
+            print(f"  New tenders processed: {len(new_tenders)}")
+            print(f"  Alerts sent: {alerts_sent}")
+            print(f"  Alerts failed: {alerts_failed}")
+            print(f"Completed: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
-        users_result = await db.execute(users_query)
-        users_with_prefs = users_result.all()
+            # Log cron completion
+            await log_cron_complete(db, execution_id, alerts_sent, {
+                "tenders_checked": len(new_tenders),
+                "users_checked": len(users_with_prefs),
+                "alerts_sent": alerts_sent,
+                "alerts_failed": alerts_failed
+            })
 
-        print(f"Found {len(users_with_prefs)} users with instant alerts enabled")
-
-        if not users_with_prefs:
-            save_last_check_time()
-            print("No users with instant alerts. Exiting.")
-            return
-
-        # Match tenders to users
-        alerts_sent = 0
-        alerts_failed = 0
-
-        for tender in new_tenders:
-            for user, prefs in users_with_prefs:
-                matches, reasons = tender_matches_preferences(tender, prefs)
-
-                if matches:
-                    success = await send_instant_alert(user, tender, reasons)
-
-                    if success:
-                        alerts_sent += 1
-                        print(f"  ✓ Alert sent to {user.email} for tender {tender.tender_id[:20]}...")
-                    else:
-                        alerts_failed += 1
-                        print(f"  ✗ Failed to send to {user.email}")
-
-        # Save last check time
-        save_last_check_time()
-
-        print(f"\n{'='*60}")
-        print(f"INSTANT ALERT SUMMARY")
-        print(f"{'='*60}")
-        print(f"  New tenders processed: {len(new_tenders)}")
-        print(f"  Alerts sent: {alerts_sent}")
-        print(f"  Alerts failed: {alerts_failed}")
-        print(f"Completed: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        except Exception as e:
+            logger.error(f"Instant alerts processing failed: {e}")
+            await log_cron_failed(db, execution_id, str(e))
+            raise
 
 
 def main():

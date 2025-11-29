@@ -62,7 +62,16 @@ class HybridSearchEngine:
 
         # Get user preferences
         prefs = await self._get_preferences(user_id)
-        if not prefs:
+
+        # Check if user has any meaningful preferences
+        has_preferences = prefs and (
+            (prefs.sectors and len(prefs.sectors) > 0) or
+            (prefs.cpv_codes and len(prefs.cpv_codes) > 0) or
+            (prefs.entities and len(prefs.entities) > 0) or
+            prefs.min_budget or prefs.max_budget
+        )
+
+        if not has_preferences:
             return await self._fallback_search(limit)
 
         # Get all open tenders - preferences are for scoring, not filtering
@@ -117,8 +126,8 @@ class HybridSearchEngine:
                         score += 0.2  # Entity match boost
                         break
 
-            # Boost score for budget match
-            if tender.estimated_value_mkd:
+            # Boost score for budget match (only if user has budget preferences)
+            if tender.estimated_value_mkd and (prefs.min_budget or prefs.max_budget):
                 in_budget = True
                 if prefs.min_budget and tender.estimated_value_mkd < float(prefs.min_budget):
                     in_budget = False

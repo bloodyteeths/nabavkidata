@@ -10,6 +10,7 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 import { PriceHistoryChart } from "@/components/charts/PriceHistoryChart";
 import {
   ArrowLeft,
@@ -50,6 +51,7 @@ export default function TenderDetailPage() {
   const params = useParams();
   const rawId = params?.id;
   const tenderId = rawId ? decodeURIComponent(rawId as string) : null;
+  const { user } = useAuth();
 
   const [tender, setTender] = useState<Tender | null>(null);
   const [loading, setLoading] = useState(true);
@@ -114,6 +116,13 @@ export default function TenderDetailPage() {
       loadLots();
     }
   }, [tender]);
+
+  // Log "view" behavior when tender is loaded and user is authenticated
+  useEffect(() => {
+    if (tender && user?.user_id) {
+      logBehavior("view");
+    }
+  }, [tender, user?.user_id]);
 
   useEffect(() => {
     loadTier();
@@ -335,16 +344,18 @@ export default function TenderDetailPage() {
   }
 
   const logBehavior = async (action: string) => {
+    // Only log behavior for authenticated users
+    if (!user?.user_id || !tenderId) return;
+
     try {
-      // Get user ID from localStorage if authenticated
-      const userId = typeof window !== 'undefined' ? localStorage.getItem('user_id') || 'anonymous' : 'anonymous';
-      await api.logBehavior(userId, {
-        tender_id: tenderId!,
+      await api.logBehavior(user.user_id, {
+        tender_id: tenderId,
         action,
         duration_seconds: 0,
       });
     } catch (error) {
-      console.error("Failed to log behavior:", error);
+      // Silently fail - behavior logging should not affect user experience
+      console.debug("Failed to log behavior:", error);
     }
   };
 

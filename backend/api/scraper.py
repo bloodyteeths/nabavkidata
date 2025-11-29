@@ -21,7 +21,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from database import get_db
-from models import ScrapingJob, Tender, Document
+from models import ScrapingJob, Tender, Document, CronExecution
 from models_auth import UserRole
 from middleware.rbac import get_current_active_user, require_role
 from services.email_service import email_service
@@ -720,7 +720,48 @@ async def get_cron_status():
     cron_entries = []
     log_files = []
 
-    # Get crontab entries
+    # Expected cron jobs (for display even if not yet configured)
+    expected_crons = [
+        {
+            "schedule": "0 8 * * *",
+            "command": "python crons/email_digest.py daily",
+            "description": "Daily Email Digest",
+            "category": "email"
+        },
+        {
+            "schedule": "0 8 * * 1",
+            "command": "python crons/email_digest.py weekly",
+            "description": "Weekly Email Digest",
+            "category": "email"
+        },
+        {
+            "schedule": "*/15 * * * *",
+            "command": "python crons/instant_alerts.py",
+            "description": "Instant Tender Alerts",
+            "category": "email"
+        },
+        {
+            "schedule": "0 2 * * *",
+            "command": "python crons/user_interest_update.py",
+            "description": "User Interest Vector Update",
+            "category": "personalization"
+        },
+        {
+            "schedule": "0 3 * * *",
+            "command": "scrapy crawl nabavki",
+            "description": "E-Nabavki Scraper",
+            "category": "scraper"
+        },
+        {
+            "schedule": "0 4 * * *",
+            "command": "scrapy crawl epazar_api",
+            "description": "E-Pazar Scraper",
+            "category": "scraper"
+        }
+    ]
+
+    # Get actual crontab entries
+    actual_crons = set()
     try:
         cron_result = subprocess.run(
             ["crontab", "-l"],
@@ -737,40 +778,79 @@ async def get_cron_status():
                     if len(parts) >= 6:
                         schedule = ' '.join(parts[:5])
                         command = parts[5]
+                        actual_crons.add(command[:50])  # Store partial match
+
                         # Generate description from command
-                        if 'nabavki' in command:
-                            desc = "E-Nabavki scraper"
+                        if 'email_digest.py daily' in command:
+                            desc = "Daily Email Digest"
+                            category = "email"
+                        elif 'email_digest.py weekly' in command:
+                            desc = "Weekly Email Digest"
+                            category = "email"
+                        elif 'instant_alerts.py' in command:
+                            desc = "Instant Tender Alerts"
+                            category = "email"
+                        elif 'user_interest_update' in command:
+                            desc = "User Interest Vector Update"
+                            category = "personalization"
+                        elif 'nabavki' in command:
+                            desc = "E-Nabavki Scraper"
+                            category = "scraper"
                         elif 'epazar' in command:
-                            desc = "E-Pazar scraper"
+                            desc = "E-Pazar Scraper"
+                            category = "scraper"
                         elif 'document' in command.lower():
-                            desc = "Document processor"
+                            desc = "Document Processor"
+                            category = "scraper"
                         else:
-                            desc = "Scheduled task"
+                            desc = "Scheduled Task"
+                            category = "other"
+
                         cron_entries.append({
                             "schedule": schedule,
-                            "command": command[:100],  # Truncate long commands
-                            "description": desc
+                            "command": command[:100],
+                            "description": desc,
+                            "category": category,
+                            "status": "active"
                         })
     except Exception as e:
-        pass  # If crontab fails, we just return empty list
+        pass  # If crontab fails, we show expected crons as "not configured"
 
-    # Get recent log files
+    # If no crons found, show expected ones as "not configured"
+    if not cron_entries:
+        cron_entries = [
+            {
+                "schedule": cron["schedule"],
+                "command": cron["command"],
+                "description": cron["description"],
+                "category": cron["category"],
+                "status": "not_configured"
+            }
+            for cron in expected_crons
+        ]
+
+    # Get recent log files - include email/personalization logs
     log_dirs = [
         "/var/log/nabavkidata",
         "/tmp"
+    ]
+
+    log_patterns = [
+        'nabavki', 'epazar', 'scraper', 'documents', 'spider',
+        'digest', 'alert', 'vector', 'email', 'instant'
     ]
 
     for log_dir in log_dirs:
         if os.path.exists(log_dir):
             try:
                 for f in os.listdir(log_dir):
-                    if any(pattern in f for pattern in ['nabavki', 'epazar', 'scraper', 'documents', 'spider']):
+                    if any(pattern in f.lower() for pattern in log_patterns):
                         filepath = os.path.join(log_dir, f)
                         if os.path.isfile(filepath):
                             stat = os.stat(filepath)
                             log_files.append({
                                 "name": f,
-                                "size": stat.st_size,  # Frontend expects 'size' in bytes
+                                "size": stat.st_size,
                                 "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
                             })
             except Exception:
@@ -779,10 +859,9 @@ async def get_cron_status():
     # Sort by modification time, newest first
     log_files.sort(key=lambda x: x["modified"], reverse=True)
 
-    # Return in format expected by frontend
     return {
         "cron_entries": cron_entries,
-        "log_files": log_files[:20]  # Limit to 20 most recent
+        "log_files": log_files[:20]
     }
 
 
@@ -799,7 +878,10 @@ async def get_log_content(
 
     # Security: only allow certain directories and patterns
     allowed_dirs = ["/var/log/nabavkidata", "/tmp"]
-    allowed_patterns = ["nabavki", "epazar", "scraper", "documents", "spider"]
+    allowed_patterns = [
+        "nabavki", "epazar", "scraper", "documents", "spider",
+        "digest", "alert", "vector", "email", "instant"
+    ]
 
     if not any(pattern in log_name for pattern in allowed_patterns):
         raise HTTPException(status_code=400, detail="Invalid log file name")
@@ -830,3 +912,114 @@ async def get_log_content(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read log: {str(e)}")
+
+
+# ============================================================================
+# CRON EXECUTION HISTORY (ADMIN)
+# ============================================================================
+
+@router.get(
+    "/cron-executions",
+    dependencies=[Depends(require_role(UserRole.admin))]
+)
+async def get_cron_executions(
+    job_name: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get cron execution history"""
+    from sqlalchemy import text
+
+    # Check if table exists
+    table_check = await db.execute(text("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'cron_executions'
+        )
+    """))
+    if not table_check.scalar():
+        return {"executions": [], "message": "Cron executions table not yet created"}
+
+    query = select(CronExecution).order_by(desc(CronExecution.started_at))
+
+    if job_name:
+        query = query.where(CronExecution.job_name == job_name)
+    if status:
+        query = query.where(CronExecution.status == status)
+
+    query = query.limit(limit)
+    result = await db.execute(query)
+    executions = result.scalars().all()
+
+    return {
+        "executions": [
+            {
+                "execution_id": str(e.execution_id),
+                "job_name": e.job_name,
+                "status": e.status,
+                "started_at": e.started_at.isoformat() if e.started_at else None,
+                "completed_at": e.completed_at.isoformat() if e.completed_at else None,
+                "duration_seconds": e.duration_seconds,
+                "records_processed": e.records_processed,
+                "error_message": e.error_message,
+                "details": e.details
+            }
+            for e in executions
+        ]
+    }
+
+
+@router.get(
+    "/cron-executions/stats",
+    dependencies=[Depends(require_role(UserRole.admin))]
+)
+async def get_cron_execution_stats(
+    db: AsyncSession = Depends(get_db)
+):
+    """Get cron execution statistics"""
+    from sqlalchemy import text
+
+    # Check if table exists
+    table_check = await db.execute(text("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'cron_executions'
+        )
+    """))
+    if not table_check.scalar():
+        return {"stats": {}, "message": "Cron executions table not yet created"}
+
+    # Get stats per job
+    stats_query = text("""
+        SELECT
+            job_name,
+            COUNT(*) as total_runs,
+            COUNT(*) FILTER (WHERE status = 'completed') as successful,
+            COUNT(*) FILTER (WHERE status = 'failed') as failed,
+            COUNT(*) FILTER (WHERE status = 'started') as running,
+            MAX(started_at) as last_run,
+            AVG(duration_seconds) FILTER (WHERE status = 'completed') as avg_duration,
+            SUM(records_processed) FILTER (WHERE status = 'completed') as total_records
+        FROM cron_executions
+        WHERE started_at > NOW() - INTERVAL '7 days'
+        GROUP BY job_name
+        ORDER BY last_run DESC
+    """)
+
+    result = await db.execute(stats_query)
+    rows = result.fetchall()
+
+    stats = {}
+    for row in rows:
+        stats[row.job_name] = {
+            "total_runs": row.total_runs,
+            "successful": row.successful,
+            "failed": row.failed,
+            "running": row.running,
+            "last_run": row.last_run.isoformat() if row.last_run else None,
+            "avg_duration_seconds": round(float(row.avg_duration), 1) if row.avg_duration else None,
+            "total_records_processed": row.total_records or 0
+        }
+
+    return {"stats": stats}

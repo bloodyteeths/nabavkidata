@@ -382,6 +382,9 @@ async def send_personalized_digest(
 
 async def generate_all_digests(frequency: str = "daily"):
     """Generate and send personalized digests for all eligible users"""
+    from services.cron_logger import log_cron_start, log_cron_complete, log_cron_failed
+
+    job_name = f"email_digest_{frequency}"
 
     print(f"\n{'='*60}")
     print(f"AI-PERSONALIZED EMAIL DIGEST GENERATOR - {frequency.upper()}")
@@ -389,73 +392,91 @@ async def generate_all_digests(frequency: str = "daily"):
     print(f"Started: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
     async with AsyncSessionLocal() as db:
-        # Get users with matching notification preferences
-        query = select(User, UserPreferences).outerjoin(
-            UserPreferences, User.user_id == UserPreferences.user_id
-        ).where(
-            and_(
-                User.email_verified == True,
-                # Include users who have matching frequency OR no preferences yet (default to daily)
-                or_(
-                    UserPreferences.notification_frequency == frequency,
-                    and_(
-                        UserPreferences.user_id == None,
-                        frequency == "daily"  # Default frequency for users without preferences
+        # Log cron start
+        execution_id = await log_cron_start(db, job_name, {"frequency": frequency})
+
+        try:
+            # Get users with matching notification preferences
+            query = select(User, UserPreferences).outerjoin(
+                UserPreferences, User.user_id == UserPreferences.user_id
+            ).where(
+                and_(
+                    User.email_verified == True,
+                    # Include users who have matching frequency OR no preferences yet (default to daily)
+                    or_(
+                        UserPreferences.notification_frequency == frequency,
+                        and_(
+                            UserPreferences.user_id == None,
+                            frequency == "daily"  # Default frequency for users without preferences
+                        )
+                    ),
+                    # Respect email_enabled flag (default True if no preferences)
+                    or_(
+                        UserPreferences.email_enabled == True,
+                        UserPreferences.user_id == None
                     )
-                ),
-                # Respect email_enabled flag (default True if no preferences)
-                or_(
-                    UserPreferences.email_enabled == True,
-                    UserPreferences.user_id == None
                 )
             )
-        )
 
-        result = await db.execute(query)
-        users_data = result.all()
+            result = await db.execute(query)
+            users_data = result.all()
 
-        print(f"Found {len(users_data)} eligible users for {frequency} digest")
+            print(f"Found {len(users_data)} eligible users for {frequency} digest")
 
-        if not users_data:
-            print("No eligible users found. Exiting.")
-            return
+            if not users_data:
+                print("No eligible users found. Exiting.")
+                await log_cron_complete(db, execution_id, 0, {"message": "No eligible users"})
+                return
 
-        sent_count = 0
-        failed_count = 0
-        skipped_count = 0
+            sent_count = 0
+            failed_count = 0
+            skipped_count = 0
 
-        for user, prefs in users_data:
-            try:
-                success = await send_personalized_digest(
-                    db=db,
-                    user_id=str(user.user_id),
-                    email=user.email,
-                    name=user.full_name or "User",
-                    prefs=prefs,
-                    frequency=frequency
-                )
+            for user, prefs in users_data:
+                try:
+                    success = await send_personalized_digest(
+                        db=db,
+                        user_id=str(user.user_id),
+                        email=user.email,
+                        name=user.full_name or "User",
+                        prefs=prefs,
+                        frequency=frequency
+                    )
 
-                if success:
-                    sent_count += 1
-                    print(f"  ✓ Sent to {user.email}")
-                elif success is False:
-                    skipped_count += 1
-                    print(f"  - Skipped {user.email} (no matching tenders)")
-                else:
+                    if success:
+                        sent_count += 1
+                        print(f"  ✓ Sent to {user.email}")
+                    elif success is False:
+                        skipped_count += 1
+                        print(f"  - Skipped {user.email} (no matching tenders)")
+                    else:
+                        failed_count += 1
+                        print(f"  ✗ Failed: {user.email}")
+
+                except Exception as e:
                     failed_count += 1
-                    print(f"  ✗ Failed: {user.email}")
+                    print(f"  ✗ Error for {user.email}: {e}")
 
-            except Exception as e:
-                failed_count += 1
-                print(f"  ✗ Error for {user.email}: {e}")
+            print(f"\n{'='*60}")
+            print(f"DIGEST SUMMARY")
+            print(f"{'='*60}")
+            print(f"  Emails sent: {sent_count}")
+            print(f"  Emails skipped: {skipped_count}")
+            print(f"  Emails failed: {failed_count}")
+            print(f"Completed: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
-        print(f"\n{'='*60}")
-        print(f"DIGEST SUMMARY")
-        print(f"{'='*60}")
-        print(f"  Emails sent: {sent_count}")
-        print(f"  Emails skipped: {skipped_count}")
-        print(f"  Emails failed: {failed_count}")
-        print(f"Completed: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            # Log cron completion
+            await log_cron_complete(db, execution_id, sent_count, {
+                "sent": sent_count,
+                "skipped": skipped_count,
+                "failed": failed_count,
+                "total_users": len(users_data)
+            })
+
+        except Exception as e:
+            logger.error(f"Digest generation failed: {e}")
+            await log_cron_failed(db, execution_id, str(e))
+            raise
 
 
 # Import or_ for the query

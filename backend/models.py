@@ -362,3 +362,19 @@ class ProductItem(Base):
     raw_text = Column(Text)
     extraction_confidence = Column(Numeric(3, 2))
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CronExecution(Base):
+    """Track cron job executions for monitoring"""
+    __tablename__ = "cron_executions"
+
+    execution_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_name = Column(String(100), nullable=False, index=True)  # e.g., "email_digest_daily", "instant_alerts"
+    status = Column(String(20), nullable=False, index=True)  # started, completed, failed
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    completed_at = Column(DateTime, nullable=True)
+    duration_seconds = Column(Integer, nullable=True)
+    records_processed = Column(Integer, default=0)  # emails sent, tenders processed, etc.
+    error_message = Column(Text, nullable=True)
+    details = Column(JSONB, nullable=True)  # Additional metadata
+    created_at = Column(DateTime, default=datetime.utcnow)

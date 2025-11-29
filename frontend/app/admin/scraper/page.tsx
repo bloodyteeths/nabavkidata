@@ -76,6 +76,8 @@ interface CronEntry {
   schedule: string;
   command: string;
   description: string;
+  category?: 'email' | 'personalization' | 'scraper' | 'other';
+  status?: 'active' | 'not_configured';
 }
 
 interface LogFile {
@@ -87,6 +89,18 @@ interface LogFile {
 interface CronStatus {
   cron_entries: CronEntry[];
   log_files: LogFile[];
+}
+
+interface CronExecution {
+  execution_id: string;
+  job_name: string;
+  status: 'started' | 'completed' | 'failed';
+  started_at: string;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  records_processed: number;
+  error_message: string | null;
+  details: Record<string, any> | null;
 }
 
 export default function AdminScraperPage() {
@@ -102,6 +116,7 @@ export default function AdminScraperPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [scrapers, setScrapers] = useState<ScraperConfig[]>([]);
   const [cronStatus, setCronStatus] = useState<CronStatus | null>(null);
+  const [cronExecutions, setCronExecutions] = useState<CronExecution[]>([]);
   const [selectedLog, setSelectedLog] = useState<string | null>(null);
   const [logContent, setLogContent] = useState<string[]>([]);
   const [loadingScrapers, setLoadingScrapers] = useState<Record<string, boolean>>({});
@@ -152,6 +167,20 @@ export default function AdminScraperPage() {
       }
     } catch (error) {
       console.error('Error fetching cron status:', error);
+    }
+  }, []);
+
+  const fetchCronExecutions = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/scraper/cron-executions?limit=50', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCronExecutions(data.executions || []);
+      }
+    } catch (error) {
+      console.error('Error fetching cron executions:', error);
     }
   }, []);
 
@@ -226,7 +255,8 @@ export default function AdminScraperPage() {
     fetchLiveStatus();
     fetchScrapers();
     fetchCronStatus();
-  }, [fetchLiveStatus, fetchScrapers, fetchCronStatus]);
+    fetchCronExecutions();
+  }, [fetchLiveStatus, fetchScrapers, fetchCronStatus, fetchCronExecutions]);
 
   // Auto-refresh when enabled
   useEffect(() => {
@@ -333,7 +363,7 @@ export default function AdminScraperPage() {
             <RefreshCw className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
             {autoRefresh ? 'Auto-Refresh ON' : 'Auto-Refresh'}
           </Button>
-          <Button variant="outline" onClick={() => { fetchStatus(); fetchLiveStatus(); fetchScrapers(); fetchCronStatus(); }}>
+          <Button variant="outline" onClick={() => { fetchStatus(); fetchLiveStatus(); fetchScrapers(); fetchCronStatus(); fetchCronExecutions(); }}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
@@ -586,6 +616,8 @@ export default function AdminScraperPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Category</TableHead>
                       <TableHead>Schedule</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Command</TableHead>
@@ -593,10 +625,36 @@ export default function AdminScraperPage() {
                   </TableHeader>
                   <TableBody>
                     {cronStatus.cron_entries.map((entry, idx) => (
-                      <TableRow key={idx}>
+                      <TableRow key={idx} className={entry.status === 'not_configured' ? 'opacity-60' : ''}>
+                        <TableCell>
+                          {entry.status === 'active' ? (
+                            <Badge className="bg-green-100 text-green-800">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-yellow-100 text-yellow-800">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Not Set
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={
+                            entry.category === 'email' ? 'border-blue-500 text-blue-700' :
+                            entry.category === 'personalization' ? 'border-purple-500 text-purple-700' :
+                            entry.category === 'scraper' ? 'border-green-500 text-green-700' :
+                            'border-gray-500 text-gray-700'
+                          }>
+                            {entry.category === 'email' ? '📧 Email' :
+                             entry.category === 'personalization' ? '🎯 AI' :
+                             entry.category === 'scraper' ? '🕷️ Scraper' :
+                             '⚙️ Other'}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="font-mono text-sm">{entry.schedule}</TableCell>
                         <TableCell>{entry.description}</TableCell>
-                        <TableCell className="font-mono text-xs max-w-md truncate">{entry.command}</TableCell>
+                        <TableCell className="font-mono text-xs max-w-xs truncate">{entry.command}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -604,6 +662,119 @@ export default function AdminScraperPage() {
               ) : (
                 <p className="text-muted-foreground text-center py-4">
                   No cron jobs configured or API not available.
+                </p>
+              )}
+
+              {/* Setup Instructions */}
+              {cronStatus?.cron_entries?.some(e => e.status === 'not_configured') && (
+                <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <h4 className="font-semibold text-yellow-800 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Setup Required
+                  </h4>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Some cron jobs are not configured on the server. SSH into the EC2 instance and run:
+                  </p>
+                  <pre className="mt-2 p-2 bg-gray-900 text-green-400 rounded text-xs overflow-x-auto">
+{`crontab -e
+
+# Add these lines:
+0 8 * * * cd /home/ubuntu/nabavkidata/backend && /home/ubuntu/nabavkidata/venv/bin/python crons/email_digest.py daily >> /var/log/nabavkidata/digest.log 2>&1
+0 8 * * 1 cd /home/ubuntu/nabavkidata/backend && /home/ubuntu/nabavkidata/venv/bin/python crons/email_digest.py weekly >> /var/log/nabavkidata/digest.log 2>&1
+*/15 * * * * cd /home/ubuntu/nabavkidata/backend && /home/ubuntu/nabavkidata/venv/bin/python crons/instant_alerts.py >> /var/log/nabavkidata/alerts.log 2>&1
+0 2 * * * cd /home/ubuntu/nabavkidata/backend && /home/ubuntu/nabavkidata/venv/bin/python crons/user_interest_update.py >> /var/log/nabavkidata/vectors.log 2>&1`}
+                  </pre>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Execution History */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Recent Executions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {cronExecutions.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Job</TableHead>
+                      <TableHead>Started</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Records</TableHead>
+                      <TableHead>Details</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cronExecutions.slice(0, 20).map((exec) => (
+                      <TableRow key={exec.execution_id}>
+                        <TableCell>
+                          {exec.status === 'completed' ? (
+                            <Badge className="bg-green-100 text-green-800">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Done
+                            </Badge>
+                          ) : exec.status === 'failed' ? (
+                            <Badge className="bg-red-100 text-red-800">
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Failed
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-blue-100 text-blue-800">
+                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                              Running
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {exec.job_name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {formatDateTime(exec.started_at, { dateStyle: 'short', timeStyle: 'short' })}
+                        </TableCell>
+                        <TableCell>
+                          {exec.duration_seconds !== null ? (
+                            <span className="text-sm">
+                              {exec.duration_seconds < 60
+                                ? `${exec.duration_seconds}s`
+                                : `${Math.floor(exec.duration_seconds / 60)}m ${exec.duration_seconds % 60}s`}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {exec.records_processed > 0 ? (
+                            <Badge variant="outline">{exec.records_processed}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          {exec.error_message ? (
+                            <span className="text-red-600 text-xs truncate block" title={exec.error_message}>
+                              {exec.error_message.slice(0, 50)}...
+                            </span>
+                          ) : exec.details ? (
+                            <span className="text-xs text-muted-foreground">
+                              {Object.entries(exec.details).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(', ')}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  No execution history yet. Cron jobs will be logged here when they run.
                 </p>
               )}
             </CardContent>
