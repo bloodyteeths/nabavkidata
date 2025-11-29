@@ -6,6 +6,7 @@ import FeaturesSection from "@/components/landing/FeaturesSection";
 import TrustSection from "@/components/landing/TrustSection";
 import ComparisonSection from "@/components/landing/ComparisonSection";
 import PricingSection from "@/components/landing/PricingSection";
+import SocialProofNotifications from "@/components/landing/SocialProofNotifications";
 
 export const metadata: Metadata = {
     title: "Почетна",
@@ -22,6 +23,7 @@ export default function LandingPage() {
             <TrustSection />
             <ComparisonSection />
             <PricingSection />
+            <SocialProofNotifications />
 
             {/* Footer */}
             <footer className="py-12 border-t border-white/10 bg-black/20">

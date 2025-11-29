@@ -4,8 +4,20 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { useTypingEffect } from "@/hooks/useTypingEffect";
+import LiveUserCounter from "./LiveUserCounter";
+
+const phrases = [
+    "Освојувајте тендери со Вештачка Интелигенција",
+    "Најдете ги вистинските тендери со AI",
+    "Победувајте со AI-базирани инсајти",
+    "Анализирајте конкуренција со AI",
+    "Зголемете ги шансите за успех со AI",
+];
 
 export default function HeroSection() {
+    const typedText = useTypingEffect(phrases, 80, 40, 3000);
+
     return (
         <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
             {/* Background Elements */}
@@ -27,11 +39,12 @@ export default function HeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.1 }}
-                    className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6"
+                    className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 min-h-[180px] md:min-h-[200px] flex items-center justify-center"
                 >
-                    <span className="text-white">Освојувајте тендери со</span>
-                    <br />
-                    <span className="text-gradient">Вештачка Интелигенција</span>
+                    <span className="text-white">
+                        {typedText}
+                        <span className="inline-block w-1 h-12 md:h-16 bg-primary ml-1 animate-pulse" />
+                    </span>
                 </motion.h1>
 
                 <motion.p
@@ -47,18 +60,22 @@ export default function HeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.3 }}
-                    className="flex flex-col sm:flex-row items-center justify-center gap-4"
+                    className="flex flex-col items-center justify-center gap-4"
                 >
-                    <Link href="/auth/register">
-                        <Button size="lg" className="h-12 px-8 text-lg bg-primary hover:bg-primary/90 text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300">
-                            Пробај Бесплатно <ArrowRight className="ml-2 h-5 w-5" />
-                        </Button>
-                    </Link>
-                    <Link href="#how-it-works">
-                        <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/10 hover:bg-white/5 text-gray-300">
-                            Како работи?
-                        </Button>
-                    </Link>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <Link href="/auth/register">
+                            <Button size="lg" className="h-12 px-8 text-lg bg-primary hover:bg-primary/90 text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300">
+                                Пробај Бесплатно <ArrowRight className="ml-2 h-5 w-5" />
+                            </Button>
+                        </Link>
+                        <Link href="#how-it-works">
+                            <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/10 hover:bg-white/5 text-gray-300">
+                                Како работи?
+                            </Button>
+                        </Link>
+                    </div>
+
+                    <LiveUserCounter />
                 </motion.div>
 
                 {/* Floating Elements Animation */}
