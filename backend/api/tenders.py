@@ -8,9 +8,12 @@ from sqlalchemy import select, func, and_, or_
 from typing import Optional, List
 from datetime import date
 from decimal import Decimal
+import os
+import json
+import re
 
 from database import get_db
-from models import Tender, TenderBidder, TenderLot, Supplier
+from models import Tender, TenderBidder, TenderLot, Supplier, Document
 from schemas import (
     TenderCreate,
     TenderUpdate,
@@ -19,6 +22,15 @@ from schemas import (
     TenderSearchRequest,
     MessageResponse
 )
+
+# Import Gemini for AI summaries
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = bool(os.getenv('GEMINI_API_KEY'))
+    if GEMINI_AVAILABLE:
+        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+except ImportError:
+    GEMINI_AVAILABLE = False
 
 router = APIRouter(prefix="/tenders", tags=["tenders"])
 
@@ -653,10 +665,10 @@ async def get_cpv_codes(
 # TENDER PRICE HISTORY (Per-Tender)
 # ============================================================================
 
-@router.get("/{number}/{year}/price_history")
+@router.get("/{number}/{year:int}/price_history")
 async def get_tender_price_history(
     number: str,
-    year: str,
+    year: int,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -774,23 +786,22 @@ async def get_tender_price_history(
 # TENDER AI SUMMARY
 # ============================================================================
 
-@router.get("/{number}/{year}/ai_summary")
+@router.get("/{number}/{year:int}/ai_summary")
 async def get_tender_ai_summary(
     number: str,
-    year: str,
+    year: int,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get AI-generated summary for a specific tender.
 
     Returns structured summary including:
-    - Overview text
+    - Overview text (AI-generated)
     - Key requirements
+    - Strategic insights
     - Complexity assessment
     - Competition level
     - Deadline urgency
-
-    Note: Full AI summary requires Starter+ tier. Free tier gets basic summary.
 
     Tender ID format: {number}/{year} e.g. 19816/2025
     """
@@ -805,6 +816,22 @@ async def get_tender_ai_summary(
 
     if not tender:
         raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Get documents for additional context
+    doc_query = select(Document).where(Document.tender_id == tender_id)
+    doc_result = await db.execute(doc_query)
+    documents = doc_result.scalars().all()
+
+    # Get document text excerpts for AI context
+    doc_texts = []
+    for doc in documents[:3]:  # Limit to first 3 docs
+        if doc.content_text:
+            doc_texts.append(doc.content_text[:3000])  # First 3000 chars each
+
+    # Get bidders info
+    bidder_query = select(TenderBidder).where(TenderBidder.tender_id == tender_id)
+    bidder_result = await db.execute(bidder_query)
+    bidders = bidder_result.scalars().all()
 
     # Calculate deadline urgency
     urgency = "unknown"
@@ -846,31 +873,112 @@ async def get_tender_ai_summary(
         else:
             competition = "low"
 
-    # Extract key requirements from description (basic extraction)
+    # Build context for AI
+    tender_context = f"""
+Тендер ID: {tender_id}
+Наслов: {tender.title or 'Н/А'}
+Набавувач: {tender.procuring_entity or 'Н/А'}
+Категорија: {tender.category or 'Н/А'}
+CPV код: {tender.cpv_code or 'Н/А'}
+Проценета вредност: {f'{tender.estimated_value_mkd:,.0f} МКД' if tender.estimated_value_mkd else 'Н/А'}
+Тип процедура: {tender.procedure_type or 'Н/А'}
+Статус: {tender.status or 'Н/А'}
+Краен рок: {tender.closing_date.isoformat() if tender.closing_date else 'Н/А'}
+Број на понудувачи: {tender.num_bidders or 0}
+Број на лотови: {tender.num_lots or 1}
+
+Опис:
+{tender.description[:5000] if tender.description else 'Нема опис'}
+"""
+
+    # Add bidder info
+    if bidders:
+        bidder_info = "\n\nПонудувачи:\n"
+        for b in bidders[:10]:
+            winner_mark = " (ПОБЕДНИК)" if b.is_winner else ""
+            bidder_info += f"- {b.company_name}{winner_mark}"
+            if b.bid_price:
+                bidder_info += f" - {b.bid_price:,.0f} МКД"
+            bidder_info += "\n"
+        tender_context += bidder_info
+
+    # Add document excerpts
+    if doc_texts:
+        tender_context += "\n\nИзводи од документи:\n"
+        for i, text in enumerate(doc_texts, 1):
+            tender_context += f"\n--- Документ {i} ---\n{text}\n"
+
+    # Generate AI summary
+    overview = ""
     key_requirements = []
-    if tender.description:
-        desc_lower = tender.description.lower()
-        if "гаранција" in desc_lower or "депозит" in desc_lower:
-            key_requirements.append("Потребна гаранција/депозит")
-        if "сертификат" in desc_lower or "iso" in desc_lower:
-            key_requirements.append("Потребни сертификати")
-        if "искуство" in desc_lower or "референц" in desc_lower:
-            key_requirements.append("Потребно претходно искуство")
-        if "рок" in desc_lower or "испорака" in desc_lower:
-            key_requirements.append("Специфични рокови за испорака")
+    strategic_insights = []
+    model_used = "rule-based-v1"
 
-    # Build basic overview
-    overview_parts = []
-    if tender.procuring_entity:
-        overview_parts.append(f"Набавка од {tender.procuring_entity}.")
-    if tender.category:
-        overview_parts.append(f"Категорија: {tender.category}.")
-    if tender.estimated_value_mkd:
-        overview_parts.append(f"Проценета вредност: {tender.estimated_value_mkd:,.0f} МКД.")
-    if tender.procedure_type:
-        overview_parts.append(f"Процедура: {tender.procedure_type}.")
+    if GEMINI_AVAILABLE:
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
 
-    overview = " ".join(overview_parts) if overview_parts else "Нема доволно информации за резиме."
+            prompt = f"""Анализирај го овој јавен тендер и дај структурирано резиме на македонски јазик.
+
+{tender_context}
+
+Одговори во JSON формат со следната структура:
+{{
+  "overview": "2-3 реченици општ преглед на набавката - што се бара, од кого, зошто е важно",
+  "key_requirements": ["барање 1", "барање 2", ...],
+  "strategic_insights": ["совет 1", "совет 2", ...],
+  "recommended_actions": ["акција 1", "акција 2", ...]
+}}
+
+За key_requirements - извлечи ги најважните технички, финансиски и правни барања.
+За strategic_insights - дај корисни совети за компании кои сакаат да учествуваат.
+За recommended_actions - конкретни чекори што треба да се превземат.
+
+Биди концизен и практичен. Фокусирај се на информации корисни за понудувачи."""
+
+            response = model.generate_content(prompt)
+            response_text = response.text
+
+            # Parse JSON from response
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                try:
+                    parsed = json.loads(json_match.group())
+                    overview = parsed.get('overview', '')
+                    key_requirements = parsed.get('key_requirements', [])
+                    strategic_insights = parsed.get('strategic_insights', [])
+                    model_used = "gemini-1.5-flash"
+                except json.JSONDecodeError:
+                    pass
+
+        except Exception as e:
+            print(f"Gemini AI summary failed: {e}")
+            # Fall through to rule-based
+
+    # Fallback to rule-based if AI failed
+    if not overview:
+        overview_parts = []
+        if tender.procuring_entity:
+            overview_parts.append(f"Набавка од {tender.procuring_entity}.")
+        if tender.category:
+            overview_parts.append(f"Категорија: {tender.category}.")
+        if tender.estimated_value_mkd:
+            overview_parts.append(f"Проценета вредност: {tender.estimated_value_mkd:,.0f} МКД.")
+        if tender.procedure_type:
+            overview_parts.append(f"Процедура: {tender.procedure_type}.")
+        overview = " ".join(overview_parts) if overview_parts else "Нема доволно информации за резиме."
+
+        # Basic keyword extraction for requirements
+        if tender.description:
+            desc_lower = tender.description.lower()
+            if "гаранција" in desc_lower or "депозит" in desc_lower:
+                key_requirements.append("Потребна гаранција/депозит")
+            if "сертификат" in desc_lower or "iso" in desc_lower:
+                key_requirements.append("Потребни сертификати")
+            if "искуство" in desc_lower or "референц" in desc_lower:
+                key_requirements.append("Потребно претходно искуство")
+            if "рок" in desc_lower or "испорака" in desc_lower:
+                key_requirements.append("Специфични рокови за испорака")
 
     # Suggested CPV codes
     suggested_cpv = []
@@ -885,6 +993,7 @@ async def get_tender_ai_summary(
         "summary": {
             "overview": overview,
             "key_requirements": key_requirements if key_requirements else ["Нема извлечени барања"],
+            "strategic_insights": strategic_insights if strategic_insights else [],
             "estimated_complexity": complexity,
             "complexity_factors": complexity_factors,
             "suggested_cpv_codes": suggested_cpv,
@@ -893,20 +1002,19 @@ async def get_tender_ai_summary(
             "competition_level": competition
         },
         "generated_at": datetime.utcnow().isoformat(),
-        "model": "rule-based-v1",
-        "note": "За детална AI анализа потребна е Starter+ претплата"
+        "model": model_used
     }
 
 
 # ============================================================================
 # TENDER DOCUMENTS (Must be before the path parameter route)
 # ============================================================================
-# Routes use /{number}/{year}/... pattern to handle tender IDs with slashes like "19816/2025"
+# Routes use /{number}/{year:int}/... pattern to handle tender IDs with slashes like "19816/2025"
 
-@router.get("/{number}/{year}/documents")
+@router.get("/{number}/{year:int}/documents")
 async def get_tender_documents(
     number: str,
-    year: str,
+    year: int,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -941,10 +1049,10 @@ async def get_tender_documents(
     }
 
 
-@router.get("/{number}/{year}/bidders")
+@router.get("/{number}/{year:int}/bidders")
 async def get_tender_bidders(
     number: str,
-    year: str,
+    year: int,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -992,10 +1100,10 @@ async def get_tender_bidders(
     }
 
 
-@router.get("/{number}/{year}/lots")
+@router.get("/{number}/{year:int}/lots")
 async def get_tender_lots(
     number: str,
-    year: str,
+    year: int,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1099,8 +1207,8 @@ async def get_tender_raw_json(
     }
 
 
-@router.get("/{number}/{year}/suppliers")
-async def get_tender_suppliers(number: str, year: str, db: AsyncSession = Depends(get_db)):
+@router.get("/{number}/{year:int}/suppliers")
+async def get_tender_suppliers(number: str, year: int, db: AsyncSession = Depends(get_db)):
     """Get suppliers/winners associated with a tender. Tender ID format: {number}/{year}"""
     tender_id = f"{number}/{year}"
 
@@ -1189,11 +1297,16 @@ async def get_tender_ai_summary_by_id(
     """
     Get AI-generated summary for a tender by any ID format.
     Accepts both UUID format and number/year format.
+    Uses Gemini AI for intelligent analysis.
     """
     from datetime import datetime
+    import logging
+    logger = logging.getLogger(__name__)
 
     # Normalize the tender_id
+    original_id = tender_id
     tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+    logger.info(f"AI Summary requested for tender_id: {original_id} -> {tender_id}")
 
     # Get tender
     tender_query = select(Tender).where(Tender.tender_id == tender_id)
@@ -1201,7 +1314,24 @@ async def get_tender_ai_summary_by_id(
     tender = result.scalar_one_or_none()
 
     if not tender:
+        logger.warning(f"AI Summary: Tender not found for id: {tender_id}")
         raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Get documents for additional context
+    doc_query = select(Document).where(Document.tender_id == tender_id)
+    doc_result = await db.execute(doc_query)
+    documents = doc_result.scalars().all()
+
+    # Get document text excerpts for AI context
+    doc_texts = []
+    for doc in documents[:3]:  # Limit to first 3 docs
+        if doc.content_text:
+            doc_texts.append(doc.content_text[:3000])
+
+    # Get bidders info
+    bidder_query = select(TenderBidder).where(TenderBidder.tender_id == tender_id)
+    bidder_result = await db.execute(bidder_query)
+    bidders = bidder_result.scalars().all()
 
     # Calculate deadline urgency
     urgency = "unknown"
@@ -1243,32 +1373,131 @@ async def get_tender_ai_summary_by_id(
         else:
             competition = "low"
 
-    # Extract key requirements from description
-    key_requirements = []
-    if tender.description:
-        sentences = tender.description.split('.')[:5]
-        key_requirements = [s.strip() for s in sentences if s.strip() and len(s.strip()) > 20]
+    # Build context for AI
+    tender_context = f"""
+Тендер ID: {tender_id}
+Наслов: {tender.title or 'Н/А'}
+Набавувач: {tender.procuring_entity or 'Н/А'}
+Категорија: {tender.category or 'Н/А'}
+CPV код: {tender.cpv_code or 'Н/А'}
+Проценета вредност: {f'{tender.estimated_value_mkd:,.0f} МКД' if tender.estimated_value_mkd else 'Н/А'}
+Тип процедура: {tender.procedure_type or 'Н/А'}
+Статус: {tender.status or 'Н/А'}
+Краен рок: {tender.closing_date.isoformat() if tender.closing_date else 'Н/А'}
+Број на понудувачи: {tender.num_bidders or 0}
+Број на лотови: {tender.num_lots or 1}
 
-    # Build overview
-    overview = f"Тендер за {tender.title or 'без наслов'}"
-    if tender.procuring_entity:
-        overview += f" од {tender.procuring_entity}"
-    if tender.estimated_value_mkd:
-        overview += f". Проценета вредност: {tender.estimated_value_mkd:,.0f} МКД"
-    if tender.category:
-        overview += f". Категорија: {tender.category}"
+Опис:
+{tender.description[:5000] if tender.description else 'Нема опис'}
+"""
+
+    # Add bidder info
+    if bidders:
+        bidder_info = "\n\nПонудувачи:\n"
+        for b in bidders[:10]:
+            winner_mark = " (ПОБЕДНИК)" if b.is_winner else ""
+            bidder_info += f"- {b.company_name}{winner_mark}"
+            if b.bid_price:
+                bidder_info += f" - {b.bid_price:,.0f} МКД"
+            bidder_info += "\n"
+        tender_context += bidder_info
+
+    # Add document excerpts
+    if doc_texts:
+        tender_context += "\n\nИзводи од документи:\n"
+        for i, text in enumerate(doc_texts, 1):
+            tender_context += f"\n--- Документ {i} ---\n{text}\n"
+
+    # Generate AI summary
+    overview = ""
+    key_requirements = []
+    strategic_insights = []
+    model_used = "rule-based-v1"
+
+    if GEMINI_AVAILABLE:
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+
+            prompt = f"""Анализирај го овој јавен тендер и дај структурирано резиме на македонски јазик.
+
+{tender_context}
+
+Одговори во JSON формат со следната структура:
+{{
+  "overview": "2-3 реченици општ преглед на набавката - што се бара, од кого, зошто е важно",
+  "key_requirements": ["барање 1", "барање 2", ...],
+  "strategic_insights": ["совет 1", "совет 2", ...],
+  "recommended_actions": ["акција 1", "акција 2", ...]
+}}
+
+За key_requirements - извлечи ги најважните технички, финансиски и правни барања.
+За strategic_insights - дај корисни совети за компании кои сакаат да учествуваат.
+За recommended_actions - конкретни чекори што треба да се превземат.
+
+Биди концизен и практичен. Фокусирај се на информации корисни за понудувачи."""
+
+            response = model.generate_content(prompt)
+            response_text = response.text
+
+            # Parse JSON from response
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                try:
+                    parsed = json.loads(json_match.group())
+                    overview = parsed.get('overview', '')
+                    key_requirements = parsed.get('key_requirements', [])
+                    strategic_insights = parsed.get('strategic_insights', [])
+                    model_used = "gemini-1.5-flash"
+                except json.JSONDecodeError:
+                    pass
+
+        except Exception as e:
+            logger.error(f"Gemini AI summary failed: {e}")
+            # Fall through to rule-based
+
+    # Fallback to rule-based if AI failed
+    if not overview:
+        overview = f"Тендер за {tender.title or 'без наслов'}"
+        if tender.procuring_entity:
+            overview += f" од {tender.procuring_entity}"
+        if tender.estimated_value_mkd:
+            overview += f". Проценета вредност: {tender.estimated_value_mkd:,.0f} МКД"
+        if tender.category:
+            overview += f". Категорија: {tender.category}"
+
+        # Extract basic requirements from description
+        if tender.description:
+            desc_lower = tender.description.lower()
+            if "гаранција" in desc_lower or "депозит" in desc_lower:
+                key_requirements.append("Потребна гаранција/депозит")
+            if "сертификат" in desc_lower or "iso" in desc_lower:
+                key_requirements.append("Потребни сертификати")
+            if "искуство" in desc_lower or "референц" in desc_lower:
+                key_requirements.append("Потребно претходно искуство")
+
+    # Suggested CPV codes
+    suggested_cpv = []
+    if tender.cpv_code:
+        suggested_cpv.append(tender.cpv_code)
+        if len(tender.cpv_code) >= 2:
+            suggested_cpv.append(tender.cpv_code[:2] + "000000")
 
     return {
         "tender_id": tender_id,
+        "title": tender.title,
         "summary": {
             "overview": overview,
-            "key_requirements": key_requirements[:5],
+            "key_requirements": key_requirements if key_requirements else ["Нема извлечени барања"],
+            "strategic_insights": strategic_insights if strategic_insights else [],
             "estimated_complexity": complexity,
             "complexity_factors": complexity_factors,
+            "suggested_cpv_codes": suggested_cpv,
             "deadline_urgency": urgency,
             "days_remaining": days_remaining,
             "competition_level": competition
-        }
+        },
+        "generated_at": datetime.utcnow().isoformat(),
+        "model": model_used
     }
 
 
