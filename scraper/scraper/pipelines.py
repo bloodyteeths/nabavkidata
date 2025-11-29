@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from itemadapter import ItemAdapter
 from scrapy.utils.defer import deferred_from_coro
-from scraper.items import DocumentItem
+from scraper.items import DocumentItem, LotAwardItem
 import aiofiles
 import fitz  # PyMuPDF
 from yarl import URL
@@ -430,7 +430,7 @@ class DatabasePipeline:
     """
 
     def __init__(self):
-        self.conn = None
+        self.pool = None  # Connection pool instead of single connection
         self.existing_documents = set()  # Cache for duplicate prevention
         self.scrape_run_id = None  # Track current scrape run
         self.stats = {
@@ -447,28 +447,29 @@ class DatabasePipeline:
         self.spider = spider
 
     async def _close_spider_async(self, spider):
-        """Close database connection and finalize scrape run."""
-        if self.conn:
+        """Close database connection pool and finalize scrape run."""
+        if self.pool:
             # Finalize scrape_history record if we have one
             if self.scrape_run_id:
                 try:
-                    await self.conn.execute("""
-                        UPDATE scrape_history
-                        SET completed_at = CURRENT_TIMESTAMP,
-                            tenders_new = $2,
-                            tenders_updated = $3,
-                            tenders_unchanged = $4,
-                            errors = $5,
-                            status = 'completed',
-                            duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))
-                        WHERE id = $1
-                    """,
-                        self.scrape_run_id,
-                        self.stats['tenders_new'],
-                        self.stats['tenders_updated'],
-                        self.stats['tenders_unchanged'],
-                        self.stats['errors']
-                    )
+                    async with self.pool.acquire() as conn:
+                        await conn.execute("""
+                            UPDATE scrape_history
+                            SET completed_at = CURRENT_TIMESTAMP,
+                                tenders_new = $2,
+                                tenders_updated = $3,
+                                tenders_unchanged = $4,
+                                errors = $5,
+                                status = 'completed',
+                                duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))
+                            WHERE id = $1
+                        """,
+                            self.scrape_run_id,
+                            self.stats['tenders_new'],
+                            self.stats['tenders_updated'],
+                            self.stats['tenders_unchanged'],
+                            self.stats['errors']
+                        )
                     logger.info(f"✓ Scrape run #{self.scrape_run_id} completed: "
                                 f"new={self.stats['tenders_new']}, "
                                 f"updated={self.stats['tenders_updated']}, "
@@ -476,8 +477,8 @@ class DatabasePipeline:
                 except Exception as e:
                     logger.error(f"Failed to finalize scrape history: {e}")
 
-            await self.conn.close()
-            logger.info("DatabasePipeline: Connection closed")
+            await self.pool.close()
+            logger.info("DatabasePipeline: Connection pool closed")
 
     def close_spider(self, spider):
         return deferred_from_coro(self._close_spider_async(spider))
@@ -501,12 +502,17 @@ class DatabasePipeline:
         return hashlib.sha256(content_str.encode('utf-8')).hexdigest()
 
     async def _init_scrape_run(self, spider):
-        """Initialize a scrape_history record for this run."""
+        """Initialize a scrape_history record for this run (deprecated, use _init_scrape_run_with_conn)."""
+        async with self.pool.acquire() as conn:
+            await self._init_scrape_run_with_conn(spider, conn)
+
+    async def _init_scrape_run_with_conn(self, spider, conn):
+        """Initialize a scrape_history record for this run using provided connection."""
         try:
             mode = getattr(spider, 'mode', 'scrape')
             category = getattr(spider, 'category', 'active')
 
-            self.scrape_run_id = await self.conn.fetchval("""
+            self.scrape_run_id = await conn.fetchval("""
                 INSERT INTO scrape_history (mode, category, status)
                 VALUES ($1, $2, 'running')
                 RETURNING id
@@ -517,7 +523,7 @@ class DatabasePipeline:
             logger.warning(f"Could not create scrape_history record: {e}")
             # Non-fatal, continue without tracking
 
-    async def _check_tender_change(self, tender_id: str, new_hash: str) -> str:
+    async def _check_tender_change(self, tender_id: str, new_hash: str, conn) -> str:
         """
         Check if tender exists and if content has changed.
 
@@ -527,7 +533,7 @@ class DatabasePipeline:
             'unchanged' - Tender exists and content is the same
         """
         try:
-            existing = await self.conn.fetchrow("""
+            existing = await conn.fetchrow("""
                 SELECT content_hash, scrape_count FROM tenders
                 WHERE tender_id = $1
             """, tender_id)
@@ -552,7 +558,7 @@ class DatabasePipeline:
 
     async def process_item_async(self, item, spider):
         """Async database insertion with comprehensive error handling."""
-        if not self.conn:
+        if not self.pool:
             database_url = os.getenv('DATABASE_URL')
             if not database_url:
                 logger.error("❌ DATABASE_URL not set!")
@@ -562,50 +568,64 @@ class DatabasePipeline:
             database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
 
             try:
-                self.conn = await asyncpg.connect(database_url)
-                logger.info("✓ DatabasePipeline: Connected to database")
+                self.pool = await asyncpg.create_pool(
+                    database_url,
+                    min_size=2,
+                    max_size=10,
+                    command_timeout=60
+                )
+                logger.info("✓ DatabasePipeline: Connection pool created")
                 # Initialize scrape run tracking
-                await self._init_scrape_run(spider)
+                async with self.pool.acquire() as conn:
+                    await self._init_scrape_run_with_conn(spider, conn)
             except Exception as e:
-                logger.error(f"❌ Failed to connect to database: {e}")
+                logger.error(f"❌ Failed to create connection pool: {e}")
                 return item
 
         adapter = ItemAdapter(item)
 
         try:
-            if item.__class__.__name__ == 'TenderItem':
-                tender_id = adapter.get('tender_id', 'UNKNOWN')
-                logger.info(f"→ Processing tender: {tender_id}")
+            async with self.pool.acquire() as conn:
+                if item.__class__.__name__ == 'TenderItem':
+                    tender_id = adapter.get('tender_id', 'UNKNOWN')
+                    logger.info(f"→ Processing tender: {tender_id}")
 
-                # Compute content hash for change detection
-                content_hash = self._compute_content_hash(adapter)
-                adapter['content_hash'] = content_hash
+                    # Compute content hash for change detection
+                    content_hash = self._compute_content_hash(adapter)
+                    adapter['content_hash'] = content_hash
 
-                # Check if tender exists and if content changed
-                change_result = await self._check_tender_change(tender_id, content_hash)
+                    # Check if tender exists and if content changed
+                    change_result = await self._check_tender_change(tender_id, content_hash, conn)
 
-                await self.insert_tender(adapter, change_result)
-                logger.info(f"✓ Saved tender: {tender_id} ({change_result})")
+                    await self.insert_tender(adapter, change_result, conn)
+                    logger.info(f"✓ Saved tender: {tender_id} ({change_result})")
 
-                # Insert related data (lots, bidders, amendments)
-                await self.insert_tender_lots(self.conn, tender_id, adapter.get('lots_data'))
-                await self.insert_tender_bidders(self.conn, tender_id, adapter.get('bidders_data'))
-                await self.insert_tender_amendments(self.conn, tender_id, adapter.get('amendments_data'))
-                # Insert documents captured on tender (fallback if DocumentItems not processed)
-                docs_data = adapter.get('documents_data')
-                if docs_data:
-                    logger.info(f"Inserting {len(docs_data)} document(s) for tender {tender_id}")
-                    for doc in docs_data:
-                        # Ensure required fields
-                        doc.setdefault('doc_type', doc.get('doc_category') or 'document')
-                        doc.setdefault('extraction_status', 'pending')
-                        await self.insert_document(doc)
+                    # Insert related data (lots, bidders, amendments)
+                    await self.insert_tender_lots(conn, tender_id, adapter.get('lots_data'))
+                    await self.insert_tender_bidders(conn, tender_id, adapter.get('bidders_data'))
+                    await self.insert_tender_amendments(conn, tender_id, adapter.get('amendments_data'))
+                    # Insert documents captured on tender (fallback if DocumentItems not processed)
+                    docs_data = adapter.get('documents_data')
+                    if docs_data:
+                        logger.info(f"Inserting {len(docs_data)} document(s) for tender {tender_id}")
+                        for doc in docs_data:
+                            # Ensure required fields
+                            doc.setdefault('doc_type', doc.get('doc_category') or 'document')
+                            doc.setdefault('extraction_status', 'pending')
+                            await self.insert_document(doc, conn)
 
-            elif item.__class__.__name__ == 'DocumentItem':
-                doc_name = adapter.get('file_name', 'UNKNOWN')
-                logger.info(f"→ Processing document: {doc_name}")
-                await self.insert_document(adapter)
-                logger.info(f"✓ Saved document: {doc_name}")
+                elif item.__class__.__name__ == 'DocumentItem':
+                    doc_name = adapter.get('file_name', 'UNKNOWN')
+                    logger.info(f"→ Processing document: {doc_name}")
+                    await self.insert_document(adapter, conn)
+
+                elif item.__class__.__name__ == 'LotAwardItem':
+                    tender_id = adapter.get('tender_id', 'UNKNOWN')
+                    award_num = adapter.get('award_number', 1)
+                    logger.info(f"-> Processing lot award: {tender_id} #{award_num}")
+                    await self.insert_lot_award(adapter, conn)
+                    logger.info(f"Saved lot award: {tender_id} #{award_num}")
+
         except Exception as e:
             item_type = item.__class__.__name__
             item_id = adapter.get('tender_id') or adapter.get('file_name', 'UNKNOWN')
@@ -645,7 +665,27 @@ class DatabasePipeline:
                 return datetime.utcnow()
         return datetime.utcnow()
 
-    async def insert_tender(self, item, change_result: str = 'new'):
+    def _to_decimal(self, value):
+        """Convert value to Decimal for database insertion."""
+        if value is None:
+            return None
+        try:
+            from decimal import Decimal, InvalidOperation
+            if isinstance(value, Decimal):
+                return value
+            if isinstance(value, (int, float)):
+                return Decimal(str(value))
+            if isinstance(value, str):
+                # Remove currency symbols and whitespace
+                clean_value = value.replace(',', '').replace(' ', '').strip()
+                if not clean_value:
+                    return None
+                return Decimal(clean_value)
+            return None
+        except (InvalidOperation, ValueError, TypeError):
+            return None
+
+    async def insert_tender(self, item, change_result: str = 'new', conn=None):
         """
         Upsert tender into database with change tracking.
 
@@ -654,10 +694,11 @@ class DatabasePipeline:
         Args:
             item: ItemAdapter with tender data
             change_result: 'new', 'updated', or 'unchanged'
+            conn: asyncpg connection (acquired from pool)
         """
         # For unchanged tenders, update scrape_count, scraped_at, and backfill estimated values
         if change_result == 'unchanged':
-            await self.conn.execute("""
+            await conn.execute("""
                 UPDATE tenders
                 SET scrape_count = scrape_count + 1,
                     scraped_at = CURRENT_TIMESTAMP,
@@ -745,7 +786,7 @@ class DatabasePipeline:
         # Determine if this is a new tender (for first_scraped_at)
         is_new = change_result == 'new'
 
-        await self.conn.execute("""
+        await conn.execute("""
             INSERT INTO tenders (
                 tender_id, title, description, category, procuring_entity,
                 opening_date, closing_date, publication_date,
@@ -846,7 +887,7 @@ class DatabasePipeline:
 
         logger.info(f"Tender saved ({change_result}): {item.get('tender_id')}")
 
-    async def insert_document(self, item):
+    async def insert_document(self, item, conn=None):
         """
         Insert document into database with duplicate prevention.
 
@@ -859,7 +900,7 @@ class DatabasePipeline:
 
         # Check for duplicates using file_hash first (most reliable)
         if file_hash:
-            existing_by_hash = await self.conn.fetchval("""
+            existing_by_hash = await conn.fetchval("""
                 SELECT doc_id FROM documents
                 WHERE file_hash = $1
                 LIMIT 1
@@ -877,7 +918,7 @@ class DatabasePipeline:
             return
 
         # Check database for existing document by URL
-        existing_by_url = await self.conn.fetchval("""
+        existing_by_url = await conn.fetchval("""
             SELECT doc_id FROM documents
             WHERE tender_id = $1 AND file_url = $2
             LIMIT 1
@@ -892,7 +933,7 @@ class DatabasePipeline:
         upload_date = self._parse_date_string(item.get('upload_date'))
 
         # Insert new document with categorization fields and extracted metadata
-        await self.conn.execute("""
+        await conn.execute("""
             INSERT INTO documents (
                 tender_id, doc_type, file_name, file_path, file_url,
                 content_text, extraction_status, file_size_bytes,
@@ -986,6 +1027,47 @@ class DatabasePipeline:
             logger.error(f"Error parsing lots JSON for {tender_id}: {e}")
         except Exception as e:
             logger.error(f"Error inserting lots for {tender_id}: {e}")
+
+    async def insert_lot_award(self, item, conn=None):
+        """Insert lot-level award data into lot_awards table."""
+        try:
+            await conn.execute('''
+                INSERT INTO lot_awards (
+                    tender_id, award_number, lot_numbers, winner_name,
+                    winner_tax_id, contract_value_mkd, contract_value_no_vat,
+                    contract_date, contract_type, notification_url,
+                    raw_data, source_url
+                ) VALUES (
+                    , , , , , , , , , , , 
+                )
+                ON CONFLICT (tender_id, award_number) DO UPDATE SET
+                    lot_numbers = EXCLUDED.lot_numbers,
+                    winner_name = EXCLUDED.winner_name,
+                    winner_tax_id = EXCLUDED.winner_tax_id,
+                    contract_value_mkd = EXCLUDED.contract_value_mkd,
+                    contract_value_no_vat = EXCLUDED.contract_value_no_vat,
+                    contract_date = EXCLUDED.contract_date,
+                    contract_type = EXCLUDED.contract_type,
+                    notification_url = EXCLUDED.notification_url,
+                    raw_data = EXCLUDED.raw_data,
+                    source_url = EXCLUDED.source_url
+            ''',
+                item.get('tender_id'),
+                item.get('award_number', 1),
+                item.get('lot_numbers'),
+                item.get('winner_name'),
+                item.get('winner_tax_id'),
+                self._to_decimal(item.get('contract_value_mkd')),
+                self._to_decimal(item.get('contract_value_no_vat')),
+                self._parse_date_string(item.get('contract_date')),
+                item.get('contract_type'),
+                item.get('notification_url'),
+                item.get('raw_data'),
+                item.get('source_url')
+            )
+        except Exception as e:
+            logger.error(f"Failed to insert lot award: {e}")
+            raise
 
     async def insert_tender_bidders(self, conn, tender_id: str, bidders_data: str):
         """
