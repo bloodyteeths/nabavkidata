@@ -1323,6 +1323,23 @@ class EPazarDatabasePipeline:
         )
 
         if existing:
+            # Parse raw_data and items_data for JSONB storage
+            raw_data_json = None
+            items_data_json = None
+            raw_data = adapter.get('raw_data')
+            items_data = adapter.get('items_data')
+
+            if raw_data:
+                try:
+                    raw_data_json = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+                except:
+                    pass
+            if items_data:
+                try:
+                    items_data_json = json.loads(items_data) if isinstance(items_data, str) else items_data
+                except:
+                    pass
+
             # UPDATE existing record (only columns that exist in the table)
             await conn.execute("""
                 UPDATE epazar_tenders SET
@@ -1341,6 +1358,8 @@ class EPazarDatabasePipeline:
                     source_url = COALESCE($14, source_url),
                     source_category = COALESCE($15, source_category),
                     content_hash = $16,
+                    raw_data_json = COALESCE($17, raw_data_json),
+                    items_data = COALESCE($18, items_data),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE tender_id = $1
             """,
@@ -1360,10 +1379,29 @@ class EPazarDatabasePipeline:
                 adapter.get('source_url'),
                 adapter.get('source_category'),
                 adapter.get('content_hash'),
+                json.dumps(raw_data_json, ensure_ascii=False) if raw_data_json else None,
+                json.dumps(items_data_json, ensure_ascii=False) if items_data_json else None,
             )
             self.stats['tenders_updated'] += 1
             logger.info(f"Updated e-Pazar tender: {tender_id}")
         else:
+            # Parse raw_data and items_data for JSONB storage (for INSERT)
+            raw_data_json = None
+            items_data_json = None
+            raw_data = adapter.get('raw_data')
+            items_data = adapter.get('items_data')
+
+            if raw_data:
+                try:
+                    raw_data_json = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+                except:
+                    pass
+            if items_data:
+                try:
+                    items_data_json = json.loads(items_data) if isinstance(items_data, str) else items_data
+                except:
+                    pass
+
             # INSERT new record (only columns that exist in the table)
             await conn.execute("""
                 INSERT INTO epazar_tenders (
@@ -1373,10 +1411,11 @@ class EPazarDatabasePipeline:
                     procedure_type, status,
                     publication_date, closing_date, contract_date,
                     contract_number, source_url, source_category, content_hash,
+                    raw_data_json, items_data,
                     language, scraped_at
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                    $11, $12, $13, $14, $15, $16, 'mk', CURRENT_TIMESTAMP
+                    $11, $12, $13, $14, $15, $16, $17, $18, 'mk', CURRENT_TIMESTAMP
                 )
             """,
                 tender_id,
@@ -1395,6 +1434,8 @@ class EPazarDatabasePipeline:
                 adapter.get('source_url'),
                 adapter.get('source_category'),
                 adapter.get('content_hash'),
+                json.dumps(raw_data_json, ensure_ascii=False) if raw_data_json else None,
+                json.dumps(items_data_json, ensure_ascii=False) if items_data_json else None,
             )
             self.stats['tenders_inserted'] += 1
             logger.info(f"Inserted e-Pazar tender: {tender_id}")
