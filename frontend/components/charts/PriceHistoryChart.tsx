@@ -21,6 +21,11 @@ export function PriceHistoryChart({
   series,
   title = "Историја на цени",
 }: PriceHistoryChartProps) {
+  // Don't show chart if there's only 1 data point - it's meaningless
+  if (!data || data.length < 2) {
+    return null;
+  }
+
   const formatValue = (val: number) => {
     if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
     if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K`;
