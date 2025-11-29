@@ -435,6 +435,7 @@ async def get_top_competitors(
     start_date = get_period_start(period)
 
     # Get top competitors by wins and bids
+    # Use COALESCE to handle tenders with NULL opening_date (awarded tenders)
     query = text("""
         SELECT
             tb.company_name as name,
@@ -445,7 +446,7 @@ async def get_top_competitors(
             array_agg(DISTINCT t.category) FILTER (WHERE t.category IS NOT NULL) as categories
         FROM tender_bidders tb
         JOIN tenders t ON tb.tender_id = t.tender_id
-        WHERE t.opening_date >= :start_date
+        WHERE COALESCE(t.opening_date, t.created_at::date) >= :start_date
           AND tb.company_name IS NOT NULL AND tb.company_name != ''
         GROUP BY tb.company_name
         HAVING COUNT(*) >= 2
@@ -471,6 +472,7 @@ async def get_top_competitors(
         })
 
     # Get market summary
+    # Use COALESCE to handle tenders with NULL opening_date (awarded tenders)
     summary_query = text("""
         SELECT
             COUNT(DISTINCT tb.company_name) as total_bidders,
@@ -479,7 +481,7 @@ async def get_top_competitors(
             SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner) as total_awarded_value
         FROM tender_bidders tb
         JOIN tenders t ON tb.tender_id = t.tender_id
-        WHERE t.opening_date >= :start_date
+        WHERE COALESCE(t.opening_date, t.created_at::date) >= :start_date
     """)
     summary_result = await db.execute(summary_query, {"start_date": start_date.date()})
     summary_row = summary_result.fetchone()

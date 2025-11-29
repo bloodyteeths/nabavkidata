@@ -525,6 +525,88 @@ async def get_competitor_summary(
 # HEALTH CHECK
 # ============================================================================
 
+# ============================================================================
+# RAG CHAT ENDPOINT
+# ============================================================================
+
+class ChatRequest(BaseModel):
+    """Request for RAG chat"""
+    message: str
+    tender_id: Optional[str] = None
+    conversation_history: Optional[List[dict]] = None
+
+
+class ChatResponse(BaseModel):
+    """Response from RAG chat"""
+    response: str
+    sources: List[dict]
+    confidence: str
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def rag_chat(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    RAG-based chat for tender questions
+
+    Uses semantic search and SQL fallback to find relevant tenders,
+    then generates an AI response based on the context.
+    """
+    if not request.message or len(request.message.strip()) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Message must be at least 3 characters"
+        )
+
+    if not GEMINI_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="AI service not available. Configure GEMINI_API_KEY."
+        )
+
+    try:
+        # Import RAG pipeline
+        from rag_query import RAGQueryPipeline
+
+        # Initialize and run RAG query
+        pipeline = RAGQueryPipeline()
+        answer = await pipeline.generate_answer(
+            question=request.message,
+            tender_id=request.tender_id,
+            conversation_history=request.conversation_history,
+            user_id=str(current_user.user_id) if current_user else None
+        )
+
+        # Format sources for response
+        sources = [
+            {
+                "tender_id": s.tender_id,
+                "doc_id": s.doc_id,
+                "similarity": s.similarity,
+                "title": s.chunk_metadata.get("tender_title", ""),
+                "category": s.chunk_metadata.get("tender_category", "")
+            }
+            for s in answer.sources[:5]  # Limit to top 5 sources
+        ]
+
+        return ChatResponse(
+            response=answer.answer,
+            sources=sources,
+            confidence=answer.confidence
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"RAG query failed: {str(e)}"
+        )
+
+
 @router.get("/health")
 async def ai_health_check():
     """
@@ -540,6 +622,7 @@ async def ai_health_check():
         "features": {
             "cpv_suggest": True,  # Always available (fallback to keyword matching)
             "extract_requirements": GEMINI_AVAILABLE,
-            "competitor_summary": True  # Always available (database query)
+            "competitor_summary": True,  # Always available (database query)
+            "rag_chat": GEMINI_AVAILABLE  # RAG-based chat
         }
     }

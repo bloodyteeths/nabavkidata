@@ -222,24 +222,44 @@ class PromptBuilder:
     Handles Macedonian language and tender-specific formatting
     """
 
-    SYSTEM_PROMPT = """Ти си AI асистент специјализиран за македонски јавни набавки и анализа на тендери.
+    SYSTEM_PROMPT = """You are an AI assistant specialized in Macedonian public procurement and tender analysis.
 
-Твоја улога:
-- Одговарај на прашања за тендери, постапки за јавни набавки и поврзани документи
-- Користи САМО информации од дадениот контекст (изворни документи)
-- Наведи извори кога тврдиш нешто
-- Биди прецизен и фактички точен
-- ОДГОВАРАЈ на ИСТИОТ ЈАЗИК на кој е поставено прашањето (македонски, албански, турски или англиски)
-- Ако информацијата не е во контекстот, кажи јасно
+YOUR ROLE:
+You help suppliers understand the Macedonian market - who buys what, at what prices, and who wins.
 
-Упатства:
-- Цитирај релевантни делови од документи кога е соодветно
-- Спомни ги ID-ата на тендерите и имиња на документи
-- Објасни терминологија за набавки кога е потребно
-- Биди концизен но темелен
-- Ако нема доволно податоци за одговор, наведи кои тендери се достапни
+CRITICAL INSTRUCTIONS:
 
-ВАЖНО: Секогаш одговарај на јазикот на кој е поставено прашањето."""
+1. BE HONEST ABOUT DATA AVAILABILITY:
+   - If the user asks about "surgical drapes" but data shows "surgical meshes" or "medical supplies" - SAY SO!
+   - Tell them: "I didn't find exact matches for [X], but here are related items: [Y, Z]"
+   - Don't pretend irrelevant data is relevant
+
+2. FOCUS ON ITEM-LEVEL DATA when available:
+   - Look for "ПРОИЗВОДИ / АРТИКЛИ" section - these have per-item prices
+   - Report: item name, unit price, quantity, who bought it, who supplied it
+   - Example: "Хируршка маска - 200 pieces at X MKD each, bought by Hospital Y"
+
+3. FOR TENDER-LEVEL DATA:
+   - "Проценета вредност" = total tender value (not per-item price)
+   - "Победник" = winner company
+   - "Набавувач" = buyer (hospital, municipality, etc.)
+
+4. ANSWER THE ACTUAL QUESTION:
+   - "What are the prices?" → Give specific numbers in MKD
+   - "Who wins?" → List winner companies with their win counts
+   - "Who buys?" → List the procuring entities (hospitals, schools, etc.)
+   - "When do they buy?" → Note dates and patterns
+
+5. BE ACTIONABLE:
+   - If they want to sell something, tell them WHO buys it and HOW MUCH they pay
+   - Suggest similar products if exact match not found
+   - Point them to specific tender IDs they can research further
+
+LANGUAGE: Match the user's language.
+
+IF DATA IS NOT AVAILABLE:
+- Say clearly: "Our database doesn't have [specific item]. You should check directly on e-nabavki.gov.mk"
+- Suggest related items that ARE in the database"""
 
     @classmethod
     def build_query_prompt(
@@ -299,9 +319,11 @@ class PromptBuilder:
         prompt_parts.append("\n\n---\n\n")
         prompt_parts.append(f"Прашање: {question}\n\n")
         prompt_parts.append(
-            "Одговори на прашањето САМО врз основа на контекстот даден погоре. "
-            "ВАЖНО: Одговори на ИСТИОТ ЈАЗИК на кој е поставено прашањето. "
-            "Ако одговорот не е во контекстот, кажи кои тендери се достапни и дај преглед на нив."
+            "Based on the context above, answer the user's question. "
+            "BE SPECIFIC - use actual numbers, company names, and dates from the data. "
+            "If asked about prices, extract and report the 'Проценета вредност' values. "
+            "If asked about winners, report the 'Победник' names and their statistics from 'НАЈЧЕСТИ ПОБЕДНИЦИ'. "
+            "Match the language of the user's question in your response."
         )
 
         return "".join(prompt_parts)
@@ -688,68 +710,223 @@ class RAGQueryPipeline:
             if self.enable_personalization:
                 await self.personalization_scorer.close()
 
-    def _extract_search_keywords(self, question: str) -> List[str]:
+    async def _search_external_sources(self, search_terms: List[str], question: str) -> Tuple[List[dict], str]:
         """
-        Extract meaningful search keywords from user question.
+        Search external sources (e-nabavki.gov.mk, e-pazar.mk) when database has no results.
 
-        Handles Macedonian, English, and common product terms.
-        Returns list of keywords for product search.
+        This fetches live data from the procurement portals to answer user questions.
+        Returns tender data and formatted context.
+        """
+        import aiohttp
+        import re
+
+        results = []
+        context_parts = []
+
+        # Try e-nabavki.gov.mk search
+        try:
+            search_query = ' '.join(search_terms[:3])  # Use top 3 terms
+            e_nabavki_url = f"https://e-nabavki.gov.mk/SearchTender.aspx"
+
+            logger.info(f"Searching e-nabavki.gov.mk for: {search_query}")
+
+            async with aiohttp.ClientSession() as session:
+                # Search e-nabavki
+                async with session.get(
+                    e_nabavki_url,
+                    params={'q': search_query},
+                    timeout=aiohttp.ClientTimeout(total=15),
+                    headers={'User-Agent': 'NabavkiData/1.0'}
+                ) as response:
+                    if response.status == 200:
+                        html = await response.text()
+                        # Extract tender information from HTML
+                        # This is a simplified extraction - would need proper parsing
+                        tender_matches = re.findall(
+                            r'<a[^>]*href="[^"]*TenderID=(\d+)[^"]*"[^>]*>([^<]+)</a>',
+                            html, re.IGNORECASE
+                        )
+                        for tender_id, title in tender_matches[:10]:
+                            results.append({
+                                'source': 'e-nabavki.gov.mk',
+                                'tender_id': tender_id,
+                                'title': title.strip(),
+                                'url': f"https://e-nabavki.gov.mk/PublicAccess/ViewTender.aspx?TenderID={tender_id}"
+                            })
+
+                        if tender_matches:
+                            context_parts.append(f"=== Резултати од e-nabavki.gov.mk за '{search_query}' ===\n")
+                            for tender_id, title in tender_matches[:10]:
+                                context_parts.append(f"- {title.strip()} (ID: {tender_id})\n")
+                                context_parts.append(f"  Линк: https://e-nabavki.gov.mk/PublicAccess/ViewTender.aspx?TenderID={tender_id}\n")
+        except Exception as e:
+            logger.warning(f"Error searching e-nabavki: {e}")
+
+        # Try e-pazar.mk search
+        try:
+            search_query = ' '.join(search_terms[:3])
+            e_pazar_url = "https://e-pazar.mk/api/search"
+
+            logger.info(f"Searching e-pazar.mk for: {search_query}")
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"https://e-pazar.mk/search?q={search_query}",
+                    timeout=aiohttp.ClientTimeout(total=15),
+                    headers={'User-Agent': 'NabavkiData/1.0'}
+                ) as response:
+                    if response.status == 200:
+                        html = await response.text()
+                        # Extract tender/item information
+                        item_matches = re.findall(
+                            r'<div[^>]*class="[^"]*item[^"]*"[^>]*>.*?<h\d[^>]*>([^<]+)</h\d>.*?цена[:\s]*([0-9,.]+)',
+                            html, re.IGNORECASE | re.DOTALL
+                        )
+                        for title, price in item_matches[:10]:
+                            results.append({
+                                'source': 'e-pazar.mk',
+                                'title': title.strip(),
+                                'price': price.strip()
+                            })
+
+                        if item_matches:
+                            context_parts.append(f"\n=== Резултати од e-pazar.mk за '{search_query}' ===\n")
+                            for title, price in item_matches[:10]:
+                                context_parts.append(f"- {title.strip()}: {price} МКД\n")
+        except Exception as e:
+            logger.warning(f"Error searching e-pazar: {e}")
+
+        # If we found results, add guidance for the LLM
+        if results:
+            context_parts.append("\n=== НАПОМЕНА ===\n")
+            context_parts.append("Горенаведените резултати се пронајдени на официјалните портали.\n")
+            context_parts.append("За детални информации, корисникот треба да ги посети линковите.\n")
+        else:
+            # No results found anywhere - provide helpful response
+            context_parts.append(f"\n=== ПРЕБАРУВАЊЕ: '{' '.join(search_terms[:5])}' ===\n")
+            context_parts.append("Не се пронајдени тендери со овие термини во базата или на порталите.\n")
+            context_parts.append("Можни причини:\n")
+            context_parts.append("- Моментално нема активни тендери за овој производ\n")
+            context_parts.append("- Обидете се со други термини или синоними\n")
+            context_parts.append("- Проверете директно на e-nabavki.gov.mk или e-pazar.mk\n")
+
+        return results, ''.join(context_parts)
+
+    async def _generate_smart_search_terms(self, question: str) -> List[str]:
+        """
+        Use LLM to generate intelligent search terms from user question.
+
+        The LLM will:
+        - Translate terms to Macedonian (the database language)
+        - Generate synonyms and related terms
+        - Fix typos and understand intent
+        - Provide product category terms
+
+        Returns list of search terms optimized for database search.
+        """
+        import json
+
+        prompt = f"""You are a search query optimizer for a Macedonian public procurement database.
+The database contains tenders in MACEDONIAN language.
+
+User question: "{question}"
+
+Your task: Generate THE MOST SPECIFIC Macedonian search terms for this product/service.
+
+Rules:
+1. Translate the EXACT product name to Macedonian first
+2. Then add close synonyms and alternative names
+3. Include the product category
+4. Be SPECIFIC - "surgical drapes" should find drapes, not just any medical item
+
+Examples:
+- "surgical drapes" → ["хируршки чаршафи", "хируршки драперии", "стерилни чаршафи", "операциски чаршафи", "еднократни чаршафи", "хируршки"]
+- "toner cartridge HP" → ["тонер HP", "тонер касета", "HP картриџ", "печатач тонер", "ласерски тонер"]
+- "surgical sutures" → ["хируршки конци", "шиење хируршко", "хируршки материјал", "конци за шиење"]
+- "medical gloves" → ["медицински ракавици", "хируршки ракавици", "ракавици за преглед", "латекс ракавици", "нитрил ракавици"]
+
+Return ONLY a JSON array of 5-10 specific search terms.
+"""
+
+        try:
+            def _sync_generate():
+                model_obj = genai.GenerativeModel('gemini-2.0-flash')
+                response = model_obj.generate_content(
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=200
+                    )
+                )
+                return response.text
+
+            response_text = await asyncio.to_thread(_sync_generate)
+
+            # Parse JSON array from response
+            # Clean up response - remove markdown code blocks if present
+            cleaned = response_text.strip()
+            if cleaned.startswith('```'):
+                cleaned = cleaned.split('\n', 1)[1] if '\n' in cleaned else cleaned[3:]
+            if cleaned.endswith('```'):
+                cleaned = cleaned.rsplit('```', 1)[0]
+            cleaned = cleaned.strip()
+
+            # Find JSON array in response
+            import re
+            json_match = re.search(r'\[.*\]', cleaned, re.DOTALL)
+            if json_match:
+                terms = json.loads(json_match.group())
+                if isinstance(terms, list) and len(terms) > 0:
+                    logger.info(f"LLM generated search terms: {terms}")
+                    return terms[:15]
+
+            logger.warning(f"Could not parse LLM search terms from: {response_text}")
+            return []
+
+        except Exception as e:
+            logger.error(f"Error generating smart search terms: {e}")
+            return []
+
+    def _extract_basic_keywords(self, question: str) -> List[str]:
+        """
+        Basic keyword extraction as fallback.
+        Extract meaningful words from the question.
         """
         import re
 
-        # Convert to lowercase for matching
-        q = question.lower()
+        # Stopwords to ignore
+        stopwords = {
+            'кој', 'која', 'кое', 'кои', 'што', 'каде', 'како', 'зошто', 'кога',
+            'и', 'или', 'но', 'а', 'на', 'во', 'од', 'за', 'со', 'до', 'по', 'при',
+            'дали', 'ли', 'да', 'не', 'е', 'се', 'има', 'имаат', 'беше', 'биде',
+            'сите', 'овој', 'оваа', 'ова', 'овие', 'тој', 'таа', 'тоа', 'тие',
+            'тендер', 'тендери', 'покажи', 'набавки', 'јавни', 'набавка',
+            'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+            'and', 'but', 'or', 'for', 'in', 'on', 'at', 'to', 'by', 'with',
+            'who', 'what', 'where', 'when', 'why', 'how', 'which',
+            'this', 'that', 'these', 'those', 'it', 'its',
+            'want', 'need', 'looking', 'find', 'show', 'get',
+        }
 
-        # Common product keywords in Macedonian and English
-        product_patterns = [
-            # Office supplies
-            r'\b(тонер|toner|картриџ|cartridge|мастило|ink)\b',
-            r'\b(хартија|paper|копир|copier|принтер|printer)\b',
-            # Construction
-            r'\b(плочк[иае]|tiles?|керамик[аи]|ceramic|под|floor)\b',
-            r'\b(цемент|cement|бетон|concrete|песок|sand)\b',
-            r'\b(цигл[иае]|brick|блок|block|малтер|mortar)\b',
-            # IT Equipment
-            r'\b(компјутер|computer|лаптоп|laptop|монитор|monitor)\b',
-            r'\b(сервер|server|мрежа|network|рутер|router)\b',
-            # Medical
-            r'\b(лек|medicine|медицин|medical|фармацевт|pharma)\b',
-            r'\b(маск[иае]|mask|ракавиц[иае]|glove|шприц|syringe)\b',
-            # Food
-            r'\b(храна|food|месо|meat|млеко|milk|леб|bread)\b',
-            # Vehicles
-            r'\b(возил[оа]|vehicle|автомобил|car|камион|truck)\b',
-            r'\b(гори[во]|fuel|бензин|petrol|нафта|diesel)\b',
-            # Furniture
-            r'\b(мебел|furniture|стол|chair|маса|table|биро|desk)\b',
-            # Cleaning
-            r'\b(чист|clean|детергент|detergent|сапун|soap)\b',
-            # General goods
-            r'\b(опрема|equipment|машин|machine|алат|tool)\b',
-        ]
+        # Extract all words 3+ characters
+        words = re.findall(r'[а-яѓѕјљњќџА-ЯЃЅЈЉЊЌЏ]{3,}|[a-zA-Z]{3,}', question)
 
         keywords = []
-        for pattern in product_patterns:
-            matches = re.findall(pattern, q)
-            keywords.extend(matches)
+        for word in words:
+            word_lower = word.lower()
+            if word_lower not in stopwords:
+                keywords.append(word_lower)
 
-        # Also extract any quoted terms
-        quoted = re.findall(r'"([^"]+)"', question)
-        keywords.extend(quoted)
-
-        # Extract capitalized words (likely product names)
-        caps = re.findall(r'\b[A-ZА-Ш][a-zа-ш]+(?:\s+[A-ZА-Ш][a-zа-ш]+)*\b', question)
-        keywords.extend([c.lower() for c in caps if len(c) > 3])
-
-        # Remove duplicates while preserving order
+        # Deduplicate
         seen = set()
-        unique_keywords = []
+        unique = []
         for kw in keywords:
-            if kw.lower() not in seen:
-                seen.add(kw.lower())
-                unique_keywords.append(kw)
+            if kw not in seen:
+                seen.add(kw)
+                unique.append(kw)
 
-        return unique_keywords[:10]  # Limit to 10 keywords
+        return unique[:10]
 
     async def _fallback_sql_search(
         self,
@@ -759,7 +936,8 @@ class RAGQueryPipeline:
         """
         Fallback: Query tenders AND epazar tables directly when no embeddings exist.
 
-        This searches both tenders and epazar_items tables for comprehensive results.
+        This uses LLM to generate smart search terms (translations, synonyms, related terms)
+        then searches both tenders and epazar_items tables for comprehensive results.
         Returns tender data formatted as context for Gemini.
         Uses shared connection pool to prevent connection exhaustion.
         """
@@ -767,8 +945,13 @@ class RAGQueryPipeline:
         pool = await get_pool()
 
         async with pool.acquire() as conn:
-            # Extract search keywords from question for product search
-            search_keywords = self._extract_search_keywords(question)
+            # Use LLM to generate smart search terms (translations, synonyms, etc.)
+            search_keywords = await self._generate_smart_search_terms(question)
+
+            # Fallback to basic extraction if LLM fails
+            if not search_keywords:
+                search_keywords = self._extract_basic_keywords(question)
+                logger.info(f"Using basic keywords: {search_keywords}")
 
             # Query recent tenders (limit to 20 for context size)
             if tender_id:
@@ -826,8 +1009,8 @@ class RAGQueryPipeline:
 
                     # Fetch bidders for this tender
                     bidders = await conn.fetch("""
-                        SELECT bidder_name, bid_amount_mkd, is_winner, ranking,
-                               bid_date, disqualification_reason
+                        SELECT company_name as bidder_name, bid_amount_mkd, is_winner, rank as ranking,
+                               disqualified, disqualification_reason
                         FROM tender_bidders
                         WHERE tender_id = $1
                         ORDER BY ranking NULLS LAST, bid_amount_mkd ASC
@@ -847,26 +1030,93 @@ class RAGQueryPipeline:
                     items = []
                     offers = []
             else:
-                # Search both tenders and epazar tables
-                rows = await conn.fetch("""
-                    SELECT tender_id, title, description, category, procuring_entity,
-                           estimated_value_mkd, estimated_value_eur, status,
-                           publication_date, closing_date, procedure_type, winner
-                    FROM tenders
-                    ORDER BY publication_date DESC NULLS LAST, created_at DESC
-                    LIMIT 15
-                """)
+                # Search tenders by keywords if available
+                if search_keywords:
+                    # Build keyword search patterns
+                    keyword_patterns = [f'%{kw}%' for kw in search_keywords]
 
-                # Also search e-pazar tenders
-                epazar_rows = await conn.fetch("""
-                    SELECT tender_id, title, description, category, contracting_authority as procuring_entity,
-                           estimated_value_mkd, estimated_value_eur, status,
-                           publication_date, closing_date, procedure_type,
-                           (SELECT supplier_name FROM epazar_offers WHERE tender_id = et.tender_id AND is_winner = true LIMIT 1) as winner
-                    FROM epazar_tenders et
-                    ORDER BY publication_date DESC NULLS LAST
-                    LIMIT 10
-                """)
+                    # Search tenders matching keywords - INCLUDE raw_data_json for bidder prices
+                    rows = await conn.fetch("""
+                        SELECT tender_id, title, description, category, procuring_entity,
+                               estimated_value_mkd, estimated_value_eur,
+                               actual_value_mkd, status,
+                               publication_date, closing_date, procedure_type, winner,
+                               raw_data_json->>'bidders_data' as bidders_data
+                        FROM tenders
+                        WHERE title ILIKE ANY($1)
+                           OR description ILIKE ANY($1)
+                           OR category ILIKE ANY($1)
+                        ORDER BY
+                            CASE WHEN status = 'active' THEN 0 ELSE 1 END,
+                            publication_date DESC NULLS LAST
+                        LIMIT 25
+                    """, keyword_patterns)
+
+                    # Get detailed price history - actual winning bids for these items
+                    price_history = await conn.fetch("""
+                        SELECT title, winner, actual_value_mkd, estimated_value_mkd,
+                               procuring_entity, publication_date,
+                               raw_data_json->>'bidders_data' as bidders_data
+                        FROM tenders
+                        WHERE (title ILIKE ANY($1) OR description ILIKE ANY($1))
+                          AND actual_value_mkd IS NOT NULL
+                          AND actual_value_mkd > 0
+                        ORDER BY publication_date DESC
+                        LIMIT 30
+                    """, keyword_patterns)
+
+                    # Also get winners/bidders for these keywords to answer "who wins" questions
+                    winner_stats = await conn.fetch("""
+                        SELECT winner, COUNT(*) as wins,
+                               SUM(actual_value_mkd) as total_value,
+                               AVG(actual_value_mkd) as avg_value,
+                               MIN(actual_value_mkd) as min_value,
+                               MAX(actual_value_mkd) as max_value,
+                               array_agg(DISTINCT title) as tender_titles
+                        FROM tenders
+                        WHERE (title ILIKE ANY($1) OR description ILIKE ANY($1))
+                          AND winner IS NOT NULL AND winner != ''
+                        GROUP BY winner
+                        ORDER BY COUNT(*) DESC
+                        LIMIT 10
+                    """, keyword_patterns)
+                else:
+                    # No keywords - get recent tenders
+                    rows = await conn.fetch("""
+                        SELECT tender_id, title, description, category, procuring_entity,
+                               estimated_value_mkd, estimated_value_eur, status,
+                               publication_date, closing_date, procedure_type, winner
+                        FROM tenders
+                        ORDER BY publication_date DESC NULLS LAST, created_at DESC
+                        LIMIT 15
+                    """)
+                    winner_stats = []
+
+                # Also search e-pazar tenders (by keywords if available)
+                if search_keywords:
+                    epazar_rows = await conn.fetch("""
+                        SELECT tender_id, title, description, category, contracting_authority as procuring_entity,
+                               estimated_value_mkd, estimated_value_eur, status,
+                               publication_date, closing_date, procedure_type,
+                               (SELECT supplier_name FROM epazar_offers WHERE tender_id = et.tender_id AND is_winner = true LIMIT 1) as winner
+                        FROM epazar_tenders et
+                        WHERE title ILIKE ANY($1)
+                           OR description ILIKE ANY($1)
+                        ORDER BY
+                            CASE WHEN status = 'active' THEN 0 ELSE 1 END,
+                            publication_date DESC NULLS LAST
+                        LIMIT 15
+                    """, keyword_patterns)
+                else:
+                    epazar_rows = await conn.fetch("""
+                        SELECT tender_id, title, description, category, contracting_authority as procuring_entity,
+                               estimated_value_mkd, estimated_value_eur, status,
+                               publication_date, closing_date, procedure_type,
+                               (SELECT supplier_name FROM epazar_offers WHERE tender_id = et.tender_id AND is_winner = true LIMIT 1) as winner
+                        FROM epazar_tenders et
+                        ORDER BY publication_date DESC NULLS LAST
+                        LIMIT 10
+                    """)
 
                 # Search epazar_items by product name if keywords present
                 items = []
@@ -896,8 +1146,53 @@ class RAGQueryPipeline:
 
                 rows = list(rows) + list(epazar_rows)
 
+            # If no results in database, search external sources (live portals)
             if not rows and not items:
-                return [], ""
+                logger.info(f"No results in database for keywords: {search_keywords}. Searching external sources...")
+                external_results, external_context = await self._search_external_sources(search_keywords, question)
+
+                if external_results or external_context:
+                    # Create a SearchResult for external sources
+                    search_results = [SearchResult(
+                        embed_id="external-search",
+                        chunk_text=external_context,
+                        chunk_index=0,
+                        tender_id=None,
+                        doc_id=None,
+                        chunk_metadata={
+                            'source': 'external_portals',
+                            'search_terms': search_keywords
+                        },
+                        similarity=0.7
+                    )]
+                    return search_results, external_context
+                else:
+                    # Even external search found nothing - return helpful message
+                    no_results_context = f"""
+=== ПРЕБАРУВАЊЕ ===
+Термини за пребарување: {', '.join(search_keywords)}
+
+Не се пронајдени тендери за овие производи/услуги ниту во нашата база, ниту на официјалните портали.
+
+Ова може да значи:
+1. Моментално нема активни тендери за овој тип производ/услуга
+2. Пробајте со други термини или синоними
+3. Проверете директно на:
+   - https://e-nabavki.gov.mk - Систем за електронски јавни набавки
+   - https://e-pazar.mk - Електронски пазар за мали набавки
+
+Совет: Ако барате специфичен производ, обидете се со поширока категорија (пр. наместо "HP тонер 85A" обидете се со "тонер" или "канцелариски материјали").
+"""
+                    search_results = [SearchResult(
+                        embed_id="no-results",
+                        chunk_text=no_results_context,
+                        chunk_index=0,
+                        tender_id=None,
+                        doc_id=None,
+                        chunk_metadata={'source': 'no_results', 'search_terms': search_keywords},
+                        similarity=0.5
+                    )]
+                    return search_results, no_results_context
 
             # Build context from tender data
             context_parts = []
@@ -952,6 +1247,50 @@ class RAGQueryPipeline:
                     offers_text += "\n"
 
                 context_parts.append(offers_text)
+
+            # Add winner statistics if available (for "who wins" questions)
+            try:
+                if winner_stats and len(winner_stats) > 0:
+                    winners_text = "\n=== НАЈЧЕСТИ ПОБЕДНИЦИ ===\n\n"
+                    for ws in winner_stats:
+                        winners_text += f"- {ws['winner']}: {ws['wins']} победи"
+                        if ws.get('total_value'):
+                            winners_text += f", вкупна вредност: {ws['total_value']:,.0f} МКД"
+                        winners_text += "\n"
+                    context_parts.append(winners_text)
+            except NameError:
+                pass  # winner_stats not defined
+
+            # Add PRICE HISTORY section with actual winning bid amounts
+            try:
+                if price_history and len(price_history) > 0:
+                    import json as json_module
+                    price_text = "\n=== ИСТОРИЈА НА ЦЕНИ (РЕАЛНИ ПОНУДИ) ===\n\n"
+                    for ph in price_history:
+                        price_text += f"• {ph['title']}\n"
+                        price_text += f"  Набавувач: {ph['procuring_entity']}\n"
+                        price_text += f"  Проценета вредност: {ph['estimated_value_mkd']:,.0f} МКД\n" if ph.get('estimated_value_mkd') else ""
+                        price_text += f"  ПОБЕДНИЧКА ПОНУДА: {ph['actual_value_mkd']:,.0f} МКД\n" if ph.get('actual_value_mkd') else ""
+                        price_text += f"  Победник: {ph['winner']}\n"
+                        price_text += f"  Датум: {ph['publication_date']}\n"
+
+                        # Parse bidders data to show all bids
+                        if ph.get('bidders_data'):
+                            try:
+                                ph_bidders = json_module.loads(ph['bidders_data'])
+                                if ph_bidders and len(ph_bidders) > 1:
+                                    price_text += f"  Сите понуди:\n"
+                                    for pb in ph_bidders:
+                                        status = "✓ победник" if pb.get('is_winner') else ""
+                                        bid_amt = pb.get('bid_amount_mkd')
+                                        bid_str = f"{bid_amt:,.0f}" if bid_amt else 'N/A'
+                                        price_text += f"    - {pb.get('company_name', 'N/A')}: {bid_str} МКД {status}\n"
+                            except:
+                                pass
+                        price_text += "\n"
+                    context_parts.append(price_text)
+            except NameError:
+                pass  # price_history not defined
 
             # Add tender context
             for i, row in enumerate(rows):
