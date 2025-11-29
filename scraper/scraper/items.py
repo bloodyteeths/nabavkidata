@@ -82,3 +82,20 @@ class DocumentItem(scrapy.Item):
     upload_date = scrapy.Field()
     file_hash = scrapy.Field()  # SHA-256 for duplicate detection
     specifications_json = scrapy.Field()  # JSON with CPV codes, emails, phones, company names extracted from PDF
+
+
+class LotAwardItem(scrapy.Item):
+    """Lot award data structure for multi-lot tenders"""
+    tender_id = scrapy.Field()
+    lot_id = scrapy.Field()
+    award_number = scrapy.Field()
+    lot_numbers = scrapy.Field()  # List of lot numbers included
+    winner_name = scrapy.Field()
+    winner_tax_id = scrapy.Field()
+    award_value_mkd = scrapy.Field()
+    award_value_eur = scrapy.Field()
+    award_date = scrapy.Field()
+    contract_number = scrapy.Field()
+    num_bidders = scrapy.Field()
+    all_bidders = scrapy.Field()  # JSON array of all bidders for this lot
+    raw_data = scrapy.Field()  # Original extracted data
