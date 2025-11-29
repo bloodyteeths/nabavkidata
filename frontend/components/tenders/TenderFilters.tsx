@@ -43,20 +43,13 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
   const [entityLoading, setEntityLoading] = useState(false);
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
 
-  // Initialize date filters with last 2 months on mount
+  // Track initialization to sync with parent filters
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     if (!initialized) {
-      const now = new Date();
-      const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
-      const defaultFilters = {
-        ...filters,
-        dateFrom: filters.dateFrom || twoMonthsAgo.toISOString().split('T')[0],
-        dateTo: filters.dateTo || now.toISOString().split('T')[0],
-      };
-      setPendingFilters(defaultFilters);
-      onFiltersChange(defaultFilters);
+      // Don't auto-apply date filters - they exclude awarded tenders which have no opening_date
+      setPendingFilters(filters);
       setInitialized(true);
     }
   }, [initialized]);
@@ -173,7 +166,6 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
               <SelectItem value="open">Отворени</SelectItem>
               <SelectItem value="closed">Затворени</SelectItem>
               <SelectItem value="awarded">Доделени</SelectItem>
-              <SelectItem value="cancelled">Откажани</SelectItem>
             </SelectContent>
           </Select>
         </div>
