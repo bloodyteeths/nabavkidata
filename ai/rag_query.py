@@ -255,6 +255,33 @@ CRITICAL INSTRUCTIONS:
    - Suggest similar products if exact match not found
    - Point them to specific tender IDs they can research further
 
+6. ITEM-LEVEL QUERY HANDLING:
+   When the context includes "ПРОИЗВОДИ / АРТИКЛИ" or "ИСТОРИЈА НА ЦЕНИ" sections:
+   - Extract and report SPECIFIC per-unit prices in MKD
+   - Calculate price trends (avg, min, max) by year/quarter if multiple entries exist
+   - List TOP suppliers/winners for this specific item
+   - Show technical specifications if available
+   - If exact match not found, show similar items and explain the difference
+   - Always cite tender IDs as sources
+
+   Example response for "What are prices for surgical drapes?":
+   "Based on X tenders over the last Y years:
+
+   **Surgical Drapes Price History:**
+   - 2024: Avg 150 MKD/piece (range: 120-180, 15 tenders)
+   - 2023: Avg 165 MKD/piece (range: 140-190, 12 tenders)
+
+   **Top Suppliers:**
+   1. MediSupply DOO - Won 8 contracts, avg price 145 MKD
+   2. HealthCare Ltd - Won 5 contracts, avg price 155 MKD
+
+   **Common Specifications:**
+   - Material: Non-woven SMS fabric
+   - Sizes: 120x150cm, 150x200cm
+   - Sterility: EO sterilized
+
+   Sources: [tender IDs]"
+
 LANGUAGE: Match the user's language.
 
 IF DATA IS NOT AVAILABLE:
@@ -624,48 +651,50 @@ class RAGQueryPipeline:
                     personalization_weight=self.personalization_weight
                 )
 
+            # IMPORTANT: We only have ~279 embeddings but 2700+ tenders.
+            # Vector search often returns irrelevant results (e.g., office supplies for IT query)
+            # ALWAYS use SQL search for now until we have comprehensive embeddings
+            logger.info("Using SQL search (more reliable with current embedding coverage)...")
+            search_results, context = await self._fallback_sql_search(question, tender_id)
+
             if not search_results:
-                logger.warning("No embeddings found, falling back to direct SQL query")
-                # FALLBACK: Query tenders table directly when no embeddings exist
-                search_results, context = await self._fallback_sql_search(question, tender_id)
-
-                if not search_results:
-                    logger.warning("No tenders found in database")
-                    return RAGAnswer(
-                        question=question,
-                        answer="Моментално немаме тендери во базата. Обидете се повторно кога ќе имаме повеќе тендери во системот.",
-                        sources=[],
-                        confidence='low',
-                        generated_at=datetime.utcnow(),
-                        model_used=self.model
-                    )
-
-                # Skip normal context assembly, use pre-built context
-                sources_used = search_results
-
-                # Build prompt and generate answer
-                prompt = self.prompt_builder.build_query_prompt(
-                    question=question,
-                    context=context,
-                    conversation_history=conversation_history
-                )
-
-                logger.info(f"Generating answer with {self.model} (SQL fallback)...")
-                try:
-                    answer_text = await self._generate_with_gemini(prompt, self.model)
-                except Exception as e:
-                    logger.warning(f"Primary model failed: {e}, trying fallback...")
-                    answer_text = await self._generate_with_gemini(prompt, self.fallback_model)
-
+                logger.warning("No tenders found in database")
                 return RAGAnswer(
                     question=question,
-                    answer=answer_text,
-                    sources=sources_used,
-                    confidence='medium',
+                    answer="Моментално немаме тендери во базата. Обидете се повторно кога ќе имаме повеќе тендери во системот.",
+                    sources=[],
+                    confidence='low',
                     generated_at=datetime.utcnow(),
                     model_used=self.model
                 )
 
+            # Use pre-built context from SQL search
+            sources_used = search_results
+
+            # Build prompt and generate answer
+            prompt = self.prompt_builder.build_query_prompt(
+                question=question,
+                context=context,
+                conversation_history=conversation_history
+            )
+
+            logger.info(f"Generating answer with {self.model} (SQL search)...")
+            try:
+                answer_text = await self._generate_with_gemini(prompt, self.model)
+            except Exception as e:
+                logger.warning(f"Primary model failed: {e}, trying fallback...")
+                answer_text = await self._generate_with_gemini(prompt, self.fallback_model)
+
+            return RAGAnswer(
+                question=question,
+                answer=answer_text,
+                sources=sources_used,
+                confidence='medium',
+                generated_at=datetime.utcnow(),
+                model_used=self.model
+            )
+
+            # NOTE: Vector search code below is temporarily disabled
             # 3. Assemble context
             logger.info("Assembling context from search results...")
             context, sources_used = self.context_assembler.assemble_context(
@@ -827,25 +856,27 @@ class RAGQueryPipeline:
         import json
 
         prompt = f"""You are a search query optimizer for a Macedonian public procurement database.
-The database contains tenders in MACEDONIAN language.
+The database contains tender TITLES in MACEDONIAN language.
 
 User question: "{question}"
 
-Your task: Generate THE MOST SPECIFIC Macedonian search terms for this product/service.
+Your task: Generate search terms that will match TENDER TITLES in the database.
 
-Rules:
-1. Translate the EXACT product name to Macedonian first
-2. Then add close synonyms and alternative names
-3. Include the product category
-4. Be SPECIFIC - "surgical drapes" should find drapes, not just any medical item
+IMPORTANT RULES:
+1. DO NOT include words like "тендер", "тендери", "набавка", "јавна" - these are NOT in tender titles
+2. Generate PRODUCT/SERVICE names only
+3. Include variations: singular/plural, abbreviations, English terms used in Macedonia
+4. Be specific to the product category
 
 Examples:
-- "surgical drapes" → ["хируршки чаршафи", "хируршки драперии", "стерилни чаршафи", "операциски чаршафи", "еднократни чаршафи", "хируршки"]
-- "toner cartridge HP" → ["тонер HP", "тонер касета", "HP картриџ", "печатач тонер", "ласерски тонер"]
-- "surgical sutures" → ["хируршки конци", "шиење хируршко", "хируршки материјал", "конци за шиење"]
-- "medical gloves" → ["медицински ракавици", "хируршки ракавици", "ракавици за преглед", "латекс ракавици", "нитрил ракавици"]
+- "ИТ тендери" → ["компјутер", "софтвер", "хардвер", "информатичк", "ИТ опрема", "сервер", "лаптоп", "монитор", "принтер", "мрежа"]
+- "surgical drapes" → ["хируршки чаршафи", "хируршки драперии", "стерилни чаршафи", "операциски"]
+- "toner" → ["тонер", "касета", "картриџ", "печатач", "принтер"]
+- "medical supplies" → ["медицински материјал", "медицинска опрема", "санитетски", "здравствен"]
+- "construction" → ["градежен", "градежни работи", "бетон", "цемент", "арматура", "градба"]
+- "cleaning supplies" → ["средства за хигиена", "детергент", "чистење", "дезинфекција"]
 
-Return ONLY a JSON array of 5-10 specific search terms.
+Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words).
 """
 
         try:
@@ -927,6 +958,332 @@ Return ONLY a JSON array of 5-10 specific search terms.
                 unique.append(kw)
 
         return unique[:10]
+
+    def _is_item_level_query(self, question: str) -> bool:
+        """
+        Detect if query is asking about specific items/products rather than tenders.
+
+        Returns:
+            True if query is item-level (prices, specs, suppliers for specific products)
+        """
+        import re
+
+        question_lower = question.lower()
+
+        # Item-level query patterns
+        ITEM_QUERY_PATTERNS = [
+            r'price.*for\s+',
+            r'prices.*for\s+',
+            r'цена.*за\s+',
+            r'цени.*за\s+',
+            r'how much.*cost',
+            r'what.*cost',
+            r'колку чини',
+            r'колку коштаат',
+            r'who (sells|supplies|supplied|won)',
+            r'кој (продава|испорачува|добил)',
+            r'specification.*for',
+            r'specifications.*for',
+            r'specs.*for',
+            r'технички.*барања',
+            r'технички.*спецификации',
+            r'спецификации.*за',
+            # Medical/procurement product terms
+            r'(surgical|медицински|хируршки)\s+(drapes|чаршафи|драперии|gloves|ракавици|masks|маски|equipment|опрема)',
+            r'(медицински|хируршки|лабораториски|дентален)\s+',
+            r'тонер|тонери|cartridge|касета|картриџ',
+            r'канцелариски материјал',
+            r'офис опрема',
+            # Past price queries
+            r'past prices',
+            r'historical prices',
+            r'price history',
+            r'претходни цени',
+            r'историја на цени',
+            r'историски цени',
+        ]
+
+        for pattern in ITEM_QUERY_PATTERNS:
+            if re.search(pattern, question_lower):
+                logger.info(f"Item-level query detected: pattern '{pattern}' matched")
+                return True
+
+        return False
+
+    async def _search_product_items(
+        self,
+        search_keywords: List[str],
+        years: int = 3
+    ) -> Tuple[List[Dict], str]:
+        """
+        Search product_items and epazar_items tables for item-level data.
+
+        Args:
+            search_keywords: Keywords to search for
+            years: How many years of history to include (default: 3)
+
+        Returns:
+            (items_data, formatted_context)
+        """
+        pool = await get_pool()
+
+        async with pool.acquire() as conn:
+            keyword_patterns = [f'%{kw}%' for kw in search_keywords]
+
+            # Search product_items table
+            product_items = await conn.fetch("""
+                SELECT
+                    pi.id, pi.name, pi.quantity, pi.unit, pi.unit_price, pi.total_price,
+                    pi.specifications, pi.cpv_code, pi.manufacturer, pi.model, pi.supplier,
+                    t.tender_id, t.title as tender_title, t.procuring_entity,
+                    t.status, t.publication_date, t.winner, t.actual_value_mkd
+                FROM product_items pi
+                JOIN tenders t ON pi.tender_id = t.tender_id
+                WHERE (pi.name ILIKE ANY($1)
+                   OR pi.name_mk ILIKE ANY($1)
+                   OR pi.name_en ILIKE ANY($1)
+                   OR pi.manufacturer ILIKE ANY($1)
+                   OR pi.model ILIKE ANY($1)
+                   OR pi.specifications::text ILIKE ANY($1))
+                  AND t.publication_date >= NOW() - INTERVAL '%s years'
+                ORDER BY t.publication_date DESC NULLS LAST
+                LIMIT 100
+            """, keyword_patterns, years)
+
+            # Search epazar_items table
+            epazar_items = await conn.fetch("""
+                SELECT
+                    ei.item_id, ei.item_name, ei.item_description, ei.quantity, ei.unit,
+                    ei.estimated_unit_price_mkd, ei.estimated_total_price_mkd,
+                    ei.cpv_code, ei.specifications,
+                    et.tender_id, et.title as tender_title, et.contracting_authority as procuring_entity,
+                    et.status, et.publication_date,
+                    (SELECT supplier_name FROM epazar_offers
+                     WHERE tender_id = et.tender_id AND is_winner = true LIMIT 1) as winner,
+                    (SELECT total_bid_mkd FROM epazar_offers
+                     WHERE tender_id = et.tender_id AND is_winner = true LIMIT 1) as winning_price
+                FROM epazar_items ei
+                JOIN epazar_tenders et ON ei.tender_id = et.tender_id
+                WHERE (ei.item_name ILIKE ANY($1)
+                   OR ei.item_description ILIKE ANY($1)
+                   OR ei.specifications::text ILIKE ANY($1))
+                  AND et.publication_date >= NOW() - INTERVAL '%s years'
+                ORDER BY et.publication_date DESC NULLS LAST
+                LIMIT 100
+            """, keyword_patterns, years)
+
+            # Get item-level price statistics for product_items
+            product_stats = await conn.fetch("""
+                SELECT
+                    pi.name,
+                    EXTRACT(YEAR FROM t.publication_date)::INTEGER as year,
+                    EXTRACT(QUARTER FROM t.publication_date)::INTEGER as quarter,
+                    COUNT(*) as tender_count,
+                    AVG(pi.unit_price) as avg_price,
+                    MIN(pi.unit_price) as min_price,
+                    MAX(pi.unit_price) as max_price,
+                    SUM(pi.quantity) as total_quantity,
+                    pi.unit,
+                    array_agg(DISTINCT t.winner) FILTER (WHERE t.winner IS NOT NULL) as winners,
+                    array_agg(DISTINCT t.procuring_entity) as buyers
+                FROM product_items pi
+                JOIN tenders t ON pi.tender_id = t.tender_id
+                WHERE (pi.name ILIKE ANY($1)
+                   OR pi.name_mk ILIKE ANY($1)
+                   OR pi.name_en ILIKE ANY($1))
+                  AND pi.unit_price IS NOT NULL
+                  AND t.publication_date >= NOW() - INTERVAL '%s years'
+                GROUP BY pi.name, year, quarter, pi.unit
+                ORDER BY year DESC, quarter DESC, pi.name
+                LIMIT 50
+            """, keyword_patterns, years)
+
+            # Get item-level price statistics for epazar_items
+            epazar_stats = await conn.fetch("""
+                SELECT
+                    ei.item_name,
+                    EXTRACT(YEAR FROM et.publication_date)::INTEGER as year,
+                    EXTRACT(QUARTER FROM et.publication_date)::INTEGER as quarter,
+                    COUNT(*) as tender_count,
+                    AVG(ei.estimated_unit_price_mkd) as avg_price,
+                    MIN(ei.estimated_unit_price_mkd) as min_price,
+                    MAX(ei.estimated_unit_price_mkd) as max_price,
+                    SUM(ei.quantity) as total_quantity,
+                    ei.unit,
+                    array_agg(DISTINCT eo.supplier_name) FILTER (WHERE eo.is_winner = true) as winners,
+                    array_agg(DISTINCT et.contracting_authority) as buyers
+                FROM epazar_items ei
+                JOIN epazar_tenders et ON ei.tender_id = et.tender_id
+                LEFT JOIN epazar_offers eo ON ei.tender_id = eo.tender_id AND eo.is_winner = true
+                WHERE (ei.item_name ILIKE ANY($1)
+                   OR ei.item_description ILIKE ANY($1))
+                  AND ei.estimated_unit_price_mkd IS NOT NULL
+                  AND et.publication_date >= NOW() - INTERVAL '%s years'
+                GROUP BY ei.item_name, year, quarter, ei.unit
+                ORDER BY year DESC, quarter DESC, ei.item_name
+                LIMIT 50
+            """, keyword_patterns, years)
+
+            # Get top suppliers for these items
+            top_suppliers_product = await conn.fetch("""
+                SELECT
+                    t.winner,
+                    COUNT(*) as wins,
+                    AVG(pi.unit_price) as avg_unit_price,
+                    SUM(pi.total_price) as total_contract_value,
+                    array_agg(DISTINCT pi.name) as items_supplied
+                FROM product_items pi
+                JOIN tenders t ON pi.tender_id = t.tender_id
+                WHERE (pi.name ILIKE ANY($1)
+                   OR pi.name_mk ILIKE ANY($1))
+                  AND t.winner IS NOT NULL AND t.winner != ''
+                  AND t.publication_date >= NOW() - INTERVAL '%s years'
+                GROUP BY t.winner
+                ORDER BY COUNT(*) DESC, AVG(pi.unit_price) ASC
+                LIMIT 10
+            """, keyword_patterns, years)
+
+            top_suppliers_epazar = await conn.fetch("""
+                SELECT
+                    eo.supplier_name as winner,
+                    COUNT(*) as wins,
+                    AVG(ei.estimated_unit_price_mkd) as avg_unit_price,
+                    SUM(eo.total_bid_mkd) as total_contract_value,
+                    array_agg(DISTINCT ei.item_name) as items_supplied
+                FROM epazar_items ei
+                JOIN epazar_tenders et ON ei.tender_id = et.tender_id
+                JOIN epazar_offers eo ON et.tender_id = eo.tender_id AND eo.is_winner = true
+                WHERE (ei.item_name ILIKE ANY($1)
+                   OR ei.item_description ILIKE ANY($1))
+                  AND et.publication_date >= NOW() - INTERVAL '%s years'
+                GROUP BY eo.supplier_name
+                ORDER BY COUNT(*) DESC, AVG(ei.estimated_unit_price_mkd) ASC
+                LIMIT 10
+            """, keyword_patterns, years)
+
+        # Format context
+        context_parts = []
+
+        if not product_items and not epazar_items:
+            context_parts.append(f"=== ПРЕБАРУВАЊЕ ПО АРТИКЛИ ===\n")
+            context_parts.append(f"Барани термини: {', '.join(search_keywords)}\n\n")
+            context_parts.append("Не се пронајдени артикли кои одговараат на барањето.\n")
+            return [], ''.join(context_parts)
+
+        # Add price statistics
+        if product_stats or epazar_stats:
+            context_parts.append("=== ИСТОРИЈА НА ЦЕНИ (ПО ПРОИЗВОД/АРТИКЛ) ===\n\n")
+
+            # Group by item name
+            all_stats = {}
+            for stat in list(product_stats) + list(epazar_stats):
+                item_name = stat.get('item_name') or stat.get('name')
+                if item_name not in all_stats:
+                    all_stats[item_name] = []
+                all_stats[item_name].append(stat)
+
+            for item_name, stats_list in all_stats.items():
+                context_parts.append(f"**{item_name}**\n")
+
+                # Group by year
+                by_year = {}
+                for stat in stats_list:
+                    year = stat['year']
+                    if year not in by_year:
+                        by_year[year] = []
+                    by_year[year].append(stat)
+
+                for year in sorted(by_year.keys(), reverse=True):
+                    year_stats = by_year[year]
+                    total_tenders = sum(s['tender_count'] for s in year_stats)
+                    avg_price = sum(s['avg_price'] * s['tender_count'] for s in year_stats if s['avg_price']) / total_tenders if total_tenders else 0
+                    min_price = min((s['min_price'] for s in year_stats if s['min_price']), default=0)
+                    max_price = max((s['max_price'] for s in year_stats if s['max_price']), default=0)
+                    unit = year_stats[0].get('unit', '')
+
+                    if avg_price > 0:
+                        context_parts.append(
+                            f"  {year}: Просечна цена {avg_price:,.2f} МКД/{unit} "
+                            f"(опсег: {min_price:,.2f} - {max_price:,.2f}, {total_tenders} тендери)\n"
+                        )
+
+                context_parts.append("\n")
+
+        # Add top suppliers
+        if top_suppliers_product or top_suppliers_epazar:
+            context_parts.append("=== НАЈЧЕСТИ ДОБАВУВАЧИ (ПО АРТИКЛ) ===\n\n")
+
+            all_suppliers = {}
+            for supplier in list(top_suppliers_product) + list(top_suppliers_epazar):
+                name = supplier['winner']
+                if name not in all_suppliers:
+                    all_suppliers[name] = {
+                        'wins': 0,
+                        'avg_price': [],
+                        'total_value': 0,
+                        'items': set()
+                    }
+                all_suppliers[name]['wins'] += supplier['wins']
+                if supplier.get('avg_unit_price'):
+                    all_suppliers[name]['avg_price'].append(supplier['avg_unit_price'])
+                if supplier.get('total_contract_value'):
+                    all_suppliers[name]['total_value'] += supplier['total_contract_value']
+                if supplier.get('items_supplied'):
+                    all_suppliers[name]['items'].update(supplier['items_supplied'])
+
+            # Sort by wins
+            sorted_suppliers = sorted(all_suppliers.items(), key=lambda x: x[1]['wins'], reverse=True)[:10]
+
+            for i, (name, data) in enumerate(sorted_suppliers, 1):
+                avg_price = sum(data['avg_price']) / len(data['avg_price']) if data['avg_price'] else 0
+                context_parts.append(
+                    f"{i}. {name}: {data['wins']} победи, "
+                    f"просечна цена {avg_price:,.2f} МКД"
+                )
+                if data['total_value'] > 0:
+                    context_parts.append(f", вкупна вредност {data['total_value']:,.0f} МКД")
+                context_parts.append("\n")
+
+        # Add individual items
+        context_parts.append("\n=== ПРОИЗВОДИ / АРТИКЛИ (Детали) ===\n\n")
+
+        for i, item in enumerate(list(product_items)[:30] + list(epazar_items)[:30], 1):
+            item_name = item.get('item_name') or item.get('name')
+            unit_price = item.get('unit_price') or item.get('estimated_unit_price_mkd')
+            total_price = item.get('total_price') or item.get('estimated_total_price_mkd')
+
+            context_parts.append(f"**Артикл {i}: {item_name}**\n")
+            context_parts.append(f"Количина: {item.get('quantity', 'N/A')} {item.get('unit', '')}\n")
+            if unit_price:
+                context_parts.append(f"Единечна цена: {unit_price:,.2f} МКД\n")
+            if total_price:
+                context_parts.append(f"Вкупна цена: {total_price:,.2f} МКД\n")
+            context_parts.append(f"Тендер: {item.get('tender_title', 'N/A')} ({item['tender_id']})\n")
+            context_parts.append(f"Набавувач: {item.get('procuring_entity', 'N/A')}\n")
+            context_parts.append(f"Датум: {item.get('publication_date', 'N/A')}\n")
+            if item.get('winner'):
+                context_parts.append(f"Победник: {item['winner']}\n")
+
+            # Add specifications if available
+            specs = item.get('specifications')
+            if specs:
+                context_parts.append(f"Спецификации: {specs}\n")
+
+            if item.get('manufacturer'):
+                context_parts.append(f"Производител: {item['manufacturer']}\n")
+            if item.get('model'):
+                context_parts.append(f"Модел: {item['model']}\n")
+
+            context_parts.append("\n")
+
+        context = ''.join(context_parts)
+
+        # Convert items to dict format for return
+        items_data = [dict(item) for item in list(product_items) + list(epazar_items)]
+
+        logger.info(f"Found {len(items_data)} product items matching keywords")
+
+        return items_data, context
 
     async def _fallback_sql_search(
         self,
