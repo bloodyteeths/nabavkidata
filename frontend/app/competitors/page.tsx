@@ -300,6 +300,87 @@ export default function CompetitorsPage() {
         </Button>
       </div>
 
+      {/* Search Bar - Always visible at top */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Пребарај компании
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="relative">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Внесете име на компанија за пребарување..."
+                className="pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => searchQuery.length >= 2 && setShowSearchResults(true)}
+                onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
+              />
+              {searchLoading && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
+
+            {/* Search Results Dropdown */}
+            {showSearchResults && searchResults.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 max-h-64 overflow-auto border rounded-md bg-background shadow-lg">
+                {searchResults.map((result) => {
+                  const tracked = isTracked(result.company_name);
+                  return (
+                    <div
+                      key={result.company_name}
+                      className="flex items-center justify-between px-3 py-2 hover:bg-accent border-b last:border-0"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{result.company_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {result.total_wins} победи · {result.total_bids} понуди
+                          {result.total_contract_value && ` · ${(result.total_contract_value / 1_000_000).toFixed(1)}M МКД`}
+                        </p>
+                      </div>
+                      <Button
+                        variant={tracked ? "secondary" : "default"}
+                        size="sm"
+                        className="ml-2 flex-shrink-0"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          toggleTrack(result.company_name);
+                        }}
+                        disabled={trackingLoading === result.company_name}
+                      >
+                        {trackingLoading === result.company_name ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : tracked ? (
+                          <>
+                            <Star className="h-4 w-4 mr-1 fill-yellow-500 text-yellow-500" />
+                            Следена
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4 mr-1" />
+                            Следи
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {showSearchResults && searchQuery.length >= 2 && searchResults.length === 0 && !searchLoading && (
+              <div className="absolute z-50 w-full mt-1 border rounded-md bg-background shadow-lg p-4 text-center text-sm text-muted-foreground">
+                Нема резултати за „{searchQuery}"
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Tabs for Top Competitors and Tracked Activity */}
       <Tabs defaultValue="top" className="space-y-4">
         <TabsList>
@@ -468,90 +549,6 @@ export default function CompetitorsPage() {
 
         {/* Tracked Competitors Tab */}
         <TabsContent value="tracked" className="space-y-4">
-          {/* Search to add new competitor */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Пребарај компании
-              </CardTitle>
-              <CardDescription>
-                Пребарајте компании по име за да ги додадете на листата за следење
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="relative">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Внесете име на компанија..."
-                    className="pl-9"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onFocus={() => searchQuery.length >= 2 && setShowSearchResults(true)}
-                    onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
-                  />
-                  {searchLoading && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
-                </div>
-
-                {/* Search Results Dropdown */}
-                {showSearchResults && searchResults.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 max-h-64 overflow-auto border rounded-md bg-background shadow-lg">
-                    {searchResults.map((result) => {
-                      const tracked = isTracked(result.company_name);
-                      return (
-                        <div
-                          key={result.company_name}
-                          className="flex items-center justify-between px-3 py-2 hover:bg-accent border-b last:border-0"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{result.company_name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {result.total_wins} победи · {result.total_bids} понуди
-                              {result.total_contract_value && ` · ${(result.total_contract_value / 1_000_000).toFixed(1)}M МКД`}
-                            </p>
-                          </div>
-                          <Button
-                            variant={tracked ? "secondary" : "default"}
-                            size="sm"
-                            className="ml-2 flex-shrink-0"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              toggleTrack(result.company_name);
-                            }}
-                            disabled={trackingLoading === result.company_name}
-                          >
-                            {trackingLoading === result.company_name ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : tracked ? (
-                              <>
-                                <Star className="h-4 w-4 mr-1 fill-yellow-500 text-yellow-500" />
-                                Следена
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="h-4 w-4 mr-1" />
-                                Следи
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {showSearchResults && searchQuery.length >= 2 && searchResults.length === 0 && !searchLoading && (
-                  <div className="absolute z-50 w-full mt-1 border rounded-md bg-background shadow-lg p-4 text-center text-sm text-muted-foreground">
-                    Нема резултати за „{searchQuery}"
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Tracked Companies List */}
           <Card>
             <CardHeader>
