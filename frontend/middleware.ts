@@ -20,6 +20,7 @@ const PUBLIC_ROUTES = [
   '/auth/forgot-password',
   '/auth/reset-password',
   '/auth/verify-email',
+  '/auth/callback',
   '/tenders',
   '/privacy',
   '/terms',
