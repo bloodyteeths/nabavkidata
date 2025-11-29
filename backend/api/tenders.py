@@ -897,8 +897,8 @@ CPV код: {tender.cpv_code or 'Н/А'}
         for b in bidders[:10]:
             winner_mark = " (ПОБЕДНИК)" if b.is_winner else ""
             bidder_info += f"- {b.company_name}{winner_mark}"
-            if b.bid_price:
-                bidder_info += f" - {b.bid_price:,.0f} МКД"
+            if b.bid_amount_mkd:
+                bidder_info += f" - {b.bid_amount_mkd:,.0f} МКД"
             bidder_info += "\n"
         tender_context += bidder_info
 
@@ -916,7 +916,9 @@ CPV код: {tender.cpv_code or 'Н/А'}
 
     if GEMINI_AVAILABLE:
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # Use configured model or fallback
+            model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+            model = genai.GenerativeModel(model_name)
 
             prompt = f"""Анализирај го овој јавен тендер и дај структурирано резиме на македонски јазик.
 
@@ -947,7 +949,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
                     overview = parsed.get('overview', '')
                     key_requirements = parsed.get('key_requirements', [])
                     strategic_insights = parsed.get('strategic_insights', [])
-                    model_used = "gemini-1.5-flash"
+                    model_used = model_name
                 except json.JSONDecodeError:
                     pass
 
@@ -1397,8 +1399,8 @@ CPV код: {tender.cpv_code or 'Н/А'}
         for b in bidders[:10]:
             winner_mark = " (ПОБЕДНИК)" if b.is_winner else ""
             bidder_info += f"- {b.company_name}{winner_mark}"
-            if b.bid_price:
-                bidder_info += f" - {b.bid_price:,.0f} МКД"
+            if b.bid_amount_mkd:
+                bidder_info += f" - {b.bid_amount_mkd:,.0f} МКД"
             bidder_info += "\n"
         tender_context += bidder_info
 
@@ -1416,7 +1418,9 @@ CPV код: {tender.cpv_code or 'Н/А'}
 
     if GEMINI_AVAILABLE:
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # Use configured model or fallback
+            model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+            model = genai.GenerativeModel(model_name)
 
             prompt = f"""Анализирај го овој јавен тендер и дај структурирано резиме на македонски јазик.
 
@@ -1447,7 +1451,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
                     overview = parsed.get('overview', '')
                     key_requirements = parsed.get('key_requirements', [])
                     strategic_insights = parsed.get('strategic_insights', [])
-                    model_used = "gemini-1.5-flash"
+                    model_used = model_name
                 except json.JSONDecodeError:
                     pass
 
