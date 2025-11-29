@@ -856,6 +856,12 @@ class NabavkiSpider(scrapy.Spider):
         tender['documents_data'] = documents
         logger.warning(f"Documents captured for {tender.get('tender_id')}: {len(documents)}")
         for doc in documents:
+            # Skip ohridskabanka.mk documents (external bank guarantees - not relevant)
+            doc_url = doc.get('url', '')
+            if 'ohridskabanka' in doc_url.lower():
+                logger.info(f"Skipping ohridskabanka.mk document: {doc_url}")
+                continue
+
             logger.warning(f"Yielding document item for tender {tender.get('tender_id')}: {doc.get('file_name')}")
             if hasattr(self, "crawler") and self.crawler:
                 self.crawler.stats.inc_value("documents_yielded", 1)
