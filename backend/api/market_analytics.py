@@ -404,6 +404,102 @@ async def get_competitor_analysis(
 
 
 # ============================================================================
+# TOP MARKET COMPETITORS (no specific input required)
+# ============================================================================
+
+@router.get("/top-competitors")
+async def get_top_competitors(
+    period: str = Query("1y", description="Period: 30d, 90d, 6m, 1y, all"),
+    limit: int = Query(20, ge=1, le=50, description="Number of competitors to return"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get top market competitors based on tender wins and participation.
+
+    This endpoint automatically finds the most active bidders in the market
+    without requiring specific competitor names.
+
+    Requires Starter+ tier.
+    """
+    if not check_tier_access("competitor-analysis", current_user):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": "Competitor analysis requires Starter tier or higher",
+                "current_tier": getattr(current_user, 'subscription_tier', 'free'),
+                "upgrade_url": "/pricing"
+            }
+        )
+
+    start_date = get_period_start(period)
+
+    # Get top competitors by wins and bids
+    query = text("""
+        SELECT
+            tb.company_name as name,
+            COUNT(*) as bids_count,
+            COUNT(*) FILTER (WHERE tb.is_winner) as wins,
+            SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner) as total_value_mkd,
+            ROUND(COUNT(*) FILTER (WHERE tb.is_winner)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as win_rate,
+            array_agg(DISTINCT t.category) FILTER (WHERE t.category IS NOT NULL) as categories
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE t.opening_date >= :start_date
+          AND tb.company_name IS NOT NULL AND tb.company_name != ''
+        GROUP BY tb.company_name
+        HAVING COUNT(*) >= 2
+        ORDER BY COUNT(*) FILTER (WHERE tb.is_winner) DESC, COUNT(*) DESC
+        LIMIT :limit
+    """)
+
+    result = await db.execute(query, {
+        "start_date": start_date.date(),
+        "limit": limit
+    })
+    rows = result.fetchall()
+
+    competitors = []
+    for row in rows:
+        competitors.append({
+            "name": row.name,
+            "bids_count": row.bids_count,
+            "wins": row.wins,
+            "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else 0,
+            "win_rate": float(row.win_rate) if row.win_rate else 0,
+            "categories": row.categories[:5] if row.categories else []
+        })
+
+    # Get market summary
+    summary_query = text("""
+        SELECT
+            COUNT(DISTINCT tb.company_name) as total_bidders,
+            COUNT(*) as total_bids,
+            COUNT(*) FILTER (WHERE tb.is_winner) as total_awards,
+            SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner) as total_awarded_value
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE t.opening_date >= :start_date
+    """)
+    summary_result = await db.execute(summary_query, {"start_date": start_date.date()})
+    summary_row = summary_result.fetchone()
+
+    summary = {
+        "total_bidders": summary_row.total_bidders if summary_row else 0,
+        "total_bids": summary_row.total_bids if summary_row else 0,
+        "total_awards": summary_row.total_awards if summary_row else 0,
+        "total_awarded_value_mkd": float(summary_row.total_awarded_value) if summary_row and summary_row.total_awarded_value else 0,
+        "period": period
+    }
+
+    return {
+        "competitors": competitors,
+        "summary": summary,
+        "generated_at": datetime.utcnow().isoformat()
+    }
+
+
+# ============================================================================
 # CATEGORY TRENDS
 # ============================================================================
 

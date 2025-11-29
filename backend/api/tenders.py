@@ -1177,6 +1177,224 @@ async def get_tender_suppliers(number: str, year: str, db: AsyncSession = Depend
 
 
 # ============================================================================
+# FLEXIBLE TENDER ENDPOINTS (Accept any tender_id format - UUID or number/year)
+# These must be BEFORE the catch-all route
+# ============================================================================
+
+@router.get("/by-id/{tender_id:path}/ai_summary")
+async def get_tender_ai_summary_by_id(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get AI-generated summary for a tender by any ID format.
+    Accepts both UUID format and number/year format.
+    """
+    from datetime import datetime
+
+    # Normalize the tender_id
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    # Get tender
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Calculate deadline urgency
+    urgency = "unknown"
+    days_remaining = None
+    if tender.closing_date:
+        today = datetime.utcnow().date()
+        days_remaining = (tender.closing_date - today).days
+        if days_remaining < 0:
+            urgency = "closed"
+        elif days_remaining <= 3:
+            urgency = "critical"
+        elif days_remaining <= 7:
+            urgency = "urgent"
+        elif days_remaining <= 14:
+            urgency = "soon"
+        else:
+            urgency = "normal"
+
+    # Estimate complexity
+    complexity = "medium"
+    complexity_factors = []
+
+    if tender.has_lots and tender.num_lots and tender.num_lots > 3:
+        complexity = "high"
+        complexity_factors.append(f"{tender.num_lots} лотови")
+    if tender.estimated_value_mkd and tender.estimated_value_mkd > 10000000:
+        complexity = "high"
+        complexity_factors.append("Висока вредност")
+    if tender.num_bidders and tender.num_bidders > 5:
+        complexity_factors.append(f"{tender.num_bidders} понудувачи")
+
+    # Estimate competition level
+    competition = "unknown"
+    if tender.num_bidders:
+        if tender.num_bidders >= 5:
+            competition = "high"
+        elif tender.num_bidders >= 3:
+            competition = "medium"
+        else:
+            competition = "low"
+
+    # Extract key requirements from description
+    key_requirements = []
+    if tender.description:
+        sentences = tender.description.split('.')[:5]
+        key_requirements = [s.strip() for s in sentences if s.strip() and len(s.strip()) > 20]
+
+    # Build overview
+    overview = f"Тендер за {tender.title or 'без наслов'}"
+    if tender.procuring_entity:
+        overview += f" од {tender.procuring_entity}"
+    if tender.estimated_value_mkd:
+        overview += f". Проценета вредност: {tender.estimated_value_mkd:,.0f} МКД"
+    if tender.category:
+        overview += f". Категорија: {tender.category}"
+
+    return {
+        "tender_id": tender_id,
+        "summary": {
+            "overview": overview,
+            "key_requirements": key_requirements[:5],
+            "estimated_complexity": complexity,
+            "complexity_factors": complexity_factors,
+            "deadline_urgency": urgency,
+            "days_remaining": days_remaining,
+            "competition_level": competition
+        }
+    }
+
+
+@router.get("/by-id/{tender_id:path}/price_history")
+async def get_tender_price_history_by_id(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get price/value history for a tender by any ID format.
+    Accepts both UUID format and number/year format.
+    """
+    from sqlalchemy import text
+
+    # Normalize the tender_id
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    # Get tender
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Build price history points
+    points = []
+
+    # Initial publication point
+    if tender.publication_date and tender.estimated_value_mkd:
+        points.append({
+            "date": tender.publication_date.isoformat(),
+            "estimated_value_mkd": float(tender.estimated_value_mkd),
+            "awarded_value_mkd": None,
+            "type": "publication"
+        })
+
+    # Award point if awarded
+    if tender.status in ['awarded', 'completed'] and tender.actual_value_mkd:
+        award_date = tender.contract_signing_date or tender.closing_date or tender.publication_date
+        if award_date:
+            points.append({
+                "date": award_date.isoformat(),
+                "estimated_value_mkd": float(tender.estimated_value_mkd) if tender.estimated_value_mkd else None,
+                "awarded_value_mkd": float(tender.actual_value_mkd),
+                "type": "award"
+            })
+
+    # Sort by date
+    points.sort(key=lambda x: x["date"])
+
+    return {
+        "tender_id": tender_id,
+        "points": points
+    }
+
+
+@router.get("/by-id/{tender_id:path}/documents")
+async def get_tender_documents_by_id(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get documents for a tender by any ID format."""
+    from models import Document
+    from schemas import DocumentResponse
+
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    doc_query = select(Document).where(Document.tender_id == tender_id).order_by(Document.uploaded_at.desc())
+    result = await db.execute(doc_query)
+    documents = result.scalars().all()
+
+    return {
+        "tender_id": tender_id,
+        "total": len(documents),
+        "documents": [DocumentResponse.from_orm(doc) for doc in documents]
+    }
+
+
+@router.get("/by-id/{tender_id:path}/bidders")
+async def get_tender_bidders_by_id(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get bidders for a tender by any ID format."""
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    bidder_query = select(TenderBidder).where(
+        TenderBidder.tender_id == tender_id
+    ).order_by(TenderBidder.ranking.asc().nullslast())
+    result = await db.execute(bidder_query)
+    bidders = result.scalars().all()
+
+    return {
+        "tender_id": tender_id,
+        "total": len(bidders),
+        "bidders": [
+            {
+                "bidder_id": str(b.bidder_id),
+                "company_name": b.company_name,
+                "bid_amount_mkd": float(b.bid_amount_mkd) if b.bid_amount_mkd else None,
+                "is_winner": b.is_winner,
+                "ranking": b.ranking,
+                "bid_date": b.bid_date.isoformat() if b.bid_date else None,
+                "disqualification_reason": b.disqualification_reason
+            }
+            for b in bidders
+        ]
+    }
+
+
+# ============================================================================
 # GET SINGLE TENDER (Path parameter - must be LAST among GET routes)
 # ============================================================================
 

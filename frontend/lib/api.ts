@@ -218,11 +218,20 @@ export interface User {
 
 export interface SubscriptionPlan {
   id: string;
+  tier?: string;  // Backend uses 'tier' instead of 'id'
   name: string;
   price_mkd: number;
   price_eur: number;
   features: string[];
-  is_popular: boolean;
+  is_popular?: boolean;
+  stripe_price_id?: string | null;
+  limits?: {
+    rag_queries_per_month?: number;
+    saved_alerts?: number;
+    export_results?: boolean;
+    alerts_per_day?: number;
+    api_access?: boolean;
+  };
 }
 
 export interface UserSubscription {
@@ -593,9 +602,9 @@ class APIClient {
     return this.request<{ cards: any; charts: any }>(`/api/analytics/market-overview${query ? `?${query}` : ''}`);
   }
 
-  async getCompetitorAnalysis(params?: { start_date?: string; end_date?: string; limit?: number }) {
+  async getCompetitorAnalysis(params?: { period?: string; limit?: number }) {
     const query = new URLSearchParams(params as any).toString();
-    return this.request<{ competitors: any[]; summary: any }>(`/api/analytics/competitor-analysis${query ? `?${query}` : ''}`);
+    return this.request<{ competitors: any[]; summary: any }>(`/api/analytics/top-competitors${query ? `?${query}` : ''}`);
   }
 
   async getCategoryTrends(params?: { start_date?: string; end_date?: string; cpv_code?: string }) {
@@ -613,7 +622,7 @@ class APIClient {
   // Tender price history
   async getTenderPriceHistory(tenderId: string) {
     return this.request<{ tender_id: string; points: Array<{ date: string; estimated_value_mkd?: number; awarded_value_mkd?: number }> }>(
-      `/api/tenders/${encodeURIComponent(tenderId)}/price_history`
+      `/api/tenders/by-id/${encodeURIComponent(tenderId)}/price_history`
     );
   }
 
@@ -636,7 +645,7 @@ class APIClient {
       model: string;
       note: string;
     }>(
-      `/api/tenders/${encodeURIComponent(tenderId)}/ai_summary`
+      `/api/tenders/by-id/${encodeURIComponent(tenderId)}/ai_summary`
     );
   }
 
@@ -976,7 +985,13 @@ class APIClient {
 
   // Billing Methods
   async getPlans() {
-    return this.request<SubscriptionPlan[]>('/api/billing/plans');
+    const response = await this.request<{ plans: any[]; trial_days?: number }>('/api/billing/plans');
+    // Normalize backend response (tier -> id)
+    return response.plans.map(plan => ({
+      ...plan,
+      id: plan.tier || plan.id,
+      is_popular: plan.tier === 'professional',
+    })) as SubscriptionPlan[];
   }
 
   async getCurrentSubscription() {

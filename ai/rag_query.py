@@ -803,14 +803,47 @@ class RAGQueryPipeline:
                         LIMIT 20
                     """, tender_id)
                 else:
+                    # Regular e-nabavki tender
                     rows = await conn.fetch("""
                         SELECT tender_id, title, description, category, procuring_entity,
                                estimated_value_mkd, estimated_value_eur, status,
-                               publication_date, closing_date, procedure_type, winner
+                               publication_date, closing_date, procedure_type, winner,
+                               cpv_code, num_bidders, evaluation_method, award_criteria,
+                               contact_person, contact_email, contact_phone
                         FROM tenders
                         WHERE tender_id = $1
                         LIMIT 1
                     """, tender_id)
+
+                    # Fetch documents for this tender
+                    docs = await conn.fetch("""
+                        SELECT doc_id, file_name, file_url, extracted_text
+                        FROM documents
+                        WHERE tender_id = $1
+                        ORDER BY created_at
+                        LIMIT 10
+                    """, tender_id)
+
+                    # Fetch bidders for this tender
+                    bidders = await conn.fetch("""
+                        SELECT bidder_name, bid_amount_mkd, is_winner, ranking,
+                               bid_date, disqualification_reason
+                        FROM tender_bidders
+                        WHERE tender_id = $1
+                        ORDER BY ranking NULLS LAST, bid_amount_mkd ASC
+                        LIMIT 20
+                    """, tender_id)
+
+                    # Fetch lots if any
+                    lots = await conn.fetch("""
+                        SELECT lot_number, lot_title, lot_description,
+                               estimated_value_mkd, winner, winning_bid_mkd
+                        FROM tender_lots
+                        WHERE tender_id = $1
+                        ORDER BY lot_number
+                        LIMIT 20
+                    """, tender_id)
+
                     items = []
                     offers = []
             else:
@@ -922,11 +955,18 @@ class RAGQueryPipeline:
 
             # Add tender context
             for i, row in enumerate(rows):
-                # Format tender info as text
+                # Format tender info as text - include extra fields if available
+                cpv_code = row.get('cpv_code') or 'N/A'
+                num_bidders = row.get('num_bidders') or 'N/A'
+                evaluation = row.get('evaluation_method') or 'N/A'
+                contact = row.get('contact_person') or 'N/A'
+                email = row.get('contact_email') or 'N/A'
+
                 tender_text = f"""
 Тендер: {row['title']}
 ID: {row['tender_id']}
 Категорија: {row['category'] or 'N/A'}
+CPV код: {cpv_code}
 Набавувач: {row['procuring_entity'] or 'N/A'}
 Проценета вредност (МКД): {row['estimated_value_mkd'] or 'N/A'}
 Проценета вредност (EUR): {row['estimated_value_eur'] or 'N/A'}
@@ -935,6 +975,9 @@ ID: {row['tender_id']}
 Краен рок: {row['closing_date'] or 'N/A'}
 Тип на постапка: {row['procedure_type'] or 'N/A'}
 Победник: {row['winner'] or 'Не е избран'}
+Број на понудувачи: {num_bidders}
+Метод на евалуација: {evaluation}
+Контакт: {contact} ({email})
 Опис: {row['description'] or 'Нема опис'}
 """.strip()
 
@@ -954,6 +997,52 @@ ID: {row['tender_id']}
                     },
                     similarity=0.9
                 ))
+
+            # Add documents context for regular tenders (if docs variable exists)
+            if tender_id and not tender_id.startswith('EPAZAR-') and 'docs' in dir():
+                pass  # docs is local, need different approach
+
+            # Check if we have docs/bidders/lots from regular tender query
+            try:
+                if docs:
+                    docs_text = "\n=== ДОКУМЕНТИ ===\n\n"
+                    for doc in docs:
+                        doc_name = doc.get('file_name', 'N/A')
+                        extracted = doc.get('extracted_text', '')
+                        if extracted:
+                            # Limit extracted text to first 1000 chars
+                            extracted = extracted[:1000] + "..." if len(extracted) > 1000 else extracted
+                        docs_text += f"Документ: {doc_name}\n"
+                        if extracted:
+                            docs_text += f"Содржина: {extracted}\n"
+                        docs_text += "\n"
+                    context_parts.append(docs_text)
+            except NameError:
+                pass  # docs not defined (epazar or general search)
+
+            try:
+                if bidders:
+                    bidders_text = "\n=== ПОНУДУВАЧИ / ПОНУДИ ===\n\n"
+                    for bidder in bidders:
+                        winner_badge = " ✓ ПОБЕДНИК" if bidder.get('is_winner') else ""
+                        disq = f" (Дисквалификуван: {bidder['disqualification_reason']})" if bidder.get('disqualification_reason') else ""
+                        bidders_text += f"- {bidder['bidder_name']}: {bidder.get('bid_amount_mkd') or 'N/A'} МКД (Ранг: #{bidder.get('ranking') or 'N/A'}){winner_badge}{disq}\n"
+                    context_parts.append(bidders_text)
+            except NameError:
+                pass  # bidders not defined
+
+            try:
+                if lots:
+                    lots_text = "\n=== ЛОТОВИ / ДЕЛОВИ ===\n\n"
+                    for lot in lots:
+                        lot_winner = f" - Победник: {lot['winner']}" if lot.get('winner') else ""
+                        lots_text += f"Лот {lot['lot_number']}: {lot['lot_title']}\n"
+                        if lot.get('lot_description'):
+                            lots_text += f"  Опис: {lot['lot_description'][:200]}\n"
+                        lots_text += f"  Вредност: {lot.get('estimated_value_mkd') or 'N/A'} МКД{lot_winner}\n\n"
+                    context_parts.append(lots_text)
+            except NameError:
+                pass  # lots not defined
 
             context = "\n\n---\n\n".join(context_parts)
             logger.info(f"SQL fallback: Found {len(rows)} tenders, {len(items)} items, {len(offers)} offers")
