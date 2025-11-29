@@ -29,10 +29,13 @@ export default function TendersPage() {
     setIsHydrated(true);
   }, []);
 
+  // Track if we should trigger a load (for manual apply button)
+  const [shouldLoad, setShouldLoad] = useState(0);
+
   useEffect(() => {
     if (!isHydrated) return;
     loadTenders();
-  }, [isHydrated, page]);
+  }, [isHydrated, page, shouldLoad]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -111,11 +114,13 @@ export default function TendersPage() {
   const handleReset = () => {
     setFilters({});
     setPage(1);
+    setShouldLoad(prev => prev + 1);
   };
 
   const handleLoadSearch = (savedFilters: FilterState) => {
     setFilters(savedFilters);
     setPage(1);
+    setShouldLoad(prev => prev + 1);
     toast.success("Пребарувањето е вчитано");
     // On mobile, close filters after loading a search
     if (window.innerWidth < 1024) {
@@ -171,7 +176,8 @@ export default function TendersPage() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onApplyFilters={() => {
-              loadTenders();
+              // Increment shouldLoad to trigger useEffect after state updates
+              setShouldLoad(prev => prev + 1);
               // On mobile, close filters after applying
               if (window.innerWidth < 1024) {
                 setShowFilters(false);
