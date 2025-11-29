@@ -42,7 +42,7 @@ app.add_middleware(
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Device-Fingerprint", "X-Requested-With"],
+    allow_headers=["Authorization", "Content-Type", "X-Device-Fingerprint", "X-Requested-With", "X-CSRF-Token", "Accept", "Accept-Language", "Content-Language"],
 )
 
 # Security Middlewares
