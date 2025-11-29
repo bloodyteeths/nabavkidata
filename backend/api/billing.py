@@ -52,31 +52,30 @@ SUBSCRIPTION_PLANS = {
         "stripe_price_id": None,
         "features": [
             "Basic tender search",
-            "5 RAG queries per month",
-            "1 saved alert",
+            "3 AI queries per day",
+            "14-day trial",
             "Email support"
         ],
         "limits": {
-            "rag_queries_per_month": 5,
+            "rag_queries_per_day": 3,
             "saved_alerts": 1,
             "export_results": False
         }
     },
     "starter": {
         "name": "Starter",
-        "price_mkd": 599,
-        "price_eur": 9.99,
+        "price_mkd": 899,
+        "price_eur": 14.99,
         "stripe_price_id": PRICE_IDS.get("starter", {}).get("monthly"),
         "features": [
-            "Up to 5 alerts per day",
-            "50 RAG queries per month",
-            "5 saved alerts",
-            "Email notifications",
-            "Basic filters",
-            "14-day free trial"
+            "5 AI queries per day",
+            "14-day free trial",
+            "Advanced filters",
+            "CSV/PDF export",
+            "Priority support"
         ],
         "limits": {
-            "rag_queries_per_month": 50,
+            "rag_queries_per_day": 5,
             "saved_alerts": 5,
             "export_results": True,
             "alerts_per_day": 5
@@ -84,20 +83,18 @@ SUBSCRIPTION_PLANS = {
     },
     "professional": {
         "name": "Professional",
-        "price_mkd": 1999,
-        "price_eur": 32.99,
+        "price_mkd": 2399,
+        "price_eur": 39.99,
         "stripe_price_id": PRICE_IDS.get("professional", {}).get("monthly"),
         "features": [
-            "Up to 20 alerts per day",
-            "200 RAG queries per month",
-            "20 saved alerts",
-            "Advanced filters",
-            "Priority support",
-            "Export capabilities",
-            "14-day free trial"
+            "20 AI queries per day",
+            "14-day free trial",
+            "Analytics",
+            "Integrations",
+            "Dedicated support"
         ],
         "limits": {
-            "rag_queries_per_month": 200,
+            "rag_queries_per_day": 20,
             "saved_alerts": 20,
             "export_results": True,
             "alerts_per_day": 20
@@ -105,21 +102,18 @@ SUBSCRIPTION_PLANS = {
     },
     "enterprise": {
         "name": "Enterprise",
-        "price_mkd": 4999,
-        "price_eur": 79.99,
+        "price_mkd": 5999,
+        "price_eur": 99.99,
         "stripe_price_id": PRICE_IDS.get("enterprise", {}).get("monthly"),
         "features": [
-            "Unlimited alerts",
-            "Unlimited RAG queries",
-            "Unlimited saved alerts",
-            "All features",
-            "24/7 support",
-            "Custom integrations",
-            "Dedicated account manager",
-            "14-day free trial"
+            "Unlimited AI queries",
+            "14-day free trial",
+            "White-label",
+            "API access",
+            "24/7 support"
         ],
         "limits": {
-            "rag_queries_per_month": -1,  # unlimited
+            "rag_queries_per_day": -1,  # unlimited
             "saved_alerts": -1,  # unlimited
             "export_results": True,
             "api_access": True,

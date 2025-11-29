@@ -985,50 +985,50 @@ export default function SettingsPage() {
         {
           tier: 'free',
           name: 'Free',
-          price_monthly_eur: 0,
-          price_yearly_eur: 0,
+          price_monthly_mkd: 0,
+          price_yearly_mkd: 0,
           price_monthly_id: '',
           price_yearly_id: '',
           daily_queries: 3,
           trial_days: 14,
           allow_vpn: false,
-          features: ['3 AI queries per day', '14-day trial', 'Basic search', 'Email support']
+          features: ['3 AI пребарувања дневно', '14-дневен пробен период', 'Основно пребарување', 'Email поддршка']
         },
         {
           tier: 'starter',
           name: 'Starter',
-          price_monthly_eur: 14.99,
-          price_yearly_eur: 149.99,
-          price_monthly_id: 'price_1SWeAsHkVI5icjTl9GZ8Ciui',
-          price_yearly_id: 'price_1SWeAsHkVI5icjTlGRvOP17d',
+          price_monthly_mkd: 899,
+          price_yearly_mkd: 8990,
+          price_monthly_id: 'price_1SYdj7HkVI5icjTla0nOYXpg',
+          price_yearly_id: 'price_1SYdj7HkVI5icjTlpqVwQbQT',
           daily_queries: 5,
           trial_days: 14,
           allow_vpn: true,
-          features: ['5 AI queries per day', '14-day trial', 'Advanced filters', 'CSV/PDF export', 'Priority support']
+          features: ['5 AI пребарувања дневно', '14-дневен пробен период', 'Напредни филтри', 'CSV/PDF експорт', 'Приоритетна поддршка']
         },
         {
           tier: 'professional',
           name: 'Professional',
-          price_monthly_eur: 39.99,
-          price_yearly_eur: 399.99,
-          price_monthly_id: 'price_1SWeAtHkVI5icjTl8UxSYNYX',
-          price_yearly_id: 'price_1SWeAuHkVI5icjTlrbC5owFk',
+          price_monthly_mkd: 2399,
+          price_yearly_mkd: 23990,
+          price_monthly_id: 'price_1SYdj8HkVI5icjTlqUWXb8QJ',
+          price_yearly_id: 'price_1SYdj8HkVI5icjTl7A9x3Glo',
           daily_queries: 20,
           trial_days: 14,
           allow_vpn: true,
-          features: ['20 AI queries per day', '14-day trial', 'Analytics', 'Integrations', 'Dedicated support']
+          features: ['20 AI пребарувања дневно', '14-дневен пробен период', 'Аналитика', 'Интеграции', 'Дедицирана поддршка']
         },
         {
           tier: 'enterprise',
           name: 'Enterprise',
-          price_monthly_eur: 99.99,
-          price_yearly_eur: 999.99,
-          price_monthly_id: 'price_1SWeAvHkVI5icjTlF8eFK8kh',
-          price_yearly_id: 'price_1SWeAvHkVI5icjTlcKi7RFu7',
+          price_monthly_mkd: 5999,
+          price_yearly_mkd: 59990,
+          price_monthly_id: 'price_1SYdj8HkVI5icjTlop9VVjAd',
+          price_yearly_id: 'price_1SYdj9HkVI5icjTl1Bq2xtGw',
           daily_queries: -1,
           trial_days: 14,
           allow_vpn: true,
-          features: ['Unlimited queries', '14-day trial', 'White-label', 'API access', '24/7 support']
+          features: ['Неограничени AI пребарувања', '14-дневен пробен период', 'White-label', 'API пристап', '24/7 поддршка']
         }
       ];
       setPlans(hardcodedPlans);
@@ -1255,7 +1255,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {plans.map((plan) => {
                 const isCurrentPlan = plan.tier === currentTier;
-                const price = interval === 'monthly' ? plan.price_monthly_eur : plan.price_yearly_eur;
+                const price = interval === 'monthly' ? plan.price_monthly_mkd : plan.price_yearly_mkd;
                 const isFree = plan.tier === 'free';
                 const isPopular = plan.tier === 'professional';
 
@@ -1280,14 +1280,14 @@ export default function SettingsPage() {
                         </div>
                         <div className="mt-4">
                           <div className="flex items-baseline gap-1">
-                            <span className="text-4xl font-bold">€{price.toFixed(2)}</span>
+                            <span className="text-4xl font-bold">{price.toLocaleString('mk-MK')}</span>
                             <span className="text-muted-foreground">
-                              {isFree ? '/засекогаш' : `/${interval === 'monthly' ? 'мес' : 'год'}`}
+                              ден{isFree ? '/засекогаш' : `/${interval === 'monthly' ? 'мес' : 'год'}`}
                             </span>
                           </div>
                           {!isFree && interval === 'yearly' && (
                             <p className="text-sm text-muted-foreground mt-1">
-                              €{(price / 12).toFixed(2)} месечно
+                              {Math.round(price / 12).toLocaleString('mk-MK')} ден месечно
                             </p>
                           )}
                         </div>

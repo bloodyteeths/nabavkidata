@@ -10,49 +10,47 @@ const plans = [
     {
         name: "Старт",
         price: {
-            monthly: "14.99",
-            yearly: "149.99"
+            monthly: "899",
+            yearly: "8.990"
         },
         description: "За мали бизниси кои сакаат да започнат со тендери.",
         features: [
             "Пристап до сите тендери",
-            "Основно пребарување",
+            "5 AI пребарувања дневно",
             "Дневни известувања",
-            "До 3 корисници",
-            "Основна поддршка"
+            "CSV/PDF експорт",
+            "Приоритетна поддршка"
         ]
     },
     {
         name: "Про",
         price: {
-            monthly: "39.99",
-            yearly: "399.99"
+            monthly: "2.399",
+            yearly: "23.990"
         },
         popular: true,
         description: "За растечки компании кои сакаат конкурентска предност.",
         features: [
             "Сè од Старт пакетот",
-            "AI Анализа на тендери",
-            "Проценка на ризик",
-            "Анализа на конкуренција",
-            "Неограничени корисници",
-            "Приоритетна поддршка"
+            "20 AI пребарувања дневно",
+            "Аналитика",
+            "Интеграции",
+            "Дедицирана поддршка"
         ]
     },
     {
         name: "Ентерпрајз",
         price: {
-            monthly: "99.99",
-            yearly: "999.99"
+            monthly: "5.999",
+            yearly: "59.990"
         },
         description: "За големи организации со специфични потреби.",
         features: [
             "Сè од Про пакетот",
+            "Неограничени AI пребарувања",
             "API пристап",
-            "Custom интеграции",
-            "Дедициран менаџер",
-            "SLA гаранција",
-            "Обука за тимот"
+            "White-label",
+            "24/7 поддршка"
         ]
     }
 ];
@@ -117,9 +115,9 @@ export default function PricingSection() {
                                 <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
                                 <div className="flex items-baseline gap-1">
                                     <span className="text-4xl font-bold text-white">
-                                        €{billingCycle === "monthly" ? plan.price.monthly : plan.price.yearly}
+                                        {billingCycle === "monthly" ? plan.price.monthly : plan.price.yearly}
                                     </span>
-                                    <span className="text-gray-400">/{billingCycle === "monthly" ? "мес" : "год"}</span>
+                                    <span className="text-gray-400">ден/{billingCycle === "monthly" ? "мес" : "год"}</span>
                                 </div>
                             </div>
 
