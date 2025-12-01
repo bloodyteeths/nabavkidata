@@ -8,6 +8,12 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, ArrowRight } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
 export const dynamic = 'force-dynamic';
 
 export default function SuccessPage() {
@@ -17,6 +23,12 @@ export default function SuccessPage() {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
 
   useEffect(() => {
+    // Track Google Ads conversion
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', 'conversion', {
+        'send_to': 'AW-17761825331/3BPRCLCdvMcbELPkv5VC',
+      });
+    }
     loadSubscription();
   }, []);
 
