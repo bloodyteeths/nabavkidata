@@ -983,6 +983,7 @@ async def google_callback(
         # Check if user exists
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
+        is_new_user = user is None
 
         if user:
             # Update existing user
@@ -1030,7 +1031,7 @@ async def google_callback(
         )
 
         # Redirect to frontend with tokens
-        redirect_url = f"{FRONTEND_URL}/auth/callback?access_token={jwt_access_token}&refresh_token={jwt_refresh_token}"
+        redirect_url = f"{FRONTEND_URL}/auth/callback?access_token={jwt_access_token}&refresh_token={jwt_refresh_token}&is_new_user={str(is_new_user).lower()}"
         return RedirectResponse(url=redirect_url)
 
     except Exception as e:

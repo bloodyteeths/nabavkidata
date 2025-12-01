@@ -8,6 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
 // Google OAuth icon
 const GoogleIcon = () => (
   <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -115,6 +121,12 @@ export default function RegisterPage() {
 
     try {
       await register(formData.email, formData.password);
+      // Track Google Ads sign-up conversion
+      if (typeof window !== 'undefined' && window.gtag) {
+        window.gtag('event', 'conversion', {
+          'send_to': 'AW-17761825331/5HKKCIjq3MkbELPkv5VC',
+        });
+      }
       setSuccess(true);
       setTimeout(() => {
         router.push('/auth/verify-email');

@@ -5,6 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
 export default function AuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -29,6 +35,14 @@ export default function AuthCallbackPage() {
 
       if (accessToken && refreshToken) {
         processedRef.current = true;
+
+        // Track Google Ads sign-up conversion for new Google users
+        const isNewUser = searchParams.get('is_new_user') === 'true';
+        if (isNewUser && typeof window !== 'undefined' && window.gtag) {
+          window.gtag('event', 'conversion', {
+            'send_to': 'AW-17761825331/5HKKCIjq3MkbELPkv5VC',
+          });
+        }
 
         try {
           // Use setTokens which handles localStorage and fetches user
