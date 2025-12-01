@@ -23,14 +23,16 @@ export default function SuccessPage() {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
 
   useEffect(() => {
-    // Track Google Ads conversion
+    // Track Google Ads conversion with transaction ID
+    const sessionId = searchParams.get('session_id');
     if (typeof window !== 'undefined' && window.gtag) {
       window.gtag('event', 'conversion', {
         'send_to': 'AW-17761825331/3BPRCLCdvMcbELPkv5VC',
+        'transaction_id': sessionId || undefined,
       });
     }
     loadSubscription();
-  }, []);
+  }, [searchParams]);
 
   const loadSubscription = async () => {
     try {
