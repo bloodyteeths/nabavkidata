@@ -7,13 +7,13 @@ import { Menu, X, Globe } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
 
-export default function Navbar() {
+export default function NavbarSr() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const menuItems = [
-        { href: "#features", label: "Можности" },
-        { href: "#comparison", label: "Предности" },
-        { href: "#pricing", label: "Цени" },
+        { href: "/sr#features", label: "Mogućnosti" },
+        { href: "/sr#comparison", label: "Prednosti" },
+        { href: "/sr#pricing", label: "Cene" },
     ];
 
     return (
@@ -24,7 +24,7 @@ export default function Navbar() {
                 transition={{ duration: 0.5 }}
                 className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 md:px-6 py-4 glass"
             >
-                <Link href="/" className="flex items-center gap-2">
+                <Link href="/sr" className="flex items-center gap-2">
                     <Image
                         src="/logo.png"
                         alt="nabavkidata"
@@ -52,21 +52,21 @@ export default function Navbar() {
                 <div className="hidden md:flex items-center gap-4">
                     {/* Language Switch */}
                     <Link
-                        href="/sr"
+                        href="/"
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
-                        title="Srpski"
+                        title="Makedonski"
                     >
                         <Globe className="w-4 h-4" />
-                        <span>SR</span>
+                        <span>MK</span>
                     </Link>
                     <Link href="/auth/login">
                         <Button variant="ghost" className="text-white hover:text-white hover:bg-white/10">
-                            Најава
+                            Prijava
                         </Button>
                     </Link>
                     <Link href="/auth/register">
                         <Button className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.5)]">
-                            Започни Бесплатно
+                            Započni Besplatno
                         </Button>
                     </Link>
                 </div>
@@ -117,12 +117,12 @@ export default function Navbar() {
                                     transition={{ delay: 0.3 }}
                                 >
                                     <Link
-                                        href="/sr"
+                                        href="/"
                                         onClick={() => setMobileMenuOpen(false)}
                                         className="flex items-center gap-2 px-4 py-3 text-lg font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
                                     >
                                         <Globe className="w-5 h-5" />
-                                        <span>Srpski (SR)</span>
+                                        <span>Makedonski (MK)</span>
                                     </Link>
                                 </motion.div>
                             </nav>
@@ -131,12 +131,12 @@ export default function Navbar() {
                             <div className="flex flex-col gap-3 mt-auto">
                                 <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
                                     <Button variant="outline" className="w-full h-12 text-white border-white/20 hover:bg-white/10">
-                                        Најава
+                                        Prijava
                                     </Button>
                                 </Link>
                                 <Link href="/auth/register" onClick={() => setMobileMenuOpen(false)}>
                                     <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.5)]">
-                                        Започни Бесплатно
+                                        Započni Besplatno
                                     </Button>
                                 </Link>
                             </div>
