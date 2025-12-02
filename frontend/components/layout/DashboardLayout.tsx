@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LogOut, Settings, User, Menu, X } from "lucide-react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useState } from "react";
 
 export default function DashboardLayout({
@@ -115,15 +116,25 @@ export default function DashboardLayout({
                         </div>
                         <span className="font-bold text-white">nabavkidata</span>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-                        {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <NotificationBell />
+                        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+                            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Desktop Sidebar */}
                 <aside className="hidden md:flex w-64 border-r border-white/10 flex-col glass relative z-20">
                     <SidebarContent />
                 </aside>
+
+                {/* Desktop Header with Notification Bell */}
+                <div className="hidden md:block fixed top-0 right-0 left-64 h-16 border-b border-white/10 bg-background/80 backdrop-blur-md z-20 px-6">
+                    <div className="flex items-center justify-end h-full">
+                        <NotificationBell />
+                    </div>
+                </div>
 
                 {/* Mobile Sidebar Overlay */}
                 {isMobileMenuOpen && (
@@ -141,7 +152,7 @@ export default function DashboardLayout({
                 )}
 
                 {/* Main Content */}
-                <main className="flex-1 overflow-y-auto overflow-x-hidden pt-16 md:pt-0 bg-background">
+                <main className="flex-1 overflow-y-auto overflow-x-hidden pt-16 bg-background">
                     {children}
                 </main>
             </div>

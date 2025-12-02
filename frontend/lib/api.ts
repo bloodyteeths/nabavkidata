@@ -2,6 +2,15 @@ const API_URL = (typeof window !== 'undefined')
   ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://api.nabavkidata.com')
   : 'https://api.nabavkidata.com';
 
+export interface PriceDataPoint {
+  period: string;
+  tender_count: number;
+  avg_estimated_mkd: number;
+  avg_awarded_mkd: number;
+  avg_discount_pct: number;
+  avg_bidders: number;
+}
+
 export interface Tender {
   tender_id: string;
   title: string;
@@ -116,6 +125,19 @@ export interface TenderLotsResponse {
 export interface RecommendedTender extends Tender {
   score: number;
   match_reasons: string[];
+}
+
+export interface EnhancedTender extends Tender {
+  bidders: TenderBidder[];
+  price_analysis: {
+    estimated_value: number;
+    winning_bid: number;
+    lowest_bid: number;
+    highest_bid: number;
+    num_bidders: number;
+  };
+  data_completeness: number;
+  documents: TenderDocument[];
 }
 
 export interface Supplier {
@@ -455,6 +477,11 @@ class APIClient {
     return this.request<Tender>(`/api/tenders/${encodedId}`);
   }
 
+  async getEnhancedTender(id: string) {
+    const encodedId = encodeURIComponent(id);
+    return this.request<EnhancedTender>(`/api/tenders/${encodedId}/enhanced`);
+  }
+
   async searchTenders(query: any) {
     return this.request<{ total: number; items: Tender[] }>('/api/tenders/search', {
       method: 'POST',
@@ -624,6 +651,93 @@ class APIClient {
     return this.request<{ tender_id: string; points: Array<{ date: string; estimated_value_mkd?: number; awarded_value_mkd?: number }> }>(
       `/api/tenders/by-id/${encodeURIComponent(tenderId)}/price_history`
     );
+  }
+
+  // CPV code price history
+  async getPriceHistory(
+    cpvCode?: string,
+    months?: number,
+    params?: {
+      category?: string;
+      entity?: string;
+      period?: '30d' | '90d' | '1y' | 'all';
+    }
+  ): Promise<{
+    cpv_code?: string;
+    data_points: PriceDataPoint[];
+    trend: string;
+    trend_pct: number;
+    total_tenders: number;
+  }> {
+    const queryParams = new URLSearchParams();
+    if (cpvCode) queryParams.append('cpv_code', cpvCode);
+    if (params?.category) queryParams.append('category', params.category);
+    if (params?.entity) queryParams.append('entity', params.entity);
+    if (params?.period) queryParams.append('period', params.period);
+
+    const response = await this.request<{
+      period: string;
+      filters: {
+        cpv_code?: string;
+        category?: string;
+        entity?: string;
+      };
+      data_points: number;
+      time_series: Array<{
+        period: string;
+        year: number;
+        month: number;
+        tender_count: number;
+        avg_estimated_mkd?: number;
+        avg_estimated_eur?: number;
+        avg_awarded_mkd?: number;
+        avg_awarded_eur?: number;
+        total_estimated_mkd?: number;
+        total_awarded_mkd?: number;
+      }>;
+    }>(`/api/tenders/price_history?${queryParams.toString()}`);
+
+    // Calculate trend from first to last data point
+    const timeSeries = response.time_series;
+    let trend = 'stable';
+    let trendPct = 0;
+
+    if (timeSeries.length >= 2) {
+      const first = timeSeries[0].avg_estimated_mkd || 0;
+      const last = timeSeries[timeSeries.length - 1].avg_estimated_mkd || 0;
+
+      if (first > 0) {
+        trendPct = ((last - first) / first) * 100;
+        if (Math.abs(trendPct) < 5) {
+          trend = 'stable';
+        } else if (trendPct > 0) {
+          trend = 'increasing';
+        } else {
+          trend = 'decreasing';
+        }
+      }
+    }
+
+    // Transform API response to match component interface
+    const dataPoints: PriceDataPoint[] = timeSeries.map(point => ({
+      period: point.period,
+      tender_count: point.tender_count,
+      avg_estimated_mkd: point.avg_estimated_mkd || 0,
+      avg_awarded_mkd: point.avg_awarded_mkd || 0,
+      avg_discount_pct:
+        point.avg_estimated_mkd && point.avg_awarded_mkd
+          ? ((1 - point.avg_awarded_mkd / point.avg_estimated_mkd) * 100)
+          : 0,
+      avg_bidders: 0, // Not provided by this endpoint
+    }));
+
+    return {
+      cpv_code: response.filters.cpv_code,
+      data_points: dataPoints,
+      trend,
+      trend_pct: Math.abs(trendPct),
+      total_tenders: timeSeries.reduce((sum, p) => sum + p.tender_count, 0),
+    };
   }
 
   // Tender AI summary
@@ -807,6 +921,16 @@ class APIClient {
     }>(`/api/tenders/${encodedId}/documents`);
   }
 
+  async getDocumentContent(docId: string) {
+    return this.request<{
+      doc_id: string;
+      content_text: string;
+      ai_summary?: string;
+      key_requirements?: string[];
+      items_mentioned?: string[];
+    }>(`/api/documents/${encodeURIComponent(docId)}/content`);
+  }
+
   async getTenderBidders(tenderNumber: string, tenderYear: string) {
     return this.request<TenderBiddersResponse>(
       `/api/tenders/by-id/${tenderNumber}/${tenderYear}/bidders`
@@ -903,6 +1027,29 @@ class APIClient {
     return this.request<RAGQueryResponse>('/api/rag/query', {
       method: 'POST',
       body: JSON.stringify({ question, tender_id: tenderId }),
+    });
+  }
+
+  async sendTenderChat(
+    tenderNumber: string,
+    tenderYear: string,
+    question: string,
+    conversationHistory?: Array<{ role: string; content: string }>
+  ) {
+    return this.request<{
+      answer: string;
+      sources: Array<{
+        doc_id: string;
+        file_name: string;
+        excerpt: string;
+      }>;
+      confidence: number;
+    }>(`/api/tenders/by-id/${tenderNumber}/${tenderYear}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({
+        question,
+        conversation_history: conversationHistory || [],
+      }),
     });
   }
 
@@ -1491,6 +1638,335 @@ class APIClient {
       tracked_count: number;
     }>(`/api/personalization/tracked-competitors/activity?limit=${limit}`);
   }
+
+  // Competitor Stats (lightweight version of analyzeCompany)
+  async getCompetitorStats(companyName: string) {
+    return this.request<{
+      name: string;
+      wins: number;
+      bids_count: number;
+      win_rate: number;
+      avg_discount?: number;
+      total_value_mkd: number;
+      specialty_areas?: string[];
+    }>('/api/analytics/competitor-stats', {
+      method: 'POST',
+      body: JSON.stringify({ company_name: companyName }),
+    });
+  }
+
+  // AI Company Analysis
+  async analyzeCompany(companyName: string) {
+    return this.request<{
+      company_name: string;
+      summary: string;
+      tender_stats: {
+        total_bids: number;
+        total_wins: number;
+        win_rate: number;
+        avg_bid_value_mkd?: number;
+        total_won_value_mkd?: number;
+        first_bid_date?: string;
+        last_bid_date?: string;
+      };
+      recent_wins: Array<{
+        tender_id: string;
+        title: string;
+        procuring_entity: string;
+        category: string;
+        cpv_code: string;
+        contract_value_mkd?: number;
+        date?: string;
+      }>;
+      common_categories: Array<{
+        category: string;
+        bid_count: number;
+        win_count: number;
+        won_value_mkd: number;
+      }>;
+      frequent_institutions: Array<{
+        institution: string;
+        bid_count: number;
+        win_count: number;
+        avg_bid_mkd?: number;
+      }>;
+      product_specifications: Array<{
+        item_name: string;
+        unit?: string;
+        unit_price_mkd?: number;
+        quantity?: number;
+        tender_title?: string;
+        institution?: string;
+      }>;
+      ai_insights: string;
+      analysis_timestamp: string;
+    }>('/api/ai/company-analysis', {
+      method: 'POST',
+      body: JSON.stringify({ company_name: companyName }),
+    });
+  }
+
+  // Bid Advice / Recommendation
+  async getBidAdvice(tenderNumber: string, tenderYear: string) {
+    return this.request<{
+      tender_id: string;
+      estimated_value: number;
+      market_analysis: {
+        avg_discount: number;
+        typical_bidders: number;
+        price_trend: string;
+      };
+      recommendations: Array<{
+        strategy: string;
+        recommended_bid: number;
+        win_probability: number;
+        reasoning: string;
+      }>;
+      competitor_insights: Array<{
+        company: string;
+        win_rate: number;
+        avg_discount: number;
+      }>;
+      ai_summary: string;
+    }>(`/api/tenders/by-id/${tenderNumber}/${tenderYear}/bid-advice`);
+  }
+
+  // Item Price Search
+  async searchItemPrices(query: string, limit?: number): Promise<{
+    query: string;
+    results: Array<{
+      item_name: string;
+      unit_price?: number;
+      total_price?: number;
+      quantity?: number;
+      unit?: string;
+      tender_id: string;
+      tender_title: string;
+      date?: string;
+      source: 'epazar' | 'nabavki' | 'document';
+    }>;
+    statistics: {
+      count: number;
+      min_price?: number;
+      max_price?: number;
+      avg_price?: number;
+      median_price?: number;
+    };
+  }> {
+    const params = new URLSearchParams();
+    params.append('query', query);
+    if (limit) params.append('limit', limit.toString());
+    return this.request(`/api/ai/item-prices?${params.toString()}`);
+  }
+
+  // Head-to-Head Competitor Comparison
+  async getHeadToHead(companyA: string, companyB: string, limit?: number): Promise<HeadToHeadResponse> {
+    const params = new URLSearchParams();
+    params.append('company_a', companyA);
+    params.append('company_b', companyB);
+    if (limit) params.append('limit', limit.toString());
+    return this.request(`/api/competitors/head-to-head?${params.toString()}`);
+  }
+
+  // Competitor Activity Feed
+  async getCompetitorActivity(companyNames: string[], limit: number = 50) {
+    const params = new URLSearchParams();
+    companyNames.forEach(name => params.append('company_names', name));
+    params.append('limit', limit.toString());
+
+    return this.request<{
+      activities: Array<{
+        type: 'won' | 'bid' | 'lost';
+        company_name: string;
+        tender_id: string;
+        tender_title: string;
+        amount?: number;
+        timestamp?: string;
+        details?: {
+          estimated_value?: number;
+          discount_percent?: number;
+          num_bidders?: number;
+          rank?: number;
+        };
+      }>;
+      total_count: number;
+      period: string;
+    }>(`/api/competitors/activity?${params.toString()}`);
+  }
+
+  // ============================================================================
+  // ALERTS API
+  // ============================================================================
+
+  async getAlerts() {
+    return this.request<{
+      alerts: Array<{
+        id: string;
+        name: string;
+        alert_type: string;
+        criteria: any;
+        channels: string[];
+        is_active: boolean;
+        match_count?: number;
+        created_at: string;
+        updated_at?: string;
+      }>;
+      total: number;
+    }>('/api/alerts');
+  }
+
+  async createAlert(alert: {
+    name: string;
+    alert_type: string;
+    criteria: any;
+    channels?: string[];
+  }) {
+    return this.request<{
+      id: string;
+      name: string;
+      alert_type: string;
+      criteria: any;
+      channels: string[];
+      is_active: boolean;
+      created_at: string;
+    }>('/api/alerts', {
+      method: 'POST',
+      body: JSON.stringify(alert),
+    });
+  }
+
+  async updateAlert(id: string, updates: {
+    name?: string;
+    criteria?: any;
+    channels?: string[];
+    is_active?: boolean;
+  }) {
+    return this.request<{
+      id: string;
+      name: string;
+      alert_type: string;
+      criteria: any;
+      channels: string[];
+      is_active: boolean;
+      updated_at: string;
+    }>(`/api/alerts/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteAlert(id: string) {
+    return this.request<{ message: string }>(`/api/alerts/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAlertMatches(alertId?: string) {
+    const params = alertId ? `?alert_id=${encodeURIComponent(alertId)}` : '';
+    return this.request<{
+      matches: Array<{
+        match_id: string;
+        alert_id: string;
+        alert_name: string;
+        tender_id: string;
+        tender_title: string;
+        match_score: number;
+        match_reasons: string[];
+        is_read: boolean;
+        matched_at: string;
+        tender?: {
+          procuring_entity?: string;
+          estimated_value_mkd?: number;
+          closing_date?: string;
+          cpv_code?: string;
+        };
+      }>;
+      total: number;
+    }>(`/api/alerts/matches${params}`);
+  }
+
+  async markMatchesRead(matchIds: string[]) {
+    return this.request<{ message: string; updated_count: number }>('/api/alerts/matches/read', {
+      method: 'POST',
+      body: JSON.stringify({ match_ids: matchIds }),
+    });
+  }
+
+  // ============================================================================
+  // BRIEFINGS / DAILY DIGEST METHODS
+  // ============================================================================
+
+  async getTodayBriefing() {
+    return this.request<DailyBriefing>('/api/briefings/today');
+  }
+
+  async getBriefingHistory(page: number = 1) {
+    return this.request<BriefingHistoryResponse>(`/api/briefings/history?page=${page}`);
+  }
+
+  async getBriefingByDate(date: string) {
+    return this.request<DailyBriefing>(`/api/briefings/${date}`);
+  }
+
+  async regenerateBriefing() {
+    return this.request<DailyBriefing>('/api/briefings/generate', {
+      method: 'POST',
+    });
+  }
+
+  // ============================================================================
+  // NOTIFICATIONS
+  // ============================================================================
+
+  async getNotifications(page: number = 1, pageSize: number = 20, unreadOnly: boolean = false, type?: string) {
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize)
+    });
+    if (unreadOnly) params.append('unread', 'true');
+    if (type) params.append('type', type);
+    return this.request<{
+      total: number;
+      page: number;
+      page_size: number;
+      items: Array<{
+        notification_id: string;
+        user_id: string;
+        type: string;
+        title: string;
+        message?: string;
+        data: Record<string, any>;
+        tender_id?: string;
+        alert_id?: string;
+        is_read: boolean;
+        created_at: string;
+      }>;
+    }>(`/api/notifications?${params.toString()}`);
+  }
+
+  async getUnreadCount() {
+    return this.request<{ unread_count: number }>('/api/notifications/unread-count');
+  }
+
+  async markNotificationRead(notificationIds: string | string[]) {
+    const ids = Array.isArray(notificationIds) ? notificationIds : [notificationIds];
+    return this.request<{ message: string; updated: number }>('/api/notifications/mark-read', {
+      method: 'POST',
+      body: JSON.stringify({ notification_ids: ids }),
+    });
+  }
+
+  async markAllRead() {
+    return this.request<{ message: string; updated: number }>('/api/notifications/mark-all-read', {
+      method: 'POST',
+    });
+  }
+
+  async deleteNotification(notificationId: string) {
+    return this.request<{ message: string }>(`/api/notifications/${notificationId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 // E-Pazar Types
@@ -1690,6 +2166,88 @@ export interface EPazarItemAggregation {
 
 export interface EPazarItemsAggregationsResponse {
   aggregations: EPazarItemAggregation[];
+}
+
+// Head-to-Head Comparison Types
+export interface HeadToHeadCategoryDominance {
+  category: string;
+  cpv_code?: string;
+  win_count: number;
+  total_count: number;
+  win_rate: number;
+}
+
+export interface HeadToHeadConfrontation {
+  tender_id: string;
+  title: string;
+  winner: string;
+  company_a_bid: number | null;
+  company_b_bid: number | null;
+  date: string | null;
+  estimated_value: number | null;
+  num_bidders: number | null;
+}
+
+export interface HeadToHeadResponse {
+  company_a: string;
+  company_b: string;
+  total_confrontations: number;
+  company_a_wins: number;
+  company_b_wins: number;
+  ties: number;
+  avg_bid_difference: number | null;
+  company_a_categories: HeadToHeadCategoryDominance[];
+  company_b_categories: HeadToHeadCategoryDominance[];
+  recent_confrontations: HeadToHeadConfrontation[];
+  ai_insights: string | null;
+}
+
+// Briefing Types
+export interface BriefingTenderMatch {
+  tender_id: string;
+  title: string;
+  procuring_entity?: string;
+  estimated_value_mkd?: number;
+  closing_date?: string;
+  publication_date?: string;
+  category?: string;
+  cpv_code?: string;
+  match_score: number;
+  match_reasons: string[];
+  alert_name?: string;
+  days_remaining?: number;
+  ai_recommendation?: string;
+}
+
+export interface DailyBriefing {
+  date: string;
+  user_id: string;
+  total_new_tenders: number;
+  total_matches: number;
+  high_priority_count: number;
+  high_priority: BriefingTenderMatch[];
+  all_matches: BriefingTenderMatch[];
+  ai_summary?: string;
+  stats?: {
+    total_new: number;
+    matches: number;
+    high_priority: number;
+    competitors_active?: number;
+  };
+  generated_at?: string;
+}
+
+export interface BriefingHistoryItem {
+  date: string;
+  total_matches: number;
+  high_priority_count: number;
+  generated_at?: string;
+}
+
+export interface BriefingHistoryResponse {
+  total: number;
+  page: number;
+  items: BriefingHistoryItem[];
 }
 
 export const api = new APIClient();

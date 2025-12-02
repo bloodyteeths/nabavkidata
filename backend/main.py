@@ -15,7 +15,7 @@ import os
 from database import init_db, close_db, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications
 from middleware.fraud import FraudPreventionMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 
@@ -77,10 +77,13 @@ app.include_router(tenders.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(rag.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")  # AI endpoints (CPV suggest, requirements extraction, competitor analysis)
+app.include_router(pricing.router, prefix="/api")  # Pricing analytics (historical price aggregation)
 app.include_router(scraper.router, prefix="/api")  # Scraper API
 app.include_router(entities.router, prefix="/api")  # Entity profiles
 app.include_router(analytics.router, prefix="/api")  # Analytics & trends
 app.include_router(suppliers.router, prefix="/api")  # Supplier profiles
+app.include_router(competitors.router, prefix="/api")  # Competitor activity tracking and bidding pattern analysis
+app.include_router(competitor_tracking.router, prefix="/api")  # Competitor tracking (Phase 5.1)
 app.include_router(products.router, prefix="/api")  # Product search
 app.include_router(epazar.router)  # e-Pazar marketplace data
 app.include_router(admin.router)  # Admin router has its own prefix
@@ -89,6 +92,9 @@ app.include_router(personalization.router)  # Personalization router has its own
 app.include_router(cpv_codes.router, prefix="/api")  # CPV codes browser
 app.include_router(saved_searches.router, prefix="/api")  # Saved searches/alerts
 app.include_router(market_analytics.router, prefix="/api")  # Market analytics endpoints
+app.include_router(alerts.router, prefix="/api")  # Alert matching engine (Phase 6.1)
+app.include_router(briefings.router, prefix="/api")  # Daily briefings (Phase 6.2)
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])  # Push notifications (Phase 6.5)
 
 
 # Root endpoints
