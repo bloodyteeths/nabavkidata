@@ -15,8 +15,12 @@ export default function BriefingsPage() {
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [currentDate, setCurrentDate] = useState<string>("");
 
   useEffect(() => {
+    setMounted(true);
+    setCurrentDate(formatDate(new Date()));
     loadTodayBriefing();
   }, []);
 
@@ -80,7 +84,7 @@ export default function BriefingsPage() {
             <Newspaper className="w-8 h-8 text-blue-600" />
             Дневен Извештај
           </h1>
-          <p className="text-muted-foreground mt-1">{formatDate(new Date())}</p>
+          {mounted && <p className="text-muted-foreground mt-1">{currentDate}</p>}
         </div>
         <Button
           variant="outline"
