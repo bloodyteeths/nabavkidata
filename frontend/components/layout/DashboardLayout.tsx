@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { LogOut, Settings, User, Menu, X } from "lucide-react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { GlobalChatWidget } from "@/components/ai/GlobalChatWidget";
 import { useState } from "react";
 
 export default function DashboardLayout({
@@ -155,6 +156,9 @@ export default function DashboardLayout({
                 <main className="flex-1 overflow-y-auto overflow-x-hidden pt-16 bg-background">
                     {children}
                 </main>
+
+                {/* Global AI Chat Widget */}
+                <GlobalChatWidget />
             </div>
         </ProtectedRoute>
     );
