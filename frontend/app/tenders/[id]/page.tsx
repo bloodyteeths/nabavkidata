@@ -12,6 +12,12 @@ import { api, type Tender, type TenderDocument, type RAGQueryResponse, type Tend
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { PriceHistoryChart } from "@/components/charts/PriceHistoryChart";
+import { PriceHistoryChart as CPVPriceHistoryChart } from "@/components/pricing/PriceHistoryChart";
+import { DocumentViewer } from "@/components/tenders/DocumentViewer";
+import { DocumentSearch } from "@/components/documents/DocumentSearch";
+import { QuickActions } from "@/components/ai/QuickActions";
+import { TenderChatWidget } from "@/components/ai/TenderChatWidget";
+import { BidRecommendation } from "@/components/pricing/BidRecommendation";
 import {
   ArrowLeft,
   Building2,
@@ -37,6 +43,8 @@ import {
   Clock,
   MapPin,
   CreditCard,
+  FileSpreadsheet,
+  FileType,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -61,6 +69,7 @@ export default function TenderDetailPage() {
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [documents, setDocuments] = useState<TenderDocument[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<TenderDocument | null>(null);
   const [bidders, setBidders] = useState<TenderBidder[]>([]);
   const [biddersLoading, setBiddersLoading] = useState(false);
   const [lots, setLots] = useState<TenderLot[]>([]);
@@ -99,6 +108,45 @@ export default function TenderDetailPage() {
   const [priceHistoryError, setPriceHistoryError] = useState<string | null>(null);
   const [tier, setTier] = useState<string>("unknown");
   const [summaryGated, setSummaryGated] = useState<boolean>(false);
+  const [bidAdvice, setBidAdvice] = useState<{
+    tender_id: string;
+    estimated_value: number;
+    market_analysis: {
+      avg_discount: number;
+      typical_bidders: number;
+      price_trend: string;
+    };
+    recommendations: Array<{
+      strategy: string;
+      recommended_bid: number;
+      win_probability: number;
+      reasoning: string;
+    }>;
+    competitor_insights: Array<{
+      company: string;
+      win_rate: number;
+      avg_discount: number;
+    }>;
+    ai_summary: string;
+  } | null>(null);
+  const [bidAdviceLoading, setBidAdviceLoading] = useState(false);
+  const [bidAdviceError, setBidAdviceError] = useState<string | null>(null);
+  // CPV-based price history
+  const [cpvPriceHistory, setCpvPriceHistory] = useState<{
+    data_points: Array<{
+      period: string;
+      tender_count: number;
+      avg_estimated_mkd: number;
+      avg_awarded_mkd: number;
+      avg_discount_pct: number;
+      avg_bidders: number;
+    }>;
+    trend: string;
+    trend_pct: number;
+    total_tenders: number;
+  } | null>(null);
+  const [cpvPriceHistoryLoading, setCpvPriceHistoryLoading] = useState(false);
+  const [cpvPriceHistoryError, setCpvPriceHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tenderId) return;
@@ -107,6 +155,7 @@ export default function TenderDetailPage() {
     loadDocuments();
     loadProducts();
     loadPriceHistory();
+    loadBidAdvice();
   }, [tenderId]);
 
   // Load bidders and lots after tender is loaded (to use embedded data first)
@@ -114,6 +163,10 @@ export default function TenderDetailPage() {
     if (tender) {
       loadBidders();
       loadLots();
+      // Load CPV-based price history if CPV code is available
+      if (tender.cpv_code) {
+        loadCPVPriceHistory(tender.cpv_code);
+      }
     }
   }, [tender]);
 
@@ -174,6 +227,44 @@ export default function TenderDetailPage() {
       setPriceHistoryError("Историјата на цени не е достапна.");
     } finally {
       setPriceHistoryLoading(false);
+    }
+  }
+
+  async function loadBidAdvice() {
+    if (!tenderId) return;
+    const parts = tenderId.split('/');
+    if (parts.length !== 2) {
+      console.log("Invalid tender ID format for bid advice");
+      return;
+    }
+    const [tenderNumber, tenderYear] = parts;
+    try {
+      setBidAdviceLoading(true);
+      setBidAdviceError(null);
+      const result = await api.getBidAdvice(tenderNumber, tenderYear);
+      setBidAdvice(result);
+    } catch (error) {
+      console.error("Failed to load bid advice:", error);
+      setBidAdvice(null);
+      setBidAdviceError("Препораките не се достапни за овој тендер.");
+    } finally {
+      setBidAdviceLoading(false);
+    }
+  }
+
+  async function loadCPVPriceHistory(cpvCode: string) {
+    try {
+      setCpvPriceHistoryLoading(true);
+      setCpvPriceHistoryError(null);
+      // Load 1 year of data for the CPV code
+      const result = await api.getPriceHistory(cpvCode, 12, { period: '1y' });
+      setCpvPriceHistory(result);
+    } catch (error) {
+      console.error("Failed to load CPV price history:", error);
+      setCpvPriceHistory(null);
+      setCpvPriceHistoryError("Пазарната историја на цени не е достапна.");
+    } finally {
+      setCpvPriceHistoryLoading(false);
     }
   }
 
@@ -315,7 +406,39 @@ export default function TenderDetailPage() {
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
   }
 
+  function getFileIcon(fileName?: string, mimeType?: string) {
+    const extension = fileName?.split('.').pop()?.toLowerCase();
+    const mime = mimeType?.toLowerCase();
+
+    // Check by extension or mime type
+    if (extension === 'pdf' || mime?.includes('pdf')) {
+      return <FileText className="h-5 w-5 text-red-500 flex-shrink-0" />;
+    }
+    if (extension === 'doc' || extension === 'docx' || mime?.includes('word') || mime?.includes('msword')) {
+      return <FileType className="h-5 w-5 text-blue-500 flex-shrink-0" />;
+    }
+    if (extension === 'xls' || extension === 'xlsx' || mime?.includes('excel') || mime?.includes('spreadsheet')) {
+      return <FileSpreadsheet className="h-5 w-5 text-green-600 flex-shrink-0" />;
+    }
+    // Default file icon
+    return <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />;
+  }
+
   async function handleChatSend(message: string) {
+    // Check if user is authenticated
+    if (!user) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "user", content: message },
+        {
+          role: "assistant",
+          content: "За да го користите AI асистентот, потребно е да се најавите. Кликнете на 'Најава' за да продолжите.",
+        },
+      ]);
+      toast.error("Најавете се за да го користите AI асистентот");
+      return;
+    }
+
     setChatMessages((prev) => [...prev, { role: "user", content: message }]);
     setChatLoading(true);
 
@@ -328,16 +451,29 @@ export default function TenderDetailPage() {
           content: result.answer,
         },
       ]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to get AI response:", error);
+
+      // Check for specific error types
+      let errorMessage = "Грешка при добивање одговор. Ве молиме обидете се повторно.";
+
+      if (error?.message?.includes("401") || error?.message?.includes("credentials") || error?.message?.includes("authenticated")) {
+        errorMessage = "Сесијата истече. Ве молиме најавете се повторно.";
+        toast.error("Сесијата истече. Најавете се повторно.");
+      } else if (error?.message?.includes("429")) {
+        errorMessage = "Го достигнавте дневниот лимит на прашања. Надградете го планот за повеќе прашања.";
+        toast.error("Дневен лимит достигнат");
+      } else {
+        toast.error("AI одговорот не успеа. Обидете се повторно.");
+      }
+
       setChatMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Грешка при добивање одговор. Ве молиме обидете се повторно.",
+          content: errorMessage,
         },
       ]);
-      toast.error("AI одговорот не успеа. Обидете се повторно.");
     } finally {
       setChatLoading(false);
     }
@@ -614,6 +750,271 @@ export default function TenderDetailPage() {
         />
       ) : null}
 
+      {/* CPV-based Market Price History */}
+      {tender?.cpv_code && (
+        cpvPriceHistoryLoading ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Пазарна историја на цени - CPV {tender.cpv_code}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Се вчитува пазарна историја...</p>
+            </CardContent>
+          </Card>
+        ) : cpvPriceHistoryError ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Пазарна историја на цени</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-destructive">{cpvPriceHistoryError}</p>
+            </CardContent>
+          </Card>
+        ) : cpvPriceHistory && cpvPriceHistory.data_points.length > 0 ? (
+          <CPVPriceHistoryChart
+            data={cpvPriceHistory.data_points}
+            cpvCode={tender.cpv_code}
+            title="Пазарна историја на цени за слични тендери"
+            showTrend={true}
+            trend={cpvPriceHistory.trend as "increasing" | "decreasing" | "stable"}
+            trendPct={cpvPriceHistory.trend_pct}
+          />
+        ) : null
+      )}
+
+      {/* Bid Recommendation */}
+      {bidAdviceLoading || bidAdvice || bidAdviceError ? (
+        <BidRecommendation
+          tenderId={tenderId}
+          estimatedValue={bidAdvice?.estimated_value || tender?.estimated_value_mkd}
+          marketAnalysis={bidAdvice?.market_analysis}
+          recommendations={bidAdvice?.recommendations || []}
+          competitorInsights={bidAdvice?.competitor_insights}
+          aiSummary={bidAdvice?.ai_summary}
+          loading={bidAdviceLoading}
+        />
+      ) : null}
+
+      {/* Quick Actions for AI Chat */}
+      <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
+        <CardContent className="pt-6">
+          <QuickActions
+            tenderId={tenderId}
+            onAskQuestion={handleChatSend}
+            disabled={chatLoading}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Price Analysis Cards */}
+      {(tender.estimated_value_mkd || tender.actual_value_mkd || bidders.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Budget Card */}
+          {(tender.estimated_value_mkd || tender.actual_value_mkd) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  БУЏЕТ
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {tender.estimated_value_mkd && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Проценет:</p>
+                    <p className="text-lg font-bold">{formatCurrency(tender.estimated_value_mkd)}</p>
+                  </div>
+                )}
+                {tender.actual_value_mkd && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Доделен:</p>
+                    <p className="text-lg font-bold text-green-600">{formatCurrency(tender.actual_value_mkd)}</p>
+                  </div>
+                )}
+                {tender.estimated_value_mkd && tender.actual_value_mkd && (
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground">Заштеда:</p>
+                    <p className="text-lg font-bold text-primary">
+                      {((1 - tender.actual_value_mkd / tender.estimated_value_mkd) * 100).toFixed(1)}%
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Bid Range Card */}
+          {bidders.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  ПОНУДИ
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {(() => {
+                  const bidsWithAmounts = bidders.filter(b => b.bid_amount_mkd);
+                  const lowest = bidsWithAmounts.length > 0
+                    ? Math.min(...bidsWithAmounts.map(b => b.bid_amount_mkd!))
+                    : null;
+                  const highest = bidsWithAmounts.length > 0
+                    ? Math.max(...bidsWithAmounts.map(b => b.bid_amount_mkd!))
+                    : null;
+
+                  return (
+                    <>
+                      {lowest && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Најниска:</p>
+                          <p className="text-lg font-bold text-green-600">{formatCurrency(lowest)}</p>
+                        </div>
+                      )}
+                      {highest && lowest !== highest && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Највисока:</p>
+                          <p className="text-lg font-bold">{formatCurrency(highest)}</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+                <div className="pt-2 border-t">
+                  <p className="text-xs text-muted-foreground">Број на понуди:</p>
+                  <p className="text-lg font-bold">{bidders.length}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Data Completeness Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                КОМПЛЕТНОСТ
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                // Calculate data completeness based on available fields
+                const fields = [
+                  tender.title,
+                  tender.description,
+                  tender.procuring_entity,
+                  tender.category,
+                  tender.cpv_code,
+                  tender.estimated_value_mkd,
+                  tender.opening_date,
+                  tender.closing_date,
+                  tender.procedure_type,
+                  documents.length > 0,
+                  bidders.length > 0
+                ];
+                const filledFields = fields.filter(f => f !== null && f !== undefined && f !== '').length;
+                const completeness = (filledFields / fields.length) * 100;
+
+                return (
+                  <>
+                    <div className="mb-3">
+                      <p className="text-2xl font-bold">{Math.round(completeness)}%</p>
+                      <p className="text-xs text-muted-foreground">Податоци достапни</p>
+                    </div>
+                    <div className="w-full bg-secondary rounded-full h-2">
+                      <div
+                        className="bg-primary rounded-full h-2 transition-all"
+                        style={{ width: `${completeness}%` }}
+                      />
+                    </div>
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Bidders Analysis Section - Inline on Page */}
+      {bidders.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              АНАЛИЗА НА ПОНУДУВАЧИ ({bidders.length} {bidders.length === 1 ? 'понудувач' : 'понудувачи'})
+            </CardTitle>
+            <CardDescription>
+              Сите компании кои поднеле понуди за овој тендер
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Компанија</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Понуда</th>
+                    <th className="text-center py-3 px-2 font-medium text-muted-foreground">Ранг</th>
+                    <th className="text-center py-3 px-2 font-medium text-muted-foreground">Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bidders
+                    .sort((a, b) => (a.rank || 999) - (b.rank || 999))
+                    .map((bidder) => (
+                      <tr key={bidder.bidder_id} className="border-b hover:bg-accent/50 transition-colors">
+                        <td className="py-3 px-2">
+                          <div className="flex items-center gap-2">
+                            {bidder.is_winner && <Trophy className="h-4 w-4 text-green-600 flex-shrink-0" />}
+                            <span className={bidder.is_winner ? "font-semibold" : ""}>
+                              {bidder.company_name}
+                            </span>
+                          </div>
+                          {bidder.tax_id && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              ЕДБ: {bidder.tax_id}
+                            </p>
+                          )}
+                        </td>
+                        <td className="text-right py-3 px-2">
+                          {bidder.bid_amount_mkd ? (
+                            <span className={bidder.is_winner ? "font-bold text-green-600" : "font-medium"}>
+                              {formatCurrency(bidder.bid_amount_mkd)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="text-center py-3 px-2">
+                          {bidder.rank ? (
+                            <Badge variant={bidder.rank === 1 ? "default" : "outline"}>
+                              #{bidder.rank}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="text-center py-3 px-2">
+                          {bidder.is_winner ? (
+                            <Badge variant="default" className="bg-green-600">
+                              Добитник
+                            </Badge>
+                          ) : bidder.is_disqualified ? (
+                            <Badge variant="destructive">
+                              Дисквалификуван
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Details */}
@@ -858,65 +1259,115 @@ export default function TenderDetailPage() {
             </TabsContent>
 
             <TabsContent value="documents" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Тендерска документација</CardTitle>
-                  <CardDescription>
-                    Преземете ги документите поврзани со овој тендер
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {documentsLoading ? (
-                    <p className="text-sm text-muted-foreground">Се вчитуваат документи...</p>
-                  ) : documents.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                      <File className="h-12 w-12 mb-2 opacity-20" />
-                      <p className="text-sm">Нема достапни документи</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {documents.map((doc) => (
-                        <div
-                          key={doc.doc_id}
-                          className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">
-                                {doc.file_name || "Непознат документ"}
-                              </p>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                {doc.doc_type && <span>{doc.doc_type}</span>}
-                                {doc.file_size_bytes && (
-                                  <span>{formatFileSize(doc.file_size_bytes)}</span>
-                                )}
-                                {doc.page_count && <span>{doc.page_count} страници</span>}
+              <div className="space-y-4">
+                {/* Selected Document Viewer */}
+                {selectedDocument && (
+                  <DocumentViewer
+                    docId={selectedDocument.doc_id}
+                    fileName={selectedDocument.file_name || "Непознат документ"}
+                    fileUrl={selectedDocument.file_url}
+                    contentText={selectedDocument.content_text}
+                    onClose={() => setSelectedDocument(null)}
+                  />
+                )}
+
+                {/* Document List */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Тендерска документација</CardTitle>
+                    <CardDescription>
+                      Кликнете на документ за да го видите целосниот текст или преземете го
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {documentsLoading ? (
+                      <p className="text-sm text-muted-foreground">Се вчитуваат документи...</p>
+                    ) : documents.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+                        <File className="h-12 w-12 mb-2 opacity-20" />
+                        <p className="text-sm">Нема достапни документи</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {documents.map((doc) => (
+                          <div
+                            key={doc.doc_id}
+                            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              {getFileIcon(doc.file_name, doc.mime_type)}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {doc.file_name || "Непознат документ"}
+                                </p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  {doc.doc_type && <span>{doc.doc_type}</span>}
+                                  {doc.file_size_bytes && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{formatFileSize(doc.file_size_bytes)}</span>
+                                    </>
+                                  )}
+                                  {doc.page_count && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{doc.page_count} страници</span>
+                                    </>
+                                  )}
+                                  {doc.content_text && (
+                                    <>
+                                      <span>•</span>
+                                      <Badge variant="outline" className="text-xs">
+                                        <Sparkles className="h-3 w-3 mr-1" />
+                                        Извлечено
+                                      </Badge>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          {doc.file_url && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              asChild
-                            >
-                              <a
-                                href={doc.file_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => setSelectedDocument(doc)}
                               >
-                                <Download className="h-4 w-4 mr-1" />
-                                Преземи
-                              </a>
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                                <FileText className="h-4 w-4 mr-1" />
+                                Прегледај
+                              </Button>
+                              {doc.file_url ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  asChild
+                                >
+                                  <a
+                                    href={doc.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Преземи
+                                  </a>
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Недостапен
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
             <TabsContent value="bidders" className="mt-4">
@@ -1308,6 +1759,13 @@ export default function TenderDetailPage() {
         </div>
       </div>
 
+      {/* Floating AI Chat Widget */}
+      {tenderId && (
+        <TenderChatWidget
+          tenderId={tenderId}
+          tenderTitle={tender.title}
+        />
+      )}
     </div>
   );
 }
