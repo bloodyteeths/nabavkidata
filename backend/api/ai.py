@@ -2,13 +2,17 @@
 AI API endpoints
 CPV suggestions, requirement extraction, competitor analysis
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional, List
 from pydantic import BaseModel
+from datetime import datetime
 import os
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Add AI module to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../ai'))
@@ -607,6 +611,524 @@ async def rag_chat(
         )
 
 
+# ============================================================================
+# COMPANY ANALYSIS - Deep competitor intelligence
+# ============================================================================
+
+class CompanyAnalysisRequest(BaseModel):
+    """Request for deep company analysis"""
+    company_name: str
+    include_web_research: bool = True
+    include_tender_history: bool = True
+    include_specifications: bool = True
+
+
+class CompanyAnalysisResponse(BaseModel):
+    """Comprehensive company analysis response"""
+    company_name: str
+    summary: str
+    tender_stats: dict
+    recent_wins: List[dict]
+    common_categories: List[dict]
+    frequent_institutions: List[dict]
+    product_specifications: List[dict]
+    ai_insights: str
+    analysis_timestamp: str
+
+
+@router.post("/company-analysis", response_model=CompanyAnalysisResponse)
+async def analyze_company(
+    request: CompanyAnalysisRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Deep AI-powered company analysis for competitor intelligence
+
+    Analyzes:
+    - Tender participation history (bids, wins, contracts)
+    - Product specifications they've supplied
+    - Institutions they frequently work with
+    - Categories they specialize in
+    - AI-generated insights on strengths and patterns
+    """
+    from sqlalchemy import text
+    from datetime import datetime
+
+    company_name = request.company_name.strip()
+    if not company_name or len(company_name) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Company name must be at least 3 characters"
+        )
+
+    # 1. Get tender statistics
+    stats_query = text("""
+        WITH company_bids AS (
+            SELECT
+                tb.tender_id,
+                tb.bid_amount_mkd,
+                tb.is_winner,
+                tb.rank,
+                t.title,
+                t.procuring_entity,
+                t.category,
+                t.cpv_code,
+                t.estimated_value_mkd,
+                t.actual_value_mkd,
+                t.closing_date
+            FROM tender_bidders tb
+            JOIN tenders t ON tb.tender_id = t.tender_id
+            WHERE tb.company_name ILIKE :search_pattern
+        )
+        SELECT
+            COUNT(*) as total_bids,
+            COUNT(*) FILTER (WHERE is_winner = TRUE) as total_wins,
+            ROUND(AVG(bid_amount_mkd)::numeric, 2) as avg_bid_value,
+            ROUND(SUM(CASE WHEN is_winner THEN actual_value_mkd ELSE 0 END)::numeric, 2) as total_won_value,
+            MIN(closing_date) as first_bid_date,
+            MAX(closing_date) as last_bid_date
+        FROM company_bids
+    """)
+
+    stats_result = await db.execute(stats_query, {"search_pattern": f"%{company_name}%"})
+    stats_row = stats_result.fetchone()
+
+    tender_stats = {
+        "total_bids": stats_row[0] or 0,
+        "total_wins": stats_row[1] or 0,
+        "win_rate": round((stats_row[1] or 0) / max(stats_row[0] or 1, 1) * 100, 1),
+        "avg_bid_value_mkd": float(stats_row[2]) if stats_row[2] else None,
+        "total_won_value_mkd": float(stats_row[3]) if stats_row[3] else None,
+        "first_bid_date": str(stats_row[4]) if stats_row[4] else None,
+        "last_bid_date": str(stats_row[5]) if stats_row[5] else None
+    }
+
+    # 2. Get recent wins
+    wins_query = text("""
+        SELECT
+            t.tender_id,
+            t.title,
+            t.procuring_entity,
+            t.category,
+            t.cpv_code,
+            t.actual_value_mkd,
+            t.closing_date,
+            tb.bid_amount_mkd
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE tb.company_name ILIKE :search_pattern
+          AND tb.is_winner = TRUE
+        ORDER BY t.closing_date DESC NULLS LAST
+        LIMIT 10
+    """)
+
+    wins_result = await db.execute(wins_query, {"search_pattern": f"%{company_name}%"})
+    recent_wins = [
+        {
+            "tender_id": row[0],
+            "title": row[1][:100] if row[1] else None,
+            "procuring_entity": row[2],
+            "category": row[3],
+            "cpv_code": row[4],
+            "contract_value_mkd": float(row[5]) if row[5] else None,
+            "date": str(row[6]) if row[6] else None,
+            "bid_amount_mkd": float(row[7]) if row[7] else None
+        }
+        for row in wins_result.fetchall()
+    ]
+
+    # 3. Get common categories
+    categories_query = text("""
+        SELECT
+            COALESCE(t.category, 'Unknown') as category,
+            COUNT(*) as count,
+            COUNT(*) FILTER (WHERE tb.is_winner) as wins,
+            ROUND(SUM(CASE WHEN tb.is_winner THEN t.actual_value_mkd ELSE 0 END)::numeric, 0) as won_value
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE tb.company_name ILIKE :search_pattern
+        GROUP BY t.category
+        ORDER BY count DESC
+        LIMIT 10
+    """)
+
+    cat_result = await db.execute(categories_query, {"search_pattern": f"%{company_name}%"})
+    common_categories = [
+        {
+            "category": row[0],
+            "bid_count": row[1],
+            "win_count": row[2],
+            "won_value_mkd": float(row[3]) if row[3] else 0
+        }
+        for row in cat_result.fetchall()
+    ]
+
+    # 4. Get frequent institutions
+    institutions_query = text("""
+        SELECT
+            t.procuring_entity,
+            COUNT(*) as bid_count,
+            COUNT(*) FILTER (WHERE tb.is_winner) as win_count,
+            ROUND(AVG(tb.bid_amount_mkd)::numeric, 0) as avg_bid
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE tb.company_name ILIKE :search_pattern
+          AND t.procuring_entity IS NOT NULL
+        GROUP BY t.procuring_entity
+        ORDER BY win_count DESC, bid_count DESC
+        LIMIT 10
+    """)
+
+    inst_result = await db.execute(institutions_query, {"search_pattern": f"%{company_name}%"})
+    frequent_institutions = [
+        {
+            "institution": row[0],
+            "bid_count": row[1],
+            "win_count": row[2],
+            "avg_bid_mkd": float(row[3]) if row[3] else None
+        }
+        for row in inst_result.fetchall()
+    ]
+
+    # 5. Get product specifications from won tenders
+    specs_query = text("""
+        SELECT DISTINCT
+            pi.item_name,
+            pi.unit_of_measure,
+            pi.unit_price_mkd,
+            pi.quantity,
+            t.title as tender_title,
+            t.procuring_entity
+        FROM product_items pi
+        JOIN tenders t ON pi.tender_id = t.tender_id
+        JOIN tender_bidders tb ON t.tender_id = tb.tender_id
+        WHERE tb.company_name ILIKE :search_pattern
+          AND tb.is_winner = TRUE
+          AND pi.item_name IS NOT NULL
+        ORDER BY pi.unit_price_mkd DESC NULLS LAST
+        LIMIT 20
+    """)
+
+    specs_result = await db.execute(specs_query, {"search_pattern": f"%{company_name}%"})
+    product_specifications = [
+        {
+            "item_name": row[0],
+            "unit": row[1],
+            "unit_price_mkd": float(row[2]) if row[2] else None,
+            "quantity": float(row[3]) if row[3] else None,
+            "tender_title": row[4][:80] if row[4] else None,
+            "institution": row[5]
+        }
+        for row in specs_result.fetchall()
+    ]
+
+    # 6. Generate AI insights
+    ai_insights = ""
+    if GEMINI_AVAILABLE and (tender_stats["total_bids"] > 0 or recent_wins):
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+
+            context = f"""Analyze this competitor company in public procurement:
+
+Company: {company_name}
+
+Statistics:
+- Total bids: {tender_stats['total_bids']}
+- Total wins: {tender_stats['total_wins']}
+- Win rate: {tender_stats['win_rate']}%
+- Total contract value won: {tender_stats['total_won_value_mkd']} MKD
+- Active since: {tender_stats['first_bid_date']}
+
+Main categories: {', '.join([c['category'] for c in common_categories[:5]])}
+
+Top institutions they work with: {', '.join([i['institution'][:50] for i in frequent_institutions[:5]])}
+
+Recent wins: {len(recent_wins)} tenders
+
+Products supplied: {', '.join([p['item_name'][:40] for p in product_specifications[:5]])}
+
+Provide a concise analysis in 3-4 sentences covering:
+1. Their market position and strengths
+2. Categories they specialize in
+3. Strategic insights for competing against them
+
+Write in Macedonian language. Be specific and actionable."""
+
+            response = model.generate_content(context)
+            ai_insights = response.text
+
+        except Exception as e:
+            ai_insights = f"AI анализата не е достапна: {str(e)}"
+
+    # Build summary
+    if tender_stats["total_bids"] > 0:
+        summary = f"Компанијата {company_name} има {tender_stats['total_bids']} понуди со {tender_stats['win_rate']}% стапка на успешност."
+        if tender_stats["total_won_value_mkd"]:
+            summary += f" Вкупна вредност на договори: {tender_stats['total_won_value_mkd']:,.0f} МКД."
+    else:
+        summary = f"Не се пронајдени податоци за понуди од {company_name} во базата."
+
+    return CompanyAnalysisResponse(
+        company_name=company_name,
+        summary=summary,
+        tender_stats=tender_stats,
+        recent_wins=recent_wins,
+        common_categories=common_categories,
+        frequent_institutions=frequent_institutions,
+        product_specifications=product_specifications,
+        ai_insights=ai_insights,
+        analysis_timestamp=datetime.utcnow().isoformat()
+    )
+
+
+# ============================================================================
+# ITEM-LEVEL PRICE RESEARCH
+# ============================================================================
+
+class ItemPriceResult(BaseModel):
+    """Single item price result"""
+    item_name: str
+    unit_price: Optional[float] = None
+    total_price: Optional[float] = None
+    quantity: Optional[int] = None
+    unit: Optional[str] = None
+    tender_id: str
+    tender_title: str
+    date: Optional[datetime] = None
+    source: str  # "epazar", "nabavki", "document"
+
+
+class ItemPriceSearchResponse(BaseModel):
+    """Response with item price search results"""
+    query: str
+    results: List[ItemPriceResult]
+    statistics: dict  # {min_price, max_price, avg_price, median_price, count}
+
+
+@router.get("/item-prices", response_model=ItemPriceSearchResponse)
+async def search_item_prices(
+    query: str = Query(..., min_length=3, description="Search term for item (e.g., 'CT Scanner')"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Search for item prices across all tenders
+
+    Searches:
+    - items_data JSONB in epazar_tenders
+    - raw_data_json for item mentions
+    - Document content for price mentions
+
+    Returns detailed price statistics for market research.
+    """
+    from sqlalchemy import text
+    import statistics as stats_module
+
+    results = []
+
+    # 1. Search ePazar items_data
+    epazar_query = text("""
+        SELECT
+            item->>'name' as item_name,
+            (item->>'unit_price')::float as unit_price,
+            (item->>'total_price')::float as total_price,
+            (item->>'quantity')::int as quantity,
+            item->>'unit' as unit,
+            e.tender_id,
+            e.title,
+            e.publication_date
+        FROM epazar_tenders e,
+             jsonb_array_elements(items_data) as item
+        WHERE (item->>'name' ILIKE :search1
+           OR item->>'description' ILIKE :search2)
+          AND items_data IS NOT NULL
+        ORDER BY e.publication_date DESC NULLS LAST
+        LIMIT :limit
+    """)
+
+    try:
+        epazar_result = await db.execute(epazar_query, {
+            "search1": f"%{query}%",
+            "search2": f"%{query}%",
+            "limit": limit
+        })
+
+        for row in epazar_result.fetchall():
+            if row[0]:  # item_name exists
+                results.append(ItemPriceResult(
+                    item_name=row[0],
+                    unit_price=float(row[1]) if row[1] else None,
+                    total_price=float(row[2]) if row[2] else None,
+                    quantity=int(row[3]) if row[3] else None,
+                    unit=row[4],
+                    tender_id=row[5],
+                    tender_title=row[6][:150] if row[6] else "",
+                    date=row[7],
+                    source="epazar"
+                ))
+    except Exception as e:
+        logger.error(f"ePazar item search failed: {e}")
+
+    # 2. Search product_items table (from document extraction)
+    product_items_query = text("""
+        SELECT
+            pi.name as item_name,
+            pi.unit_price as unit_price,
+            pi.total_price as total_price,
+            pi.quantity::int as quantity,
+            pi.unit,
+            pi.tender_id,
+            t.title,
+            t.publication_date
+        FROM product_items pi
+        JOIN tenders t ON pi.tender_id = t.tender_id
+        WHERE pi.name ILIKE :search
+          AND pi.unit_price IS NOT NULL
+        ORDER BY t.publication_date DESC NULLS LAST
+        LIMIT :limit
+    """)
+
+    try:
+        product_result = await db.execute(product_items_query, {
+            "search": f"%{query}%",
+            "limit": limit
+        })
+
+        for row in product_result.fetchall():
+            if row[0]:  # item_name exists
+                results.append(ItemPriceResult(
+                    item_name=row[0],
+                    unit_price=float(row[1]) if row[1] else None,
+                    total_price=float(row[2]) if row[2] else None,
+                    quantity=int(row[3]) if row[3] else None,
+                    unit=row[4],
+                    tender_id=row[5],
+                    tender_title=row[6][:150] if row[6] else "",
+                    date=row[7],
+                    source="document"
+                ))
+    except Exception as e:
+        logger.error(f"Product items search failed: {e}")
+
+    # 3. Search raw_data_json from nabavki tenders
+    nabavki_query = text("""
+        SELECT
+            t.tender_id,
+            t.title,
+            t.publication_date,
+            t.raw_data_json
+        FROM tenders t
+        WHERE t.raw_data_json IS NOT NULL
+          AND (
+              t.raw_data_json::text ILIKE :search
+              OR t.title ILIKE :search
+          )
+        ORDER BY t.publication_date DESC NULLS LAST
+        LIMIT :limit
+    """)
+
+    try:
+        nabavki_result = await db.execute(nabavki_query, {
+            "search": f"%{query}%",
+            "limit": limit // 2  # Limit raw JSON searches
+        })
+
+        import json
+        for row in nabavki_result.fetchall():
+            tender_id, title, pub_date, raw_json = row
+            if raw_json:
+                # Try to extract items from raw_data_json
+                # This is tender-specific and may vary
+                if isinstance(raw_json, dict):
+                    # Check common item fields
+                    for key in ['items', 'lots', 'products', 'stavki']:
+                        if key in raw_json and isinstance(raw_json[key], list):
+                            for item in raw_json[key][:5]:  # Limit items per tender
+                                if isinstance(item, dict):
+                                    item_name = item.get('name') or item.get('title') or item.get('description', '')
+                                    if query.lower() in item_name.lower():
+                                        unit_price = None
+                                        total_price = None
+                                        quantity = None
+
+                                        # Extract price fields
+                                        for price_key in ['unit_price', 'unitPrice', 'price', 'cena']:
+                                            if price_key in item:
+                                                try:
+                                                    unit_price = float(item[price_key])
+                                                except:
+                                                    pass
+
+                                        for total_key in ['total_price', 'totalPrice', 'total', 'vkupno']:
+                                            if total_key in item:
+                                                try:
+                                                    total_price = float(item[total_key])
+                                                except:
+                                                    pass
+
+                                        for qty_key in ['quantity', 'qty', 'kolicina']:
+                                            if qty_key in item:
+                                                try:
+                                                    quantity = int(item[qty_key])
+                                                except:
+                                                    pass
+
+                                        if unit_price or total_price:
+                                            results.append(ItemPriceResult(
+                                                item_name=item_name[:200],
+                                                unit_price=unit_price,
+                                                total_price=total_price,
+                                                quantity=quantity,
+                                                unit=item.get('unit') or item.get('merka'),
+                                                tender_id=tender_id,
+                                                tender_title=title[:150] if title else "",
+                                                date=pub_date,
+                                                source="nabavki"
+                                            ))
+    except Exception as e:
+        logger.error(f"Nabavki raw JSON search failed: {e}")
+
+    # Sort results by date (newest first)
+    results.sort(key=lambda x: x.date if x.date else datetime.min, reverse=True)
+
+    # Limit to requested size
+    results = results[:limit]
+
+    # Calculate statistics
+    statistics = {
+        "count": len(results),
+        "min_price": None,
+        "max_price": None,
+        "avg_price": None,
+        "median_price": None
+    }
+
+    if results:
+        # Collect all unit prices
+        unit_prices = [r.unit_price for r in results if r.unit_price and r.unit_price > 0]
+
+        if unit_prices:
+            statistics["min_price"] = float(min(unit_prices))
+            statistics["max_price"] = float(max(unit_prices))
+            statistics["avg_price"] = float(sum(unit_prices) / len(unit_prices))
+
+            # Calculate median
+            sorted_prices = sorted(unit_prices)
+            n = len(sorted_prices)
+            if n % 2 == 0:
+                statistics["median_price"] = float((sorted_prices[n//2 - 1] + sorted_prices[n//2]) / 2)
+            else:
+                statistics["median_price"] = float(sorted_prices[n//2])
+
+    return ItemPriceSearchResponse(
+        query=query,
+        results=results,
+        statistics=statistics
+    )
+
+
 @router.get("/health")
 async def ai_health_check():
     """
@@ -623,6 +1145,8 @@ async def ai_health_check():
             "cpv_suggest": True,  # Always available (fallback to keyword matching)
             "extract_requirements": GEMINI_AVAILABLE,
             "competitor_summary": True,  # Always available (database query)
-            "rag_chat": GEMINI_AVAILABLE  # RAG-based chat
+            "company_analysis": True,  # Deep competitor analysis
+            "rag_chat": GEMINI_AVAILABLE,  # RAG-based chat
+            "item_price_search": True  # Item-level price research
         }
     }
