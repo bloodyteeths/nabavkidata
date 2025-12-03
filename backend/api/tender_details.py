@@ -547,17 +547,54 @@ async def extract_products_with_ai(
 
     try:
         def _sync_generate():
+            # Relaxed safety settings for business content
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+            ]
             model_obj = genai.GenerativeModel(model_name)
             response = model_obj.generate_content(
                 extraction_prompt,
                 generation_config=genai.GenerationConfig(
                     temperature=0.1,  # Low temperature for structured extraction
                     max_output_tokens=2000
-                )
+                ),
+                safety_settings=safety_settings
             )
-            return response.text
+
+            # Handle safety blocks (finish_reason=2 means SAFETY)
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'finish_reason'):
+                    # finish_reason: 1=STOP (normal), 2=SAFETY, 3=RECITATION, 4=OTHER
+                    if candidate.finish_reason == 2:
+                        return None  # Safety block
+                    elif candidate.finish_reason in [3, 4]:
+                        return None  # Other block
+
+            # Try to get text, handle empty responses
+            try:
+                text = response.text
+                if not text or not text.strip():
+                    return None
+                return text
+            except ValueError:
+                # No valid response parts
+                return None
 
         response_text = await asyncio.to_thread(_sync_generate)
+
+        # Handle blocked or empty responses
+        if response_text is None:
+            return AIProductsResponse(
+                tender_id=tender_id,
+                extraction_status="extraction_failed",
+                products=[],
+                summary="AI анализата не е достапна за овој тендер поради ограничувања на содржината.",
+                source_documents=len(docs)
+            )
 
         # Clean up response - extract JSON from markdown if needed
         response_text = response_text.strip()

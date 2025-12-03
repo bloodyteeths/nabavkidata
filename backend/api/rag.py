@@ -303,6 +303,13 @@ async def query_rag_stream(
                 )
 
                 # 3. Generate answer with streaming
+                # Relaxed safety settings for business content
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+                ]
                 model_obj = genai.GenerativeModel(pipeline.model)
 
                 # Stream response
@@ -313,6 +320,7 @@ async def query_rag_stream(
                         temperature=0.3,
                         max_output_tokens=1000
                     ),
+                    safety_settings=safety_settings,
                     stream=True
                 )
 

@@ -205,8 +205,18 @@ Only include codes you're confident about (confidence > 0.5).
 Use 8-digit CPV codes (main category level).
 """
 
-            response = model.generate_content(prompt)
-            response_text = response.text
+            # Relaxed safety settings for business content
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+            ]
+            response = model.generate_content(prompt, safety_settings=safety_settings)
+            try:
+                response_text = response.text
+            except ValueError:
+                response_text = "[]"
 
             # Parse JSON from response
             import json
@@ -338,8 +348,18 @@ Focus on:
 Return maximum 20 most important requirements.
 """
 
-            response = model.generate_content(prompt)
-            response_text = response.text
+            # Relaxed safety settings for business content
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+            ]
+            response = model.generate_content(prompt, safety_settings=safety_settings)
+            try:
+                response_text = response.text
+            except ValueError:
+                response_text = "[]"
 
             # Parse JSON from response
             import json
@@ -855,8 +875,18 @@ Provide a concise analysis in 3-4 sentences covering:
 
 Write in Macedonian language. Be specific and actionable."""
 
-            response = model.generate_content(context)
-            ai_insights = response.text
+            # Relaxed safety settings for business content
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+            ]
+            response = model.generate_content(context, safety_settings=safety_settings)
+            try:
+                ai_insights = response.text
+            except ValueError:
+                ai_insights = "AI анализата не е достапна."
 
         except Exception as e:
             ai_insights = f"AI анализата не е достапна: {str(e)}"

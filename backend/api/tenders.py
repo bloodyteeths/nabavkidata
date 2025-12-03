@@ -4,7 +4,7 @@ CRUD operations for tenders
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, text
 from typing import Optional, List
 from datetime import date
 from decimal import Decimal
@@ -13,14 +13,18 @@ import json
 import re
 
 from database import get_db
-from models import Tender, TenderBidder, TenderLot, Supplier, Document
+from models import Tender, TenderBidder, TenderLot, Supplier, Document, User
+from api.auth import get_current_user
 from schemas import (
     TenderCreate,
     TenderUpdate,
     TenderResponse,
     TenderListResponse,
     TenderSearchRequest,
-    MessageResponse
+    MessageResponse,
+    TenderChatRequest,
+    TenderChatResponse,
+    TenderChatSource
 )
 
 # Import Gemini for AI summaries
@@ -938,20 +942,34 @@ CPV код: {tender.cpv_code or 'Н/А'}
 
 Биди концизен и практичен. Фокусирај се на информации корисни за понудувачи."""
 
-            response = model.generate_content(prompt)
-            response_text = response.text
+            # Relaxed safety settings for business content
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+            ]
+            response = model.generate_content(prompt, safety_settings=safety_settings)
+
+            # Handle safety blocks
+            response_text = None
+            try:
+                response_text = response.text
+            except ValueError:
+                pass
 
             # Parse JSON from response
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                try:
-                    parsed = json.loads(json_match.group())
-                    overview = parsed.get('overview', '')
-                    key_requirements = parsed.get('key_requirements', [])
-                    strategic_insights = parsed.get('strategic_insights', [])
-                    model_used = model_name
-                except json.JSONDecodeError:
-                    pass
+            if response_text:
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    try:
+                        parsed = json.loads(json_match.group())
+                        overview = parsed.get('overview', '')
+                        key_requirements = parsed.get('key_requirements', [])
+                        strategic_insights = parsed.get('strategic_insights', [])
+                        model_used = model_name
+                    except json.JSONDecodeError:
+                        pass
 
         except Exception as e:
             print(f"Gemini AI summary failed: {e}")
@@ -1006,6 +1024,210 @@ CPV код: {tender.cpv_code or 'Н/А'}
         "generated_at": datetime.utcnow().isoformat(),
         "model": model_used
     }
+
+
+# ============================================================================
+# TENDER AI CHAT
+# ============================================================================
+
+@router.post("/{number}/{year:int}/chat", response_model=TenderChatResponse)
+async def chat_with_tender(
+    number: str,
+    year: int,
+    request: TenderChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Chat with AI about a specific tender using RAG.
+
+    Fetches tender data including:
+    - All tender fields (title, description, procuring_entity, estimated_value_mkd, etc.)
+    - Bidders from tender_bidders table
+    - Documents with content_text from documents table
+
+    Builds context for Gemini and returns AI-generated answer in Macedonian.
+
+    Requires authentication.
+
+    Tender ID format: {number}/{year} e.g. 19816/2025
+    """
+    tender_id = f"{number}/{year}"
+
+    # Check if Gemini is available
+    if not GEMINI_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="AI service not available. Configure GEMINI_API_KEY."
+        )
+
+    # Validate question
+    if not request.question or len(request.question.strip()) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Question must be at least 3 characters"
+        )
+
+    # Get tender
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Get bidders
+    bidder_query = select(TenderBidder).where(TenderBidder.tender_id == tender_id)
+    bidder_result = await db.execute(bidder_query)
+    bidders = bidder_result.scalars().all()
+
+    # Get documents with content
+    doc_query = select(Document).where(
+        Document.tender_id == tender_id
+    ).where(
+        Document.content_text.isnot(None)
+    ).order_by(Document.uploaded_at.desc())
+    doc_result = await db.execute(doc_query)
+    documents = doc_result.scalars().all()
+
+    # Build context for AI
+    tender_context = f"""Тендер ID: {tender_id}
+Наслов: {tender.title or 'Н/А'}
+Набавувач: {tender.procuring_entity or 'Н/А'}
+Категорија: {tender.category or 'Н/А'}
+CPV код: {tender.cpv_code or 'Н/А'}
+Проценета вредност: {f'{tender.estimated_value_mkd:,.0f} МКД' if tender.estimated_value_mkd else 'Н/А'}
+Тип процедура: {tender.procedure_type or 'Н/А'}
+Статус: {tender.status or 'Н/А'}
+Датум на објавување: {tender.publication_date.isoformat() if tender.publication_date else 'Н/А'}
+Датум на отворање: {tender.opening_date.isoformat() if tender.opening_date else 'Н/А'}
+Краен рок: {tender.closing_date.isoformat() if tender.closing_date else 'Н/А'}
+Број на понудувачи: {tender.num_bidders or 0}
+Број на лотови: {tender.num_lots or 1}
+Победник: {tender.winner or 'Н/А'}
+Доделена вредност: {f'{tender.actual_value_mkd:,.0f} МКД' if tender.actual_value_mkd else 'Н/А'}
+
+Опис:
+{tender.description[:3000] if tender.description else 'Нема опис'}
+"""
+
+    # Add bidder info
+    if bidders:
+        bidder_info = "\n\nПонудувачи:\n"
+        for b in bidders[:15]:
+            winner_mark = " (ПОБЕДНИК)" if b.is_winner else ""
+            bidder_info += f"- {b.company_name}{winner_mark}"
+            if b.bid_amount_mkd:
+                bidder_info += f" - {b.bid_amount_mkd:,.0f} МКД"
+            if b.rank:
+                bidder_info += f" (Ранг: {b.rank})"
+            bidder_info += "\n"
+        tender_context += bidder_info
+
+    # Add document excerpts
+    sources = []
+    if documents:
+        tender_context += "\n\nДокументи:\n"
+        for i, doc in enumerate(documents[:5], 1):  # Limit to first 5 docs
+            if doc.content_text:
+                excerpt = doc.content_text[:5000]  # First 5000 chars
+                tender_context += f"\n--- Документ {i}: {doc.file_name or 'Без име'} ---\n{excerpt}\n"
+                sources.append({
+                    "doc_id": str(doc.doc_id),
+                    "file_name": doc.file_name,
+                    "excerpt": excerpt[:200]  # Short preview for sources
+                })
+
+    # Build conversation history context
+    history_context = ""
+    if request.conversation_history:
+        history_context = "\n\nПретходна конверзација:\n"
+        for msg in request.conversation_history[-5:]:  # Last 5 messages
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "user":
+                history_context += f"Прашање: {content}\n"
+            elif role == "assistant":
+                history_context += f"Одговор: {content}\n"
+
+    # Generate AI response
+    try:
+        # Use configured model or fallback
+        model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+        model = genai.GenerativeModel(model_name)
+
+        system_prompt = """Ти си асистент за јавни набавки. Одговарај на прашања за овој тендер на македонски јазик.
+
+Упатства:
+- Биди специфичен и цитирај извори кога е можно
+- Ако информацијата не е достапна во контекстот, јасно кажи дека не знаеш
+- Користи податоци од документите и tender деталите
+- Одговори на македонски јазик
+- Биди концизен но информативен (2-4 реченици)"""
+
+        prompt = f"""{system_prompt}
+
+{tender_context}
+{history_context}
+
+Прашање на корисникот: {request.question}
+
+Одговор:"""
+
+        # Relaxed safety settings for business content
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+        ]
+        response = model.generate_content(prompt, safety_settings=safety_settings)
+
+        # Handle safety blocks
+        try:
+            answer = response.text
+        except ValueError:
+            answer = "Не можам да генерирам одговор. Обидете се со поинакво прашање."
+
+        # Calculate confidence based on data availability
+        confidence = 0.5  # Base confidence
+        if tender.description:
+            confidence += 0.1
+        if bidders:
+            confidence += 0.1
+        if documents:
+            confidence += 0.2
+        if tender.estimated_value_mkd:
+            confidence += 0.05
+        if tender.winner:
+            confidence += 0.05
+
+        confidence = min(confidence, 1.0)
+
+        # Format sources for response
+        formatted_sources = [
+            TenderChatSource(
+                doc_id=s["doc_id"],
+                file_name=s["file_name"],
+                excerpt=s["excerpt"]
+            )
+            for s in sources
+        ]
+
+        return TenderChatResponse(
+            answer=answer,
+            sources=formatted_sources,
+            confidence=round(confidence, 2),
+            tender_id=tender_id
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI chat failed: {str(e)}"
+        )
 
 
 # ============================================================================
@@ -1207,6 +1429,27 @@ async def get_tender_raw_json(
         "title": tender.title,
         "status": tender.status
     }
+
+
+@router.get("/{number}/{year:int}/enhanced")
+async def get_enhanced_tender(
+    number: str,
+    year: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get enhanced tender data with all fields, bidders, price analysis, and completeness score.
+    Tender ID format: {number}/{year} e.g. 19816/2025
+
+    This endpoint provides a comprehensive view of the tender including:
+    - All standard tender fields
+    - Bidders from tender_bidders table with fallback to raw_data_json
+    - Price analysis (estimated, winning bid, bid range, num bidders)
+    - Data completeness score (0-1)
+    - Documents with file_url for download
+    """
+    tender_id = f"{number}/{year}"
+    return await get_enhanced_tender_by_id(tender_id, db)
 
 
 @router.get("/{number}/{year:int}/suppliers")
@@ -1440,20 +1683,52 @@ CPV код: {tender.cpv_code or 'Н/А'}
 
 Биди концизен и практичен. Фокусирај се на информации корисни за понудувачи."""
 
-            response = model.generate_content(prompt)
-            response_text = response.text
+            # Relaxed safety settings for business content
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+            ]
+            response = model.generate_content(prompt, safety_settings=safety_settings)
 
-            # Parse JSON from response
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
+            # Handle safety blocks (finish_reason=2 means SAFETY)
+            response_text = None
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'finish_reason'):
+                    # finish_reason: 1=STOP (normal), 2=SAFETY, 3=RECITATION, 4=OTHER
+                    if candidate.finish_reason in [2, 3, 4]:
+                        logger.warning(f"Gemini response blocked: finish_reason={candidate.finish_reason}")
+                        response_text = None
+                    else:
+                        try:
+                            response_text = response.text
+                        except ValueError:
+                            response_text = None
+                else:
+                    try:
+                        response_text = response.text
+                    except ValueError:
+                        response_text = None
+            else:
                 try:
-                    parsed = json.loads(json_match.group())
-                    overview = parsed.get('overview', '')
-                    key_requirements = parsed.get('key_requirements', [])
-                    strategic_insights = parsed.get('strategic_insights', [])
-                    model_used = model_name
-                except json.JSONDecodeError:
-                    pass
+                    response_text = response.text
+                except ValueError:
+                    response_text = None
+
+            # Parse JSON from response if we got one
+            if response_text:
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    try:
+                        parsed = json.loads(json_match.group())
+                        overview = parsed.get('overview', '')
+                        key_requirements = parsed.get('key_requirements', [])
+                        strategic_insights = parsed.get('strategic_insights', [])
+                        model_used = model_name
+                    except json.JSONDecodeError:
+                        pass
 
         except Exception as e:
             logger.error(f"Gemini AI summary failed: {e}")
@@ -1502,6 +1777,177 @@ CPV код: {tender.cpv_code or 'Н/А'}
         },
         "generated_at": datetime.utcnow().isoformat(),
         "model": model_used
+    }
+
+
+@router.get("/by-id/{tender_id:path}/bid-advice")
+async def get_tender_bid_advice_by_id(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get AI-powered bid recommendations for a tender.
+    Returns market analysis, historical data, and bid strategies.
+    """
+    from datetime import datetime
+    import statistics
+
+    # Normalize the tender_id
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    # Get tender
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Get bidders for this tender
+    bidder_query = select(TenderBidder).where(TenderBidder.tender_id == tender_id)
+    bidder_result = await db.execute(bidder_query)
+    bidders = bidder_result.scalars().all()
+
+    # Get historical data for similar tenders (same CPV code)
+    historical_bids = []
+    avg_discount = 0.0
+    competition_level = "unknown"
+
+    if tender.cpv_code:
+        # Get similar tenders from last 2 years
+        hist_query = text("""
+            SELECT t.tender_id, t.estimated_value_mkd, t.actual_value_mkd,
+                   t.num_bidders, tb.bid_amount_mkd, tb.is_winner
+            FROM tenders t
+            LEFT JOIN tender_bidders tb ON t.tender_id = tb.tender_id
+            WHERE t.cpv_code LIKE :cpv_prefix
+              AND t.tender_id != :current_tender
+              AND t.publication_date > NOW() - INTERVAL '2 years'
+              AND t.actual_value_mkd IS NOT NULL
+            ORDER BY t.publication_date DESC
+            LIMIT 100
+        """)
+        hist_result = await db.execute(hist_query, {
+            "cpv_prefix": tender.cpv_code[:4] + "%",
+            "current_tender": tender_id
+        })
+        historical_data = hist_result.fetchall()
+
+        # Calculate statistics
+        discounts = []
+        winning_bids = []
+        bidder_counts = []
+
+        for row in historical_data:
+            if row.estimated_value_mkd and row.actual_value_mkd:
+                discount = (row.estimated_value_mkd - row.actual_value_mkd) / row.estimated_value_mkd * 100
+                discounts.append(discount)
+            if row.bid_amount_mkd and row.is_winner:
+                winning_bids.append(float(row.bid_amount_mkd))
+            if row.num_bidders:
+                bidder_counts.append(row.num_bidders)
+
+        if discounts:
+            avg_discount = statistics.mean(discounts)
+        if bidder_counts:
+            avg_bidders = statistics.mean(bidder_counts)
+            if avg_bidders >= 5:
+                competition_level = "high"
+            elif avg_bidders >= 3:
+                competition_level = "medium"
+            else:
+                competition_level = "low"
+
+    # Build market analysis
+    market_analysis = {
+        "avg_discount": round(avg_discount, 2),
+        "typical_bidders": len(bidders) if bidders else 0,
+        "price_trend": "stable",
+        "competition_level": competition_level
+    }
+
+    # Build historical data summary
+    historical_summary = {
+        "similar_tenders": len(set(r.tender_id for r in historical_data)) if 'historical_data' in dir() and historical_data else 0,
+        "avg_winning_bid": round(statistics.mean(winning_bids), 0) if winning_bids else None,
+        "min_bid": round(min(winning_bids), 0) if winning_bids else None,
+        "max_bid": round(max(winning_bids), 0) if winning_bids else None,
+        "avg_discount_pct": round(avg_discount, 2)
+    }
+
+    # Generate bid recommendations
+    recommendations = []
+    estimated_value = float(tender.estimated_value_mkd) if tender.estimated_value_mkd else 0
+
+    if estimated_value > 0:
+        # Aggressive strategy - 15-20% below estimate
+        aggressive_bid = estimated_value * (1 - (avg_discount + 5) / 100) if avg_discount else estimated_value * 0.82
+        recommendations.append({
+            "strategy": "aggressive",
+            "recommended_bid": round(aggressive_bid, 0),
+            "win_probability": 0.7 if competition_level == "low" else 0.5,
+            "reasoning": f"Агресивна понуда со попуст од {round((1 - aggressive_bid/estimated_value) * 100, 1)}% под проценетата вредност"
+        })
+
+        # Balanced strategy - around average discount
+        balanced_bid = estimated_value * (1 - avg_discount / 100) if avg_discount else estimated_value * 0.9
+        recommendations.append({
+            "strategy": "balanced",
+            "recommended_bid": round(balanced_bid, 0),
+            "win_probability": 0.5,
+            "reasoning": f"Балансирана понуда со попуст од {round((1 - balanced_bid/estimated_value) * 100, 1)}% базирано на историски просек"
+        })
+
+        # Safe strategy - smaller discount
+        safe_bid = estimated_value * (1 - max(0, avg_discount - 5) / 100) if avg_discount else estimated_value * 0.95
+        recommendations.append({
+            "strategy": "safe",
+            "recommended_bid": round(safe_bid, 0),
+            "win_probability": 0.3 if competition_level == "high" else 0.4,
+            "reasoning": f"Безбедна понуда со попуст од {round((1 - safe_bid/estimated_value) * 100, 1)}% за поголема профитабилност"
+        })
+
+    # Get competitor insights
+    competitor_insights = []
+    for b in bidders[:5]:
+        if b.company_name:
+            # Get historical win rate for this company
+            comp_query = text("""
+                SELECT COUNT(*) as total_bids,
+                       SUM(CASE WHEN is_winner THEN 1 ELSE 0 END) as wins
+                FROM tender_bidders
+                WHERE company_name = :company
+            """)
+            comp_result = await db.execute(comp_query, {"company": b.company_name})
+            comp_stats = comp_result.fetchone()
+
+            if comp_stats and comp_stats.total_bids > 0:
+                win_rate = (comp_stats.wins / comp_stats.total_bids) * 100
+                competitor_insights.append({
+                    "company": b.company_name,
+                    "win_rate": round(win_rate, 1),
+                    "avg_discount": round(avg_discount, 1)  # Use overall avg as estimate
+                })
+
+    # Generate AI summary
+    ai_summary = f"За овој тендер има {len(bidders)} понудувачи. "
+    if avg_discount > 0:
+        ai_summary += f"Историски просечен попуст за слични тендери е {round(avg_discount, 1)}%. "
+    ai_summary += f"Ниво на конкуренција: {competition_level}."
+
+    return {
+        "tender_id": tender_id,
+        "tender_title": tender.title,
+        "estimated_value": float(tender.estimated_value_mkd) if tender.estimated_value_mkd else None,
+        "cpv_code": tender.cpv_code,
+        "category": tender.category,
+        "procuring_entity": tender.procuring_entity,
+        "market_analysis": market_analysis,
+        "historical_data": historical_summary,
+        "recommendations": recommendations,
+        "competitor_insights": competitor_insights,
+        "ai_summary": ai_summary,
+        "generated_at": datetime.utcnow().isoformat()
     }
 
 
@@ -1625,6 +2071,193 @@ async def get_tender_bidders_by_id(
             for b in bidders
         ]
     }
+
+
+@router.get("/by-id/{tender_id:path}/enhanced")
+async def get_enhanced_tender_by_id(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get enhanced tender data with all fields, bidders, price analysis, and completeness score.
+
+    This endpoint provides a comprehensive view of the tender including:
+    - All standard tender fields
+    - Bidders from tender_bidders table with fallback to raw_data_json
+    - Price analysis (estimated, winning bid, bid range, num bidders)
+    - Data completeness score (0-1)
+    - Documents with file_url for download
+    """
+    import json
+
+    # Normalize tender ID
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    # Get tender
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Get bidders from tender_bidders table
+    bidder_query = select(TenderBidder).where(
+        TenderBidder.tender_id == tender_id
+    ).order_by(TenderBidder.rank.asc().nullslast(), TenderBidder.is_winner.desc())
+    result = await db.execute(bidder_query)
+    db_bidders = result.scalars().all()
+
+    # Format bidders
+    bidders = [
+        {
+            "bidder_id": str(b.bidder_id),
+            "company_name": b.company_name,
+            "tax_id": b.company_tax_id,
+            "bid_amount_mkd": float(b.bid_amount_mkd) if b.bid_amount_mkd else None,
+            "bid_amount_eur": float(b.bid_amount_eur) if b.bid_amount_eur else None,
+            "rank": b.rank,
+            "is_winner": b.is_winner,
+            "disqualified": b.disqualified,
+            "disqualification_reason": b.disqualification_reason
+        }
+        for b in db_bidders
+    ]
+
+    # Fallback to raw_data_json if no bidders in table
+    if not bidders and tender.raw_data_json:
+        try:
+            raw_json = tender.raw_data_json if isinstance(tender.raw_data_json, dict) else json.loads(tender.raw_data_json)
+            bidders_data = raw_json.get('bidders_data')
+            if bidders_data:
+                if isinstance(bidders_data, str):
+                    bidders = json.loads(bidders_data)
+                elif isinstance(bidders_data, list):
+                    bidders = bidders_data
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Calculate price analysis
+    price_analysis = {
+        "estimated_value": float(tender.estimated_value_mkd) if tender.estimated_value_mkd else None,
+        "winning_bid": None,
+        "lowest_bid": None,
+        "highest_bid": None,
+        "num_bidders": len(bidders)
+    }
+
+    # Get winning bid
+    if tender.actual_value_mkd:
+        price_analysis["winning_bid"] = float(tender.actual_value_mkd)
+    else:
+        # Try to find winner bid from bidders
+        for b in bidders:
+            if b.get("is_winner") and b.get("bid_amount_mkd"):
+                price_analysis["winning_bid"] = b["bid_amount_mkd"]
+                break
+
+    # Calculate lowest and highest bids
+    bid_amounts = [b["bid_amount_mkd"] for b in bidders if b.get("bid_amount_mkd") is not None]
+    if bid_amounts:
+        price_analysis["lowest_bid"] = min(bid_amounts)
+        price_analysis["highest_bid"] = max(bid_amounts)
+
+    # Get documents
+    doc_query = select(Document).where(Document.tender_id == tender_id).order_by(Document.uploaded_at.desc())
+    result = await db.execute(doc_query)
+    documents = result.scalars().all()
+
+    doc_list = [
+        {
+            "doc_id": str(doc.doc_id),
+            "doc_type": doc.doc_type,
+            "file_name": doc.file_name,
+            "file_url": doc.file_url,
+            "file_path": doc.file_path,
+            "extraction_status": doc.extraction_status,
+            "file_size_bytes": doc.file_size_bytes,
+            "page_count": doc.page_count,
+            "mime_type": doc.mime_type,
+            "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None
+        }
+        for doc in documents
+    ]
+
+    # Calculate data completeness score
+    completeness_score = 0.0
+    total_weight = 0.0
+
+    # Define field weights
+    fields_to_check = [
+        ("title", 0.1, tender.title),
+        ("description", 0.15, tender.description),
+        ("estimated_value_mkd", 0.1, tender.estimated_value_mkd),
+        ("actual_value_mkd", 0.1, tender.actual_value_mkd),
+        ("winner", 0.1, tender.winner),
+        ("procuring_entity", 0.1, tender.procuring_entity),
+        ("has_bidders", 0.2, len(bidders) > 0),
+        ("has_documents", 0.15, len(documents) > 0)
+    ]
+
+    for field_name, weight, value in fields_to_check:
+        total_weight += weight
+        if value:
+            completeness_score += weight
+
+    # Normalize to 0-1 scale
+    data_completeness = round(completeness_score / total_weight, 2) if total_weight > 0 else 0.0
+
+    # Build response with all tender fields
+    response = {
+        "tender_id": tender.tender_id,
+        "title": tender.title,
+        "description": tender.description,
+        "category": tender.category,
+        "procuring_entity": tender.procuring_entity,
+        "opening_date": tender.opening_date.isoformat() if tender.opening_date else None,
+        "closing_date": tender.closing_date.isoformat() if tender.closing_date else None,
+        "publication_date": tender.publication_date.isoformat() if tender.publication_date else None,
+        "estimated_value_mkd": float(tender.estimated_value_mkd) if tender.estimated_value_mkd else None,
+        "estimated_value_eur": float(tender.estimated_value_eur) if tender.estimated_value_eur else None,
+        "actual_value_mkd": float(tender.actual_value_mkd) if tender.actual_value_mkd else None,
+        "actual_value_eur": float(tender.actual_value_eur) if tender.actual_value_eur else None,
+        "cpv_code": tender.cpv_code,
+        "status": tender.status,
+        "winner": tender.winner,
+        "source_url": tender.source_url,
+        "language": tender.language,
+        "source_category": tender.source_category,
+        "procedure_type": tender.procedure_type,
+        "contract_signing_date": tender.contract_signing_date.isoformat() if tender.contract_signing_date else None,
+        "contract_duration": tender.contract_duration,
+        "contracting_entity_category": tender.contracting_entity_category,
+        "procurement_holder": tender.procurement_holder,
+        "bureau_delivery_date": tender.bureau_delivery_date.isoformat() if tender.bureau_delivery_date else None,
+        "contact_person": tender.contact_person,
+        "contact_email": tender.contact_email,
+        "contact_phone": tender.contact_phone,
+        "num_bidders": tender.num_bidders,
+        "security_deposit_mkd": float(tender.security_deposit_mkd) if tender.security_deposit_mkd else None,
+        "performance_guarantee_mkd": float(tender.performance_guarantee_mkd) if tender.performance_guarantee_mkd else None,
+        "payment_terms": tender.payment_terms,
+        "evaluation_method": tender.evaluation_method,
+        "award_criteria": tender.award_criteria,
+        "has_lots": tender.has_lots,
+        "num_lots": tender.num_lots,
+        "amendment_count": tender.amendment_count,
+        "last_amendment_date": tender.last_amendment_date.isoformat() if tender.last_amendment_date else None,
+        "scraped_at": tender.scraped_at.isoformat() if tender.scraped_at else None,
+        "created_at": tender.created_at.isoformat() if tender.created_at else None,
+        "updated_at": tender.updated_at.isoformat() if tender.updated_at else None,
+
+        # Enhanced fields
+        "bidders": bidders,
+        "price_analysis": price_analysis,
+        "data_completeness": data_completeness,
+        "documents": doc_list
+    }
+
+    return response
 
 
 # ============================================================================

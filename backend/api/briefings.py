@@ -271,8 +271,18 @@ async def generate_briefing_summary(matches: List[Dict[str, Any]], user_alerts: 
 
 Биди концизен и нагласи ги итните можности. Користи македонски јазик."""
 
-        response = model.generate_content(context)
-        return response.text.strip()
+        # Relaxed safety settings for business content
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+        ]
+        response = model.generate_content(context, safety_settings=safety_settings)
+        try:
+            return response.text.strip()
+        except ValueError:
+            return f"Пронајдени {len(matches)} совпаѓања за вашите алерти."
 
     except Exception as e:
         logger.error(f"AI briefing summary failed: {e}")

@@ -101,12 +101,12 @@ async def get_notifications(
     unread_only: bool = Query(False, alias='unread'),
     type: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     """
     Get user notifications (paginated)
     """
-    user_id = current_user.get('user_id')
+    user_id = current_user.user_id
 
     # Build query
     from sqlalchemy import Table, MetaData, Column
@@ -164,12 +164,12 @@ async def get_notifications(
 @router.get("/unread-count")
 async def get_unread_count(
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     """
     Get count of unread notifications (for badge)
     """
-    user_id = current_user.get('user_id')
+    user_id = current_user.user_id
 
     from sqlalchemy import Table, MetaData
     metadata = MetaData()
@@ -194,12 +194,12 @@ async def get_unread_count(
 async def mark_notifications_read(
     body: NotificationMarkRead,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     """
     Mark specific notifications as read
     """
-    user_id = current_user.get('user_id')
+    user_id = current_user.user_id
 
     from sqlalchemy import Table, MetaData
     metadata = MetaData()
@@ -226,12 +226,12 @@ async def mark_notifications_read(
 @router.post("/mark-all-read")
 async def mark_all_read(
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     """
     Mark all user notifications as read
     """
-    user_id = current_user.get('user_id')
+    user_id = current_user.user_id
 
     from sqlalchemy import Table, MetaData
     metadata = MetaData()
@@ -259,12 +259,12 @@ async def mark_all_read(
 async def delete_notification(
     notification_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     """
     Delete a notification
     """
-    user_id = current_user.get('user_id')
+    user_id = current_user.user_id
 
     from sqlalchemy import Table, MetaData
     metadata = MetaData()
@@ -295,13 +295,13 @@ async def delete_notification(
 async def admin_create_notification(
     notification: NotificationCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     """
     Admin endpoint to create a notification for a user
     """
     # Check if user is admin
-    if current_user.get('role') not in ['admin', 'super_admin']:
+    if current_user.role not in ['admin', 'super_admin']:
         raise HTTPException(status_code=403, detail="Admin access required")
 
     result = await create_notification(
@@ -323,13 +323,13 @@ async def admin_broadcast_notification(
     notification: NotificationBase,
     target_users: Optional[List[str]] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     """
     Admin endpoint to broadcast a notification to multiple users
     """
     # Check if user is admin
-    if current_user.get('role') not in ['admin', 'super_admin']:
+    if current_user.role not in ['admin', 'super_admin']:
         raise HTTPException(status_code=403, detail="Admin access required")
 
     # If no target_users specified, send to all users
