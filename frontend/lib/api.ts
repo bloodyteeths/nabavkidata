@@ -1819,7 +1819,7 @@ class APIClient {
     name: string;
     alert_type: string;
     criteria: any;
-    channels?: string[];
+    notification_channels?: string[];
   }) {
     return this.request<{
       id: string;

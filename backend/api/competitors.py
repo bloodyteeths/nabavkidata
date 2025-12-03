@@ -687,6 +687,249 @@ async def get_bidding_patterns(
 
 
 # ============================================================================
+# COMPANY ANALYSIS (for competitor detail page)
+# ============================================================================
+
+class RecentWin(BaseModel):
+    """A recent win for the company"""
+    tender_id: str
+    title: str
+    procuring_entity: str
+    category: Optional[str] = None
+    cpv_code: Optional[str] = None
+    contract_value_mkd: Optional[float] = None
+    date: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CommonCategory(BaseModel):
+    """Common category for the company"""
+    category: str
+    bid_count: int
+    win_count: int
+    won_value_mkd: float = 0
+
+    class Config:
+        from_attributes = True
+
+
+class FrequentInstitution(BaseModel):
+    """Frequently worked with institution"""
+    institution: str
+    bid_count: int
+    win_count: int
+    avg_bid_mkd: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TenderStats(BaseModel):
+    """Tender statistics for a company"""
+    total_bids: int = 0
+    total_wins: int = 0
+    win_rate: float = 0.0
+    avg_bid_value_mkd: Optional[float] = None
+    total_won_value_mkd: Optional[float] = None
+    first_bid_date: Optional[datetime] = None
+    last_bid_date: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CompanyAnalysisResponse(BaseModel):
+    """Complete company analysis response"""
+    company_name: str
+    summary: str
+    tender_stats: TenderStats
+    recent_wins: List[RecentWin] = []
+    common_categories: List[CommonCategory] = []
+    frequent_institutions: List[FrequentInstitution] = []
+    ai_insights: str = ""
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/analyze/{company_name}", response_model=CompanyAnalysisResponse)
+async def analyze_company(
+    company_name: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Get comprehensive analysis of a competitor company.
+
+    Returns:
+    - Company summary
+    - Tender statistics (bids, wins, win rate, values)
+    - Recent wins with details
+    - Common categories/CPV codes
+    - Frequent institutions/entities
+    - AI-generated insights
+    """
+
+    # 1. Get basic stats
+    stats_query = text("""
+        SELECT
+            COUNT(DISTINCT tb.bidder_id) as total_bids,
+            COUNT(DISTINCT tb.bidder_id) FILTER (WHERE tb.is_winner = TRUE) as total_wins,
+            AVG(tb.bid_amount_mkd) as avg_bid_value,
+            SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner = TRUE) as total_won_value,
+            MIN(t.publication_date) as first_bid_date,
+            MAX(t.publication_date) as last_bid_date
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE tb.company_name ILIKE :company_name
+    """)
+
+    result = await db.execute(stats_query, {"company_name": company_name})
+    stats_row = result.fetchone()
+
+    if not stats_row or stats_row.total_bids == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No data found for company '{company_name}'"
+        )
+
+    total_bids = stats_row.total_bids or 0
+    total_wins = stats_row.total_wins or 0
+    win_rate = (total_wins / total_bids) if total_bids > 0 else 0
+
+    tender_stats = TenderStats(
+        total_bids=total_bids,
+        total_wins=total_wins,
+        win_rate=win_rate,
+        avg_bid_value_mkd=float(stats_row.avg_bid_value) if stats_row.avg_bid_value else None,
+        total_won_value_mkd=float(stats_row.total_won_value) if stats_row.total_won_value else None,
+        first_bid_date=stats_row.first_bid_date,
+        last_bid_date=stats_row.last_bid_date
+    )
+
+    # 2. Get recent wins
+    wins_query = text("""
+        SELECT
+            t.tender_id,
+            t.title,
+            t.procuring_entity,
+            t.category,
+            t.cpv_code,
+            tb.bid_amount_mkd as contract_value_mkd,
+            COALESCE(t.closing_date, t.publication_date) as date
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE tb.company_name ILIKE :company_name
+            AND tb.is_winner = TRUE
+        ORDER BY COALESCE(t.closing_date, t.publication_date) DESC NULLS LAST
+        LIMIT 10
+    """)
+
+    wins_result = await db.execute(wins_query, {"company_name": company_name})
+    recent_wins = [
+        RecentWin(
+            tender_id=row.tender_id,
+            title=row.title or "Unknown",
+            procuring_entity=row.procuring_entity or "Unknown",
+            category=row.category,
+            cpv_code=row.cpv_code,
+            contract_value_mkd=float(row.contract_value_mkd) if row.contract_value_mkd else None,
+            date=row.date
+        )
+        for row in wins_result.fetchall()
+    ]
+
+    # 3. Get common categories
+    categories_query = text("""
+        SELECT
+            COALESCE(t.category, 'Непознато') as category,
+            COUNT(DISTINCT tb.bidder_id) as bid_count,
+            COUNT(DISTINCT tb.bidder_id) FILTER (WHERE tb.is_winner = TRUE) as win_count,
+            COALESCE(SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner = TRUE), 0) as won_value_mkd
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE tb.company_name ILIKE :company_name
+        GROUP BY COALESCE(t.category, 'Непознато')
+        ORDER BY bid_count DESC
+        LIMIT 10
+    """)
+
+    cat_result = await db.execute(categories_query, {"company_name": company_name})
+    common_categories = [
+        CommonCategory(
+            category=row.category,
+            bid_count=row.bid_count,
+            win_count=row.win_count,
+            won_value_mkd=float(row.won_value_mkd) if row.won_value_mkd else 0
+        )
+        for row in cat_result.fetchall()
+    ]
+
+    # 4. Get frequent institutions
+    institutions_query = text("""
+        SELECT
+            t.procuring_entity as institution,
+            COUNT(DISTINCT tb.bidder_id) as bid_count,
+            COUNT(DISTINCT tb.bidder_id) FILTER (WHERE tb.is_winner = TRUE) as win_count,
+            AVG(tb.bid_amount_mkd) as avg_bid_mkd
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE tb.company_name ILIKE :company_name
+            AND t.procuring_entity IS NOT NULL
+        GROUP BY t.procuring_entity
+        ORDER BY bid_count DESC
+        LIMIT 10
+    """)
+
+    inst_result = await db.execute(institutions_query, {"company_name": company_name})
+    frequent_institutions = [
+        FrequentInstitution(
+            institution=row.institution,
+            bid_count=row.bid_count,
+            win_count=row.win_count,
+            avg_bid_mkd=float(row.avg_bid_mkd) if row.avg_bid_mkd else None
+        )
+        for row in inst_result.fetchall()
+    ]
+
+    # 5. Generate summary and AI insights
+    summary = f"{company_name} има поднесено {total_bids} понуди и освоено {total_wins} тендери со стапка на успешност од {win_rate*100:.1f}%."
+
+    insights = []
+    if win_rate > 0.5:
+        insights.append(f"Компанијата има висока стапка на успешност ({win_rate*100:.1f}%).")
+    elif win_rate > 0.3:
+        insights.append(f"Компанијата има солидна стапка на успешност ({win_rate*100:.1f}%).")
+    else:
+        insights.append(f"Компанијата има ниска стапка на успешност ({win_rate*100:.1f}%).")
+
+    if common_categories:
+        top_cat = common_categories[0]
+        insights.append(f"Најактивна во категоријата '{top_cat.category}' со {top_cat.bid_count} понуди.")
+
+    if frequent_institutions:
+        top_inst = frequent_institutions[0]
+        insights.append(f"Најчесто соработува со '{top_inst.institution}'.")
+
+    if tender_stats.total_won_value_mkd:
+        insights.append(f"Вкупна вредност на освоени тендери: {tender_stats.total_won_value_mkd:,.0f} МКД.")
+
+    ai_insights = " ".join(insights)
+
+    return CompanyAnalysisResponse(
+        company_name=company_name,
+        summary=summary,
+        tender_stats=tender_stats,
+        recent_wins=recent_wins,
+        common_categories=common_categories,
+        frequent_institutions=frequent_institutions,
+        ai_insights=ai_insights
+    )
+
+
+# ============================================================================
 # HEAD-TO-HEAD COMPARISON
 # ============================================================================
 

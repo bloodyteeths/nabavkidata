@@ -694,3 +694,115 @@ async def check_alerts_now(
         tenders_scanned=result['tenders_scanned'],
         execution_time_ms=result['execution_time_ms']
     )
+
+
+@router.get("/matches")
+async def get_all_matches(
+    alert_id: Optional[str] = Query(None, description="Filter by specific alert ID"),
+    limit: int = Query(50, ge=1, le=200, description="Number of matches to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    unread_only: bool = Query(False, description="Return only unread matches"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all matches across all user's alerts, optionally filtered by alert_id
+    """
+    # Build query based on filters
+    if alert_id:
+        # Verify alert belongs to user
+        check_result = await db.execute(
+            text("SELECT user_id FROM tender_alerts WHERE alert_id = :alert_id")
+            .params(alert_id=alert_id)
+        )
+        row = check_result.fetchone()
+
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Alert not found"
+            )
+
+        if str(row[0]) != str(current_user.user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this alert's matches"
+            )
+
+        where_clause = "WHERE am.alert_id = :alert_id"
+        params = {'alert_id': alert_id, 'limit': limit, 'offset': offset}
+    else:
+        where_clause = "WHERE ta.user_id = :user_id"
+        params = {'user_id': str(current_user.user_id), 'limit': limit, 'offset': offset}
+
+    if unread_only:
+        where_clause += " AND NOT am.is_read"
+
+    # Get matches with alert names
+    result = await db.execute(
+        text(f"""
+            SELECT am.match_id, am.alert_id, ta.name as alert_name, am.tender_id,
+                   am.tender_source, am.match_score, am.match_reasons, am.is_read,
+                   am.notified_at, am.created_at
+            FROM alert_matches am
+            JOIN tender_alerts ta ON am.alert_id = ta.alert_id
+            {where_clause}
+            ORDER BY am.created_at DESC
+            LIMIT :limit OFFSET :offset
+        """).params(**params)
+    )
+
+    matches = []
+    for row in result.fetchall():
+        # Fetch tender details
+        tender_result = await db.execute(
+            text("""
+                SELECT tender_id, title, procuring_entity, estimated_value_mkd,
+                       closing_date, status, cpv_code
+                FROM tenders
+                WHERE tender_id = :tender_id
+            """).params(tender_id=row[3])
+        )
+        tender_row = tender_result.fetchone()
+
+        tender_details = None
+        if tender_row:
+            tender_details = {
+                'tender_id': tender_row[0],
+                'title': tender_row[1],
+                'procuring_entity': tender_row[2],
+                'estimated_value_mkd': float(tender_row[3]) if tender_row[3] else None,
+                'closing_date': tender_row[4].isoformat() if tender_row[4] else None,
+                'status': tender_row[5],
+                'cpv_code': tender_row[6]
+            }
+
+        matches.append({
+            'match_id': str(row[0]),
+            'alert_id': str(row[1]),
+            'alert_name': row[2],
+            'tender_id': row[3],
+            'tender_source': row[4],
+            'match_score': float(row[5]),
+            'match_reasons': row[6],
+            'is_read': row[7],
+            'notified_at': row[8].isoformat() if row[8] else None,
+            'created_at': row[9].isoformat() if row[9] else None,
+            'tender_details': tender_details
+        })
+
+    # Get total count
+    count_result = await db.execute(
+        text(f"""
+            SELECT COUNT(*)
+            FROM alert_matches am
+            JOIN tender_alerts ta ON am.alert_id = ta.alert_id
+            {where_clause.replace(':limit', '0').replace(':offset', '0')}
+        """).params(**{k: v for k, v in params.items() if k not in ['limit', 'offset']})
+    )
+    total = count_result.scalar() or 0
+
+    return {
+        'matches': matches,
+        'total': total
+    }

@@ -378,7 +378,13 @@ export default function ProductsPage() {
 
       {/* CPV Browser (only when data exists) */}
       {cpvCodes && cpvCodes.length > 0 && (
-        <CPVBrowser onSelect={(code) => setFilters((prev) => ({ ...prev, cpv_code: code }))} />
+        <CPVBrowser onSelect={(code) => {
+          setFilters((prev) => ({ ...prev, cpv_code: code }));
+          // Trigger search with wildcard query if no query exists, or re-search with current query
+          const searchQuery = query.trim() || "*";
+          setQuery(searchQuery);
+          searchProducts(searchQuery, 1);
+        }} />
       )}
 
       {/* Search Form */}

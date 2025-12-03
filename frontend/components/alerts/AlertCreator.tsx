@@ -131,8 +131,8 @@ export function AlertCreator({ onCreated }: AlertCreatorProps) {
     if (cpvCodes.length > 0) criteria.cpv_codes = cpvCodes;
     if (entities.length > 0) criteria.entities = entities;
     if (competitors.length > 0) criteria.competitors = competitors;
-    if (minBudget) criteria.min_budget = parseFloat(minBudget);
-    if (maxBudget) criteria.max_budget = parseFloat(maxBudget);
+    if (minBudget) criteria.budget_min = parseFloat(minBudget);
+    if (maxBudget) criteria.budget_max = parseFloat(maxBudget);
 
     if (Object.keys(criteria).length === 0) {
       toast.error('Додадете најмалку еден критериум');
@@ -149,7 +149,7 @@ export function AlertCreator({ onCreated }: AlertCreatorProps) {
         name: name.trim(),
         alert_type: alertType,
         criteria,
-        channels,
+        notification_channels: channels,
       });
       toast.success('Алертот е успешно креиран');
       onCreated();
