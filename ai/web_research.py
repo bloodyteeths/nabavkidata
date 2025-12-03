@@ -207,13 +207,21 @@ Be specific with numbers, names, and dates."""
         try:
             def _sync_search():
                 # Use Gemini Pro for better web search
+                # Relaxed safety settings for business/procurement content
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+                ]
                 model = genai.GenerativeModel('gemini-2.0-flash')
                 response = model.generate_content(
                     prompt,
                     generation_config=genai.GenerationConfig(
                         temperature=0.3,
                         max_output_tokens=2000
-                    )
+                    ),
+                    safety_settings=safety_settings
                 )
 
                 # Handle safety blocks
@@ -383,13 +391,21 @@ Be specific with numbers, names, and dates."""
 
         try:
             def _sync_generate():
+                # Relaxed safety settings for business/procurement content
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+                ]
                 model = genai.GenerativeModel('gemini-2.0-flash')
                 response = model.generate_content(
                     prompt,
                     generation_config=genai.GenerationConfig(
                         temperature=0.4,
                         max_output_tokens=500
-                    )
+                    ),
+                    safety_settings=safety_settings
                 )
 
                 # Handle safety blocks
@@ -463,15 +479,26 @@ Format as JSON with keys: analysis, strengths (array), weaknesses (array), recen
 
             try:
                 def _sync_search():
+                    # Relaxed safety settings for business/procurement content
+                    safety_settings = [
+                        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+                    ]
                     model = genai.GenerativeModel('gemini-2.0-flash')
                     response = model.generate_content(
                         prompt,
                         generation_config=genai.GenerationConfig(
                             temperature=0.3,
                             max_output_tokens=1000
-                        )
+                        ),
+                        safety_settings=safety_settings
                     )
-                    return response.text
+                    try:
+                        return response.text
+                    except ValueError:
+                        return ""
 
                 response_text = await asyncio.to_thread(_sync_search)
 
@@ -513,26 +540,12 @@ class HybridRAGEngine:
     def _should_use_web_research(self, query: str, db_results_count: int) -> bool:
         """
         Decide if we should augment with web research.
+
+        We are a HYBRID AI - always search online to provide complete data!
+        Users pay us so they don't have to check websites themselves!
         """
-        # Keywords that suggest web research is needed
-        web_research_keywords = [
-            'market', 'trend', 'active', 'current', 'upcoming', 'new',
-            'opportunity', 'competitor', 'who wins', 'best', 'strategy',
-            'recommendation', 'пазар', 'тренд', 'активни', 'нови',
-            'можност', 'конкурент', 'препорака', 'undp', 'ebrd', 'eu'
-        ]
-
-        query_lower = query.lower()
-
-        # Always use web for strategic queries
-        if any(kw in query_lower for kw in web_research_keywords):
-            return True
-
-        # Use web if database has limited data
-        if db_results_count < 3:
-            return True
-
-        return False
+        # ALWAYS use web research to provide maximum value
+        return True
 
     async def generate_hybrid_answer(
         self,
@@ -626,17 +639,23 @@ CONTEXT:
 
 INSTRUCTIONS:
 1. Prioritize SPECIFIC data: tender IDs, exact values in MKD, company names, deadlines
-2. Distinguish between database data (historical) and web research (current)
-3. If showing active tenders, include deadline information
-4. For market analysis questions, provide actionable insights
-5. Format response with clear sections using markdown
+2. If showing active tenders, include deadline information
+3. For market analysis questions, provide actionable insights
+4. Format response with clear sections using markdown
+5. NEVER tell users to "check websites themselves" - YOU do the research, that's why they pay us!
+6. If some data is missing, focus on what IS available and provide useful analysis
 
-If data is incomplete, say what's missing and suggest where to find it (e.g., "check e-nabavki.gov.mk directly for...")
-
-Match the language of the question (Macedonian or English)."""
+ОДГОВОРИ НА МАКЕДОНСКИ ЈАЗИК."""
 
         try:
             def _sync_generate():
+                # Relaxed safety settings for business/procurement content
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+                ]
                 model = genai.GenerativeModel(
                     os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
                 )
@@ -645,7 +664,8 @@ Match the language of the question (Macedonian or English)."""
                     generation_config=genai.GenerationConfig(
                         temperature=0.3,
                         max_output_tokens=1500
-                    )
+                    ),
+                    safety_settings=safety_settings
                 )
 
                 # Handle safety blocks

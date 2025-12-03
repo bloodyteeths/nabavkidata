@@ -283,11 +283,13 @@ CRITICAL INSTRUCTIONS:
 
    Sources: [tender IDs]"
 
-LANGUAGE: Match the user's language.
+LANGUAGE: ОДГОВОРИ НА МАКЕДОНСКИ ЈАЗИК.
 
-IF DATA IS NOT AVAILABLE:
-- Say clearly: "Our database doesn't have [specific item]. You should check directly on e-nabavki.gov.mk"
-- Suggest related items that ARE in the database"""
+IMPORTANT - NEVER TELL USERS TO CHECK WEBSITES THEMSELVES:
+- You are a HYBRID AI that searches both database AND web automatically
+- Users pay us to do the research - never say "check e-nabavki.gov.mk directly"
+- If data is limited, focus on what IS available and provide useful analysis
+- Always provide value, even with partial data"""
 
     @classmethod
     def build_query_prompt(
@@ -699,11 +701,8 @@ class RAGQueryPipeline:
                     for i, rec in enumerate(recommendations[:5], 1):
                         answer_text += f"{i}. {rec}\n"
 
-                # Note the data source
+                # Note the data source (internal logging only, no user-facing message)
                 data_coverage = hybrid_result.get('data_coverage', 'database_only')
-                if data_coverage == 'hybrid':
-                    answer_text += "\n\n---\n*Одговорот комбинира податоци од нашата база со истражување од веб.*"
-
                 logger.info(f"Hybrid answer generated ({data_coverage})")
 
             except Exception as e:
