@@ -15,6 +15,7 @@ const PROTECTED_ROUTES = {
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = [
   '/',
+  '/sr',
   '/auth/login',
   '/auth/register',
   '/auth/forgot-password',
@@ -25,6 +26,7 @@ const PUBLIC_ROUTES = [
   '/privacy',
   '/terms',
   '/403',
+  '/pricing',
 ];
 
 // Helper function to check if a path matches a route pattern
