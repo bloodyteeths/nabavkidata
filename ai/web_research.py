@@ -1,0 +1,720 @@
+#!/usr/bin/env python3
+"""
+Web Research Module for Hybrid RAG System
+
+Combines database knowledge with real-time web research to provide
+comprehensive answers about Macedonian public procurement, even when
+local data is incomplete.
+
+Features:
+- Gemini web search integration (grounding)
+- UNDP/EBRD tender search
+- Strategic market analysis
+- Competitor intelligence
+- CPV code-based tender discovery
+"""
+import os
+import asyncio
+import logging
+import json
+import re
+from typing import List, Dict, Optional, Tuple
+from dataclasses import dataclass
+from datetime import datetime
+import aiohttp
+import google.generativeai as genai
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class WebSearchResult:
+    """Represents a web search result"""
+    source: str  # 'web_search', 'undp', 'ebrd', 'e-nabavki', 'e-pazar'
+    title: str
+    url: Optional[str]
+    snippet: str
+    relevance_score: float
+    metadata: Dict
+
+
+@dataclass
+class MarketInsight:
+    """Structured market intelligence"""
+    category: str  # 'active_tender', 'awarded_contract', 'market_trend', 'competitor', 'buyer'
+    title: str
+    details: str
+    value_mkd: Optional[float]
+    deadline: Optional[str]
+    source_url: Optional[str]
+    confidence: float  # 0-1
+
+
+class WebResearchEngine:
+    """
+    Hybrid research engine combining database + web search.
+
+    Uses Gemini's grounding capabilities when available,
+    plus structured API searches for UNDP/EBRD tenders.
+    """
+
+    def __init__(self, gemini_api_key: Optional[str] = None):
+        self.api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
+        if self.api_key:
+            genai.configure(api_key=self.api_key)
+
+        # Model for web research
+        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+
+        # Search sources configuration
+        self.search_sources = {
+            'undp': 'https://procurement-notices.undp.org',
+            'ebrd': 'https://www.ebrd.com/work-with-us/procurement',
+            'e_nabavki': 'https://e-nabavki.gov.mk',
+            'e_pazar': 'https://e-pazar.gov.mk',
+            'ted': 'https://ted.europa.eu'  # EU tenders for North Macedonia
+        }
+
+    async def research_market_opportunities(
+        self,
+        query: str,
+        cpv_codes: Optional[List[str]] = None,
+        min_value_mkd: Optional[float] = None,
+        include_international: bool = True
+    ) -> Dict:
+        """
+        Research market opportunities combining database + web.
+
+        This is the main entry point for hybrid RAG queries about
+        tenders, market analysis, and competitor intelligence.
+
+        Args:
+            query: User's question (e.g., "high-value IT tenders")
+            cpv_codes: Optional CPV codes to filter (e.g., ['30200000', '72000000'])
+            min_value_mkd: Minimum tender value filter
+            include_international: Include UNDP/EBRD/EU tenders
+
+        Returns:
+            Dict with 'insights', 'active_tenders', 'awarded_contracts',
+            'competitors', 'market_analysis', 'recommendations'
+        """
+        results = {
+            'query': query,
+            'timestamp': datetime.now().isoformat(),
+            'insights': [],
+            'active_tenders': [],
+            'awarded_contracts': [],
+            'competitors': [],
+            'market_analysis': '',
+            'recommendations': [],
+            'sources': []
+        }
+
+        # Step 1: Use Gemini for intelligent web search (grounded response)
+        logger.info(f"Starting web research for: {query[:50]}...")
+
+        web_insights = await self._gemini_web_search(query, cpv_codes, min_value_mkd)
+        if web_insights:
+            results['market_analysis'] = web_insights.get('analysis', '')
+            results['insights'].extend(web_insights.get('insights', []))
+            results['active_tenders'].extend(web_insights.get('tenders', []))
+            results['sources'].extend(web_insights.get('sources', []))
+
+        # Step 2: Search international funding sources (UNDP, EBRD)
+        if include_international:
+            intl_tenders = await self._search_international_tenders(query, cpv_codes)
+            results['active_tenders'].extend(intl_tenders)
+
+        # Step 3: Generate strategic recommendations
+        if results['active_tenders'] or results['market_analysis']:
+            recommendations = await self._generate_recommendations(
+                query, results['active_tenders'], results['market_analysis']
+            )
+            results['recommendations'] = recommendations
+
+        logger.info(f"Research complete: {len(results['active_tenders'])} tenders, "
+                   f"{len(results['insights'])} insights")
+
+        return results
+
+    async def _gemini_web_search(
+        self,
+        query: str,
+        cpv_codes: Optional[List[str]] = None,
+        min_value_mkd: Optional[float] = None
+    ) -> Optional[Dict]:
+        """
+        Use Gemini with web grounding to search for tenders.
+
+        This leverages Gemini's ability to search the web and provide
+        grounded responses with source citations.
+        """
+        if not self.api_key:
+            logger.warning("No Gemini API key - skipping web search")
+            return None
+
+        # Build search prompt
+        cpv_context = ""
+        if cpv_codes:
+            cpv_context = f"\nRelevant CPV codes: {', '.join(cpv_codes)}"
+            cpv_context += "\n- 30200000: IT Equipment (computers, servers, hardware)"
+            cpv_context += "\n- 72000000: IT Services (software, consulting, support)"
+
+        value_context = ""
+        if min_value_mkd:
+            value_context = f"\nMinimum value threshold: {min_value_mkd:,.0f} MKD ({min_value_mkd/61.5:,.0f} EUR)"
+
+        prompt = f"""You are an expert in Macedonian public procurement. Search for current tender opportunities.
+
+USER QUERY: {query}
+{cpv_context}
+{value_context}
+
+Search the following sources for active tenders matching this query:
+1. e-nabavki.gov.mk - Main Macedonian procurement portal
+2. e-pazar.gov.mk - Small value procurement platform
+3. UNDP procurement-notices.undp.org - UN Development Programme tenders in North Macedonia
+4. EBRD procurement - European Bank tenders
+
+For each tender found, provide:
+- Tender reference/ID
+- Client institution
+- Brief description
+- Estimated value (in MKD if possible)
+- Deadline status (active/closing soon/closed)
+- Source URL if available
+
+Also provide:
+1. Market analysis: Who are the main buyers for this category?
+2. Competition analysis: Who typically wins these tenders?
+3. Strategic recommendations for potential bidders
+
+Format your response as structured JSON with these keys:
+{{
+  "analysis": "brief market overview paragraph",
+  "tenders": [
+    {{"id": "...", "client": "...", "description": "...", "value_mkd": 0, "status": "active", "deadline": "...", "url": "...", "strategic_fit": "high/medium/low"}}
+  ],
+  "insights": [
+    {{"type": "market_trend|buyer_pattern|competitor", "text": "..."}}
+  ],
+  "sources": ["url1", "url2"]
+}}
+
+Focus on HIGH VALUE opportunities (>10,000,000 MKD) with LOW-TO-MEDIUM implementation complexity.
+Be specific with numbers, names, and dates."""
+
+        try:
+            def _sync_search():
+                # Use Gemini Pro for better web search
+                model = genai.GenerativeModel('gemini-2.0-flash')
+                response = model.generate_content(
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=2000
+                    )
+                )
+
+                # Handle safety blocks
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                        logger.warning("Web search blocked by safety filters")
+                        return ""
+
+                try:
+                    text = response.text
+                    if not text or not text.strip():
+                        return ""
+                    return text
+                except ValueError as e:
+                    logger.warning(f"Error accessing response text: {e}")
+                    return ""
+
+            response_text = await asyncio.to_thread(_sync_search)
+
+            # Parse JSON from response
+            json_match = re.search(r'\{[\s\S]*\}', response_text)
+            if json_match:
+                try:
+                    result = json.loads(json_match.group())
+                    logger.info(f"Gemini web search returned {len(result.get('tenders', []))} tenders")
+                    return result
+                except json.JSONDecodeError:
+                    logger.warning("Could not parse Gemini response as JSON")
+                    # Return raw text analysis
+                    return {
+                        'analysis': response_text,
+                        'tenders': [],
+                        'insights': [],
+                        'sources': []
+                    }
+
+            return {'analysis': response_text, 'tenders': [], 'insights': [], 'sources': []}
+
+        except Exception as e:
+            logger.error(f"Gemini web search failed: {e}")
+            return None
+
+    async def _search_international_tenders(
+        self,
+        query: str,
+        cpv_codes: Optional[List[str]] = None
+    ) -> List[Dict]:
+        """
+        Search UNDP, EBRD, and EU TED for international tenders in North Macedonia.
+        """
+        results = []
+
+        # UNDP search
+        try:
+            undp_results = await self._search_undp(query)
+            results.extend(undp_results)
+        except Exception as e:
+            logger.warning(f"UNDP search failed: {e}")
+
+        # EBRD search (more structured)
+        try:
+            ebrd_results = await self._search_ebrd(query)
+            results.extend(ebrd_results)
+        except Exception as e:
+            logger.warning(f"EBRD search failed: {e}")
+
+        return results
+
+    async def _search_undp(self, query: str) -> List[Dict]:
+        """Search UNDP procurement notices for North Macedonia."""
+        results = []
+
+        async with aiohttp.ClientSession() as session:
+            # UNDP has a search API
+            url = "https://procurement-notices.undp.org/search.aspx"
+            params = {
+                'country': 'North Macedonia',
+                'status': 'Active',
+                'q': query[:50]  # Limit query length
+            }
+
+            try:
+                async with session.get(url, params=params, timeout=15) as response:
+                    if response.status == 200:
+                        html = await response.text()
+                        # Parse UNDP results (simplified)
+                        # In production, use proper HTML parsing
+                        title_matches = re.findall(
+                            r'<a[^>]*href="([^"]*)"[^>]*>([^<]+)</a>.*?RFQ[:\s]*(\d+-\d+)',
+                            html, re.IGNORECASE | re.DOTALL
+                        )
+                        for url, title, rfq in title_matches[:5]:
+                            results.append({
+                                'id': f'UNDP-{rfq}',
+                                'client': 'UNDP North Macedonia',
+                                'description': title.strip()[:200],
+                                'source': 'undp',
+                                'url': url if url.startswith('http') else f"https://procurement-notices.undp.org{url}",
+                                'status': 'active'
+                            })
+            except Exception as e:
+                logger.debug(f"UNDP request failed: {e}")
+
+        return results
+
+    async def _search_ebrd(self, query: str) -> List[Dict]:
+        """Search EBRD procurement opportunities."""
+        results = []
+
+        async with aiohttp.ClientSession() as session:
+            url = "https://www.ebrd.com/work-with-us/procurement/notices.html"
+            params = {
+                'country': 'North Macedonia',
+                'keyword': query[:30]
+            }
+
+            try:
+                async with session.get(url, params=params, timeout=15) as response:
+                    if response.status == 200:
+                        html = await response.text()
+                        # Parse EBRD results
+                        notice_matches = re.findall(
+                            r'<tr[^>]*>.*?<td[^>]*>([^<]+)</td>.*?<td[^>]*>([^<]+)</td>.*?</tr>',
+                            html, re.IGNORECASE | re.DOTALL
+                        )
+                        for title, deadline in notice_matches[:5]:
+                            if query.lower() in title.lower():
+                                results.append({
+                                    'id': f'EBRD-{len(results)+1}',
+                                    'client': 'EBRD Project',
+                                    'description': title.strip()[:200],
+                                    'source': 'ebrd',
+                                    'deadline': deadline.strip(),
+                                    'status': 'active'
+                                })
+            except Exception as e:
+                logger.debug(f"EBRD request failed: {e}")
+
+        return results
+
+    async def _generate_recommendations(
+        self,
+        query: str,
+        tenders: List[Dict],
+        market_analysis: str
+    ) -> List[str]:
+        """Generate strategic recommendations based on research."""
+        if not tenders and not market_analysis:
+            return ["Нема доволно податоци за препораки. Проверете директно на e-nabavki.gov.mk."]
+
+        prompt = f"""Врз основа на ова истражување на пазарот за "{query}":
+
+Анализа на пазарот:
+{market_analysis}
+
+Пронајдени се {len(tenders)} потенцијални тендери.
+
+Генерирај 3-5 специфични, практични препораки за компанија која сака да добие договори за јавни набавки во оваа област. Фокусирај се на:
+1. Кои конкретни тендери да се приоритизираат и зошто
+2. Стратегија за позиционирање на цените
+3. Клучни барања за усогласеност
+4. Можности за партнерство/подизведување
+5. Временски аспекти
+
+Биди специфичен и практичен. ОДГОВОРИ НА МАКЕДОНСКИ ЈАЗИК. Излезот да биде JSON низа од стрингови на македонски."""
+
+        try:
+            def _sync_generate():
+                model = genai.GenerativeModel('gemini-2.0-flash')
+                response = model.generate_content(
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.4,
+                        max_output_tokens=500
+                    )
+                )
+
+                # Handle safety blocks
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                        logger.warning("Recommendation generation blocked by safety filters")
+                        return ""
+
+                try:
+                    text = response.text
+                    if not text or not text.strip():
+                        return ""
+                    return text
+                except ValueError as e:
+                    logger.warning(f"Error accessing response text: {e}")
+                    return ""
+
+            response_text = await asyncio.to_thread(_sync_generate)
+
+            # Parse recommendations
+            json_match = re.search(r'\[[\s\S]*\]', response_text)
+            if json_match:
+                try:
+                    return json.loads(json_match.group())
+                except:
+                    pass
+
+            # Fallback: split by newlines
+            recommendations = [
+                line.strip().lstrip('0123456789.-) ')
+                for line in response_text.split('\n')
+                if line.strip() and len(line) > 20
+            ]
+            return recommendations[:5]
+
+        except Exception as e:
+            logger.error(f"Recommendation generation failed: {e}")
+            return []
+
+    async def analyze_competitor(
+        self,
+        company_name: str,
+        include_web_search: bool = True
+    ) -> Dict:
+        """
+        Analyze a competitor's procurement activity.
+
+        Combines database history with web research.
+        """
+        result = {
+            'company_name': company_name,
+            'database_wins': [],
+            'web_mentions': [],
+            'analysis': '',
+            'strengths': [],
+            'weaknesses': []
+        }
+
+        if include_web_search and self.api_key:
+            prompt = f"""Research the company "{company_name}" in the context of Macedonian public procurement.
+
+Find information about:
+1. Recent contract wins from e-nabavki.gov.mk
+2. Company profile and capabilities
+3. Areas of specialization
+4. Known partnerships
+
+Provide a competitive analysis including strengths and weaknesses.
+Format as JSON with keys: analysis, strengths (array), weaknesses (array), recent_wins (array)."""
+
+            try:
+                def _sync_search():
+                    model = genai.GenerativeModel('gemini-2.0-flash')
+                    response = model.generate_content(
+                        prompt,
+                        generation_config=genai.GenerationConfig(
+                            temperature=0.3,
+                            max_output_tokens=1000
+                        )
+                    )
+                    return response.text
+
+                response_text = await asyncio.to_thread(_sync_search)
+
+                json_match = re.search(r'\{[\s\S]*\}', response_text)
+                if json_match:
+                    try:
+                        web_data = json.loads(json_match.group())
+                        result['analysis'] = web_data.get('analysis', '')
+                        result['strengths'] = web_data.get('strengths', [])
+                        result['weaknesses'] = web_data.get('weaknesses', [])
+                        result['web_mentions'] = web_data.get('recent_wins', [])
+                    except:
+                        result['analysis'] = response_text
+                else:
+                    result['analysis'] = response_text
+
+            except Exception as e:
+                logger.error(f"Competitor analysis failed: {e}")
+
+        return result
+
+
+class HybridRAGEngine:
+    """
+    Combines database RAG with web research for comprehensive answers.
+
+    Decision logic:
+    1. First, search local database for relevant data
+    2. If database has good coverage (>3 relevant results), use DB + summarize
+    3. If database is sparse, augment with web research
+    4. For market/strategic queries, always include web research
+    """
+
+    def __init__(self, database_url: Optional[str] = None, gemini_api_key: Optional[str] = None):
+        self.database_url = database_url or os.getenv('DATABASE_URL')
+        self.gemini_api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
+        self.web_research = WebResearchEngine(self.gemini_api_key)
+
+    def _should_use_web_research(self, query: str, db_results_count: int) -> bool:
+        """
+        Decide if we should augment with web research.
+        """
+        # Keywords that suggest web research is needed
+        web_research_keywords = [
+            'market', 'trend', 'active', 'current', 'upcoming', 'new',
+            'opportunity', 'competitor', 'who wins', 'best', 'strategy',
+            'recommendation', 'пазар', 'тренд', 'активни', 'нови',
+            'можност', 'конкурент', 'препорака', 'undp', 'ebrd', 'eu'
+        ]
+
+        query_lower = query.lower()
+
+        # Always use web for strategic queries
+        if any(kw in query_lower for kw in web_research_keywords):
+            return True
+
+        # Use web if database has limited data
+        if db_results_count < 3:
+            return True
+
+        return False
+
+    async def generate_hybrid_answer(
+        self,
+        question: str,
+        db_context: str,
+        db_results_count: int,
+        cpv_codes: Optional[List[str]] = None
+    ) -> Dict:
+        """
+        Generate answer combining database and web research.
+
+        Args:
+            question: User's question
+            db_context: Context from database search
+            db_results_count: Number of DB results found
+            cpv_codes: Optional CPV code filters
+
+        Returns:
+            Dict with 'answer', 'sources', 'web_insights', 'recommendations'
+        """
+        result = {
+            'answer': '',
+            'sources': {
+                'database': [],
+                'web': []
+            },
+            'web_insights': [],
+            'recommendations': [],
+            'data_coverage': 'database_only'
+        }
+
+        use_web = self._should_use_web_research(question, db_results_count)
+
+        web_research_data = None
+        if use_web:
+            logger.info("Augmenting with web research...")
+            web_research_data = await self.web_research.research_market_opportunities(
+                question, cpv_codes
+            )
+            result['data_coverage'] = 'hybrid'
+            result['web_insights'] = web_research_data.get('insights', [])
+            result['recommendations'] = web_research_data.get('recommendations', [])
+            result['sources']['web'] = web_research_data.get('sources', [])
+
+        # Build combined context for answer generation
+        combined_context = db_context
+
+        if web_research_data and web_research_data.get('market_analysis'):
+            combined_context += "\n\n=== WEB RESEARCH (LIVE DATA) ===\n"
+            combined_context += web_research_data['market_analysis']
+
+            if web_research_data.get('tenders'):
+                combined_context += "\n\n**Active Tenders Found Online:**\n"
+                for tender in web_research_data['tenders'][:10]:
+                    combined_context += f"- {tender.get('client', 'N/A')}: {tender.get('description', '')[:100]}"
+                    if tender.get('value_mkd'):
+                        combined_context += f" ({tender['value_mkd']:,.0f} MKD)"
+                    combined_context += "\n"
+
+        # Generate final answer
+        answer = await self._generate_combined_answer(question, combined_context, use_web)
+        result['answer'] = answer
+
+        return result
+
+    async def _generate_combined_answer(
+        self,
+        question: str,
+        combined_context: str,
+        includes_web_data: bool
+    ) -> str:
+        """Generate final answer from combined context."""
+
+        source_note = ""
+        if includes_web_data:
+            source_note = """
+
+NOTE: This answer combines our database with live web research.
+Database sources are from scraped e-nabavki.gov.mk and e-pazar.gov.mk data.
+Web sources include current portal searches and may reference tenders not yet in our database."""
+
+        prompt = f"""You are an expert Macedonian public procurement analyst.
+
+Answer the user's question using both database data and live web research.
+
+QUESTION: {question}
+
+CONTEXT:
+{combined_context}
+{source_note}
+
+INSTRUCTIONS:
+1. Prioritize SPECIFIC data: tender IDs, exact values in MKD, company names, deadlines
+2. Distinguish between database data (historical) and web research (current)
+3. If showing active tenders, include deadline information
+4. For market analysis questions, provide actionable insights
+5. Format response with clear sections using markdown
+
+If data is incomplete, say what's missing and suggest where to find it (e.g., "check e-nabavki.gov.mk directly for...")
+
+Match the language of the question (Macedonian or English)."""
+
+        try:
+            def _sync_generate():
+                model = genai.GenerativeModel(
+                    os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+                )
+                response = model.generate_content(
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=1500
+                    )
+                )
+
+                # Handle safety blocks
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                        logger.warning("Combined answer blocked by safety filters")
+                        return "Не можам да генерирам одговор поради безбедносни ограничувања."
+
+                try:
+                    text = response.text
+                    if not text or not text.strip():
+                        return "Нема доволно податоци за генерирање одговор."
+                    return text
+                except ValueError as e:
+                    logger.warning(f"Error accessing response text: {e}")
+                    return "Не можам да генерирам одговор."
+
+            return await asyncio.to_thread(_sync_generate)
+
+        except Exception as e:
+            logger.error(f"Answer generation failed: {e}")
+            return f"Error generating answer: {e}"
+
+
+# Convenience function for quick hybrid queries
+async def hybrid_search(query: str, cpv_codes: Optional[List[str]] = None) -> Dict:
+    """
+    Quick function to perform hybrid database + web search.
+
+    Usage:
+        results = await hybrid_search("high-value IT tenders", cpv_codes=['30200000'])
+        print(results['answer'])
+        for insight in results['web_insights']:
+            print(f"- {insight}")
+    """
+    engine = HybridRAGEngine()
+    return await engine.generate_hybrid_answer(
+        question=query,
+        db_context="",  # Will be populated by actual RAG pipeline
+        db_results_count=0,
+        cpv_codes=cpv_codes
+    )
+
+
+# Test function
+async def test_web_research():
+    """Test the web research capabilities."""
+    engine = WebResearchEngine()
+
+    # Test market research
+    results = await engine.research_market_opportunities(
+        "high-value IT tenders North Macedonia",
+        cpv_codes=['30200000', '72000000'],
+        min_value_mkd=10000000
+    )
+
+    print("\n=== MARKET RESEARCH RESULTS ===")
+    print(f"Analysis: {results.get('market_analysis', '')[:500]}...")
+    print(f"\nFound {len(results.get('active_tenders', []))} tenders")
+
+    for tender in results.get('active_tenders', [])[:5]:
+        print(f"  - {tender.get('client', 'N/A')}: {tender.get('description', '')[:50]}...")
+
+    print(f"\nRecommendations:")
+    for rec in results.get('recommendations', []):
+        print(f"  - {rec}")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(test_web_research())

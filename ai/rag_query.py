@@ -20,6 +20,7 @@ import google.generativeai as genai
 
 from embeddings import EmbeddingGenerator, VectorStore
 from db_pool import get_pool, get_connection
+from web_research import HybridRAGEngine, WebResearchEngine
 
 logger = logging.getLogger(__name__)
 
@@ -587,6 +588,12 @@ class RAGQueryPipeline:
         self.prompt_builder = PromptBuilder()
         self.personalization_scorer = PersonalizationScorer(self.database_url)
 
+        # Initialize hybrid RAG engine for web research augmentation
+        self.hybrid_engine = HybridRAGEngine(
+            database_url=self.database_url,
+            gemini_api_key=self.gemini_api_key
+        )
+
     async def generate_answer(
         self,
         question: str,
@@ -671,19 +678,47 @@ class RAGQueryPipeline:
             # Use pre-built context from SQL search
             sources_used = search_results
 
-            # Build prompt and generate answer
-            prompt = self.prompt_builder.build_query_prompt(
-                question=question,
-                context=context,
-                conversation_history=conversation_history
-            )
+            # Use hybrid approach: database + web research when appropriate
+            # This provides Gemini-like comprehensive answers with market analysis
+            logger.info(f"Using hybrid RAG approach (DB results: {len(search_results)})...")
 
-            logger.info(f"Generating answer with {self.model} (SQL search)...")
             try:
-                answer_text = await self._generate_with_gemini(prompt, self.model)
+                hybrid_result = await self.hybrid_engine.generate_hybrid_answer(
+                    question=question,
+                    db_context=context,
+                    db_results_count=len(search_results),
+                    cpv_codes=None  # Could extract from context if needed
+                )
+
+                answer_text = hybrid_result.get('answer', '')
+
+                # Append recommendations if available
+                recommendations = hybrid_result.get('recommendations', [])
+                if recommendations:
+                    answer_text += "\n\n### Препораки\n"
+                    for i, rec in enumerate(recommendations[:5], 1):
+                        answer_text += f"{i}. {rec}\n"
+
+                # Note the data source
+                data_coverage = hybrid_result.get('data_coverage', 'database_only')
+                if data_coverage == 'hybrid':
+                    answer_text += "\n\n---\n*Одговорот комбинира податоци од нашата база со истражување од веб.*"
+
+                logger.info(f"Hybrid answer generated ({data_coverage})")
+
             except Exception as e:
-                logger.warning(f"Primary model failed: {e}, trying fallback...")
-                answer_text = await self._generate_with_gemini(prompt, self.fallback_model)
+                logger.warning(f"Hybrid approach failed: {e}, falling back to standard prompt...")
+                # Fallback to standard prompt-based approach
+                prompt = self.prompt_builder.build_query_prompt(
+                    question=question,
+                    context=context,
+                    conversation_history=conversation_history
+                )
+                try:
+                    answer_text = await self._generate_with_gemini(prompt, self.model)
+                except Exception as e2:
+                    logger.warning(f"Primary model failed: {e2}, trying fallback...")
+                    answer_text = await self._generate_with_gemini(prompt, self.fallback_model)
 
             return RAGAnswer(
                 question=question,
@@ -881,15 +916,26 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
 
         try:
             def _sync_generate():
+                # Relaxed safety settings for business content
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+                ]
                 model_obj = genai.GenerativeModel('gemini-2.0-flash')
                 response = model_obj.generate_content(
                     prompt,
                     generation_config=genai.GenerationConfig(
                         temperature=0.3,
                         max_output_tokens=200
-                    )
+                    ),
+                    safety_settings=safety_settings
                 )
-                return response.text
+                try:
+                    return response.text
+                except ValueError:
+                    return "[]"  # Return empty array on safety block
 
             response_text = await asyncio.to_thread(_sync_generate)
 
@@ -1310,6 +1356,40 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                 search_keywords = self._extract_basic_keywords(question)
                 logger.info(f"Using basic keywords: {search_keywords}")
 
+            # Check if this is an item-level query (prices, specs for specific products)
+            is_item_query = self._is_item_level_query(question)
+
+            if is_item_query and search_keywords:
+                logger.info(f"Detected item-level query, searching product_items and epazar_items tables...")
+                items_data, items_context = await self._search_product_items(search_keywords)
+
+                if items_data:
+                    # Create SearchResult objects from items
+                    search_results = []
+                    for i, item in enumerate(items_data[:20]):  # Limit to 20 for context
+                        tender_id_val = item.get('tender_id')
+                        item_name = item.get('item_name') or item.get('name')
+
+                        search_results.append(SearchResult(
+                            embed_id=f"item-{i}",
+                            chunk_text=f"Item: {item_name}",
+                            chunk_index=i,
+                            tender_id=tender_id_val,
+                            doc_id=None,
+                            chunk_metadata={
+                                'source': 'product_items',
+                                'item_name': item_name,
+                                'tender_title': item.get('tender_title', '')
+                            },
+                            similarity=0.95
+                        ))
+
+                    logger.info(f"Found {len(items_data)} items, returning item-level context")
+                    return search_results, items_context
+                else:
+                    logger.info("No items found, falling back to tender-level search")
+                    # Fall through to tender-level search
+
             # Query recent tenders (limit to 20 for context size)
             if tender_id:
                 # Check if it's an e-pazar tender (starts with EPAZAR-)
@@ -1357,10 +1437,10 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
 
                     # Fetch documents for this tender
                     docs = await conn.fetch("""
-                        SELECT doc_id, file_name, file_url, extracted_text
+                        SELECT doc_id, file_name, file_url, content_text as extracted_text
                         FROM documents
                         WHERE tender_id = $1
-                        ORDER BY created_at
+                        ORDER BY uploaded_at DESC NULLS LAST
                         LIMIT 10
                     """, tender_id)
 
@@ -1757,15 +1837,61 @@ CPV код: {cpv_code}
             Generated answer text
         """
         def _sync_generate():
+            # Configure safety settings to be less restrictive for business content
+            # Tender documents are legitimate business content that shouldn't be blocked
+            safety_settings = [
+                {
+                    "category": "HARM_CATEGORY_HARASSMENT",
+                    "threshold": "BLOCK_ONLY_HIGH"
+                },
+                {
+                    "category": "HARM_CATEGORY_HATE_SPEECH",
+                    "threshold": "BLOCK_ONLY_HIGH"
+                },
+                {
+                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "threshold": "BLOCK_ONLY_HIGH"
+                },
+                {
+                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "threshold": "BLOCK_ONLY_HIGH"
+                }
+            ]
+
             model_obj = genai.GenerativeModel(model)
             response = model_obj.generate_content(
                 prompt,
                 generation_config=genai.GenerationConfig(
                     temperature=0.3,  # Low temperature for factual answers
                     max_output_tokens=1000
-                )
+                ),
+                safety_settings=safety_settings
             )
-            return response.text
+
+            # Handle safety blocks (finish_reason=2 means SAFETY)
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                # Check for safety block
+                if hasattr(candidate, 'finish_reason'):
+                    # finish_reason 2 = SAFETY, 3 = RECITATION, 4 = OTHER
+                    if candidate.finish_reason == 2:
+                        logger.warning(f"Gemini response blocked due to safety filters")
+                        return "Не можам да генерирам одговор поради безбедносни ограничувања. Обидете се со поинакво прашање."
+                    elif candidate.finish_reason in [3, 4]:
+                        logger.warning(f"Gemini response blocked: finish_reason={candidate.finish_reason}")
+                        return "Не можам да генерирам одговор. Обидете се со поинакво прашање."
+
+            # Try to get text, handle empty responses
+            try:
+                text = response.text
+                if not text or not text.strip():
+                    logger.warning("Gemini returned empty response")
+                    return "Нема доволно податоци за генерирање одговор."
+                return text
+            except ValueError as e:
+                # This can happen when response is blocked
+                logger.warning(f"Error accessing response text: {e}")
+                return "Не можам да генерирам одговор. Обидете се со поинакво прашање."
 
         answer_text = await asyncio.to_thread(_sync_generate)
         return answer_text
@@ -2027,7 +2153,21 @@ async def generate_tender_summary(context: Dict) -> str:
             rank_text = f" (Ранг: #{ranking})" if ranking else ""
             offers_text += f"{i}. {supplier}: {amount} МКД{rank_text}{is_winner}\n"
 
-    full_context = tender_info + items_text + offers_text
+    # Format document content (new!)
+    docs_text = ""
+    documents = context.get('documents', [])
+    if documents:
+        docs_text = "\n\nСодржина од документи:\n"
+        for doc in documents[:3]:  # Limit to 3 docs max
+            file_name = doc.get('file_name', 'document')
+            doc_type = doc.get('doc_type', 'document')
+            content = doc.get('content', '')
+            if content:
+                # Truncate long content
+                preview = content[:2000] if len(content) > 2000 else content
+                docs_text += f"\n--- {file_name} ({doc_type}) ---\n{preview}\n"
+
+    full_context = tender_info + items_text + offers_text + docs_text
 
     # Build prompt
     prompt = f"""Ти си експерт за јавни набавки во Македонија. Направи кратко резиме на следниот тендер од е-Пазар платформата.
@@ -2037,22 +2177,46 @@ async def generate_tender_summary(context: Dict) -> str:
 
 Резимето треба да вклучува:
 1. Краток опис на набавката (2-3 реченици)
-2. Клучни артикли/производи што се бараат
+2. Клучни артикли/производи што се бараат (ако ги има)
 3. Анализа на понудите и конкуренцијата (ако има)
-4. Препораки за потенцијални понудувачи
+4. Важни детали од документите (ако се дадени)
+5. Препораки за потенцијални понудувачи
 
-Одговори на македонски јазик. Биди концизен и прецизен."""
+Одговори на македонски јазик. Биди концизен и прецизен. Ако нема доволно информации, кажи што недостасува."""
 
     def _sync_generate():
+        # Relaxed safety settings for business content
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+        ]
         model_obj = genai.GenerativeModel(model_name)
         response = model_obj.generate_content(
             prompt,
             generation_config=genai.GenerationConfig(
                 temperature=0.3,
                 max_output_tokens=800
-            )
+            ),
+            safety_settings=safety_settings
         )
-        return response.text
+
+        # Handle safety blocks
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                logger.warning("Tender summary blocked by safety filters")
+                return "Не можам да генерирам резиме поради безбедносни ограничувања."
+
+        try:
+            text = response.text
+            if not text or not text.strip():
+                return "Нема доволно информации за генерирање резиме."
+            return text
+        except ValueError as e:
+            logger.warning(f"Error accessing response text: {e}")
+            return "Не можам да генерирам резиме."
 
     summary = await asyncio.to_thread(_sync_generate)
     return summary
@@ -2116,15 +2280,38 @@ async def generate_supplier_analysis(context: Dict) -> str:
 Одговори на македонски јазик. Биди објективен и аналитичен."""
 
     def _sync_generate():
+        # Relaxed safety settings for business content
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
+        ]
         model_obj = genai.GenerativeModel(model_name)
         response = model_obj.generate_content(
             prompt,
             generation_config=genai.GenerationConfig(
                 temperature=0.3,
                 max_output_tokens=800
-            )
+            ),
+            safety_settings=safety_settings
         )
-        return response.text
+
+        # Handle safety blocks
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                logger.warning("Supplier analysis blocked by safety filters")
+                return "Не можам да генерирам анализа поради безбедносни ограничувања."
+
+        try:
+            text = response.text
+            if not text or not text.strip():
+                return "Нема доволно информации за генерирање анализа."
+            return text
+        except ValueError as e:
+            logger.warning(f"Error accessing response text: {e}")
+            return "Не можам да генерирам анализа."
 
     analysis = await asyncio.to_thread(_sync_generate)
     return analysis
