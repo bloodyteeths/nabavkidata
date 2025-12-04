@@ -26,11 +26,19 @@ export interface DocumentViewerProps {
   onClose?: () => void;
 }
 
+// items_mentioned can be strings OR objects with product details
+interface ItemMentioned {
+  name: string;
+  unit?: string;
+  quantity?: string;
+  notes?: string | null;
+}
+
 interface DocumentContent {
   content_text: string;
   ai_summary?: string;
   key_requirements?: string[];
-  items_mentioned?: string[];
+  items_mentioned?: (string | ItemMentioned)[];
 }
 
 export function DocumentViewer({
@@ -198,12 +206,30 @@ export function DocumentViewer({
         {documentContent?.items_mentioned && documentContent.items_mentioned.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold mb-2">СПОМЕНАТИ ПРОИЗВОДИ/УСЛУГИ</h3>
-            <div className="flex flex-wrap gap-2">
-              {documentContent.items_mentioned.map((item, idx) => (
-                <Badge key={idx} variant="secondary">
-                  {item}
-                </Badge>
-              ))}
+            <div className="space-y-2">
+              {documentContent.items_mentioned.map((item, idx) => {
+                // Handle both string and object formats
+                if (typeof item === 'string') {
+                  return (
+                    <Badge key={idx} variant="secondary">
+                      {item}
+                    </Badge>
+                  );
+                }
+                // Object format with name, unit, quantity
+                return (
+                  <div key={idx} className="p-2 rounded border bg-muted/30 text-sm">
+                    <p className="font-medium">{item.name}</p>
+                    {(item.quantity || item.unit) && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {item.quantity && `Количина: ${item.quantity}`}
+                        {item.quantity && item.unit && ' • '}
+                        {item.unit && `Единица: ${item.unit}`}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
