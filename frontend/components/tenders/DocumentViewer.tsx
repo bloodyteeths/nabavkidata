@@ -50,17 +50,28 @@ export function DocumentViewer({
 
   // Load full document content if not already loaded
   const loadDocumentContent = async () => {
+    // If we already have content (passed as prop), don't fetch again
     if (documentContent?.content_text) return;
 
     setLoading(true);
     try {
       const { api } = await import("@/lib/api");
       const result = await api.getDocumentContent(docId);
-      setDocumentContent(result);
-    } catch (error) {
+      if (result && result.content_text) {
+        setDocumentContent(result);
+      } else {
+        // No content available
+        setDocumentContent({ content_text: "" });
+      }
+    } catch (error: any) {
       console.error("Failed to load document content:", error);
-      toast.error("Не успеавме да ја вчитаме содржината на документот");
-      // If API fails, still show empty state
+      // Don't show toast for expected cases like 404
+      if (error?.message?.includes("404")) {
+        // Document content not available - silently handle
+      } else {
+        toast.error("Не успеавме да ја вчитаме содржината");
+      }
+      // If API fails, show empty state
       setDocumentContent({ content_text: "" });
     } finally {
       setLoading(false);
@@ -69,20 +80,28 @@ export function DocumentViewer({
 
   // Highlight search matches in text
   const highlightText = (text: string, query: string) => {
-    if (!query.trim()) return text;
+    if (!query.trim() || !text) return text;
 
-    const regex = new RegExp(`(${query})`, "gi");
-    const parts = text.split(regex);
+    try {
+      // Escape special regex characters to prevent crash
+      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(${escapedQuery})`, "gi");
+      const parts = text.split(regex);
 
-    return parts.map((part, index) =>
-      regex.test(part) ? (
-        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800">
-          {part}
-        </mark>
-      ) : (
-        <span key={index}>{part}</span>
-      )
-    );
+      return parts.map((part, index) =>
+        regex.test(part) ? (
+          <mark key={index} className="bg-yellow-200 dark:bg-yellow-800">
+            {part}
+          </mark>
+        ) : (
+          <span key={index}>{part}</span>
+        )
+      );
+    } catch (error) {
+      // If regex fails for any reason, return plain text
+      console.error("Highlight text error:", error);
+      return text;
+    }
   };
 
   // Copy text to clipboard

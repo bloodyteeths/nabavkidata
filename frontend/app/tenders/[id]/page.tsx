@@ -11,8 +11,6 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { PriceHistoryChart } from "@/components/charts/PriceHistoryChart";
-import { PriceHistoryChart as CPVPriceHistoryChart } from "@/components/pricing/PriceHistoryChart";
 import { DocumentViewer } from "@/components/tenders/DocumentViewer";
 import { DocumentSearch } from "@/components/documents/DocumentSearch";
 import { QuickActions } from "@/components/ai/QuickActions";
@@ -103,9 +101,6 @@ export default function TenderDetailPage() {
   } | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
-  const [priceHistory, setPriceHistory] = useState<Array<{ date: string; estimated_value_mkd?: number; awarded_value_mkd?: number }>>([]);
-  const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
-  const [priceHistoryError, setPriceHistoryError] = useState<string | null>(null);
   const [tier, setTier] = useState<string>("unknown");
   const [summaryGated, setSummaryGated] = useState<boolean>(false);
   const [bidAdvice, setBidAdvice] = useState<{
@@ -131,22 +126,6 @@ export default function TenderDetailPage() {
   } | null>(null);
   const [bidAdviceLoading, setBidAdviceLoading] = useState(false);
   const [bidAdviceError, setBidAdviceError] = useState<string | null>(null);
-  // CPV-based price history
-  const [cpvPriceHistory, setCpvPriceHistory] = useState<{
-    data_points: Array<{
-      period: string;
-      tender_count: number;
-      avg_estimated_mkd: number;
-      avg_awarded_mkd: number;
-      avg_discount_pct: number;
-      avg_bidders: number;
-    }>;
-    trend: string;
-    trend_pct: number;
-    total_tenders: number;
-  } | null>(null);
-  const [cpvPriceHistoryLoading, setCpvPriceHistoryLoading] = useState(false);
-  const [cpvPriceHistoryError, setCpvPriceHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tenderId) return;
@@ -154,7 +133,6 @@ export default function TenderDetailPage() {
     loadNotifyPreference();
     loadDocuments();
     loadProducts();
-    loadPriceHistory();
     loadBidAdvice();
   }, [tenderId]);
 
@@ -163,10 +141,6 @@ export default function TenderDetailPage() {
     if (tender) {
       loadBidders();
       loadLots();
-      // Load CPV-based price history if CPV code is available
-      if (tender.cpv_code) {
-        loadCPVPriceHistory(tender.cpv_code);
-      }
     }
   }, [tender]);
 
@@ -214,22 +188,6 @@ export default function TenderDetailPage() {
     }
   }
 
-  async function loadPriceHistory() {
-    if (!tenderId) return;
-    try {
-      setPriceHistoryLoading(true);
-      setPriceHistoryError(null);
-      const result = await api.getTenderPriceHistory(tenderId);
-      setPriceHistory(result.points || []);
-    } catch (error) {
-      console.error("Failed to load price history:", error);
-      setPriceHistory([]);
-      setPriceHistoryError("Историјата на цени не е достапна.");
-    } finally {
-      setPriceHistoryLoading(false);
-    }
-  }
-
   async function loadBidAdvice() {
     if (!tenderId) return;
     const parts = tenderId.split('/');
@@ -249,22 +207,6 @@ export default function TenderDetailPage() {
       setBidAdviceError("Препораките не се достапни за овој тендер.");
     } finally {
       setBidAdviceLoading(false);
-    }
-  }
-
-  async function loadCPVPriceHistory(cpvCode: string) {
-    try {
-      setCpvPriceHistoryLoading(true);
-      setCpvPriceHistoryError(null);
-      // Load 1 year of data for the CPV code
-      const result = await api.getPriceHistory(cpvCode, 12, { period: '1y' });
-      setCpvPriceHistory(result);
-    } catch (error) {
-      console.error("Failed to load CPV price history:", error);
-      setCpvPriceHistory(null);
-      setCpvPriceHistoryError("Пазарната историја на цени не е достапна.");
-    } finally {
-      setCpvPriceHistoryLoading(false);
     }
   }
 
@@ -716,33 +658,6 @@ export default function TenderDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Price History - Only show if we have data */}
-      {priceHistory.length > 0 && (
-        <PriceHistoryChart
-          data={priceHistory.map((p) => ({
-            date: formatDate(p.date),
-            estimated_value_mkd: p.estimated_value_mkd,
-            awarded_value_mkd: p.awarded_value_mkd,
-          }))}
-          series={[
-            { key: "estimated_value_mkd", label: "Проценета" },
-            { key: "awarded_value_mkd", label: "Доделена", color: "#22c55e" },
-          ]}
-          title="Историја на проценети и доделени вредности"
-        />
-      )}
-
-      {/* CPV-based Market Price History - Only show if we have data */}
-      {tender?.cpv_code && cpvPriceHistory && cpvPriceHistory.data_points.length > 0 && (
-        <CPVPriceHistoryChart
-          data={cpvPriceHistory.data_points}
-          cpvCode={tender.cpv_code}
-          title="Пазарна историја на цени за слични тендери"
-          showTrend={true}
-          trend={cpvPriceHistory.trend as "increasing" | "decreasing" | "stable"}
-          trendPct={cpvPriceHistory.trend_pct}
-        />
-      )}
 
       {/* Bid Recommendation */}
       {bidAdviceLoading || bidAdvice || bidAdviceError ? (
