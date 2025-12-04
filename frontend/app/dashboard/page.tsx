@@ -90,27 +90,27 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6 lg:space-y-8">
+    <div className="p-3 md:p-6 lg:p-8 space-y-3 md:space-y-6 lg:space-y-8">
       {/* Free Tier Upgrade Banner - Only show for FREE plan users */}
       {user?.subscription_tier?.toLowerCase() === 'free' && (
         <div>
           <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 border-primary/30">
-            <CardContent className="p-4 md:p-6">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <CardContent className="p-3 md:p-6">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4">
                 <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1">
-                  <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+                  <div className="h-8 w-8 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="h-4 w-4 md:h-6 md:w-6 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-base md:text-lg font-bold text-white">Вие сте на FREE планот</h3>
+                    <h3 className="text-sm md:text-lg font-bold text-white">Вие сте на FREE планот</h3>
                     <p className="text-xs md:text-sm text-muted-foreground mt-1">
                       Надоградете за целосен пристап до напредна аналитика, неограничени пребарувања и повеќе функции
                     </p>
                   </div>
                 </div>
                 <Link href="/settings" className="w-full md:w-auto">
-                  <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg">
-                    <Award className="mr-2 h-4 w-4" />
+                  <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg h-8 md:h-10 text-xs md:text-sm">
+                    <Award className="mr-2 h-3 w-3 md:h-4 md:w-4" />
                     <span className="hidden sm:inline">Надогради сега</span>
                     <span className="sm:hidden">Надогради</span>
                   </Button>
@@ -122,110 +122,110 @@ export default function DashboardPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+          <h1 className="text-xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
             Персонализирана Табла
           </h1>
-          <p className="text-sm md:text-base text-muted-foreground mt-1">
+          <p className="text-xs md:text-base text-muted-foreground mt-1">
             Вашите препорачани тендери и анализа на конкуренцијата
           </p>
         </div>
         <Button
           onClick={loadDashboard}
           disabled={loading}
-          className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]"
+          className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.3)] h-9 md:h-10 text-xs md:text-sm"
         >
-          <Sparkles className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <Sparkles className={`mr-2 h-3 w-3 md:h-4 md:w-4 ${loading ? 'animate-spin' : ''}`} />
           <span className="hidden sm:inline">{loading ? 'Анализирам...' : 'Нова Анализа'}</span>
           <span className="sm:hidden">{loading ? '...' : 'Анализа'}</span>
         </Button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <div>
-          <Card className="bg-primary/10 border-primary/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 text-primary">
-                <Target className="h-4 w-4" />
+          <Card className="bg-primary/10 border-primary/20 h-full">
+            <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+              <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-primary">
+                <Target className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 Препораки
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white">
+            <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
+              <div className="text-2xl md:text-3xl font-bold text-white">
                 {data?.stats.recommended_count || 0}
               </div>
-              <p className="text-xs text-primary/70 mt-1">Тендери за вас</p>
+              <p className="text-[10px] md:text-xs text-primary/70 mt-1">Тендери за вас</p>
             </CardContent>
           </Card>
         </div>
 
         <div>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-400">
-                <TrendingUp className="h-4 w-4" />
+          <Card className="h-full">
+            <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+              <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-green-400">
+                <TrendingUp className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 Конкуренти
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white">
+            <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
+              <div className="text-2xl md:text-3xl font-bold text-white">
                 {data?.stats.competitor_activity_count || 0}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Активности</p>
+              <p className="text-[10px] md:text-xs text-muted-foreground mt-1">Активности</p>
             </CardContent>
           </Card>
         </div>
 
         <div>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-400">
-                <AlertCircle className="h-4 w-4" />
+          <Card className="h-full">
+            <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+              <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-orange-400">
+                <AlertCircle className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 Инсајти
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white">
+            <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
+              <div className="text-2xl md:text-3xl font-bold text-white">
                 {data?.stats.insights_count || 0}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">AI анализи</p>
+              <p className="text-[10px] md:text-xs text-muted-foreground mt-1">AI анализи</p>
             </CardContent>
           </Card>
         </div>
 
         <div>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-400">
-                <Award className="h-4 w-4" />
+          <Card className="h-full">
+            <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+              <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-blue-400">
+                <Award className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 Отворени
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white">
+            <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
+              <div className="text-2xl md:text-3xl font-bold text-white">
                 {data?.recommended_tenders?.filter(t => t.status === 'open').length || 0}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Активни тендери</p>
+              <p className="text-[10px] md:text-xs text-muted-foreground mt-1">Активни тендери</p>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6 lg:gap-8">
         {/* Recommended Tenders */}
         <div className="lg:col-span-2">
           <Card className="h-full">
-            <CardHeader>
-              <CardTitle>Препорачани Тендери</CardTitle>
-              <CardDescription>Базирано на вашите преференци и интереси</CardDescription>
+            <CardHeader className="p-4 md:p-6">
+              <CardTitle className="text-lg md:text-xl">Препорачани Тендери</CardTitle>
+              <CardDescription className="text-xs md:text-sm">Базирано на вашите преференци и интереси</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className="p-4 md:p-6 pt-0">
+              <div className="space-y-3 md:space-y-4">
                 {(!data?.recommended_tenders || data.recommended_tenders.length === 0) && (
                   <div className="text-center py-8 text-muted-foreground">
-                    <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <Target className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 opacity-50" />
                     <p className="text-sm">Нема препорачани тендери моментално.</p>
                     <p className="text-xs mt-1">Кликнете на &quot;Нова Анализа&quot; за да ги освежите резултатите.</p>
                   </div>
@@ -234,21 +234,21 @@ export default function DashboardPage() {
                   <Link
                     key={tender.tender_id}
                     href={`/tenders/${encodeURIComponent(tender.tender_id)}`}
-                    className="group flex items-start justify-between p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all hover:border-primary/20 cursor-pointer block"
+                    className="group flex items-start justify-between p-3 md:p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all hover:border-primary/20 cursor-pointer block"
                   >
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h4 className="font-medium text-white group-hover:text-primary transition-colors line-clamp-2">
+                        <h4 className="font-medium text-sm md:text-base text-white group-hover:text-primary transition-colors line-clamp-2">
                           {tender.title}
                         </h4>
-                        <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 text-xs font-medium border border-green-500/20 whitespace-nowrap">
+                        <span className="px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] md:text-xs font-medium border border-green-500/20 whitespace-nowrap">
                           {Math.round(tender.score * 100)}% match
                         </span>
                       </div>
-                      <p className="text-sm text-muted-foreground line-clamp-1">
+                      <p className="text-xs md:text-sm text-muted-foreground line-clamp-1">
                         {tender.procuring_entity}
                       </p>
-                      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-3 md:gap-4 mt-2 md:mt-3 text-[10px] md:text-xs text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
                           {formatCurrency(tender.estimated_value_mkd)}
@@ -257,15 +257,15 @@ export default function DashboardPage() {
                           <span>Рок: {formatDate(tender.closing_date)}</span>
                         )}
                       </div>
-                      <div className="flex gap-2 mt-3 flex-wrap">
+                      <div className="flex gap-1.5 md:gap-2 mt-2 md:mt-3 flex-wrap">
                         {tender.match_reasons.map((reason, idx) => (
-                          <span key={idx} className="text-[10px] px-2 py-1 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                          <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
                             {reason}
                           </span>
                         ))}
                       </div>
                     </div>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0 hidden sm:block">
                       <ArrowRight className="h-4 w-4 text-primary" />
                     </div>
                   </Link>
@@ -276,35 +276,35 @@ export default function DashboardPage() {
         </div>
 
         {/* Sidebar Column */}
-        <div className="space-y-8">
+        <div className="space-y-4 md:space-y-8">
           {/* AI Insights */}
           <div>
             <Card className="bg-gradient-to-b from-primary/10 to-transparent border-primary/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+              <CardHeader className="p-4 md:p-6">
+                <CardTitle className="flex items-center gap-2 text-base md:text-lg">
                   <Sparkles className="h-4 w-4 text-primary" />
                   AI Инсајти
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-4 md:p-6 pt-0 space-y-3 md:space-y-4">
                 {(!data?.insights || data.insights.length === 0) ? (
                   <div className="text-center py-4 text-muted-foreground">
-                    <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <Sparkles className="h-6 w-6 md:h-8 md:w-8 mx-auto mb-2 opacity-50" />
                     <p className="text-xs">AI анализата се генерира...</p>
                   </div>
                 ) : (
                   data.insights.map((insight, idx) => (
-                    <div key={idx} className="p-4 rounded-xl bg-background/50 border border-white/5">
+                    <div key={idx} className="p-3 md:p-4 rounded-xl bg-background/50 border border-white/5">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium px-2 py-1 rounded bg-primary/10 text-primary">
+                        <span className="text-[10px] md:text-xs font-medium px-2 py-1 rounded bg-primary/10 text-primary">
                           {insight.insight_type}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-[10px] md:text-xs text-muted-foreground">
                           {Math.round(insight.confidence * 100)}% доверба
                         </span>
                       </div>
-                      <h4 className="font-medium text-sm text-white mb-1">{insight.title}</h4>
-                      <p className="text-xs text-muted-foreground">{insight.description}</p>
+                      <h4 className="font-medium text-xs md:text-sm text-white mb-1">{insight.title}</h4>
+                      <p className="text-[10px] md:text-xs text-muted-foreground">{insight.description}</p>
                     </div>
                   ))
                 )}
@@ -316,16 +316,16 @@ export default function DashboardPage() {
           {data?.competitor_activity && data.competitor_activity.length > 0 && (
             <div>
               <Card>
-                <CardHeader>
-                  <CardTitle>Активности</CardTitle>
+                <CardHeader className="p-4 md:p-6">
+                  <CardTitle className="text-base md:text-lg">Активности</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 md:p-6 pt-0">
                   <div className="space-y-3">
                     {data.competitor_activity.map((activity, idx) => (
                       <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/5">
                         <div>
-                          <h4 className="font-medium text-sm text-white">{activity.title}</h4>
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <h4 className="font-medium text-xs md:text-sm text-white">{activity.title}</h4>
+                          <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
                             {activity.competitor_name}
                           </p>
                         </div>
@@ -342,5 +342,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+
   );
 }
