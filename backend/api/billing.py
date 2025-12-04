@@ -12,6 +12,7 @@ from time import time
 from decimal import Decimal
 from pydantic import BaseModel
 import os
+import json
 import stripe
 import hmac
 import hashlib
@@ -1207,42 +1208,65 @@ async def handle_stripe_webhook(
 
     Response: 200 OK, 400 Bad Request
     """
+    # Read payload once - body can only be read once!
     payload = await request.body()
 
-    # Verify webhook signature
-    if stripe_signature:
-        if not verify_webhook_signature(payload, stripe_signature):
+    # Verify webhook signature and construct event
+    if STRIPE_WEBHOOK_SECRET and stripe_signature:
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, stripe_signature, STRIPE_WEBHOOK_SECRET
+            )
+        except ValueError as e:
+            logger.error(f"Invalid webhook payload: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid payload"
+            )
+        except stripe.error.SignatureVerificationError as e:
+            logger.error(f"Invalid webhook signature: {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid webhook signature"
             )
+    else:
+        # Development mode - parse without verification
+        try:
+            event_data = json.loads(payload.decode('utf-8'))
+            event = stripe.Event.construct_from(event_data, stripe.api_key)
+        except Exception as e:
+            logger.error(f"Failed to parse webhook payload: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid payload"
+            )
+
+    logger.info(f"Received Stripe webhook: {event.type}")
 
     try:
-        event = stripe.Event.construct_from(
-            stripe.util.convert_to_dict(await request.json()),
-            stripe.api_key
-        )
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid payload"
-        )
+        # Handle different event types
+        if event.type == "customer.subscription.created":
+            await handle_subscription_created(db, event.data.object)
+        elif event.type == "customer.subscription.updated":
+            await handle_subscription_updated(db, event.data.object)
+        elif event.type == "customer.subscription.deleted":
+            await handle_subscription_deleted(db, event.data.object)
+        elif event.type == "customer.subscription.trial_will_end":
+            await handle_trial_will_end(db, event.data.object)
+        elif event.type == "invoice.payment_succeeded":
+            await handle_payment_succeeded(db, event.data.object)
+        elif event.type == "invoice.payment_failed":
+            await handle_payment_failed(db, event.data.object)
+        else:
+            logger.info(f"Unhandled webhook event type: {event.type}")
 
-    # Handle different event types
-    if event.type == "customer.subscription.created":
-        await handle_subscription_created(db, event.data.object)
-    elif event.type == "customer.subscription.updated":
-        await handle_subscription_updated(db, event.data.object)
-    elif event.type == "customer.subscription.deleted":
-        await handle_subscription_deleted(db, event.data.object)
-    elif event.type == "customer.subscription.trial_will_end":
-        await handle_trial_will_end(db, event.data.object)
-    elif event.type == "invoice.payment_succeeded":
-        await handle_payment_succeeded(db, event.data.object)
-    elif event.type == "invoice.payment_failed":
-        await handle_payment_failed(db, event.data.object)
+        logger.info(f"Successfully processed webhook: {event.type}")
+        return {"status": "success", "event_type": event.type}
 
-    return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Error processing webhook {event.type}: {e}", exc_info=True)
+        # Return 200 to prevent Stripe from retrying - log the error for investigation
+        return {"status": "error", "event_type": event.type, "error": str(e)}
 
 
 async def handle_subscription_created(db: AsyncSession, subscription_obj: Dict[str, Any]):
