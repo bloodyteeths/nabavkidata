@@ -73,33 +73,33 @@ export function BidRecommendation({
       case "aggressive":
         return {
           label: "Агресивна",
-          color: "text-red-600 dark:text-red-400",
-          bgColor: "bg-red-50 dark:bg-red-950/30",
-          borderColor: "border-red-200 dark:border-red-800",
-          progressColor: "bg-red-500",
+          color: "text-rose-500",
+          bgColor: "bg-rose-500/10",
+          borderColor: "border-rose-500/30",
+          progressColor: "bg-rose-500",
         };
       case "balanced":
         return {
           label: "Балансирана",
-          color: "text-amber-600 dark:text-amber-400",
-          bgColor: "bg-amber-50 dark:bg-amber-950/30",
-          borderColor: "border-amber-200 dark:border-amber-800",
-          progressColor: "bg-amber-500",
+          color: "text-blue-500",
+          bgColor: "bg-blue-500/10",
+          borderColor: "border-blue-500/30",
+          progressColor: "bg-blue-500",
         };
       case "safe":
         return {
           label: "Сигурна",
-          color: "text-green-600 dark:text-green-400",
-          bgColor: "bg-green-50 dark:bg-green-950/30",
-          borderColor: "border-green-200 dark:border-green-800",
-          progressColor: "bg-green-500",
+          color: "text-emerald-500",
+          bgColor: "bg-emerald-500/10",
+          borderColor: "border-emerald-500/30",
+          progressColor: "bg-emerald-500",
         };
       default:
         return {
           label: strategy,
           color: "text-muted-foreground",
-          bgColor: "bg-muted",
-          borderColor: "border",
+          bgColor: "bg-muted/50",
+          borderColor: "border-border",
           progressColor: "bg-muted-foreground",
         };
     }

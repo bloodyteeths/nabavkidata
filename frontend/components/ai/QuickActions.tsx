@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
@@ -14,8 +13,8 @@ import {
   AlertTriangle,
   FileText,
   Sparkles,
-  X,
   Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
 interface QuickActionsProps {
@@ -64,23 +63,34 @@ const QUICK_ACTIONS = [
   },
 ];
 
+interface CachedResponse {
+  question: string;
+  answer: string;
+  label: string;
+}
+
 export function QuickActions({
   tenderId,
   onAskQuestion,
   disabled = false,
 }: QuickActionsProps) {
   const [loading, setLoading] = useState<string | null>(null);
-  const [response, setResponse] = useState<{
-    question: string;
-    answer: string;
-    label: string;
-  } | null>(null);
+  // Store all responses by action ID - persists when switching between tabs
+  const [responses, setResponses] = useState<Record<string, CachedResponse>>({});
+  // Track which action is currently selected for display
+  const [activeAction, setActiveAction] = useState<string | null>(null);
 
   const handleQuickAction = async (actionId: string, question: string, label: string) => {
+    // If we already have a cached response for this action, just show it
+    if (responses[actionId]) {
+      setActiveAction(actionId);
+      return;
+    }
+
     if (loading) return;
 
     setLoading(actionId);
-    setResponse(null);
+    setActiveAction(actionId);
 
     // Show loading toast
     const loadingToast = toast.loading(`AI анализира: ${label}...`, {
@@ -94,17 +104,17 @@ export function QuickActions({
       toast.dismiss(loadingToast);
 
       // Show success
-      toast.success(`${label} - AI одговор готов!`, {
-        description: "Кликнете за да го видите целосниот одговор",
-        duration: 5000,
-      });
+      toast.success(`${label} - AI одговор готов!`);
 
-      // Display the response in the component
-      setResponse({
-        question,
-        answer: result.answer,
-        label,
-      });
+      // Store the response in cache
+      setResponses(prev => ({
+        ...prev,
+        [actionId]: {
+          question,
+          answer: result.answer,
+          label,
+        }
+      }));
 
       // Also call parent handler if provided
       if (onAskQuestion) {
@@ -120,10 +130,14 @@ export function QuickActions({
       } else {
         toast.error("AI одговорот не успеа. Обидете се повторно.");
       }
+      setActiveAction(null);
     } finally {
       setLoading(null);
     }
   };
+
+  const currentResponse = activeAction ? responses[activeAction] : null;
+  const isCurrentlyLoading = loading === activeAction;
 
   return (
     <div className="w-full space-y-4">
@@ -137,17 +151,28 @@ export function QuickActions({
         {QUICK_ACTIONS.map((action) => {
           const Icon = action.icon;
           const isLoading = loading === action.id;
+          const hasResponse = !!responses[action.id];
+          const isActive = activeAction === action.id;
+
           return (
             <Button
               key={action.id}
-              variant="outline"
+              variant={isActive ? "default" : "outline"}
               size="sm"
               onClick={() => handleQuickAction(action.id, action.question, action.label)}
-              disabled={disabled || loading !== null}
-              className="transition-all hover:bg-primary/10 hover:border-primary/50"
+              disabled={disabled || (loading !== null && loading !== action.id)}
+              className={`transition-all ${
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : hasResponse
+                    ? "border-primary/50 text-primary hover:bg-primary/10"
+                    : "hover:bg-primary/10 hover:border-primary/50"
+              }`}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : hasResponse ? (
+                <CheckCircle2 className="h-4 w-4 mr-2" />
               ) : (
                 <Icon className="h-4 w-4 mr-2" />
               )}
@@ -157,34 +182,42 @@ export function QuickActions({
         })}
       </div>
 
-      {/* AI Response Display */}
-      {response && (
+      {/* AI Response Display - Shows loading state or cached response */}
+      {activeAction && (
         <Card className="mt-4 border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between">
               <CardTitle className="text-base flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                AI Одговор: {response.label}
+                {isCurrentlyLoading ? (
+                  <>AI анализира...</>
+                ) : (
+                  <>AI Одговор: {currentResponse?.label}</>
+                )}
               </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setResponse(null)}
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Прашање: {response.question}
-            </p>
+            {currentResponse && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Прашање: {currentResponse.question}
+              </p>
+            )}
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-[400px]">
-              <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                {response.answer}
+            {isCurrentlyLoading ? (
+              <div className="flex items-center gap-3 py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">
+                  AI ги анализира документите... Ова може да потрае 20-30 секунди.
+                </span>
               </div>
-            </ScrollArea>
+            ) : currentResponse ? (
+              <div
+                className="text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto max-h-[500px] pr-2"
+                style={{ scrollbarWidth: 'thin' }}
+              >
+                {currentResponse.answer}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       )}
