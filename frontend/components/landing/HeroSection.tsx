@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useTypingEffect } from "@/hooks/useTypingEffect";
 import LiveUserCounter from "./LiveUserCounter";
+import StylizedMacedonianFlag from "./StylizedMacedonianFlag";
 
 const phrases = [
     "Освојувајте тендери со Вештачка Интелигенција",
@@ -34,6 +35,14 @@ export default function HeroSection() {
                     <Sparkles className="w-4 h-4 text-primary" />
                     <span className="text-sm text-gray-300">AI-Powered Tender Intelligence</span>
                 </motion.div>
+
+                {/* Stylized Flag - Absolute on Desktop, Flow on Mobile */}
+                <div className="absolute top-0 right-4 md:right-10 hidden md:block">
+                    <StylizedMacedonianFlag />
+                </div>
+                <div className="md:hidden flex justify-center mb-6">
+                    <StylizedMacedonianFlag />
+                </div>
 
                 <motion.h1
                     initial={{ opacity: 0, y: 20 }}

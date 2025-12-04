@@ -2,6 +2,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SourceCitation, Source } from "@/components/ai/SourceCitation";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -9,13 +10,33 @@ interface ChatMessageProps {
   sources?: Array<{
     tender_id?: string;
     doc_id?: string;
-    chunk_text: string;
-    similarity: number;
+    chunk_text?: string;
+    excerpt?: string;
+    file_name?: string;
+    similarity?: number;
+    relevance?: number;
+    title?: string;
+    category?: string;
   }>;
+  confidence?: string;
+  onViewDocument?: (docId: string, fileName?: string) => void;
 }
 
-export function ChatMessage({ role, content, sources }: ChatMessageProps) {
+export function ChatMessage({ role, content, sources, confidence, onViewDocument }: ChatMessageProps) {
   const isUser = role === "user";
+
+  // Convert sources to Source type for SourceCitation component
+  const formattedSources: Source[] = sources?.map(s => ({
+    doc_id: s.doc_id,
+    tender_id: s.tender_id,
+    file_name: s.file_name,
+    excerpt: s.excerpt || s.chunk_text,
+    chunk_text: s.chunk_text,
+    similarity: s.similarity,
+    relevance: s.relevance,
+    title: s.title,
+    category: s.category,
+  })) || [];
 
   return (
     <div className={cn("flex gap-3", isUser ? "justify-end" : "justify-start")}>
@@ -33,18 +54,15 @@ export function ChatMessage({ role, content, sources }: ChatMessageProps) {
           <p className="text-sm whitespace-pre-wrap">{content}</p>
         </Card>
 
-        {sources && sources.length > 0 && (
-          <div className="text-xs text-muted-foreground space-y-1">
-            <p className="font-medium">Извори:</p>
-            {sources.slice(0, 3).map((source, idx) => (
-              <div key={idx} className="pl-2 border-l-2 border-muted">
-                <p className="line-clamp-2">{source.chunk_text}</p>
-                <p className="text-xs opacity-70">
-                  Сличност: {Math.round(source.similarity * 100)}%
-                </p>
-              </div>
-            ))}
-          </div>
+        {/* Use SourceCitation component for assistant messages */}
+        {!isUser && formattedSources.length > 0 && (
+          <SourceCitation
+            sources={formattedSources}
+            onViewDocument={onViewDocument}
+            maxVisible={3}
+            showConfidence={true}
+            confidence={confidence}
+          />
         )}
       </div>
 

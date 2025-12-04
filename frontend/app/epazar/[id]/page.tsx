@@ -18,7 +18,10 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  MessageSquare
+  MessageSquare,
+  File,
+  FileSpreadsheet,
+  FileType,
 } from 'lucide-react';
 import { api, EPazarTenderDetail, EPazarItem, EPazarOffer, EPazarDocument, EPazarAwardedItem, RAGQueryResponse } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -188,6 +191,31 @@ function AwardedItemsTable({ items }: { items: EPazarAwardedItem[] }) {
   );
 }
 
+function getFileIcon(fileName?: string, mimeType?: string) {
+  const extension = fileName?.split('.').pop()?.toLowerCase();
+  const mime = mimeType?.toLowerCase();
+
+  // Check by extension or mime type
+  if (extension === 'pdf' || mime?.includes('pdf')) {
+    return <FileText className="h-5 w-5 text-red-500 flex-shrink-0" />;
+  }
+  if (extension === 'doc' || extension === 'docx' || mime?.includes('word') || mime?.includes('msword')) {
+    return <FileType className="h-5 w-5 text-blue-500 flex-shrink-0" />;
+  }
+  if (extension === 'xls' || extension === 'xlsx' || mime?.includes('excel') || mime?.includes('spreadsheet')) {
+    return <FileSpreadsheet className="h-5 w-5 text-green-600 flex-shrink-0" />;
+  }
+  // Default file icon
+  return <File className="h-5 w-5 text-gray-400 flex-shrink-0" />;
+}
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes) return "";
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+}
+
 function DocumentsList({ documents }: { documents: EPazarDocument[] }) {
   if (!documents || documents.length === 0) {
     return <p className="text-gray-500 text-center py-8">No documents available</p>;
@@ -199,25 +227,33 @@ function DocumentsList({ documents }: { documents: EPazarDocument[] }) {
         <Card key={doc.doc_id || idx}>
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-gray-400" />
-                <div>
-                  <p className="font-medium">{doc.file_name || 'Document'}</p>
-                  <div className="flex gap-2 text-xs text-gray-500">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {getFileIcon(doc.file_name, doc.mime_type)}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{doc.file_name || 'Document'}</p>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
                     {doc.doc_type && <span>{doc.doc_type}</span>}
                     {doc.file_size_bytes && (
-                      <span>{(doc.file_size_bytes / 1024).toFixed(1)} KB</span>
+                      <>
+                        <span>•</span>
+                        <span>{formatFileSize(doc.file_size_bytes)}</span>
+                      </>
                     )}
                   </div>
                 </div>
               </div>
-              {doc.file_url && (
+              {doc.file_url ? (
                 <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="flex-shrink-0">
                     <Download className="h-4 w-4 mr-1" />
                     Download
                   </Button>
                 </a>
+              ) : (
+                <Button variant="ghost" size="sm" disabled className="flex-shrink-0">
+                  <XCircle className="h-4 w-4 mr-1" />
+                  Unavailable
+                </Button>
               )}
             </div>
           </CardContent>
