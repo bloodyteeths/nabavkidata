@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
   Bot,
@@ -280,8 +279,8 @@ export function GlobalChatWidget() {
             </CardHeader>
 
             {/* Messages */}
-            <CardContent className="p-0 flex-1 overflow-hidden flex flex-col">
-              <ScrollArea className="flex-1 h-[calc(100vh-180px)] sm:h-[350px] p-4" ref={scrollAreaRef}>
+            <CardContent className="p-0 flex-1 overflow-hidden flex flex-col min-h-0">
+              <div className="flex-1 overflow-y-auto p-4 h-[calc(100vh-180px)] sm:h-[350px]" ref={scrollAreaRef}>
                 <div className="space-y-4">
                   {messages.length === 0 ? (
                     <div className="text-center py-6">
@@ -361,7 +360,7 @@ export function GlobalChatWidget() {
 
                   <div ref={messagesEndRef} />
                 </div>
-              </ScrollArea>
+              </div>
 
               {/* Input Area */}
               <div className="border-t p-3 space-y-2 flex-shrink-0">
