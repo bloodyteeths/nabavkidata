@@ -5,7 +5,7 @@ Push notification system for in-app notifications
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, insert, func, and_
+from sqlalchemy import text
 from database import get_db
 from datetime import datetime
 import uuid
@@ -60,22 +60,24 @@ async def create_notification(
     alert_id: str = None
 ):
     """Create a notification for a user"""
+    import json
     notification_id = str(uuid.uuid4())
 
-    stmt = insert(db.execute.__self__.__class__.__dict__['_proxy_metadata'].tables['notifications']).values(
-        notification_id=notification_id,
-        user_id=user_id,
-        type=type,
-        title=title,
-        message=message,
-        data=data or {},
-        tender_id=tender_id,
-        alert_id=alert_id,
-        is_read=False,
-        created_at=datetime.utcnow()
-    )
+    query = text("""
+        INSERT INTO notifications (notification_id, user_id, type, title, message, data, tender_id, alert_id, is_read, created_at)
+        VALUES (:notification_id, :user_id, :type, :title, :message, :data, :tender_id, :alert_id, false, NOW())
+    """)
 
-    await db.execute(stmt)
+    await db.execute(query, {
+        'notification_id': notification_id,
+        'user_id': user_id,
+        'type': type,
+        'title': title,
+        'message': message,
+        'data': json.dumps(data or {}),
+        'tender_id': tender_id,
+        'alert_id': alert_id
+    })
     await db.commit()
 
     return {
@@ -106,35 +108,36 @@ async def get_notifications(
     """
     Get user notifications (paginated)
     """
-    user_id = current_user.user_id
+    user_id = str(current_user.user_id)
+    offset = (page - 1) * page_size
 
-    # Build query
-    from sqlalchemy import Table, MetaData, Column
-    metadata = MetaData()
-    notifications = Table('notifications', metadata, autoload_with=db.get_bind())
+    # Build WHERE clause
+    where_conditions = ["user_id = :user_id"]
+    params = {"user_id": user_id, "limit": page_size, "offset": offset}
 
-    conditions = [notifications.c.user_id == user_id]
     if unread_only:
-        conditions.append(notifications.c.is_read == False)
+        where_conditions.append("is_read = false")
     if type:
-        conditions.append(notifications.c.type == type)
+        where_conditions.append("type = :type")
+        params["type"] = type
+
+    where_clause = " AND ".join(where_conditions)
 
     # Count total
-    count_stmt = select(func.count()).select_from(notifications).where(and_(*conditions))
-    total_result = await db.execute(count_stmt)
-    total = total_result.scalar()
+    count_query = text(f"SELECT COUNT(*) FROM notifications WHERE {where_clause}")
+    count_result = await db.execute(count_query, params)
+    total = count_result.scalar() or 0
 
     # Get paginated results
-    offset = (page - 1) * page_size
-    stmt = (
-        select(notifications)
-        .where(and_(*conditions))
-        .order_by(notifications.c.created_at.desc())
-        .limit(page_size)
-        .offset(offset)
-    )
+    query = text(f"""
+        SELECT notification_id, user_id, type, title, message, data, tender_id, alert_id, is_read, created_at
+        FROM notifications
+        WHERE {where_clause}
+        ORDER BY created_at DESC
+        LIMIT :limit OFFSET :offset
+    """)
 
-    result = await db.execute(stmt)
+    result = await db.execute(query, params)
     rows = result.fetchall()
 
     items = [
@@ -169,23 +172,15 @@ async def get_unread_count(
     """
     Get count of unread notifications (for badge)
     """
-    user_id = current_user.user_id
+    user_id = str(current_user.user_id)
 
-    from sqlalchemy import Table, MetaData
-    metadata = MetaData()
-    notifications = Table('notifications', metadata, autoload_with=db.get_bind())
+    query = text("""
+        SELECT COUNT(*) FROM notifications
+        WHERE user_id = :user_id AND is_read = false
+    """)
 
-    stmt = (
-        select(func.count())
-        .select_from(notifications)
-        .where(and_(
-            notifications.c.user_id == user_id,
-            notifications.c.is_read == False
-        ))
-    )
-
-    result = await db.execute(stmt)
-    count = result.scalar()
+    result = await db.execute(query, {"user_id": user_id})
+    count = result.scalar() or 0
 
     return {'unread_count': count}
 
@@ -199,22 +194,24 @@ async def mark_notifications_read(
     """
     Mark specific notifications as read
     """
-    user_id = current_user.user_id
+    user_id = str(current_user.user_id)
 
-    from sqlalchemy import Table, MetaData
-    metadata = MetaData()
-    notifications = Table('notifications', metadata, autoload_with=db.get_bind())
+    if not body.notification_ids:
+        return {'message': 'No notifications to mark', 'updated': 0}
 
-    stmt = (
-        update(notifications)
-        .where(and_(
-            notifications.c.notification_id.in_(body.notification_ids),
-            notifications.c.user_id == user_id
-        ))
-        .values(is_read=True)
-    )
+    # Build placeholders for IN clause
+    placeholders = ", ".join([f":id_{i}" for i in range(len(body.notification_ids))])
+    params = {"user_id": user_id}
+    for i, nid in enumerate(body.notification_ids):
+        params[f"id_{i}"] = nid
 
-    result = await db.execute(stmt)
+    query = text(f"""
+        UPDATE notifications
+        SET is_read = true
+        WHERE notification_id IN ({placeholders}) AND user_id = :user_id
+    """)
+
+    result = await db.execute(query, params)
     await db.commit()
 
     return {
@@ -231,22 +228,15 @@ async def mark_all_read(
     """
     Mark all user notifications as read
     """
-    user_id = current_user.user_id
+    user_id = str(current_user.user_id)
 
-    from sqlalchemy import Table, MetaData
-    metadata = MetaData()
-    notifications = Table('notifications', metadata, autoload_with=db.get_bind())
+    query = text("""
+        UPDATE notifications
+        SET is_read = true
+        WHERE user_id = :user_id AND is_read = false
+    """)
 
-    stmt = (
-        update(notifications)
-        .where(and_(
-            notifications.c.user_id == user_id,
-            notifications.c.is_read == False
-        ))
-        .values(is_read=True)
-    )
-
-    result = await db.execute(stmt)
+    result = await db.execute(query, {"user_id": user_id})
     await db.commit()
 
     return {
@@ -264,21 +254,14 @@ async def delete_notification(
     """
     Delete a notification
     """
-    user_id = current_user.user_id
+    user_id = str(current_user.user_id)
 
-    from sqlalchemy import Table, MetaData
-    metadata = MetaData()
-    notifications = Table('notifications', metadata, autoload_with=db.get_bind())
+    query = text("""
+        DELETE FROM notifications
+        WHERE notification_id = :notification_id AND user_id = :user_id
+    """)
 
-    stmt = (
-        delete(notifications)
-        .where(and_(
-            notifications.c.notification_id == notification_id,
-            notifications.c.user_id == user_id
-        ))
-    )
-
-    result = await db.execute(stmt)
+    result = await db.execute(query, {"notification_id": notification_id, "user_id": user_id})
     await db.commit()
 
     if result.rowcount == 0:
@@ -334,12 +317,8 @@ async def admin_broadcast_notification(
 
     # If no target_users specified, send to all users
     if not target_users:
-        from sqlalchemy import Table, MetaData
-        metadata = MetaData()
-        users = Table('users', metadata, autoload_with=db.get_bind())
-
-        stmt = select(users.c.user_id)
-        result = await db.execute(stmt)
+        query = text("SELECT user_id FROM users")
+        result = await db.execute(query)
         target_users = [str(row.user_id) for row in result.fetchall()]
 
     # Create notification for each user

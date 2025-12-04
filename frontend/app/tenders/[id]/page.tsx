@@ -716,26 +716,8 @@ export default function TenderDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Price History */}
-      {priceHistoryLoading ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Историја на цени</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Се вчитува историја на цени...</p>
-          </CardContent>
-        </Card>
-      ) : priceHistoryError ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Историја на цени</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-destructive">{priceHistoryError}</p>
-          </CardContent>
-        </Card>
-      ) : priceHistory.length > 0 ? (
+      {/* Price History - Only show if we have data */}
+      {priceHistory.length > 0 && (
         <PriceHistoryChart
           data={priceHistory.map((p) => ({
             date: formatDate(p.date),
@@ -748,38 +730,18 @@ export default function TenderDetailPage() {
           ]}
           title="Историја на проценети и доделени вредности"
         />
-      ) : null}
+      )}
 
-      {/* CPV-based Market Price History */}
-      {tender?.cpv_code && (
-        cpvPriceHistoryLoading ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Пазарна историја на цени - CPV {tender.cpv_code}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Се вчитува пазарна историја...</p>
-            </CardContent>
-          </Card>
-        ) : cpvPriceHistoryError ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Пазарна историја на цени</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-destructive">{cpvPriceHistoryError}</p>
-            </CardContent>
-          </Card>
-        ) : cpvPriceHistory && cpvPriceHistory.data_points.length > 0 ? (
-          <CPVPriceHistoryChart
-            data={cpvPriceHistory.data_points}
-            cpvCode={tender.cpv_code}
-            title="Пазарна историја на цени за слични тендери"
-            showTrend={true}
-            trend={cpvPriceHistory.trend as "increasing" | "decreasing" | "stable"}
-            trendPct={cpvPriceHistory.trend_pct}
-          />
-        ) : null
+      {/* CPV-based Market Price History - Only show if we have data */}
+      {tender?.cpv_code && cpvPriceHistory && cpvPriceHistory.data_points.length > 0 && (
+        <CPVPriceHistoryChart
+          data={cpvPriceHistory.data_points}
+          cpvCode={tender.cpv_code}
+          title="Пазарна историја на цени за слични тендери"
+          showTrend={true}
+          trend={cpvPriceHistory.trend as "increasing" | "decreasing" | "stable"}
+          trendPct={cpvPriceHistory.trend_pct}
+        />
       )}
 
       {/* Bid Recommendation */}
@@ -800,8 +762,6 @@ export default function TenderDetailPage() {
         <CardContent className="pt-6">
           <QuickActions
             tenderId={tenderId}
-            onAskQuestion={handleChatSend}
-            disabled={chatLoading}
           />
         </CardContent>
       </Card>

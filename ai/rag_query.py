@@ -17,8 +17,17 @@ from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 from embeddings import EmbeddingGenerator, VectorStore
+
+# Safety settings to prevent content blocking - set all to BLOCK_NONE
+SAFETY_SETTINGS = {
+    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+}
 from db_pool import get_pool, get_connection
 from web_research import HybridRAGEngine, WebResearchEngine
 
@@ -915,13 +924,7 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
 
         try:
             def _sync_generate():
-                # Relaxed safety settings for business content
-                safety_settings = [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-                ]
+                # Explicit BLOCK_NONE safety settings to avoid blocks
                 model_obj = genai.GenerativeModel('gemini-2.0-flash')
                 response = model_obj.generate_content(
                     prompt,
@@ -929,12 +932,12 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                         temperature=0.3,
                         max_output_tokens=200
                     ),
-                    safety_settings=safety_settings
+                    safety_settings=SAFETY_SETTINGS
                 )
                 try:
                     return response.text
                 except ValueError:
-                    return "[]"  # Return empty array on safety block
+                    return "[]"
 
             response_text = await asyncio.to_thread(_sync_generate)
 
@@ -1076,7 +1079,7 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
             keyword_patterns = [f'%{kw}%' for kw in search_keywords]
 
             # Search product_items table
-            product_items = await conn.fetch("""
+            product_items = await conn.fetch(f"""
                 SELECT
                     pi.id, pi.name, pi.quantity, pi.unit, pi.unit_price, pi.total_price,
                     pi.specifications, pi.cpv_code, pi.manufacturer, pi.model, pi.supplier,
@@ -1090,13 +1093,13 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                    OR pi.manufacturer ILIKE ANY($1)
                    OR pi.model ILIKE ANY($1)
                    OR pi.specifications::text ILIKE ANY($1))
-                  AND t.publication_date >= NOW() - INTERVAL '%s years'
+                  AND t.publication_date >= NOW() - INTERVAL '{years} years'
                 ORDER BY t.publication_date DESC NULLS LAST
                 LIMIT 100
-            """, keyword_patterns, years)
+            """, keyword_patterns)
 
             # Search epazar_items table
-            epazar_items = await conn.fetch("""
+            epazar_items = await conn.fetch(f"""
                 SELECT
                     ei.item_id, ei.item_name, ei.item_description, ei.quantity, ei.unit,
                     ei.estimated_unit_price_mkd, ei.estimated_total_price_mkd,
@@ -1112,13 +1115,13 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                 WHERE (ei.item_name ILIKE ANY($1)
                    OR ei.item_description ILIKE ANY($1)
                    OR ei.specifications::text ILIKE ANY($1))
-                  AND et.publication_date >= NOW() - INTERVAL '%s years'
+                  AND et.publication_date >= NOW() - INTERVAL '{years} years'
                 ORDER BY et.publication_date DESC NULLS LAST
                 LIMIT 100
-            """, keyword_patterns, years)
+            """, keyword_patterns)
 
             # Get item-level price statistics for product_items
-            product_stats = await conn.fetch("""
+            product_stats = await conn.fetch(f"""
                 SELECT
                     pi.name,
                     EXTRACT(YEAR FROM t.publication_date)::INTEGER as year,
@@ -1137,14 +1140,14 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                    OR pi.name_mk ILIKE ANY($1)
                    OR pi.name_en ILIKE ANY($1))
                   AND pi.unit_price IS NOT NULL
-                  AND t.publication_date >= NOW() - INTERVAL '%s years'
+                  AND t.publication_date >= NOW() - INTERVAL '{years} years'
                 GROUP BY pi.name, year, quarter, pi.unit
                 ORDER BY year DESC, quarter DESC, pi.name
                 LIMIT 50
-            """, keyword_patterns, years)
+            """, keyword_patterns)
 
             # Get item-level price statistics for epazar_items
-            epazar_stats = await conn.fetch("""
+            epazar_stats = await conn.fetch(f"""
                 SELECT
                     ei.item_name,
                     EXTRACT(YEAR FROM et.publication_date)::INTEGER as year,
@@ -1163,14 +1166,14 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                 WHERE (ei.item_name ILIKE ANY($1)
                    OR ei.item_description ILIKE ANY($1))
                   AND ei.estimated_unit_price_mkd IS NOT NULL
-                  AND et.publication_date >= NOW() - INTERVAL '%s years'
+                  AND et.publication_date >= NOW() - INTERVAL '{years} years'
                 GROUP BY ei.item_name, year, quarter, ei.unit
                 ORDER BY year DESC, quarter DESC, ei.item_name
                 LIMIT 50
-            """, keyword_patterns, years)
+            """, keyword_patterns)
 
             # Get top suppliers for these items
-            top_suppliers_product = await conn.fetch("""
+            top_suppliers_product = await conn.fetch(f"""
                 SELECT
                     t.winner,
                     COUNT(*) as wins,
@@ -1182,13 +1185,13 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                 WHERE (pi.name ILIKE ANY($1)
                    OR pi.name_mk ILIKE ANY($1))
                   AND t.winner IS NOT NULL AND t.winner != ''
-                  AND t.publication_date >= NOW() - INTERVAL '%s years'
+                  AND t.publication_date >= NOW() - INTERVAL '{years} years'
                 GROUP BY t.winner
                 ORDER BY COUNT(*) DESC, AVG(pi.unit_price) ASC
                 LIMIT 10
-            """, keyword_patterns, years)
+            """, keyword_patterns)
 
-            top_suppliers_epazar = await conn.fetch("""
+            top_suppliers_epazar = await conn.fetch(f"""
                 SELECT
                     eo.supplier_name as winner,
                     COUNT(*) as wins,
@@ -1200,11 +1203,11 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                 JOIN epazar_offers eo ON et.tender_id = eo.tender_id AND eo.is_winner = true
                 WHERE (ei.item_name ILIKE ANY($1)
                    OR ei.item_description ILIKE ANY($1))
-                  AND et.publication_date >= NOW() - INTERVAL '%s years'
+                  AND et.publication_date >= NOW() - INTERVAL '{years} years'
                 GROUP BY eo.supplier_name
                 ORDER BY COUNT(*) DESC, AVG(ei.estimated_unit_price_mkd) ASC
                 LIMIT 10
-            """, keyword_patterns, years)
+            """, keyword_patterns)
 
         # Format context
         context_parts = []
@@ -1456,7 +1459,7 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                     # Fetch lots if any
                     lots = await conn.fetch("""
                         SELECT lot_number, lot_title, lot_description,
-                               estimated_value_mkd, winner, winning_bid_mkd
+                               estimated_value_mkd, winner, actual_value_mkd
                         FROM tender_lots
                         WHERE tender_id = $1
                         ORDER BY lot_number
@@ -1836,51 +1839,17 @@ CPV код: {cpv_code}
             Generated answer text
         """
         def _sync_generate():
-            # Configure safety settings to be less restrictive for business content
-            # Tender documents are legitimate business content that shouldn't be blocked
-            safety_settings = [
-                {
-                    "category": "HARM_CATEGORY_HARASSMENT",
-                    "threshold": "BLOCK_ONLY_HIGH"
-                },
-                {
-                    "category": "HARM_CATEGORY_HATE_SPEECH",
-                    "threshold": "BLOCK_ONLY_HIGH"
-                },
-                {
-                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                    "threshold": "BLOCK_ONLY_HIGH"
-                },
-                {
-                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                    "threshold": "BLOCK_ONLY_HIGH"
-                }
-            ]
-
+            # Explicit BLOCK_NONE safety settings to avoid blocks
             model_obj = genai.GenerativeModel(model)
             response = model_obj.generate_content(
                 prompt,
                 generation_config=genai.GenerationConfig(
-                    temperature=0.3,  # Low temperature for factual answers
+                    temperature=0.3,
                     max_output_tokens=1000
                 ),
-                safety_settings=safety_settings
+                safety_settings=SAFETY_SETTINGS
             )
 
-            # Handle safety blocks (finish_reason=2 means SAFETY)
-            if hasattr(response, 'candidates') and response.candidates:
-                candidate = response.candidates[0]
-                # Check for safety block
-                if hasattr(candidate, 'finish_reason'):
-                    # finish_reason 2 = SAFETY, 3 = RECITATION, 4 = OTHER
-                    if candidate.finish_reason == 2:
-                        logger.warning(f"Gemini response blocked due to safety filters")
-                        return "Не можам да генерирам одговор поради безбедносни ограничувања. Обидете се со поинакво прашање."
-                    elif candidate.finish_reason in [3, 4]:
-                        logger.warning(f"Gemini response blocked: finish_reason={candidate.finish_reason}")
-                        return "Не можам да генерирам одговор. Обидете се со поинакво прашање."
-
-            # Try to get text, handle empty responses
             try:
                 text = response.text
                 if not text or not text.strip():
@@ -1888,9 +1857,8 @@ CPV код: {cpv_code}
                     return "Нема доволно податоци за генерирање одговор."
                 return text
             except ValueError as e:
-                # This can happen when response is blocked
                 logger.warning(f"Error accessing response text: {e}")
-                return "Не можам да генерирам одговор. Обидете се со поинакво прашање."
+                return "Не можам да генерирам одговор моментално. Обидете се повторно."
 
         answer_text = await asyncio.to_thread(_sync_generate)
         return answer_text
@@ -2184,13 +2152,7 @@ async def generate_tender_summary(context: Dict) -> str:
 Одговори на македонски јазик. Биди концизен и прецизен. Ако нема доволно информации, кажи што недостасува."""
 
     def _sync_generate():
-        # Relaxed safety settings for business content
-        safety_settings = [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-        ]
+        # Explicit BLOCK_NONE safety settings to avoid blocks
         model_obj = genai.GenerativeModel(model_name)
         response = model_obj.generate_content(
             prompt,
@@ -2198,15 +2160,8 @@ async def generate_tender_summary(context: Dict) -> str:
                 temperature=0.3,
                 max_output_tokens=800
             ),
-            safety_settings=safety_settings
+            safety_settings=SAFETY_SETTINGS
         )
-
-        # Handle safety blocks
-        if hasattr(response, 'candidates') and response.candidates:
-            candidate = response.candidates[0]
-            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                logger.warning("Tender summary blocked by safety filters")
-                return "Не можам да генерирам резиме поради безбедносни ограничувања."
 
         try:
             text = response.text
@@ -2215,7 +2170,7 @@ async def generate_tender_summary(context: Dict) -> str:
             return text
         except ValueError as e:
             logger.warning(f"Error accessing response text: {e}")
-            return "Не можам да генерирам резиме."
+            return "Не можам да генерирам резиме моментално."
 
     summary = await asyncio.to_thread(_sync_generate)
     return summary
@@ -2279,13 +2234,7 @@ async def generate_supplier_analysis(context: Dict) -> str:
 Одговори на македонски јазик. Биди објективен и аналитичен."""
 
     def _sync_generate():
-        # Relaxed safety settings for business content
-        safety_settings = [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-        ]
+        # Explicit BLOCK_NONE safety settings to avoid blocks
         model_obj = genai.GenerativeModel(model_name)
         response = model_obj.generate_content(
             prompt,
@@ -2293,15 +2242,8 @@ async def generate_supplier_analysis(context: Dict) -> str:
                 temperature=0.3,
                 max_output_tokens=800
             ),
-            safety_settings=safety_settings
+            safety_settings=SAFETY_SETTINGS
         )
-
-        # Handle safety blocks
-        if hasattr(response, 'candidates') and response.candidates:
-            candidate = response.candidates[0]
-            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                logger.warning("Supplier analysis blocked by safety filters")
-                return "Не можам да генерирам анализа поради безбедносни ограничувања."
 
         try:
             text = response.text
@@ -2310,7 +2252,7 @@ async def generate_supplier_analysis(context: Dict) -> str:
             return text
         except ValueError as e:
             logger.warning(f"Error accessing response text: {e}")
-            return "Не можам да генерирам анализа."
+            return "Не можам да генерирам анализа моментално."
 
     analysis = await asyncio.to_thread(_sync_generate)
     return analysis

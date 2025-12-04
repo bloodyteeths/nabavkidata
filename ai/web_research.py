@@ -23,8 +23,17 @@ from dataclasses import dataclass
 from datetime import datetime
 import aiohttp
 import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 logger = logging.getLogger(__name__)
+
+# Safety settings to prevent content blocking - set all to BLOCK_NONE
+SAFETY_SETTINGS = {
+    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+}
 
 
 @dataclass
@@ -206,14 +215,7 @@ Be specific with numbers, names, and dates."""
 
         try:
             def _sync_search():
-                # Use Gemini Pro for better web search
-                # Relaxed safety settings for business/procurement content
-                safety_settings = [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-                ]
+                # Use Gemini for web search with explicit BLOCK_NONE safety settings
                 model = genai.GenerativeModel('gemini-2.0-flash')
                 response = model.generate_content(
                     prompt,
@@ -221,15 +223,8 @@ Be specific with numbers, names, and dates."""
                         temperature=0.3,
                         max_output_tokens=2000
                     ),
-                    safety_settings=safety_settings
+                    safety_settings=SAFETY_SETTINGS
                 )
-
-                # Handle safety blocks
-                if hasattr(response, 'candidates') and response.candidates:
-                    candidate = response.candidates[0]
-                    if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                        logger.warning("Web search blocked by safety filters")
-                        return ""
 
                 try:
                     text = response.text
@@ -391,13 +386,7 @@ Be specific with numbers, names, and dates."""
 
         try:
             def _sync_generate():
-                # Relaxed safety settings for business/procurement content
-                safety_settings = [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-                ]
+                # Explicit BLOCK_NONE safety settings to avoid blocks
                 model = genai.GenerativeModel('gemini-2.0-flash')
                 response = model.generate_content(
                     prompt,
@@ -405,15 +394,8 @@ Be specific with numbers, names, and dates."""
                         temperature=0.4,
                         max_output_tokens=500
                     ),
-                    safety_settings=safety_settings
+                    safety_settings=SAFETY_SETTINGS
                 )
-
-                # Handle safety blocks
-                if hasattr(response, 'candidates') and response.candidates:
-                    candidate = response.candidates[0]
-                    if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                        logger.warning("Recommendation generation blocked by safety filters")
-                        return ""
 
                 try:
                     text = response.text
@@ -479,13 +461,7 @@ Format as JSON with keys: analysis, strengths (array), weaknesses (array), recen
 
             try:
                 def _sync_search():
-                    # Relaxed safety settings for business/procurement content
-                    safety_settings = [
-                        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-                    ]
+                    # Explicit BLOCK_NONE safety settings to avoid blocks
                     model = genai.GenerativeModel('gemini-2.0-flash')
                     response = model.generate_content(
                         prompt,
@@ -493,7 +469,7 @@ Format as JSON with keys: analysis, strengths (array), weaknesses (array), recen
                             temperature=0.3,
                             max_output_tokens=1000
                         ),
-                        safety_settings=safety_settings
+                        safety_settings=SAFETY_SETTINGS
                     )
                     try:
                         return response.text
@@ -649,13 +625,7 @@ INSTRUCTIONS:
 
         try:
             def _sync_generate():
-                # Relaxed safety settings for business/procurement content
-                safety_settings = [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-                ]
+                # Explicit BLOCK_NONE safety settings to avoid blocks
                 model = genai.GenerativeModel(
                     os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
                 )
@@ -665,15 +635,8 @@ INSTRUCTIONS:
                         temperature=0.3,
                         max_output_tokens=1500
                     ),
-                    safety_settings=safety_settings
+                    safety_settings=SAFETY_SETTINGS
                 )
-
-                # Handle safety blocks
-                if hasattr(response, 'candidates') and response.candidates:
-                    candidate = response.candidates[0]
-                    if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                        logger.warning("Combined answer blocked by safety filters")
-                        return "Не можам да генерирам одговор поради безбедносни ограничувања."
 
                 try:
                     text = response.text
@@ -681,8 +644,19 @@ INSTRUCTIONS:
                         return "Нема доволно податоци за генерирање одговор."
                     return text
                 except ValueError as e:
-                    logger.warning(f"Error accessing response text: {e}")
-                    return "Не можам да генерирам одговор."
+                    # Log more details about the block
+                    if response.candidates:
+                        candidate = response.candidates[0]
+                        logger.warning(f"Safety block - finish_reason: {candidate.finish_reason}, safety_ratings: {candidate.safety_ratings}")
+                    else:
+                        logger.warning(f"No candidates in response: {e}")
+                    # Try to extract any partial content
+                    if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                        partial = "".join(part.text for part in response.candidates[0].content.parts if hasattr(part, 'text'))
+                        if partial:
+                            logger.info(f"Extracted partial response: {len(partial)} chars")
+                            return partial
+                    return "Не можам да генерирам одговор моментално. Обидете се повторно."
 
             return await asyncio.to_thread(_sync_generate)
 

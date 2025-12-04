@@ -943,13 +943,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
 Биди концизен и практичен. Фокусирај се на информации корисни за понудувачи."""
 
             # Relaxed safety settings for business content
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-            ]
-            response = model.generate_content(prompt, safety_settings=safety_settings)
+            response = model.generate_content(prompt)
 
             # Handle safety blocks
             response_text = None
@@ -1175,13 +1169,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
 Одговор:"""
 
         # Relaxed safety settings for business content
-        safety_settings = [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-        ]
-        response = model.generate_content(prompt, safety_settings=safety_settings)
+        response = model.generate_content(prompt)
 
         # Handle safety blocks
         try:
@@ -1684,13 +1672,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
 Биди концизен и практичен. Фокусирај се на информации корисни за понудувачи."""
 
             # Relaxed safety settings for business content
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-            ]
-            response = model.generate_content(prompt, safety_settings=safety_settings)
+            response = model.generate_content(prompt)
 
             # Handle safety blocks (finish_reason=2 means SAFETY)
             response_text = None
@@ -1840,7 +1822,7 @@ async def get_tender_bid_advice_by_id(
 
         for row in historical_data:
             if row.estimated_value_mkd and row.actual_value_mkd:
-                discount = (row.estimated_value_mkd - row.actual_value_mkd) / row.estimated_value_mkd * 100
+                discount = float((row.estimated_value_mkd - row.actual_value_mkd) / row.estimated_value_mkd * 100)
                 discounts.append(discount)
             if row.bid_amount_mkd and row.is_winner:
                 winning_bids.append(float(row.bid_amount_mkd))
@@ -1848,7 +1830,7 @@ async def get_tender_bid_advice_by_id(
                 bidder_counts.append(row.num_bidders)
 
         if discounts:
-            avg_discount = statistics.mean(discounts)
+            avg_discount = float(statistics.mean(discounts))
         if bidder_counts:
             avg_bidders = statistics.mean(bidder_counts)
             if avg_bidders >= 5:

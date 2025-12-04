@@ -2,8 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Target, TrendingUp, TrendingDown, Users, Percent, Building2, Trophy } from "lucide-react";
+import { Target, TrendingUp, TrendingDown, Users, Percent, Building2, Trophy, Sparkles } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 interface Recommendation {
@@ -42,23 +41,20 @@ export function BidRecommendation({
 }: BidRecommendationProps) {
   if (loading) {
     return (
-      <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-primary" />
-            AI ПРЕПОРАКА ЗА ПОНУДА
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Sparkles className="h-4 w-4 text-primary" />
+            AI Препорака за понуда
           </CardTitle>
-          <CardDescription>
-            AI анализира слични тендери за да ви даде препорака...
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="animate-pulse space-y-4">
-            <div className="h-20 bg-muted rounded-lg" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="h-48 bg-muted rounded-lg" />
-              <div className="h-48 bg-muted rounded-lg" />
-              <div className="h-48 bg-muted rounded-lg" />
+        <CardContent>
+          <div className="animate-pulse space-y-3">
+            <div className="h-16 bg-muted rounded" />
+            <div className="grid grid-cols-3 gap-3">
+              <div className="h-24 bg-muted rounded" />
+              <div className="h-24 bg-muted rounded" />
+              <div className="h-24 bg-muted rounded" />
             </div>
           </div>
         </CardContent>
@@ -76,76 +72,67 @@ export function BidRecommendation({
     switch (strategy.toLowerCase()) {
       case "aggressive":
         return {
-          label: "АГРЕСИВНА",
-          icon: "🔴",
-          color: "text-red-600",
-          bgColor: "bg-red-50 dark:bg-red-950/20",
-          borderColor: "border-red-200 dark:border-red-900",
-          progressColor: "bg-red-600",
+          label: "Агресивна",
+          color: "text-red-600 dark:text-red-400",
+          bgColor: "bg-red-50 dark:bg-red-950/30",
+          borderColor: "border-red-200 dark:border-red-800",
+          progressColor: "bg-red-500",
         };
       case "balanced":
         return {
-          label: "БАЛАНСИРАНА",
-          icon: "🟡",
-          color: "text-yellow-600",
-          bgColor: "bg-yellow-50 dark:bg-yellow-950/20",
-          borderColor: "border-yellow-200 dark:border-yellow-900",
-          progressColor: "bg-yellow-600",
+          label: "Балансирана",
+          color: "text-amber-600 dark:text-amber-400",
+          bgColor: "bg-amber-50 dark:bg-amber-950/30",
+          borderColor: "border-amber-200 dark:border-amber-800",
+          progressColor: "bg-amber-500",
         };
       case "safe":
         return {
-          label: "СИГУРНА",
-          icon: "🟢",
-          color: "text-green-600",
-          bgColor: "bg-green-50 dark:bg-green-950/20",
-          borderColor: "border-green-200 dark:border-green-900",
-          progressColor: "bg-green-600",
+          label: "Сигурна",
+          color: "text-green-600 dark:text-green-400",
+          bgColor: "bg-green-50 dark:bg-green-950/30",
+          borderColor: "border-green-200 dark:border-green-800",
+          progressColor: "bg-green-500",
         };
       default:
         return {
-          label: strategy.toUpperCase(),
-          icon: "⚪",
+          label: strategy,
           color: "text-muted-foreground",
           bgColor: "bg-muted",
-          borderColor: "border-muted",
+          borderColor: "border",
           progressColor: "bg-muted-foreground",
         };
     }
   };
 
-  const getTrendIcon = (trend: string) => {
-    if (trend === "increasing") return <TrendingUp className="h-4 w-4 text-red-600" />;
-    if (trend === "decreasing") return <TrendingDown className="h-4 w-4 text-green-600" />;
-    return <TrendingUp className="h-4 w-4 text-muted-foreground" />;
+  const getTrendLabel = (trend: string) => {
+    if (trend === "increasing") return "Раст";
+    if (trend === "decreasing") return "Пад";
+    return "Стабилен";
   };
 
   return (
-    <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
-          <Target className="h-5 w-5 text-primary" />
-          AI ПРЕПОРАКА ЗА ПОНУДА
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Sparkles className="h-4 w-4 text-primary" />
+          AI Препорака за понуда
         </CardTitle>
-        <CardDescription>
-          Паметни стратегии базирани на историски податоци од {recommendations.length > 0 ? "слични тендери" : "тендери"}
+        <CardDescription className="text-xs">
+          Анализа базирана на историски податоци од слични тендери
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* AI Summary */}
+      <CardContent className="space-y-4">
+        {/* AI Summary - Compact */}
         {aiSummary && (
-          <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
-            <div className="flex items-start gap-2">
-              <div className="text-2xl flex-shrink-0">💡</div>
-              <p className="text-sm leading-relaxed">
-                {aiSummary}
-              </p>
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {aiSummary}
+          </p>
         )}
 
         {/* Recommendation Cards */}
         {sortedRecommendations.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {sortedRecommendations.map((rec) => {
               const config = getStrategyConfig(rec.strategy);
               const discountPercent = estimatedValue
@@ -153,140 +140,77 @@ export function BidRecommendation({
                 : 0;
 
               return (
-                <Card
+                <div
                   key={rec.strategy}
-                  className={`${config.bgColor} ${config.borderColor} border-2 transition-all hover:shadow-lg`}
+                  className={`p-3 rounded-lg border ${config.bgColor} ${config.borderColor}`}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{config.icon}</span>
-                      <CardTitle className={`text-sm font-bold ${config.color}`}>
-                        {config.label}
-                      </CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Recommended Bid */}
-                    <div>
-                      <p className="text-2xl font-bold">{formatCurrency(rec.recommended_bid)}</p>
-                      {estimatedValue && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {discountPercent > 0 ? "-" : "+"}{Math.abs(discountPercent).toFixed(0)}% од процена
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Win Probability */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Веројатност:</span>
-                        <span className={`font-bold ${config.color}`}>
-                          {Math.round(rec.win_probability)}%
-                        </span>
-                      </div>
-                      <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={`absolute top-0 left-0 h-full ${config.progressColor} transition-all`}
-                          style={{ width: `${rec.win_probability}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Reasoning */}
-                    <div className="pt-3 border-t border-border/50">
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {rec.reasoning}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs font-semibold ${config.color}`}>
+                      {config.label}
+                    </span>
+                    <span className={`text-xs font-medium ${config.color}`}>
+                      {Math.round(rec.win_probability)}% шанса
+                    </span>
+                  </div>
+                  <p className="text-lg font-bold">{formatCurrency(rec.recommended_bid)}</p>
+                  {estimatedValue && (
+                    <p className="text-xs text-muted-foreground">
+                      {discountPercent > 0 ? "-" : "+"}{Math.abs(discountPercent).toFixed(0)}% од процена
+                    </p>
+                  )}
+                  <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${config.progressColor} transition-all`}
+                      style={{ width: `${rec.win_probability}%` }}
+                    />
+                  </div>
+                </div>
               );
             })}
           </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <Target className="h-12 w-12 mx-auto mb-2 opacity-20" />
-            <p className="text-sm">Нема достапни препораки за овој тендер</p>
-          </div>
-        )}
+        ) : null}
 
-        {/* Market Analysis */}
+        {/* Market Stats - Inline */}
         {marketAnalysis && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">📊</span>
-              <h3 className="font-semibold">ПАЗАРНА АНАЛИЗА</h3>
+          <div className="flex flex-wrap items-center gap-4 text-sm pt-2 border-t">
+            <div className="flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">Понудувачи:</span>
+              <span className="font-medium">{marketAnalysis.typical_bidders}</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-3 rounded-lg bg-background border">
-                <div className="flex items-center gap-2 mb-1">
-                  <Percent className="h-4 w-4 text-primary" />
-                  <p className="text-xs text-muted-foreground">Просечен попуст</p>
-                </div>
-                <p className="text-lg font-bold">{marketAnalysis.avg_discount.toFixed(1)}%</p>
-              </div>
-              <div className="p-3 rounded-lg bg-background border">
-                <div className="flex items-center gap-2 mb-1">
-                  <Users className="h-4 w-4 text-primary" />
-                  <p className="text-xs text-muted-foreground">Типични понудувачи</p>
-                </div>
-                <p className="text-lg font-bold">{marketAnalysis.typical_bidders}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-background border">
-                <div className="flex items-center gap-2 mb-1">
-                  {getTrendIcon(marketAnalysis.price_trend)}
-                  <p className="text-xs text-muted-foreground">Тренд</p>
-                </div>
-                <p className="text-lg font-bold capitalize">
-                  {marketAnalysis.price_trend === "increasing" ? "Раст" :
-                   marketAnalysis.price_trend === "decreasing" ? "Пад" : "Стабилен"}
-                </p>
-              </div>
+            <div className="flex items-center gap-1.5">
+              <Percent className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">Попуст:</span>
+              <span className="font-medium">{marketAnalysis.avg_discount.toFixed(1)}%</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {marketAnalysis.price_trend === "increasing" ? (
+                <TrendingUp className="h-3.5 w-3.5 text-red-500" />
+              ) : marketAnalysis.price_trend === "decreasing" ? (
+                <TrendingDown className="h-3.5 w-3.5 text-green-500" />
+              ) : (
+                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <span className="text-muted-foreground">Тренд:</span>
+              <span className="font-medium">{getTrendLabel(marketAnalysis.price_trend)}</span>
             </div>
           </div>
         )}
 
-        {/* Competitor Insights */}
+        {/* Competitor Insights - Compact */}
         {competitorInsights && competitorInsights.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🏢</span>
-              <h3 className="font-semibold">ТОП КОНКУРЕНТИ</h3>
-            </div>
-            <div className="space-y-2">
+          <div className="pt-2 border-t">
+            <p className="text-xs text-muted-foreground mb-2">Топ конкуренти:</p>
+            <div className="flex flex-wrap gap-2">
               {competitorInsights.slice(0, 3).map((competitor, idx) => (
-                <div
-                  key={idx}
-                  className="p-3 rounded-lg bg-background border flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      {idx === 0 && <Trophy className="h-4 w-4 text-yellow-500" />}
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{competitor.company}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {competitor.win_rate.toFixed(0)}% победи • {competitor.avg_discount.toFixed(0)}% просечен попуст
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant={idx === 0 ? "default" : "secondary"} className="text-xs">
-                    #{idx + 1}
-                  </Badge>
-                </div>
+                <Badge key={idx} variant="secondary" className="text-xs">
+                  {idx === 0 && <Trophy className="h-3 w-3 mr-1 text-amber-500" />}
+                  {competitor.company} ({competitor.win_rate.toFixed(0)}%)
+                </Badge>
               ))}
             </div>
           </div>
         )}
-
-        {/* Disclaimer */}
-        <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-          <p>
-            Препораките се базирани на историски податоци и не гарантираат успех.
-            Секогаш земајте ги предвид специфичните барања на тендерот.
-          </p>
-        </div>
       </CardContent>
     </Card>
   );
