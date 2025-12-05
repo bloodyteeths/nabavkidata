@@ -807,9 +807,9 @@ async def analyze_company(
     # 5. Get product specifications from won tenders
     specs_query = text("""
         SELECT DISTINCT
-            pi.item_name,
-            pi.unit_of_measure,
-            pi.unit_price_mkd,
+            pi.name,
+            pi.unit,
+            pi.unit_price,
             pi.quantity,
             t.title as tender_title,
             t.procuring_entity
@@ -818,8 +818,8 @@ async def analyze_company(
         JOIN tender_bidders tb ON t.tender_id = tb.tender_id
         WHERE tb.company_name ILIKE :search_pattern
           AND tb.is_winner = TRUE
-          AND pi.item_name IS NOT NULL
-        ORDER BY pi.unit_price_mkd DESC NULLS LAST
+          AND pi.name IS NOT NULL
+        ORDER BY pi.unit_price DESC NULLS LAST
         LIMIT 20
     """)
 
