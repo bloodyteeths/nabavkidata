@@ -879,51 +879,13 @@ class APIClient {
   }
 
   async getTenderDocuments(tenderId: string) {
-    // Parse tender_id (format: "12345/2025") to use correct endpoint
-    const parts = tenderId.split('/');
-    if (parts.length === 2) {
-      const [tenderNumber, tenderYear] = parts;
-      // Use by-id endpoint which works correctly
-      const result = await this.request<{
-        tender_id: string;
-        total_documents: number;
-        documents: Array<{
-          document_id: string;
-          filename: string;
-          file_type?: string;
-          file_size_bytes?: number;
-          category?: string;
-          upload_date?: string;
-          download_url?: string;
-          description?: string;
-        }>;
-        documents_by_category?: Record<string, number>;
-      }>(`/api/tenders/by-id/${tenderNumber}/${tenderYear}/documents`);
-
-      // Transform to expected format
-      return {
-        tender_id: result.tender_id,
-        total: result.total_documents,
-        documents: result.documents.map(doc => ({
-          doc_id: doc.document_id,
-          tender_id: result.tender_id,
-          doc_type: doc.file_type,
-          file_name: doc.filename,
-          file_url: doc.download_url,
-          extraction_status: 'pending',
-          file_size_bytes: doc.file_size_bytes,
-          uploaded_at: doc.upload_date || new Date().toISOString(),
-        })) as TenderDocument[]
-      };
-    }
-
-    // Fallback to old endpoint for non-standard tender IDs
+    // Always use /by-id/ endpoint which handles all formats (UUID and number/year)
     const encodedId = encodeURIComponent(tenderId);
     return this.request<{
       tender_id: string;
       total: number;
       documents: TenderDocument[];
-    }>(`/api/tenders/${encodedId}/documents`);
+    }>(`/api/tenders/by-id/${encodedId}/documents`);
   }
 
   async getDocumentContent(docId: string) {

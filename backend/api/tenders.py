@@ -13,8 +13,9 @@ import json
 import re
 
 from database import get_db
-from models import Tender, TenderBidder, TenderLot, Supplier, Document, User
+from models import Tender, TenderBidder, TenderLot, Supplier, Document, User, ProductItem
 from api.auth import get_current_user
+from utils.timezone import get_ai_date_context
 from schemas import (
     TenderCreate,
     TenderUpdate,
@@ -924,7 +925,12 @@ CPV код: {tender.cpv_code or 'Н/А'}
             model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
             model = genai.GenerativeModel(model_name)
 
-            prompt = f"""Анализирај го овој јавен тендер и дај структурирано резиме на македонски јазик.
+            # Add date context
+            date_context = get_ai_date_context()
+
+            prompt = f"""{date_context}
+
+Анализирај го овој јавен тендер и дај структурирано резиме на македонски јазик.
 
 {tender_context}
 
@@ -1653,7 +1659,12 @@ CPV код: {tender.cpv_code or 'Н/А'}
             model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
             model = genai.GenerativeModel(model_name)
 
-            prompt = f"""Анализирај го овој јавен тендер и дај структурирано резиме на македонски јазик.
+            # Add date context
+            date_context = get_ai_date_context()
+
+            prompt = f"""{date_context}
+
+Анализирај го овој јавен тендер и дај структурирано резиме на македонски јазик.
 
 {tender_context}
 
@@ -2052,6 +2063,65 @@ async def get_tender_bidders_by_id(
             }
             for b in bidders
         ]
+    }
+
+
+@router.get("/by-id/{tender_id:path}/ai-products")
+async def get_ai_products_by_id(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get AI-extracted products for a tender by any ID format."""
+    tender_id = tender_id.replace("%2F", "/").replace("%2f", "/")
+
+    # Check tender exists
+    tender_query = select(Tender).where(Tender.tender_id == tender_id)
+    result = await db.execute(tender_query)
+    tender = result.scalar_one_or_none()
+
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+
+    # Get product items for this tender
+    products_query = select(ProductItem).where(
+        ProductItem.tender_id == tender_id
+    ).order_by(ProductItem.item_number.asc().nullslast())
+    result = await db.execute(products_query)
+    products = result.scalars().all()
+
+    # Get count of source documents
+    doc_query = select(func.count(Document.doc_id)).where(
+        Document.tender_id == tender_id
+    )
+    doc_result = await db.execute(doc_query)
+    source_documents = doc_result.scalar() or 0
+
+    if not products:
+        return {
+            "tender_id": tender_id,
+            "extraction_status": "no_documents" if source_documents == 0 else "extraction_failed",
+            "products": [],
+            "summary": "Не се пронајдени производи во документацијата" if source_documents > 0 else "Нема достапни документи за анализа",
+            "source_documents": source_documents
+        }
+
+    return {
+        "tender_id": tender_id,
+        "extraction_status": "success",
+        "products": [
+            {
+                "name": p.name,
+                "quantity": str(p.quantity) if p.quantity else None,
+                "unit": p.unit,
+                "unit_price": str(p.unit_price) if p.unit_price else None,
+                "total_price": str(p.total_price) if p.total_price else None,
+                "specifications": json.dumps(p.specifications) if p.specifications else None,
+                "category": p.category
+            }
+            for p in products
+        ],
+        "summary": f"Извлечени {len(products)} производи/ставки од тендерската документација",
+        "source_documents": source_documents
     }
 
 
