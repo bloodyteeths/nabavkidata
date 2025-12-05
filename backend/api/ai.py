@@ -14,6 +14,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Add backend path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.timezone import now_mk, today_mk, get_ai_date_context
+
 # Add AI module to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../ai'))
 
@@ -29,8 +33,10 @@ try:
     GEMINI_AVAILABLE = bool(os.getenv('GEMINI_API_KEY'))
     if GEMINI_AVAILABLE:
         genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
 except ImportError:
     GEMINI_AVAILABLE = False
+    GEMINI_MODEL = 'gemini-2.0-flash'
 
 
 # ============================================================================
@@ -187,7 +193,7 @@ async def suggest_cpv_codes(
     # Try AI-based suggestion first
     if GEMINI_AVAILABLE:
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel(GEMINI_MODEL)
 
             prompt = f"""Analyze this procurement tender description and suggest the most relevant CPV (Common Procurement Vocabulary) codes.
 
@@ -206,13 +212,7 @@ Use 8-digit CPV codes (main category level).
 """
 
             # Relaxed safety settings for business content
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-            ]
-            response = model.generate_content(prompt, safety_settings=safety_settings)
+            response = model.generate_content(prompt)
             try:
                 response_text = response.text
             except ValueError:
@@ -318,7 +318,7 @@ async def extract_requirements(
 
     if GEMINI_AVAILABLE:
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel(GEMINI_MODEL)
 
             # Truncate text if too long
             doc_text = request.document_text[:15000]
@@ -349,13 +349,7 @@ Return maximum 20 most important requirements.
 """
 
             # Relaxed safety settings for business content
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-            ]
-            response = model.generate_content(prompt, safety_settings=safety_settings)
+            response = model.generate_content(prompt)
             try:
                 response_text = response.text
             except ValueError:
@@ -673,7 +667,6 @@ async def analyze_company(
     - AI-generated insights on strengths and patterns
     """
     from sqlalchemy import text
-    from datetime import datetime
 
     company_name = request.company_name.strip()
     if not company_name or len(company_name) < 3:
@@ -847,9 +840,14 @@ async def analyze_company(
     ai_insights = ""
     if GEMINI_AVAILABLE and (tender_stats["total_bids"] > 0 or recent_wins):
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel(GEMINI_MODEL)
 
-            context = f"""Analyze this competitor company in public procurement:
+            # Add date context
+            date_context = get_ai_date_context()
+
+            context = f"""{date_context}
+
+Analyze this competitor company in public procurement:
 
 Company: {company_name}
 
@@ -876,13 +874,7 @@ Provide a concise analysis in 3-4 sentences covering:
 Write in Macedonian language. Be specific and actionable."""
 
             # Relaxed safety settings for business content
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-            ]
-            response = model.generate_content(context, safety_settings=safety_settings)
+            response = model.generate_content(context)
             try:
                 ai_insights = response.text
             except ValueError:
@@ -908,7 +900,7 @@ Write in Macedonian language. Be specific and actionable."""
         frequent_institutions=frequent_institutions,
         product_specifications=product_specifications,
         ai_insights=ai_insights,
-        analysis_timestamp=datetime.utcnow().isoformat()
+        analysis_timestamp=now_mk().isoformat()
     )
 
 

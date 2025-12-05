@@ -304,12 +304,6 @@ async def query_rag_stream(
 
                 # 3. Generate answer with streaming
                 # Relaxed safety settings for business content
-                safety_settings = [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-                ]
                 model_obj = genai.GenerativeModel(pipeline.model)
 
                 # Stream response
@@ -320,7 +314,7 @@ async def query_rag_stream(
                         temperature=0.3,
                         max_output_tokens=1000
                     ),
-                    safety_settings=safety_settings,
+                    
                     stream=True
                 )
 
@@ -611,5 +605,5 @@ async def rag_health_check():
         "gemini_configured": bool(os.getenv('GEMINI_API_KEY')),
         "database_configured": bool(os.getenv('DATABASE_URL')),
         "service": "rag-api",
-        "model": "gemini-1.5-flash"
+        "model": os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
     }
