@@ -79,11 +79,26 @@ export default function CompetitorDetailPage() {
     try {
       setLoading(true);
       setError(null);
+      console.log("Loading company analysis for:", companyName);
       const data = await api.analyzeCompany(companyName);
+      console.log("Company analysis loaded:", data);
       setAnalysis(data);
     } catch (err: any) {
       console.error("Failed to load company analysis:", err);
-      setError(err.message || "Грешка при вчитување на анализата");
+      // More detailed error message
+      let errorMsg = "Грешка при вчитување на анализата";
+      if (err.message) {
+        if (err.message.includes("401")) {
+          errorMsg = "Сесијата истече. Најавете се повторно.";
+        } else if (err.message.includes("404")) {
+          errorMsg = "Не се пронајдени податоци за оваа компанија.";
+        } else if (err.message.includes("500")) {
+          errorMsg = "Серверска грешка. Обидете се подоцна.";
+        } else {
+          errorMsg = err.message;
+        }
+      }
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
