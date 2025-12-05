@@ -1577,20 +1577,20 @@ export default function TenderDetailPage() {
               <CardTitle className="text-base">Важни датуми</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {tender.opening_date && (
+              {tender.publication_date && (
                 <div className="flex items-start gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
                   <div>
-                    <p className="text-xs font-medium">Отворен</p>
-                    <p className="text-sm">{formatDate(tender.opening_date)}</p>
+                    <p className="text-xs font-medium">Објавен</p>
+                    <p className="text-sm">{formatDate(tender.publication_date)}</p>
                   </div>
                 </div>
               )}
               {tender.closing_date && (
                 <div className="flex items-start gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <Clock className="h-4 w-4 text-orange-500 mt-0.5" />
                   <div>
-                    <p className="text-xs font-medium">Рок</p>
+                    <p className="text-xs font-medium">Краен рок</p>
                     <p className="text-sm">{formatDate(tender.closing_date)}</p>
                   </div>
                 </div>
