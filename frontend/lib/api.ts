@@ -378,6 +378,9 @@ class APIClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // Debug logging for failed requests
+    console.log(`[API] ${options?.method || 'GET'} ${endpoint}`, { hasToken: !!token, tokenLength: token?.length });
+
     // Add CSRF token for state-changing operations on billing endpoints
     if (
       options?.method &&
