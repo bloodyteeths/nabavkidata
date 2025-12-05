@@ -276,14 +276,14 @@ export default function CompetitorDetailPage() {
 
       {/* AI Insights */}
       {analysis.ai_insights && (
-        <Card className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <span className="text-blue-600">AI</span> Анализа
+              <span className="text-blue-500">AI</span> Анализа
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm whitespace-pre-wrap">{analysis.ai_insights}</p>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed text-muted-foreground">{analysis.ai_insights}</p>
           </CardContent>
         </Card>
       )}
