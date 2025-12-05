@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import ActivityFeed from "@/components/competitors/ActivityFeed";
 import {
   ArrowLeft,
   Building2,
@@ -243,7 +242,7 @@ export default function CompetitorDetailPage() {
               <TrendingUp className="h-4 w-4" />
               Успешност
             </div>
-            <p className="text-3xl font-bold">{(analysis.tender_stats.win_rate * 100).toFixed(1)}%</p>
+            <p className="text-3xl font-bold">{analysis.tender_stats.win_rate.toFixed(1)}%</p>
           </CardContent>
         </Card>
 
