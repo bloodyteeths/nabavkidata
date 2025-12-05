@@ -26,23 +26,14 @@ export default function DashboardPage() {
     loadDashboard();
   }, [isHydrated, user]);
 
-  async function loadDashboard(refreshVector: boolean = false) {
+  async function loadDashboard() {
     if (!user?.user_id) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      // If requested, refresh interest vector for fresh personalized analysis
-      if (refreshVector) {
-        try {
-          await api.refreshInterestVector();
-        } catch (e) {
-          console.log("Interest vector refresh skipped (may not exist yet):", e);
-        }
-      }
-
-      // Get personalized dashboard data
+      // Get personalized dashboard data (backend generates fresh analysis each time)
       const dashboardData = await api.getPersonalizedDashboard(user.user_id);
       setData(dashboardData);
     } catch (error) {
@@ -141,13 +132,13 @@ export default function DashboardPage() {
           </p>
         </div>
         <Button
-          onClick={() => loadDashboard(true)}
+          onClick={() => loadDashboard()}
           disabled={loading}
           className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.3)] h-9 md:h-10 text-xs md:text-sm"
         >
           <Sparkles className={`mr-2 h-3 w-3 md:h-4 md:w-4 ${loading ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline">{loading ? 'Анализирам...' : 'Нова Анализа'}</span>
-          <span className="sm:hidden">{loading ? '...' : 'Анализа'}</span>
+          <span className="hidden sm:inline">{loading ? 'Анализирам...' : 'Освежи'}</span>
+          <span className="sm:hidden">{loading ? '...' : 'Освежи'}</span>
         </Button>
       </div>
 
