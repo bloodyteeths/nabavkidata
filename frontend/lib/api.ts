@@ -393,6 +393,7 @@ class APIClient {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
     // Handle 401 Unauthorized - token refresh needed
@@ -422,6 +423,7 @@ class APIClient {
             const retryResponse = await fetch(`${this.baseURL}${endpoint}`, {
               ...options,
               headers,
+              credentials: 'include',
             });
 
             if (retryResponse.ok) {
