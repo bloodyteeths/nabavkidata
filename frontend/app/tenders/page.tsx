@@ -139,11 +139,11 @@ export default function TendersPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6">
+    <div className="p-3 md:p-6 lg:p-8 space-y-4 md:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold">Истражувач на Тендери</h1>
-        <p className="text-sm md:text-base text-muted-foreground">
+        <h1 className="text-xl md:text-3xl font-bold">Истражувач на Тендери</h1>
+        <p className="text-xs md:text-base text-muted-foreground">
           Пребарувајте и филтрирајте тендери по статус, категорија, буџет и други критериуми
         </p>
       </div>
@@ -194,11 +194,11 @@ export default function TendersPage() {
         {/* Tenders List */}
         <div className="lg:col-span-3 space-y-4">
           {/* Results Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2">
             <p className="text-xs md:text-sm text-muted-foreground">
               {total.toLocaleString()} резултати {filters.search && `за "${filters.search}"`}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
               <p className="text-xs md:text-sm text-muted-foreground">
                 Страна {page} од {totalPages}
               </p>

@@ -418,16 +418,16 @@ export default function CompetitorsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
         <div>
-          <h1 className="text-2xl font-bold">Анализа на конкуренти</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl md:text-2xl font-bold">Анализа на конкуренти</h1>
+          <p className="text-xs md:text-sm text-muted-foreground">
             Следете ги топ компаниите и нивната активност
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={load} disabled={loading}>
-          <RefreshCcw className="h-4 w-4 mr-2" />
+        <Button size="sm" variant="outline" onClick={load} disabled={loading} className="w-full sm:w-auto h-8 md:h-10 text-xs md:text-sm">
+          <RefreshCcw className="h-3 w-3 md:h-4 md:w-4 mr-2" />
           Освежи
         </Button>
       </div>
@@ -444,33 +444,35 @@ export default function CompetitorsPage() {
       />
 
       {/* Tabs for Top Competitors and Tracked Activity */}
-      <Tabs defaultValue="top" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="top" className="flex items-center gap-2">
-            <Trophy className="h-4 w-4" />
-            Топ конкуренти
-          </TabsTrigger>
-          <TabsTrigger value="tracked" className="flex items-center gap-2">
-            <Star className="h-4 w-4" />
-            Следени ({trackedCompetitors.length})
-          </TabsTrigger>
-          <TabsTrigger value="comparison" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Споредба
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="flex items-center gap-2">
-            <Activity className="h-4 w-4" />
-            Активност
-          </TabsTrigger>
-          <TabsTrigger value="ai-analysis" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            AI Анализа
-          </TabsTrigger>
-          <TabsTrigger value="head-to-head" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Head-to-Head
-          </TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="top" className="space-y-3 md:space-y-4">
+        <div className="overflow-x-auto pb-2 -mx-3 px-3 md:mx-0 md:px-0 md:pb-0">
+          <TabsList className="inline-flex w-auto h-auto p-1">
+            <TabsTrigger value="top" className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2">
+              <Trophy className="h-3 w-3 md:h-4 md:w-4" />
+              Топ конкуренти
+            </TabsTrigger>
+            <TabsTrigger value="tracked" className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2">
+              <Star className="h-3 w-3 md:h-4 md:w-4" />
+              Следени ({trackedCompetitors.length})
+            </TabsTrigger>
+            <TabsTrigger value="comparison" className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2">
+              <TrendingUp className="h-3 w-3 md:h-4 md:w-4" />
+              Споредба
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2">
+              <Activity className="h-3 w-3 md:h-4 md:w-4" />
+              Активност
+            </TabsTrigger>
+            <TabsTrigger value="ai-analysis" className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2">
+              <Bot className="h-3 w-3 md:h-4 md:w-4" />
+              AI Анализа
+            </TabsTrigger>
+            <TabsTrigger value="head-to-head" className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2">
+              <Users className="h-3 w-3 md:h-4 md:w-4" />
+              Head-to-Head
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Top Competitors Tab */}
         <TabsContent value="top" className="space-y-4">
@@ -499,16 +501,16 @@ export default function CompetitorsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Competitors List */}
               <Card className="lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-yellow-500" />
+                <CardHeader className="p-4 md:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <Trophy className="h-4 w-4 md:h-5 md:w-5 text-yellow-500" />
                     Топ конкуренти
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-xs md:text-sm">
                     Кликнете на ѕвездата за да следите компанија
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 p-4 md:p-6 pt-0">
                   {data.competitors?.length ? (
                     data.competitors.map((row, idx) => {
                       const companyName = row.name || row.company_name || "Непознат";
@@ -517,36 +519,36 @@ export default function CompetitorsPage() {
                       return (
                         <div
                           key={idx}
-                          className="flex items-center justify-between border-b pb-3 last:border-0"
+                          className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 last:border-0 gap-3 sm:gap-0"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-sm font-medium">
+                          <div className="flex items-start sm:items-center gap-3">
+                            <div className="flex items-center justify-center w-6 h-6 md:w-8 md:h-8 rounded-full bg-muted text-xs md:text-sm font-medium flex-shrink-0 mt-0.5 sm:mt-0">
                               {idx + 1}
                             </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <Link
                                   href={`/competitors/${encodeURIComponent(companyName)}`}
-                                  className="font-medium hover:text-primary hover:underline transition-colors"
+                                  className="font-medium hover:text-primary hover:underline transition-colors text-sm md:text-base line-clamp-1"
                                 >
                                   {companyName}
                                 </Link>
                                 {tracked && (
-                                  <Badge variant="secondary" className="text-xs">
+                                  <Badge variant="secondary" className="text-[10px] md:text-xs px-1.5 py-0">
                                     <Star className="h-3 w-3 mr-1 fill-yellow-500 text-yellow-500" />
                                     Следена
                                   </Badge>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-[10px] md:text-xs text-muted-foreground mt-0.5">
                                 Вкупна вредност: {(row.total_value_mkd || 0).toLocaleString()} МКД
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <p className="font-semibold text-green-600">{row.wins ?? 0} победи</p>
-                              <p className="text-xs text-muted-foreground">
+                          <div className="flex items-center justify-between sm:justify-end gap-3 pl-9 sm:pl-0">
+                            <div className="text-left sm:text-right">
+                              <p className="font-semibold text-green-600 text-sm md:text-base">{row.wins ?? 0} победи</p>
+                              <p className="text-[10px] md:text-xs text-muted-foreground">
                                 {row.bids_count ?? 0} понуди
                                 {row.win_rate !== undefined && ` · ${row.win_rate}% успешност`}
                               </p>
@@ -557,13 +559,14 @@ export default function CompetitorsPage() {
                               onClick={() => toggleTrack(companyName)}
                               disabled={trackingLoading === companyName}
                               title={tracked ? "Отстрани од следење" : "Следи компанија"}
+                              className="h-8 w-8 md:h-10 md:w-10"
                             >
                               {trackingLoading === companyName ? (
-                                <RefreshCcw className="h-4 w-4 animate-spin" />
+                                <RefreshCcw className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
                               ) : tracked ? (
-                                <Star className="h-5 w-5 fill-yellow-500 text-yellow-500" />
+                                <Star className="h-4 w-4 md:h-5 md:w-5 fill-yellow-500 text-yellow-500" />
                               ) : (
-                                <StarOff className="h-5 w-5 text-muted-foreground" />
+                                <StarOff className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
                               )}
                             </Button>
                           </div>
@@ -580,40 +583,40 @@ export default function CompetitorsPage() {
 
               {/* Summary */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
+                <CardHeader className="p-4 md:p-6">
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <TrendingUp className="h-4 w-4 md:h-5 md:w-5" />
                     Резиме
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3 md:space-y-4 p-4 md:p-6 pt-0">
                   {data.summary ? (
                     <>
-                      <div className="flex justify-between items-center">
+                      <div className="flex justify-between items-center text-sm md:text-base">
                         <span className="text-muted-foreground">Вкупно понудувачи</span>
-                        <span className="font-bold text-lg">
+                        <span className="font-bold">
                           {(data.summary.total_bidders || 0).toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
+                      <div className="flex justify-between items-center text-sm md:text-base">
                         <span className="text-muted-foreground">Вкупно понуди</span>
-                        <span className="font-bold text-lg">
+                        <span className="font-bold">
                           {(data.summary.total_bids || 0).toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
+                      <div className="flex justify-between items-center text-sm md:text-base">
                         <span className="text-muted-foreground">Вкупно доделени</span>
-                        <span className="font-bold text-lg">
+                        <span className="font-bold">
                           {(data.summary.total_awards || 0).toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center pt-2 border-t">
+                      <div className="flex justify-between items-center pt-2 border-t text-sm md:text-base">
                         <span className="text-muted-foreground">Вкупна вредност</span>
-                        <span className="font-bold text-lg text-green-600">
+                        <span className="font-bold text-green-600">
                           {((data.summary.total_awarded_value_mkd || 0) / 1_000_000).toFixed(1)}M МКД
                         </span>
                       </div>
-                      <div className="text-xs text-muted-foreground pt-2">
+                      <div className="text-[10px] md:text-xs text-muted-foreground pt-1 md:pt-2">
                         Период: {data.summary.period === "1y" ? "Последна година" : data.summary.period}
                       </div>
                     </>
@@ -721,12 +724,12 @@ export default function CompetitorsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Search Input */}
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Внесете име на компанија за анализа..."
-                    className="pl-9"
+                    className="pl-9 h-9 md:h-10 text-sm"
                     value={analysisCompany}
                     onChange={(e) => setAnalysisCompany(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && runCompanyAnalysis()}
@@ -735,6 +738,7 @@ export default function CompetitorsPage() {
                 <Button
                   onClick={() => runCompanyAnalysis()}
                   disabled={analysisLoading || analysisCompany.length < 3}
+                  className="w-full sm:w-auto h-9 md:h-10"
                 >
                   {analysisLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />

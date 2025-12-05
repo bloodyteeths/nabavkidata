@@ -105,15 +105,15 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-6xl">
-      <div className="flex justify-between items-center mb-8">
+    <div className="container mx-auto py-4 md:py-8 px-3 md:px-4 max-w-6xl">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Наплата</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2">Наплата</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Управувајте со вашата претплата и наплата
           </p>
         </div>
-        <Button onClick={() => router.push('/billing/plans')}>
+        <Button onClick={() => router.push('/billing/plans')} className="w-full md:w-auto">
           Прегледај планови
         </Button>
       </div>
@@ -129,49 +129,49 @@ export default function BillingPage() {
         </Card>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2 mb-6">
+      <div className="grid gap-4 md:gap-6 md:grid-cols-2 mb-4 md:mb-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+              <CreditCard className="h-4 w-4 md:h-5 md:w-5" />
               Тековна претплата
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-4 md:p-6 pt-0">
             {subscription ? (
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold">{subscription.plan.name}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xl md:text-2xl font-bold">{subscription.plan.name}</p>
+                    <p className="text-xs md:text-sm text-muted-foreground">
                       {subscription.plan.price_mkd.toLocaleString()} ден / месечно
                     </p>
                   </div>
                   {getStatusBadge(subscription.status)}
                 </div>
 
-                <div className="space-y-2 pt-4 border-t">
-                  <div className="flex justify-between text-sm">
+                <div className="space-y-2 pt-4 border-t mt-4">
+                  <div className="flex justify-between text-xs md:text-sm">
                     <span className="text-muted-foreground">Започнува:</span>
                     <span>{formatDateDisplay(subscription.current_period_start)}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-xs md:text-sm">
                     <span className="text-muted-foreground">Обновување:</span>
                     <span>{formatDateDisplay(subscription.current_period_end)}</span>
                   </div>
                   {subscription.cancel_at_period_end && (
-                    <div className="flex items-center gap-2 text-sm text-destructive">
-                      <AlertCircle className="h-4 w-4" />
+                    <div className="flex items-center gap-2 text-xs md:text-sm text-destructive">
+                      <AlertCircle className="h-3 w-3 md:h-4 md:w-4" />
                       <span>Ќе биде откажана на крајот на периодот</span>
                     </div>
                   )}
                 </div>
 
-                <div className="flex gap-2 pt-4">
+                <div className="flex flex-col sm:flex-row gap-2 pt-4">
                   <Button
                     variant="outline"
                     onClick={handleManagePayment}
-                    className="flex-1"
+                    className="flex-1 text-xs md:text-sm h-9 md:h-10"
                   >
                     Управувај наплата
                   </Button>
@@ -180,7 +180,7 @@ export default function BillingPage() {
                       variant="destructive"
                       onClick={handleCancelSubscription}
                       disabled={cancelling}
-                      className="flex-1"
+                      className="flex-1 text-xs md:text-sm h-9 md:h-10"
                     >
                       {cancelling ? 'Се откажува...' : 'Откажи'}
                     </Button>
@@ -188,11 +188,11 @@ export default function BillingPage() {
                 </div>
               </>
             ) : (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">
+              <div className="text-center py-6 md:py-8">
+                <p className="text-muted-foreground mb-4 text-sm md:text-base">
                   Немате активна претплата
                 </p>
-                <Button onClick={() => router.push('/billing/plans')}>
+                <Button onClick={() => router.push('/billing/plans')} className="w-full sm:w-auto">
                   Изберете план
                 </Button>
               </div>
@@ -201,19 +201,19 @@ export default function BillingPage() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+              <TrendingUp className="h-4 w-4 md:h-5 md:w-5" />
               Користење
             </CardTitle>
-            <CardDescription>За периодот: {usage?.period}</CardDescription>
+            <CardDescription className="text-xs md:text-sm">За периодот: {usage?.period}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-4 md:p-6 pt-0 space-y-4">
             {usage ? (
               <>
                 <div className="space-y-3">
                   <div>
-                    <div className="flex justify-between text-sm mb-1">
+                    <div className="flex justify-between text-xs md:text-sm mb-1">
                       <span className="text-muted-foreground">Прегледани тендери</span>
                       <span className="font-medium">
                         {usage.tenders_viewed} / {usage.limit === -1 ? '∞' : usage.limit}
@@ -230,7 +230,7 @@ export default function BillingPage() {
                   </div>
 
                   <div>
-                    <div className="flex justify-between text-sm mb-1">
+                    <div className="flex justify-between text-xs md:text-sm mb-1">
                       <span className="text-muted-foreground">Пребарувања</span>
                       <span className="font-medium">{usage.searches_made}</span>
                     </div>
@@ -239,8 +239,8 @@ export default function BillingPage() {
 
                 {usage.limit !== -1 && usage.tenders_viewed >= usage.limit * 0.8 && (
                   <div className="flex items-start gap-2 p-3 bg-warning/10 rounded-lg border border-warning">
-                    <AlertCircle className="h-5 w-5 text-warning mt-0.5" />
-                    <div className="text-sm">
+                    <AlertCircle className="h-4 w-4 md:h-5 md:w-5 text-warning mt-0.5" />
+                    <div className="text-xs md:text-sm">
                       <p className="font-medium text-warning">Близу до лимитот</p>
                       <p className="text-muted-foreground">
                         Надградете го планот за неограничено користење
@@ -250,7 +250,7 @@ export default function BillingPage() {
                 )}
               </>
             ) : (
-              <p className="text-center text-muted-foreground py-8">
+              <p className="text-center text-muted-foreground py-6 md:py-8 text-sm md:text-base">
                 Нема податоци за користење
               </p>
             )}
@@ -259,16 +259,16 @@ export default function BillingPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+            <Calendar className="h-4 w-4 md:h-5 md:w-5" />
             Историја на наплата
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 md:p-6 pt-0">
           {invoices.length > 0 ? (
             <div className="space-y-2">
-              <div className="grid grid-cols-4 gap-4 pb-3 border-b text-sm font-medium text-muted-foreground">
+              <div className="hidden md:grid grid-cols-4 gap-4 pb-3 border-b text-sm font-medium text-muted-foreground">
                 <div>Датум</div>
                 <div>Износ</div>
                 <div>Статус</div>
@@ -277,25 +277,31 @@ export default function BillingPage() {
               {invoices.map((invoice) => (
                 <div
                   key={invoice.id}
-                  className="grid grid-cols-4 gap-4 py-3 border-b last:border-0 text-sm"
+                  className="flex flex-col md:grid md:grid-cols-4 gap-2 md:gap-4 py-3 border-b last:border-0 text-sm"
                 >
-                  <div>{formatDateDisplay(invoice.created_at)}</div>
-                  <div className="font-medium">
+                  <div className="flex justify-between md:block">
+                    <span className="md:hidden text-muted-foreground">Датум:</span>
+                    {formatDateDisplay(invoice.created_at)}
+                  </div>
+                  <div className="flex justify-between md:block font-medium">
+                    <span className="md:hidden text-muted-foreground font-normal">Износ:</span>
                     {invoice.amount.toLocaleString()} ден
                   </div>
-                  <div>
+                  <div className="flex justify-between md:block">
+                    <span className="md:hidden text-muted-foreground">Статус:</span>
                     <Badge variant={invoice.status === 'paid' ? 'success' : 'warning'}>
                       {invoice.status === 'paid' ? 'Платена' : 'Неплатена'}
                     </Badge>
                   </div>
-                  <div>
+                  <div className="flex justify-end md:block">
                     {invoice.invoice_pdf && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => window.open(invoice.invoice_pdf, '_blank')}
+                        className="h-8 text-xs"
                       >
-                        <Download className="h-4 w-4 mr-1" />
+                        <Download className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                         Преземи
                       </Button>
                     )}
@@ -304,7 +310,7 @@ export default function BillingPage() {
               ))}
             </div>
           ) : (
-            <p className="text-center text-muted-foreground py-8">
+            <p className="text-center text-muted-foreground py-6 md:py-8 text-sm md:text-base">
               Нема историја на наплата
             </p>
           )}

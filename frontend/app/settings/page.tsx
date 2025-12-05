@@ -1205,10 +1205,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Поставки</h1>
-        <p className="text-muted-foreground mt-2">
+    <div className="container mx-auto py-4 md:py-8 px-3 md:px-4 max-w-6xl">
+      <div className="mb-4 md:mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold">Поставки</h1>
+        <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2">
           Конфигурирајте ги вашите преференци за да добивате персонализирани препораки за тендери
         </p>
       </div>
@@ -1216,20 +1216,20 @@ export default function SettingsPage() {
       <div className="space-y-6">
         {/* Subscription Plans */}
         <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+              <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-primary" />
               Претплата и цени
             </CardTitle>
-            <CardDescription>Одберете го планот што најдобро одговара на вашите потреби</CardDescription>
+            <CardDescription className="text-xs md:text-sm">Одберете го планот што најдобро одговара на вашите потреби</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6 pt-0">
             {/* Monthly/Yearly Toggle */}
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-4 md:mb-6">
               <div className="inline-flex rounded-lg border border-primary/20 p-1 bg-background/50">
                 <button
                   onClick={() => setInterval('monthly')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${interval === 'monthly'
+                  className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition-all ${interval === 'monthly'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                     }`}
@@ -1238,21 +1238,21 @@ export default function SettingsPage() {
                 </button>
                 <button
                   onClick={() => setInterval('yearly')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${interval === 'yearly'
+                  className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition-all ${interval === 'yearly'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                     }`}
                 >
                   Годишно
-                  <Badge variant="secondary" className="ml-2 bg-green-500/10 text-green-400 border-green-500/20">
-                    Заштеди 17%
+                  <Badge variant="secondary" className="ml-1 md:ml-2 bg-green-500/10 text-green-400 border-green-500/20 text-[10px] md:text-xs px-1 py-0">
+                    -17%
                   </Badge>
                 </button>
               </div>
             </div>
 
             {/* Plans Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {plans.map((plan) => {
                 const isCurrentPlan = plan.tier === currentTier;
                 const price = interval === 'monthly' ? plan.price_monthly_mkd : plan.price_yearly_mkd;
@@ -1262,70 +1262,70 @@ export default function SettingsPage() {
                 return (
                   <div key={plan.tier} className="relative">
                     {isPopular && (
-                      <div className="absolute -top-4 left-0 right-0 flex justify-center">
-                        <Badge className="bg-primary text-primary-foreground">
+                      <div className="absolute -top-3 md:-top-4 left-0 right-0 flex justify-center z-10">
+                        <Badge className="bg-primary text-primary-foreground text-[10px] md:text-xs">
                           Најпопуларно
                         </Badge>
                       </div>
                     )}
                     <Card className={`h-full ${isCurrentPlan ? 'border-primary shadow-lg shadow-primary/20' : ''} ${isPopular ? 'border-primary/50' : ''}`}>
-                      <CardHeader>
+                      <CardHeader className="p-4 md:p-6">
                         <div className="flex items-center justify-between">
-                          <CardTitle className="text-xl">{plan.name}</CardTitle>
+                          <CardTitle className="text-lg md:text-xl">{plan.name}</CardTitle>
                           {isCurrentPlan && (
-                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] md:text-xs">
                               Тековен
                             </Badge>
                           )}
                         </div>
-                        <div className="mt-4">
+                        <div className="mt-2 md:mt-4">
                           <div className="flex items-baseline gap-1">
-                            <span className="text-4xl font-bold">{price.toLocaleString('mk-MK')}</span>
-                            <span className="text-muted-foreground">
+                            <span className="text-2xl md:text-4xl font-bold">{price.toLocaleString('mk-MK')}</span>
+                            <span className="text-xs md:text-sm text-muted-foreground">
                               ден{isFree ? '/засекогаш' : `/${interval === 'monthly' ? 'мес' : 'год'}`}
                             </span>
                           </div>
                           {!isFree && interval === 'yearly' && (
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <p className="text-xs md:text-sm text-muted-foreground mt-1">
                               {Math.round(price / 12).toLocaleString('mk-MK')} ден месечно
                             </p>
                           )}
                         </div>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Zap className="h-4 w-4 text-primary" />
+                      <CardContent className="p-4 md:p-6 pt-0 space-y-3 md:space-y-4">
+                        <div className="flex items-center gap-2 text-xs md:text-sm">
+                          <Zap className="h-3 w-3 md:h-4 md:w-4 text-primary" />
                           <span className="font-medium">
                             {plan.daily_queries === -1 ? 'Неограничени' : plan.daily_queries} AI пребарувања дневно
                           </span>
                         </div>
                         {plan.trial_days > 0 && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Check className="h-4 w-4" />
+                          <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
+                            <Check className="h-3 w-3 md:h-4 md:w-4" />
                             <span>{plan.trial_days}-дневен пробен период</span>
                           </div>
                         )}
                         <div className="space-y-2 pt-2 border-t">
                           {plan.features.map((feature, idx) => (
-                            <div key={idx} className="flex items-start gap-2 text-sm">
-                              <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                            <div key={idx} className="flex items-start gap-2 text-xs md:text-sm">
+                              <Check className="h-3 w-3 md:h-4 md:w-4 text-primary mt-0.5 flex-shrink-0" />
                               <span className="text-muted-foreground">{feature}</span>
                             </div>
                           ))}
                         </div>
                         <div className="pt-4">
                           {isCurrentPlan ? (
-                            <Button variant="outline" className="w-full" onClick={handleManageBilling}>
-                              <CreditCard className="mr-2 h-4 w-4" />
+                            <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" onClick={handleManageBilling}>
+                              <CreditCard className="mr-2 h-3 w-3 md:h-4 md:w-4" />
                               Управувај претплата
                             </Button>
                           ) : isFree ? (
-                            <Button variant="outline" className="w-full" disabled>
+                            <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" disabled>
                               Тековен план
                             </Button>
                           ) : (
                             <Button
-                              className={`w-full ${isPopular ? 'bg-primary hover:bg-primary/90' : ''}`}
+                              className={`w-full text-xs md:text-sm h-8 md:h-10 ${isPopular ? 'bg-primary hover:bg-primary/90' : ''}`}
                               onClick={() => handleUpgrade(plan.tier)}
                               disabled={upgrading === plan.tier}
                             >
@@ -1341,8 +1341,8 @@ export default function SettingsPage() {
             </div>
 
             {currentTier === 'free' && (
-              <div className="mt-6 p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                <p className="text-sm text-orange-400">
+              <div className="mt-4 md:mt-6 p-3 md:p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                <p className="text-xs md:text-sm text-orange-400">
                   <strong>Важно:</strong> Бесплатниот план е ограничен на 14 дена. По истекот на пробниот период, ќе треба да надоградите за да продолжите да ја користите платформата.
                 </p>
               </div>
@@ -1352,42 +1352,41 @@ export default function SettingsPage() {
 
         {/* Sectors - Improved with descriptions */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
               Сектори на интерес
-              <span className="text-xs font-normal text-muted-foreground bg-primary/10 px-2 py-1 rounded">
+              <span className="text-[10px] md:text-xs font-normal text-muted-foreground bg-primary/10 px-2 py-1 rounded">
                 {preferences.sectors.length} избрани
               </span>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs md:text-sm">
               Одберете ги секторите за кои сакате да добивате препораки. Можете да изберете повеќе сектори.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <CardContent className="p-4 md:p-6 pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
               {AVAILABLE_SECTORS.map((sector) => (
                 <div
                   key={sector.id}
                   onClick={() => toggleSector(sector.id)}
-                  className={`cursor-pointer p-3 rounded-lg border transition-all ${
-                    preferences.sectors.includes(sector.id)
+                  className={`cursor-pointer p-3 rounded-lg border transition-all ${preferences.sectors.includes(sector.id)
                       ? 'border-primary bg-primary/10 shadow-sm'
                       : 'border-border hover:border-primary/50 hover:bg-accent/50'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{sector.label}</span>
+                    <span className="font-medium text-sm md:text-base">{sector.label}</span>
                     {preferences.sectors.includes(sector.id) && (
-                      <Check className="h-4 w-4 text-primary" />
+                      <Check className="h-3 w-3 md:h-4 md:w-4 text-primary" />
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">{sector.description}</p>
+                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1">{sector.description}</p>
                 </div>
               ))}
             </div>
             {preferences.sectors.length === 0 && (
-              <p className="text-sm text-muted-foreground mt-3 flex items-center gap-2">
-                <HelpCircle className="h-4 w-4" />
+              <p className="text-xs md:text-sm text-muted-foreground mt-3 flex items-center gap-2">
+                <HelpCircle className="h-3 w-3 md:h-4 md:w-4" />
                 Изберете барем еден сектор за подобри препораки
               </p>
             )}
@@ -1396,19 +1395,19 @@ export default function SettingsPage() {
 
         {/* CPV Codes - Searchable dropdown with multi-select */}
         <Card className={`relative ${showCpvDropdown ? 'z-[200]' : ''}`}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
               CPV Кодови
-              <span className="text-xs font-normal text-muted-foreground bg-primary/10 px-2 py-1 rounded">
+              <span className="text-[10px] md:text-xs font-normal text-muted-foreground bg-primary/10 px-2 py-1 rounded">
                 {preferences.cpv_codes.length} додадени
               </span>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs md:text-sm">
               CPV (Common Procurement Vocabulary) кодовите се стандардизирани EU кодови за категоризација на набавки.
               Пребарајте и изберете кодови за попрецизни препораки.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6 pt-0">
             {/* Searchable CPV dropdown */}
             <div className="relative mb-4">
               <div
@@ -1506,18 +1505,18 @@ export default function SettingsPage() {
 
         {/* Entities - With autocomplete */}
         <Card className="relative z-[50]">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
               Набавувачки организации
-              <span className="text-xs font-normal text-muted-foreground bg-primary/10 px-2 py-1 rounded">
+              <span className="text-[10px] md:text-xs font-normal text-muted-foreground bg-primary/10 px-2 py-1 rounded">
                 {preferences.entities.length} следени
               </span>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs md:text-sm">
               Додадете имиња на институции/организации чии тендери сакате да ги следите (министерства, општини, јавни претпријатија и сл.)
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6 pt-0">
             <div className="flex gap-2 mb-3">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
@@ -1575,11 +1574,11 @@ export default function SettingsPage() {
 
         {/* Budget - With presets and validation */}
         <Card>
-          <CardHeader>
-            <CardTitle>Буџетски опсег</CardTitle>
-            <CardDescription>Дефинирајте минимален и максимален буџет за тендерите што ве интересираат (во МКД)</CardDescription>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-lg md:text-xl">Буџетски опсег</CardTitle>
+            <CardDescription className="text-xs md:text-sm">Дефинирајте минимален и максимален буџет за тендерите што ве интересираат (во МКД)</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6 pt-0">
             {/* Budget presets */}
             <div className="mb-4">
               <p className="text-sm font-medium mb-2">Брзи опции:</p>
@@ -1652,18 +1651,18 @@ export default function SettingsPage() {
 
         {/* Exclude Keywords */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
               Исклучени клучни зборови
-              <span className="text-xs font-normal text-destructive/70 bg-destructive/10 px-2 py-1 rounded">
+              <span className="text-[10px] md:text-xs font-normal text-destructive/70 bg-destructive/10 px-2 py-1 rounded">
                 {preferences.exclude_keywords.length} исклучени
               </span>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs md:text-sm">
               Тендери што содржат овие зборови во насловот нема да се прикажуваат во вашите препораки
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6 pt-0">
             <div className="flex gap-2 mb-3">
               <Input
                 placeholder="Внесете збор за исклучување (пр. санација, ремонт)"
@@ -1695,18 +1694,18 @@ export default function SettingsPage() {
 
         {/* Competitor Companies - With autocomplete */}
         <Card className="relative z-[70]">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
               Конкурентски компании
-              <span className="text-xs font-normal text-orange-400 bg-orange-500/10 px-2 py-1 rounded">
+              <span className="text-[10px] md:text-xs font-normal text-orange-400 bg-orange-500/10 px-2 py-1 rounded">
                 {preferences.competitor_companies.length} следени
               </span>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs md:text-sm">
               Следете ги активностите на конкурентските компании - ќе добиете известувања кога тие добиваат тендери
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6 pt-0">
             <div className="flex gap-2 mb-3">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
@@ -1764,11 +1763,11 @@ export default function SettingsPage() {
 
         {/* Notifications */}
         <Card>
-          <CardHeader>
-            <CardTitle>Нотификации</CardTitle>
-            <CardDescription>Конфигурирајте како сакате да примате известувања за нови тендери и активности</CardDescription>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-lg md:text-xl">Нотификации</CardTitle>
+            <CardDescription className="text-xs md:text-sm">Конфигурирајте како сакате да примате известувања за нови тендери и активности</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6 pt-0">
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Фреквенција на email известувања</label>
@@ -1803,12 +1802,12 @@ export default function SettingsPage() {
         </Card>
 
         {/* Save/Reset Buttons */}
-        <div className="flex gap-3 justify-end sticky bottom-4 bg-background/80 backdrop-blur-sm p-4 rounded-lg border z-[60]">
-          <Button variant="outline" onClick={handleReset}>Ресетирај се</Button>
+        <div className="flex gap-2 md:gap-3 justify-end sticky bottom-3 md:bottom-4 bg-background/80 backdrop-blur-sm p-3 md:p-4 rounded-lg border z-[60]">
+          <Button variant="outline" onClick={handleReset} className="text-xs md:text-sm h-9 md:h-10">Ресетирај се</Button>
           <Button
             onClick={handleSave}
             disabled={saving || !!budgetError}
-            className="min-w-32"
+            className="min-w-24 md:min-w-32 text-xs md:text-sm h-9 md:h-10"
           >
             {saving ? "Се зачувува..." : "Зачувај преференци"}
           </Button>

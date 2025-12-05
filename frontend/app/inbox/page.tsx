@@ -130,52 +130,52 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Приемно сандаче</h1>
-        <p className="text-muted-foreground">Преглед на е-мејл дигести и системски известувања</p>
+    <div className="container mx-auto p-3 md:p-6 max-w-7xl">
+      <div className="mb-4 md:mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2">Приемно сандаче</h1>
+        <p className="text-xs md:text-sm text-muted-foreground">Преглед на е-мејл дигести и системски известувања</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Вкупно дигести</CardTitle>
-            <Inbox className="h-4 w-4 text-muted-foreground" />
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
+        <Card className="col-span-2 md:col-span-1">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-4 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Вкупно дигести</CardTitle>
+            <Inbox className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{digests.length}</div></CardContent>
+          <CardContent className="p-4 md:p-6 pt-0"><div className="text-xl md:text-2xl font-bold">{digests.length}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Непрочитани дигести</CardTitle>
-            <Mail className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-4 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Непрочитани дигести</CardTitle>
+            <Mail className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{unreadDigestsCount}</div></CardContent>
+          <CardContent className="p-4 md:p-6 pt-0"><div className="text-xl md:text-2xl font-bold">{unreadDigestsCount}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Непрочитани известувања</CardTitle>
-            <Bell className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-4 md:p-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Непрочитани известувања</CardTitle>
+            <Bell className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{unreadAlertsCount}</div></CardContent>
+          <CardContent className="p-4 md:p-6 pt-0"><div className="text-xl md:text-2xl font-bold">{unreadAlertsCount}</div></CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="digests" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="digests"><Mail className="h-4 w-4 mr-2" />Е-мејл дигести</TabsTrigger>
-          <TabsTrigger value="alerts"><Bell className="h-4 w-4 mr-2" />Системски известувања</TabsTrigger>
+      <Tabs defaultValue="digests" className="space-y-3 md:space-y-4">
+        <TabsList className="h-9 md:h-10">
+          <TabsTrigger value="digests" className="text-xs md:text-sm"><Mail className="h-3 w-3 md:h-4 md:w-4 mr-2" />Е-мејл дигести</TabsTrigger>
+          <TabsTrigger value="alerts" className="text-xs md:text-sm"><Bell className="h-3 w-3 md:h-4 md:w-4 mr-2" />Системски известувања</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="digests" className="space-y-4">
+        <TabsContent value="digests" className="space-y-3 md:space-y-4">
           <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardHeader className="p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
                 <div>
-                  <CardTitle>Дигести</CardTitle>
-                  <CardDescription>Преглед на препорачани тендери и активности на конкуренти</CardDescription>
+                  <CardTitle className="text-lg md:text-xl">Дигести</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">Преглед на препорачани тендери и активности на конкуренти</CardDescription>
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                  <Button variant="ghost" size="sm" onClick={loadDigests}>Освежи</Button>
+                <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+                  <Button variant="ghost" size="sm" onClick={loadDigests} className="w-full sm:w-auto h-8 md:h-9 text-xs md:text-sm">Освежи</Button>
                 </div>
               </div>
             </CardHeader>
@@ -195,27 +195,27 @@ export default function InboxPage() {
                         className={`cursor-pointer transition-colors hover:bg-accent ${selectedDigest?.id === digest.id ? "border-primary" : ""} ${!digest.sent ? "bg-blue-50" : ""}`}
                         onClick={() => handleDigestClick(digest)}
                       >
-                        <CardContent className="p-4">
+                        <CardContent className="p-3 md:p-4">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                {digest.sent ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Circle className="h-4 w-4 text-blue-600" />}
-                                <h3 className={`font-semibold text-sm ${!digest.sent ? "font-bold" : ""}`}>
+                                {digest.sent ? <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-green-600" /> : <Circle className="h-3 w-3 md:h-4 md:w-4 text-blue-600" />}
+                                <h3 className={`font-semibold text-xs md:text-sm ${!digest.sent ? "font-bold" : ""}`}>
                                   Дигест - {formatDate(digest.date, { year: "numeric", month: "long", day: "numeric" })}
                                 </h3>
                               </div>
-                              <p className="text-xs text-muted-foreground mb-2">{formatDate(digest.date)}</p>
+                              <p className="text-[10px] md:text-xs text-muted-foreground mb-2">{formatDate(digest.date)}</p>
                               <div className="flex gap-2 flex-wrap">
-                                <Badge variant="outline" className="text-xs">{digest.tender_count} тендери</Badge>
-                                <Badge variant="outline" className="text-xs">{digest.competitor_activity_count} активности</Badge>
-                                {digest.sent && <Badge variant="secondary" className="text-xs">Испратено</Badge>}
+                                <Badge variant="outline" className="text-[10px] md:text-xs px-1.5 py-0">{digest.tender_count} тендери</Badge>
+                                <Badge variant="outline" className="text-[10px] md:text-xs px-1.5 py-0">{digest.competitor_activity_count} активности</Badge>
+                                {digest.sent && <Badge variant="secondary" className="text-[10px] md:text-xs px-1.5 py-0">Испратено</Badge>}
                               </div>
                             </div>
                           </div>
                         </CardContent>
                       </Card>
                     ))}
-                </div>
+                  </div>
 
                   <div>
                     {loadingDetail ? (
@@ -272,31 +272,31 @@ export default function InboxPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="alerts" className="space-y-4">
+        <TabsContent value="alerts" className="space-y-3 md:space-y-4">
           <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
+            <CardHeader className="p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
                 <div>
-                  <CardTitle>Системски известувања</CardTitle>
-                  <CardDescription>Важни пораки и ажурирања од системот</CardDescription>
+                  <CardTitle className="text-lg md:text-xl">Системски известувања</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">Важни пораки и ажурирања од системот</CardDescription>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setAlerts(alerts.map((a) => ({ ...a, read: true })))}>Означи сè како прочитано</Button>
+                <Button variant="ghost" size="sm" onClick={() => setAlerts(alerts.map((a) => ({ ...a, read: true })))} className="w-full sm:w-auto h-8 md:h-9 text-xs md:text-sm">Означи сè како прочитано</Button>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {alerts.map((alert) => (
                   <Card key={alert.id} className={`${!alert.read ? "border-l-4 border-l-primary bg-blue-50" : ""}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-4">
+                    <CardContent className="p-3 md:p-4">
+                      <div className="flex items-start justify-between gap-3 md:gap-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className={getSeverityColor(alert.severity)}>
+                          <div className="flex items-center gap-2 mb-1 md:mb-2 flex-wrap">
+                            <Badge className={`${getSeverityColor(alert.severity)} text-[10px] md:text-xs px-1.5 py-0`}>
                               {alert.severity === "warning" && "Предупредување"}
                               {alert.severity === "success" && "Успех"}
                               {alert.severity === "info" && "Информација"}
                             </Badge>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-[10px] md:text-xs text-muted-foreground">
                               {formatDateTime(alert.date, {
                                 day: "numeric",
                                 month: "short",
@@ -305,10 +305,10 @@ export default function InboxPage() {
                               })}
                             </span>
                           </div>
-                          <p className={`text-sm ${!alert.read ? "font-semibold" : ""}`}>{alert.message}</p>
+                          <p className={`text-xs md:text-sm ${!alert.read ? "font-semibold" : ""}`}>{alert.message}</p>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => toggleAlertRead(alert.id)}>
-                          {alert.read ? <Circle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4 text-green-600" />}
+                        <Button variant="ghost" size="sm" onClick={() => toggleAlertRead(alert.id)} className="h-6 w-6 md:h-8 md:w-8 p-0">
+                          {alert.read ? <Circle className="h-3 w-3 md:h-4 md:w-4" /> : <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-green-600" />}
                         </Button>
                       </div>
                     </CardContent>

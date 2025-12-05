@@ -183,27 +183,28 @@ export default function ChatPage() {
     <div className="flex flex-col h-screen bg-background">
       {/* Header with Usage Stats */}
       <div className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+        <div className="container mx-auto px-3 md:px-4 py-3 md:py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-                <MessageSquare className="h-5 w-5 text-primary-foreground" />
+              <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+                <MessageSquare className="h-4 w-4 md:h-5 md:w-5 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">AI Асистент</h1>
-                <p className="text-sm text-muted-foreground">Поставете прашања за тендерите</p>
+                <h1 className="text-lg md:text-xl font-bold">AI Асистент</h1>
+                <p className="text-xs md:text-sm text-muted-foreground">Поставете прашања за тендерите</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between sm:justify-end gap-2 md:gap-4 w-full sm:w-auto">
               {/* Usage Indicator */}
               {!loadingUsage && usageStatus && (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-primary/20 bg-primary/5">
-                  <Zap className="h-4 w-4 text-primary" />
-                  <div className="text-sm">
+                <div className="flex items-center gap-2 px-2 py-1.5 md:px-4 md:py-2 rounded-lg border border-primary/20 bg-primary/5">
+                  <Zap className="h-3 w-3 md:h-4 md:w-4 text-primary" />
+                  <div className="text-xs md:text-sm">
                     <span className="font-medium">{remainingQueries}</span>
-                    <span className="text-muted-foreground"> / {usageStatus.daily_queries_limit} остануваат денес</span>
+                    <span className="text-muted-foreground hidden sm:inline"> / {usageStatus.daily_queries_limit} остануваат денес</span>
+                    <span className="text-muted-foreground sm:hidden"> / {usageStatus.daily_queries_limit}</span>
                   </div>
-                  <Badge variant="outline" className="ml-2 bg-background capitalize">
+                  <Badge variant="outline" className="ml-1 md:ml-2 bg-background capitalize text-[10px] md:text-xs px-1.5 py-0">
                     {usageStatus.tier}
                   </Badge>
                 </div>
@@ -213,10 +214,11 @@ export default function ChatPage() {
                   variant="outline"
                   size="sm"
                   onClick={handleClearChat}
-                  className="gap-2"
+                  className="gap-1 md:gap-2 h-8 md:h-9 text-xs md:text-sm px-2 md:px-3"
                 >
-                  <Trash2 className="h-4 w-4" />
-                  Исчисти разговор
+                  <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                  <span className="hidden sm:inline">Исчисти разговор</span>
+                  <span className="sm:hidden">Исчисти</span>
                 </Button>
               )}
             </div>
@@ -227,12 +229,12 @@ export default function ChatPage() {
       {/* Limit Reached Banner */}
       {(isLimitReached || isBlocked) && (
         <div className="border-b bg-orange-500/10 border-orange-500/20">
-          <div className="container mx-auto px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="h-5 w-5 text-orange-400" />
+          <div className="container mx-auto px-3 md:px-4 py-2 md:py-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+              <div className="flex items-start sm:items-center gap-2 md:gap-3">
+                <AlertCircle className="h-4 w-4 md:h-5 md:w-5 text-orange-400 mt-0.5 sm:mt-0 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-orange-400">
+                  <p className="text-xs md:text-sm font-medium text-orange-400">
                     {isBlocked
                       ? usageStatus?.is_trial_expired
                         ? "Вашиот пробен период истече. Надоградете за да продолжите."
@@ -240,7 +242,7 @@ export default function ChatPage() {
                       : "Го достигнавте дневниот лимит на пребарувања."
                     }
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[10px] md:text-xs text-muted-foreground">
                     {isBlocked
                       ? "Одберете платен план за неограничен пристап."
                       : "Надоградете го вашиот план за повеќе дневни пребарувања."
@@ -248,9 +250,9 @@ export default function ChatPage() {
                   </p>
                 </div>
               </div>
-              <Link href="/settings">
-                <Button className="gap-2">
-                  <ArrowRight className="h-4 w-4" />
+              <Link href="/settings" className="w-full sm:w-auto">
+                <Button className="gap-2 w-full sm:w-auto h-8 md:h-10 text-xs md:text-sm">
+                  <ArrowRight className="h-3 w-3 md:h-4 md:w-4" />
                   Надогради сега
                 </Button>
               </Link>
@@ -261,37 +263,36 @@ export default function ChatPage() {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="container mx-auto px-4 py-6 max-w-4xl">
+        <div className="container mx-auto px-3 md:px-4 py-4 md:py-6 max-w-4xl">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full space-y-8">
-              <div className="text-center space-y-4">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                  <Sparkles className="h-8 w-8 text-primary" />
+            <div className="flex flex-col items-center justify-center h-full space-y-6 md:space-y-8 py-8">
+              <div className="text-center space-y-3 md:space-y-4">
+                <div className="h-12 w-12 md:h-16 md:w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                  <Sparkles className="h-6 w-6 md:h-8 md:w-8 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold">Добредојдовте во AI Асистентот</h2>
-                  <p className="text-muted-foreground mt-2">
+                  <h2 className="text-xl md:text-2xl font-bold">Добредојдовте во AI Асистентот</h2>
+                  <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2 px-4">
                     Поставете прашање за тендерите или изберете од предлозите подолу
                   </p>
                 </div>
               </div>
 
-              <div className="w-full max-w-2xl space-y-3">
-                <p className="text-sm font-medium text-muted-foreground">Предложени прашања:</p>
-                <div className="grid gap-3">
+              <div className="w-full max-w-2xl space-y-2 md:space-y-3">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground px-1">Предложени прашања:</p>
+                <div className="grid gap-2 md:gap-3">
                   {SUGGESTED_QUESTIONS.map((question, index) => (
                     <Card
                       key={index}
-                      className={`p-4 transition-colors ${
-                        isLimitReached || isBlocked
+                      className={`p-3 md:p-4 transition-colors ${isLimitReached || isBlocked
                           ? 'opacity-50 cursor-not-allowed'
                           : 'cursor-pointer hover:bg-accent'
-                      }`}
+                        }`}
                       onClick={() => !isLimitReached && !isBlocked && handleSuggestedQuestion(question)}
                     >
-                      <div className="flex items-start gap-3">
-                        <MessageSquare className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        <p className="text-sm">{question}</p>
+                      <div className="flex items-start gap-2 md:gap-3">
+                        <MessageSquare className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <p className="text-xs md:text-sm">{question}</p>
                       </div>
                     </Card>
                   ))}
@@ -300,17 +301,17 @@ export default function ChatPage() {
 
               {/* Current Plan Info */}
               {usageStatus && !loadingUsage && (
-                <Card className="max-w-md p-4 bg-primary/5 border-primary/20">
+                <Card className="max-w-md p-3 md:p-4 bg-primary/5 border-primary/20 w-full">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium">Тековен план: <span className="capitalize">{usageStatus.tier}</span></p>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs md:text-sm font-medium">Тековен план: <span className="capitalize">{usageStatus.tier}</span></p>
+                      <p className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">
                         {usageStatus.daily_queries_limit === -1 ? 'Неограничени' : usageStatus.daily_queries_limit} пребарувања дневно
                       </p>
                     </div>
                     {usageStatus.tier === 'free' && (
                       <Link href="/settings">
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" className="h-7 md:h-9 text-xs">
                           Надогради
                         </Button>
                       </Link>
@@ -360,7 +361,7 @@ export default function ChatPage() {
 
       {/* Input Area */}
       <div className="border-t bg-card">
-        <div className="container mx-auto px-4 py-4 max-w-4xl">
+        <div className="container mx-auto px-3 md:px-4 py-3 md:py-4 max-w-4xl">
           <ChatInput
             onSend={handleSendMessage}
             disabled={isLoading || isLimitReached || isBlocked || isFreeTier}
@@ -368,20 +369,20 @@ export default function ChatPage() {
               isBlocked
                 ? "Надоградете го вашиот план за да продолжите..."
                 : isLimitReached
-                ? "Дневен лимит достигнат. Надоградете за повеќе..."
-                : isFreeTier
-                ? "Free план: надоградете за да поставувате AI прашања..."
-                : "Постави прашање за тендерите..."
+                  ? "Дневен лимит достигнат. Надоградете за повеќе..."
+                  : isFreeTier
+                    ? "Free план: надоградете за да поставувате AI прашања..."
+                    : "Постави прашање за тендерите..."
             }
           />
-          <p className="text-xs text-muted-foreground mt-2 text-center">
+          <p className="text-[10px] md:text-xs text-muted-foreground mt-2 text-center px-2">
             AI асистентот користи напредна обработка на природен јазик за одговарање на вашите прашања
           </p>
           {isFreeTier && (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-100 p-3 text-sm flex items-center justify-between">
+            <div className="mt-2 md:mt-3 rounded-md border border-amber-200 bg-amber-100 p-2 md:p-3 text-xs md:text-sm flex items-center justify-between">
               <span>Free план: надоградете за да користите AI чат.</span>
               <Link href="/settings">
-                <Button size="sm" variant="outline">Upgrade</Button>
+                <Button size="sm" variant="outline" className="h-7 md:h-9 text-xs">Upgrade</Button>
               </Link>
             </div>
           )}
