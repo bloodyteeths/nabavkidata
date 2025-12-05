@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { TenderCard } from "@/components/tenders/TenderCard";
 import { TenderFilters, type FilterState } from "@/components/tenders/TenderFilters";
 import { TenderStats } from "@/components/tenders/TenderStats";
@@ -12,6 +13,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 export default function TendersPage() {
+  const searchParams = useSearchParams();
   const [isHydrated, setIsHydrated] = useState(false);
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [total, setTotal] = useState(0);
@@ -20,17 +22,51 @@ export default function TendersPage() {
   const [filters, setFilters] = useState<FilterState>({});
   const [stats, setStats] = useState({ total: 0, open: 0, closed: 0, awarded: 0 });
   const [error, setError] = useState<string | null>(null);
-  const limit = 20;
-
   const [showFilters, setShowFilters] = useState(false);
-
-  // Hydration guard
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
   // Track if we should trigger a load (for manual apply button)
   const [shouldLoad, setShouldLoad] = useState(0);
+  const limit = 20;
+
+  // Hydration guard and URL params initialization
+  useEffect(() => {
+    setIsHydrated(true);
+
+    // Read initial filters from URL params
+    const initialFilters: FilterState = {};
+
+    const status = searchParams.get('status');
+    if (status) initialFilters.status = status;
+
+    const search = searchParams.get('search');
+    if (search) initialFilters.search = search;
+
+    const category = searchParams.get('category');
+    if (category) initialFilters.category = category;
+
+    const cpvCode = searchParams.get('cpv_code');
+    if (cpvCode) initialFilters.cpvCode = cpvCode;
+
+    const entity = searchParams.get('entity');
+    if (entity) initialFilters.entity = entity;
+
+    // Handle closing_within parameter - convert to closing_date_to
+    const closingWithin = searchParams.get('closing_within');
+    if (closingWithin) {
+      const days = parseInt(closingWithin, 10);
+      if (!isNaN(days)) {
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + days);
+        initialFilters.dateTo = futureDate.toISOString().split('T')[0];
+      }
+    }
+
+    if (Object.keys(initialFilters).length > 0) {
+      setFilters(initialFilters);
+      setShowFilters(true); // Show filters panel when filters are applied from URL
+      // Trigger reload with new filters
+      setShouldLoad(prev => prev + 1);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!isHydrated) return;

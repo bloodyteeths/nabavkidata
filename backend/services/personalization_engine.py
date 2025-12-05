@@ -315,8 +315,8 @@ class InsightGenerator:
         if count > 10:
             return PersonalizedInsight(
                 insight_type="trend",
-                title="Increased Activity in Your Sectors",
-                description=f"{count} new tenders in your preferred sectors this month",
+                title="Зголемена активност во вашите сектори",
+                description=f"{count} нови тендери во вашите преферирани сектори овој месец",
                 confidence=0.85
             )
         return None
@@ -341,8 +341,8 @@ class InsightGenerator:
         if count > 5:
             return PersonalizedInsight(
                 insight_type="opportunity",
-                title="Budget-Matched Opportunities",
-                description=f"{count} open tenders within your budget range",
+                title="Можности во вашиот буџет",
+                description=f"{count} отворени тендери во вашиот буџетски опсег",
                 confidence=0.90
             )
         return None
@@ -364,8 +364,8 @@ class InsightGenerator:
         if count > 0:
             return PersonalizedInsight(
                 insight_type="alert",
-                title="Deadlines Approaching",
-                description=f"{count} relevant tenders closing within 7 days",
+                title="Приближуваат рокови",
+                description=f"{count} релевантни тендери завршуваат во наредните 7 дена",
                 confidence=1.0
             )
         return None

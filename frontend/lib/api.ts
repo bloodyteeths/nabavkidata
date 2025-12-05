@@ -949,6 +949,13 @@ class APIClient {
     return this.request<DashboardData>(`/api/personalization/dashboard`);
   }
 
+  async refreshInterestVector() {
+    // Refresh user interest vector for fresh analysis
+    return this.request<{ message: string }>(`/api/personalization/interest-vector/refresh`, {
+      method: 'POST',
+    });
+  }
+
   async getPreferences(_userId?: string) {
     // user_id is extracted from auth token on the backend
     return this.request<UserPreferences>(`/api/personalization/preferences`);

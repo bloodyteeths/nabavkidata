@@ -26,14 +26,23 @@ export default function DashboardPage() {
     loadDashboard();
   }, [isHydrated, user]);
 
-  async function loadDashboard() {
+  async function loadDashboard(refreshVector: boolean = false) {
     if (!user?.user_id) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      // Try to get personalized dashboard data
+      // If requested, refresh interest vector for fresh personalized analysis
+      if (refreshVector) {
+        try {
+          await api.refreshInterestVector();
+        } catch (e) {
+          console.log("Interest vector refresh skipped (may not exist yet):", e);
+        }
+      }
+
+      // Get personalized dashboard data
       const dashboardData = await api.getPersonalizedDashboard(user.user_id);
       setData(dashboardData);
     } catch (error) {
@@ -82,7 +91,7 @@ export default function DashboardPage() {
             <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
             <h3 className="text-lg font-semibold mb-2">Грешка при вчитување</h3>
             <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={loadDashboard}>Обиди се повторно</Button>
+            <Button onClick={() => loadDashboard()}>Обиди се повторно</Button>
           </CardContent>
         </Card>
       </div>
@@ -132,7 +141,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <Button
-          onClick={loadDashboard}
+          onClick={() => loadDashboard(true)}
           disabled={loading}
           className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.3)] h-9 md:h-10 text-xs md:text-sm"
         >
@@ -293,20 +302,62 @@ export default function DashboardPage() {
                     <p className="text-xs">AI анализата се генерира...</p>
                   </div>
                 ) : (
-                  data.insights.map((insight, idx) => (
-                    <div key={idx} className="p-3 md:p-4 rounded-xl bg-background/50 border border-white/5">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] md:text-xs font-medium px-2 py-1 rounded bg-primary/10 text-primary">
-                          {insight.insight_type}
-                        </span>
-                        <span className="text-[10px] md:text-xs text-muted-foreground">
-                          {Math.round(insight.confidence * 100)}% доверба
-                        </span>
-                      </div>
-                      <h4 className="font-medium text-xs md:text-sm text-white mb-1">{insight.title}</h4>
-                      <p className="text-[10px] md:text-xs text-muted-foreground">{insight.description}</p>
-                    </div>
-                  ))
+                  data.insights.map((insight, idx) => {
+                    // Build URL based on insight type
+                    const getInsightUrl = () => {
+                      switch (insight.insight_type) {
+                        case 'alert':
+                          // Deadlines approaching - show tenders closing soon
+                          return '/tenders?status=open&closing_within=7';
+                        case 'opportunity':
+                          // Budget opportunities - show open tenders
+                          return '/tenders?status=open';
+                        case 'trend':
+                          // Trending sectors - show open tenders
+                          return '/tenders?status=open';
+                        default:
+                          return '/tenders?status=open';
+                      }
+                    };
+
+                    // Translate insight type to Macedonian
+                    const getInsightTypeLabel = () => {
+                      switch (insight.insight_type) {
+                        case 'alert':
+                          return 'Известување';
+                        case 'opportunity':
+                          return 'Можност';
+                        case 'trend':
+                          return 'Тренд';
+                        default:
+                          return insight.insight_type;
+                      }
+                    };
+
+                    return (
+                      <Link
+                        key={idx}
+                        href={getInsightUrl()}
+                        className="group block p-3 md:p-4 rounded-xl bg-background/50 border border-white/5 hover:bg-background/80 hover:border-primary/20 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] md:text-xs font-medium px-2 py-1 rounded bg-primary/10 text-primary">
+                            {getInsightTypeLabel()}
+                          </span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground">
+                            {Math.round(insight.confidence * 100)}% доверба
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-xs md:text-sm text-white mb-1 group-hover:text-primary transition-colors">{insight.title}</h4>
+                            <p className="text-[10px] md:text-xs text-muted-foreground">{insight.description}</p>
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0 hidden sm:block" />
+                        </div>
+                      </Link>
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
@@ -322,17 +373,24 @@ export default function DashboardPage() {
                 <CardContent className="p-4 md:p-6 pt-0">
                   <div className="space-y-3">
                     {data.competitor_activity.map((activity, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/5">
-                        <div>
-                          <h4 className="font-medium text-xs md:text-sm text-white">{activity.title}</h4>
+                      <Link
+                        key={idx}
+                        href={`/tenders/${encodeURIComponent(activity.tender_id)}`}
+                        className="group flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 hover:border-primary/20 transition-all cursor-pointer block"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-xs md:text-sm text-white group-hover:text-primary transition-colors line-clamp-2">{activity.title}</h4>
                           <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
                             {activity.competitor_name}
                           </p>
                         </div>
-                        <span className="text-[10px] px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
-                          {activity.status}
-                        </span>
-                      </div>
+                        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                          <span className="text-[10px] px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                            {activity.status}
+                          </span>
+                          <ArrowRight className="h-3 w-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" />
+                        </div>
+                      </Link>
                     ))}
                   </div>
                 </CardContent>
