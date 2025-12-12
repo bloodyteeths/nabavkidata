@@ -14,7 +14,7 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-VENV_PATH="/home/ubuntu/nabavkidata/venv"
+VENV_PATH="/home/ubuntu/nabavkidata/backend/venv"
 LOG_DIR="/var/log/nabavkidata"
 
 # Database URL
@@ -40,9 +40,9 @@ cd /home/ubuntu/nabavkidata/scraper
 RUN_START=$(date -Iseconds)
 LOG_FILE="$LOG_DIR/scrapy_active_$(date +%Y%m%d_%H%M%S).log"
 
-log "Running scrapy crawl nabavki -a category=active"
+log "Running "$VENV_PATH/bin/scrapy" crawl nabavki -a category=active"
 
-scrapy crawl nabavki \
+"$VENV_PATH/bin/scrapy" crawl nabavki \
     -a category=active \
     -s LOG_LEVEL=INFO \
     -s LOG_FILE="$LOG_FILE"
@@ -59,7 +59,7 @@ else
 fi
 
 # Write health JSON
-python3 "$SCRIPT_DIR/write_health.py" \
+"$VENV_PATH/bin/python" "$SCRIPT_DIR/write_health.py" \
   --status "$STATUS" \
   --dataset active \
   --log-file "$LOG_FILE" \

@@ -16,7 +16,7 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-VENV_PATH="/home/ubuntu/nabavkidata/venv"
+VENV_PATH="/home/ubuntu/nabavkidata/backend/venv"
 LOG_DIR="/var/log/nabavkidata"
 FILES_STORE="/home/ubuntu/nabavkidata/scraper/downloads/files"
 
@@ -50,7 +50,7 @@ log "========================================"
 log "Phase 1: Processing Bid Documents"
 log "========================================"
 
-python3 -c "
+"$VENV_PATH/bin/python" -c "
 import asyncio
 import sys
 sys.path.insert(0, '.')
@@ -97,7 +97,7 @@ log "========================================"
 log "Phase 2: Processing Contract Documents"
 log "========================================"
 
-python3 -c "
+"$VENV_PATH/bin/python" -c "
 import asyncio
 import sys
 sys.path.insert(0, '.')
@@ -144,7 +144,7 @@ log "========================================"
 log "Phase 3: Processing Other Documents"
 log "========================================"
 
-python3 -c "
+"$VENV_PATH/bin/python" -c "
 import asyncio
 import sys
 sys.path.insert(0, '.')
@@ -196,7 +196,7 @@ log "========================================"
 
 # Run the backfill script to extract CPV codes, emails, phones from PDFs
 # This processes documents that have file_path but no specifications_json
-python3 backfill_pdf_extraction.py 200 || {
+"$VENV_PATH/bin/python" backfill_pdf_extraction.py 200 || {
     RC=$?
     log "WARNING: PDF backfill failed with exit code $RC"
 }

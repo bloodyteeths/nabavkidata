@@ -116,6 +116,13 @@ class Document(Base):
     mime_type = Column(String(100))
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 
+    # AI Extraction fields (Phase 2.2)
+    ai_summary = Column(Text)
+    key_requirements = Column(JSONB)
+    items_mentioned = Column(JSONB)
+    content_hash = Column(String(64))
+    ai_extracted_at = Column(DateTime)
+
 class Embedding(Base):
     __tablename__ = "embeddings"
 

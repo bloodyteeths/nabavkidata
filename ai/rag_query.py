@@ -318,11 +318,23 @@ IMPORTANT - NEVER TELL USERS TO CHECK WEBSITES THEMSELVES:
         Returns:
             Full prompt string for Gemini
         """
-        # Add current date/time context
+        # Add current date/time context in Macedonia timezone
         from datetime import datetime
-        now = datetime.now()
+        from zoneinfo import ZoneInfo
+
+        mk_tz = ZoneInfo("Europe/Skopje")
+        now = datetime.now(mk_tz)
+
+        # Macedonian weekday names
+        weekdays_mk = {
+            0: "Понеделник", 1: "Вторник", 2: "Среда", 3: "Четврток",
+            4: "Петок", 5: "Сабота", 6: "Недела"
+        }
+        weekday_mk = weekdays_mk[now.weekday()]
+
         date_context = f"""
-ТЕКОВЕН ДАТУМ И ВРЕМЕ: {now.strftime('%d.%m.%Y %H:%M')} (ден: {now.strftime('%A')})
+ТЕКОВЕН ДАТУМ И ВРЕМЕ: {now.strftime('%d.%m.%Y %H:%M')} ({weekday_mk})
+Временска зона: Македонија (Europe/Skopje)
 
 Ова е важно за:
 - Определување дали тендер е сè уште отворен (ако краен рок < денес = затворен)

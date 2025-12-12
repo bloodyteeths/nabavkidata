@@ -65,16 +65,22 @@ class NabavkiAuthSpider(scrapy.Spider):
     LOGIN_URL = 'https://e-nabavki.gov.mk/PublicAccess/home.aspx#/home'
 
     custom_settings = {
-        "DOWNLOAD_DELAY": 0.5,
-        "CONCURRENT_REQUESTS": 2,
-        "CONCURRENT_REQUESTS_PER_DOMAIN": 2,
+        "DOWNLOAD_DELAY": 1.0,  # Increased to be gentler on slow site
+        "CONCURRENT_REQUESTS": 1,  # Single request at a time for stability
+        "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
         "PLAYWRIGHT_MAX_PAGES_PER_CONTEXT": 1,
-        "PLAYWRIGHT_MAX_CONTEXTS": 2,
+        "PLAYWRIGHT_MAX_CONTEXTS": 1,
         "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
         "DUPEFILTER_CLASS": "scrapy.dupefilters.BaseDupeFilter",
         "AUTOTHROTTLE_ENABLED": True,
-        "AUTOTHROTTLE_START_DELAY": 1.0,
-        "AUTOTHROTTLE_MAX_DELAY": 5.0,
+        "AUTOTHROTTLE_START_DELAY": 2.0,
+        "AUTOTHROTTLE_MAX_DELAY": 10.0,
+        # Retry settings to handle timeouts
+        "RETRY_ENABLED": True,
+        "RETRY_TIMES": 3,  # More retries for slow site
+        "RETRY_HTTP_CODES": [500, 502, 503, 504, 408, 429],
+        # Longer timeout for slow e-nabavki site
+        "DOWNLOAD_TIMEOUT": 90,
     }
 
     def __init__(self, category='active', username=None, password=None, max_items=None, *args, **kwargs):
@@ -183,7 +189,7 @@ class NabavkiAuthSpider(scrapy.Spider):
                     'playwright_include_page': True,
                     'playwright_page_goto_kwargs': {
                         'wait_until': 'domcontentloaded',
-                        'timeout': 60000,
+                        'timeout': 90000,
                     },
                 },
                 errback=self.errback_playwright,
@@ -202,7 +208,7 @@ class NabavkiAuthSpider(scrapy.Spider):
                         'playwright_include_page': True,
                         'playwright_page_goto_kwargs': {
                             'wait_until': 'domcontentloaded',
-                            'timeout': 60000,
+                            'timeout': 90000,
                         },
                         'category': cat,
                     },
@@ -220,7 +226,7 @@ class NabavkiAuthSpider(scrapy.Spider):
                         'playwright_include_page': True,
                         'playwright_page_goto_kwargs': {
                             'wait_until': 'domcontentloaded',
-                            'timeout': 60000,
+                            'timeout': 90000,
                         },
                         'category': self.category,
                     },
@@ -303,7 +309,7 @@ class NabavkiAuthSpider(scrapy.Spider):
                 pass
 
     async def parse_authenticated_listing(self, response):
-        """Parse listing page and extract tender links"""
+        """Parse listing page and extract tender links from ALL pages"""
         if self.max_items and self.items_scraped >= self.max_items:
             return
 
@@ -321,8 +327,13 @@ class NabavkiAuthSpider(scrapy.Spider):
                 pass
 
         tender_links = []
+        current_page = 1
+        max_pages = getattr(self, 'max_pages', 100)  # Limit pages to prevent infinite loops
 
-        if page:
+        # PAGINATION LOOP: Collect ALL tender links from ALL pages in single session
+        while page and current_page <= max_pages:
+            # Extract tender links from current page
+            page_links_count = 0
             try:
                 link_selectors = ["a[href*='dossie']", "a[href*='/tender/']"]
                 for selector in link_selectors:
@@ -330,22 +341,98 @@ class NabavkiAuthSpider(scrapy.Spider):
                         elems = await page.query_selector_all(selector)
                         for elem in elems:
                             href = await elem.get_attribute('href')
-                            if href and 'dossie' in href:
+                            if href and 'dossie' in href and href not in tender_links:
                                 tender_links.append(href)
+                                page_links_count += 1
                     except:
                         continue
             except:
                 pass
 
-        tender_links = list(set(tender_links))
-        self.stats['tenders_found'] += len(tender_links)
-        logger.warning(f"Found {len(tender_links)} tenders in {source_category}")
+            logger.warning(f"Found {page_links_count} new tenders on page {current_page} of {source_category} (total: {len(tender_links)})")
+            self.stats['tenders_found'] = len(tender_links)
+
+            # If we found 0 new tenders on a page after page 1, we might be stuck
+            if current_page > 1 and page_links_count == 0:
+                logger.info(f"No new tenders found on page {current_page}, stopping pagination")
+                break
+
+            # Check if we've reached max_items
+            if self.max_items and len(tender_links) >= self.max_items:
+                logger.info(f"Reached max_items limit ({self.max_items}), stopping pagination")
+                break
+
+            # Try to click "Next" button to go to next page
+            next_button_selectors = [
+                'a:has-text("Следна")',  # "Next" in Macedonian
+                'a:has-text(">")',
+                'a:has-text("»")',
+                '.pagination li:last-child a',
+                'button[ng-click*="next"]',
+                'a[ng-click*="next"]',
+                '.next-page',
+            ]
+
+            next_clicked = False
+            for selector in next_button_selectors:
+                try:
+                    next_btn = await page.query_selector(selector)
+                    if next_btn and await next_btn.is_visible():
+                        # Check if button is enabled (not disabled class)
+                        is_disabled = await next_btn.get_attribute('class')
+                        if is_disabled and 'disabled' in str(is_disabled).lower():
+                            continue
+
+                        # Check parent li for disabled state (Bootstrap pagination)
+                        parent = await next_btn.evaluate_handle('el => el.parentElement')
+                        if parent:
+                            parent_class = await parent.get_property('className')
+                            parent_class_str = await parent_class.json_value()
+                            if 'disabled' in str(parent_class_str).lower():
+                                continue
+
+                        await next_btn.click()
+                        logger.info(f"Clicked next page button using selector: {selector}")
+
+                        # Wait for Angular SPA to reload content
+                        # Method 1: Wait for network to become idle
+                        try:
+                            await page.wait_for_load_state('networkidle', timeout=30000)
+                        except:
+                            pass  # Continue anyway
+
+                        # Method 2: Wait a fixed time for Angular to render
+                        await page.wait_for_timeout(5000)
+
+                        # Method 3: Try waiting for table, but don't fail if it doesn't appear
+                        try:
+                            await page.wait_for_selector('table tbody tr', timeout=10000)
+                        except:
+                            logger.warning(f"Table selector not found after clicking next, continuing anyway...")
+
+                        # Give Angular a bit more time to stabilize
+                        await page.wait_for_timeout(2000)
+
+                        next_clicked = True
+                        break
+                except Exception as e:
+                    logger.debug(f"Next button selector {selector} failed: {e}")
+                    continue
+
+            if next_clicked:
+                current_page += 1
+            else:
+                logger.info(f"No more pages available for {source_category} (stopped at page {current_page})")
+                break
 
         if page:
             try:
                 await page.close()
             except:
                 pass
+
+        tender_links = list(set(tender_links))
+        logger.warning(f"Total unique tenders collected for {source_category}: {len(tender_links)} from {current_page} pages")
 
         if self.max_items:
             remaining = self.max_items - self.items_scraped
@@ -369,7 +456,7 @@ class NabavkiAuthSpider(scrapy.Spider):
                     'playwright_include_page': True,
                     'playwright_page_goto_kwargs': {
                         'wait_until': 'domcontentloaded',
-                        'timeout': 60000,
+                        'timeout': 90000,
                     },
                     'source_category': source_category,
                 },
@@ -604,6 +691,12 @@ class NabavkiAuthSpider(scrapy.Spider):
 
         # Yield document items
         for doc in documents:
+            # Skip ohridskabanka.mk documents (external bank guarantees - not relevant)
+            doc_url = doc.get('url', '')
+            if 'ohridskabanka' in doc_url.lower():
+                logger.info(f"Skipping ohridskabanka.mk document: {doc_url}")
+                continue
+
             yield DocumentItem(
                 tender_id=doc.get('tender_id'),
                 file_url=doc.get('url'),
@@ -1013,9 +1106,19 @@ class NabavkiAuthSpider(scrapy.Spider):
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
     async def errback_playwright(self, failure):
-        """Handle errors"""
+        """Handle errors - close page and continue"""
         logger.error(f"Playwright error: {failure.value}")
         self.stats['errors'].append(str(failure.value))
+
+        # Try to close the page to free resources
+        try:
+            request = failure.request
+            if hasattr(request, 'meta') and request.meta.get('playwright_page'):
+                page = request.meta['playwright_page']
+                await page.close()
+                logger.info("Closed failed page, continuing to next URL")
+        except Exception as e:
+            logger.debug(f"Could not close page: {e}")
 
     def close(self, reason):
         """Log final stats"""

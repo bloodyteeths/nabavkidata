@@ -98,10 +98,10 @@ class NabavkiSpider(scrapy.Spider):
     # Custom settings to ensure proper request processing
     custom_settings = {
         "DOWNLOAD_DELAY": 0.25,
-        "CONCURRENT_REQUESTS": 4,
-        "CONCURRENT_REQUESTS_PER_DOMAIN": 4,
+        "CONCURRENT_REQUESTS": 1,
+        "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
         "PLAYWRIGHT_MAX_PAGES_PER_CONTEXT": 1,
-        "PLAYWRIGHT_MAX_CONTEXTS": 4,
+        "PLAYWRIGHT_MAX_CONTEXTS": 1,
         "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
         "DUPEFILTER_CLASS": "scrapy.dupefilters.BaseDupeFilter",
         "AUTOTHROTTLE_ENABLED": True,

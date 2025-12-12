@@ -1,13 +1,13 @@
 """
 Multi-Engine Document Parser - Extremely Resilient
 
-ENGINES:
-1. PyMuPDF (fitz) - Fast, best for text-based PDFs with Cyrillic
-2. PDFMiner - Fallback for complex layouts
-3. Tesseract OCR - For scanned/image PDFs
+SUPPORTED FORMATS:
+- PDF: PyMuPDF (fitz), PDFMiner, Tesseract OCR
+- Word: python-docx (.docx), textract (.doc)
+- Excel: openpyxl (.xlsx), xlrd (.xls)
 
 FEATURES:
-- Automatic engine selection based on PDF characteristics
+- Automatic engine selection based on document type
 - Table structure detection and extraction
 - CPV code extraction (multiple patterns)
 - Company name extraction from award decisions
@@ -32,6 +32,20 @@ try:
     TESSERACT_AVAILABLE = True
 except ImportError:
     TESSERACT_AVAILABLE = False
+
+# Word document support
+try:
+    from docx import Document as DocxDocument
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+
+# Excel document support
+try:
+    import openpyxl
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -619,6 +633,122 @@ class CompanyExtractor:
         return True
 
 
+class WordExtractor:
+    """
+    Extract text from Word documents (.docx, .doc)
+    """
+
+    @staticmethod
+    def extract_docx(file_path: str) -> Tuple[str, List[List[List[str]]], Dict]:
+        """
+        Extract text and tables from .docx file
+
+        Returns:
+            (text, tables, metadata)
+        """
+        if not DOCX_AVAILABLE:
+            raise ImportError("python-docx not available. Install with: pip install python-docx")
+
+        try:
+            doc = DocxDocument(file_path)
+
+            # Extract paragraphs
+            paragraphs = []
+            for para in doc.paragraphs:
+                if para.text.strip():
+                    paragraphs.append(para.text)
+
+            # Extract tables
+            tables = []
+            for table in doc.tables:
+                table_data = []
+                for row in table.rows:
+                    row_data = [cell.text.strip() for cell in row.cells]
+                    if any(cell for cell in row_data):  # Skip empty rows
+                        table_data.append(row_data)
+                if table_data:
+                    tables.append(table_data)
+
+            text = "\n\n".join(paragraphs)
+            metadata = {
+                'engine': 'python-docx',
+                'paragraph_count': len(paragraphs),
+                'table_count': len(tables)
+            }
+
+            logger.info(f"Extracted {len(text)} chars, {len(tables)} tables from DOCX")
+            return text, tables, metadata
+
+        except Exception as e:
+            logger.error(f"DOCX extraction failed: {e}")
+            raise
+
+
+class ExcelExtractor:
+    """
+    Extract text from Excel documents (.xlsx, .xls)
+    """
+
+    @staticmethod
+    def extract_xlsx(file_path: str) -> Tuple[str, List[List[List[str]]], Dict]:
+        """
+        Extract text and tables from .xlsx file
+
+        Returns:
+            (text, tables, metadata)
+        """
+        if not OPENPYXL_AVAILABLE:
+            raise ImportError("openpyxl not available. Install with: pip install openpyxl")
+
+        try:
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+
+            all_text = []
+            tables = []
+
+            for sheet_name in wb.sheetnames:
+                sheet = wb[sheet_name]
+                sheet_text = [f"=== Sheet: {sheet_name} ==="]
+                table_data = []
+
+                for row in sheet.iter_rows():
+                    row_values = []
+                    row_text_parts = []
+                    for cell in row:
+                        val = cell.value
+                        if val is not None:
+                            str_val = str(val).strip()
+                            if str_val:
+                                row_values.append(str_val)
+                                row_text_parts.append(str_val)
+                        else:
+                            row_values.append("")
+
+                    if any(row_values):
+                        table_data.append(row_values)
+                        sheet_text.append(" | ".join(row_text_parts))
+
+                if table_data:
+                    tables.append(table_data)
+                    all_text.extend(sheet_text)
+
+            wb.close()
+
+            text = "\n".join(all_text)
+            metadata = {
+                'engine': 'openpyxl',
+                'sheet_count': len(wb.sheetnames),
+                'table_count': len(tables)
+            }
+
+            logger.info(f"Extracted {len(text)} chars, {len(tables)} sheets from XLSX")
+            return text, tables, metadata
+
+        except Exception as e:
+            logger.error(f"XLSX extraction failed: {e}")
+            raise
+
+
 class ResilientDocumentParser:
     """
     Extremely resilient document parser combining all extraction strategies
@@ -630,61 +760,44 @@ class ResilientDocumentParser:
         self.cpv_extractor = CPVExtractor()
         self.company_extractor = CompanyExtractor()
         self.contact_extractor = ContactExtractor()
+        self.word_extractor = WordExtractor()
+        self.excel_extractor = ExcelExtractor()
 
-    def parse_document(self, pdf_path: str) -> ExtractionResult:
+    def parse_document(self, file_path: str) -> ExtractionResult:
         """
-        Parse PDF document with all extraction features
+        Parse document with all extraction features
+
+        Supports: PDF, Word (.docx), Excel (.xlsx)
 
         Returns:
             ExtractionResult with text, tables, CPV codes, companies, etc.
         """
-        logger.info(f"Parsing document: {pdf_path}")
+        logger.info(f"Parsing document: {file_path}")
+
+        # Determine file type
+        file_ext = Path(file_path).suffix.lower()
 
         try:
-            # 1. Extract text (multi-engine with auto-selection)
-            text, engine_used, metadata = self.extractor.extract_auto(pdf_path)
-
-            # 2. Detect and extract tables
-            tables = self.table_extractor.detect_tables(pdf_path)
-            has_tables = len(tables) > 0
-
-            # 3. Extract CPV codes from text
-            cpv_codes = self.cpv_extractor.extract_cpv_codes(text)
-
-            # 4. Extract company names
-            company_names = self.company_extractor.extract_companies(text)
-
-            # 5. Extract contact information (emails, phones)
-            emails = self.contact_extractor.extract_emails(text)
-            phones = self.contact_extractor.extract_phones(text)
-
-            # 6. Count pages
-            try:
-                doc = fitz.open(pdf_path)
-                page_count = len(doc)
-                doc.close()
-            except:
-                page_count = metadata.get('page_count', 0)
-
-            # Build result
-            result = ExtractionResult(
-                text=text,
-                engine_used=engine_used,
-                page_count=page_count,
-                has_tables=has_tables,
-                tables=tables,
-                cpv_codes=cpv_codes,
-                company_names=company_names,
-                emails=emails,
-                phones=phones,
-                metadata=metadata
-            )
-
-            logger.info(f"Parsing complete: {len(text)} chars, {page_count} pages, "
-                       f"{len(tables)} tables, {len(cpv_codes)} CPV codes, "
-                       f"{len(company_names)} companies, {len(emails)} emails, {len(phones)} phones")
-
-            return result
+            if file_ext == '.pdf':
+                return self._parse_pdf(file_path)
+            elif file_ext in ['.docx', '.doc']:
+                return self._parse_word(file_path)
+            elif file_ext in ['.xlsx', '.xls']:
+                return self._parse_excel(file_path)
+            else:
+                logger.warning(f"Unsupported file type: {file_ext}")
+                return ExtractionResult(
+                    text="",
+                    engine_used="unsupported",
+                    page_count=0,
+                    has_tables=False,
+                    tables=[],
+                    cpv_codes=[],
+                    company_names=[],
+                    emails=[],
+                    phones=[],
+                    metadata={'error': f'Unsupported file type: {file_ext}'}
+                )
 
         except Exception as e:
             logger.error(f"Document parsing failed: {e}")
@@ -702,8 +815,113 @@ class ResilientDocumentParser:
                 metadata={'error': str(e)}
             )
 
+    def _parse_pdf(self, pdf_path: str) -> ExtractionResult:
+        """Parse PDF document"""
+        # 1. Extract text (multi-engine with auto-selection)
+        text, engine_used, metadata = self.extractor.extract_auto(pdf_path)
 
-# Convenience function
+        # 2. Detect and extract tables
+        tables = self.table_extractor.detect_tables(pdf_path)
+        has_tables = len(tables) > 0
+
+        # 3. Extract CPV codes from text
+        cpv_codes = self.cpv_extractor.extract_cpv_codes(text)
+
+        # 4. Extract company names
+        company_names = self.company_extractor.extract_companies(text)
+
+        # 5. Extract contact information (emails, phones)
+        emails = self.contact_extractor.extract_emails(text)
+        phones = self.contact_extractor.extract_phones(text)
+
+        # 6. Count pages
+        try:
+            doc = fitz.open(pdf_path)
+            page_count = len(doc)
+            doc.close()
+        except:
+            page_count = metadata.get('page_count', 0)
+
+        # Build result
+        result = ExtractionResult(
+            text=text,
+            engine_used=engine_used,
+            page_count=page_count,
+            has_tables=has_tables,
+            tables=tables,
+            cpv_codes=cpv_codes,
+            company_names=company_names,
+            emails=emails,
+            phones=phones,
+            metadata=metadata
+        )
+
+        logger.info(f"PDF parsing complete: {len(text)} chars, {page_count} pages, "
+                   f"{len(tables)} tables, {len(cpv_codes)} CPV codes, "
+                   f"{len(company_names)} companies, {len(emails)} emails, {len(phones)} phones")
+
+        return result
+
+    def _parse_word(self, file_path: str) -> ExtractionResult:
+        """Parse Word document (.docx)"""
+        text, tables, metadata = self.word_extractor.extract_docx(file_path)
+        has_tables = len(tables) > 0
+
+        # Extract CPV codes, companies, contacts from text
+        cpv_codes = self.cpv_extractor.extract_cpv_codes(text)
+        company_names = self.company_extractor.extract_companies(text)
+        emails = self.contact_extractor.extract_emails(text)
+        phones = self.contact_extractor.extract_phones(text)
+
+        result = ExtractionResult(
+            text=text,
+            engine_used='python-docx',
+            page_count=metadata.get('paragraph_count', 0),
+            has_tables=has_tables,
+            tables=tables,
+            cpv_codes=cpv_codes,
+            company_names=company_names,
+            emails=emails,
+            phones=phones,
+            metadata=metadata
+        )
+
+        logger.info(f"DOCX parsing complete: {len(text)} chars, {len(tables)} tables, "
+                   f"{len(cpv_codes)} CPV codes, {len(emails)} emails")
+
+        return result
+
+    def _parse_excel(self, file_path: str) -> ExtractionResult:
+        """Parse Excel document (.xlsx)"""
+        text, tables, metadata = self.excel_extractor.extract_xlsx(file_path)
+        has_tables = len(tables) > 0
+
+        # Extract CPV codes, companies, contacts from text
+        cpv_codes = self.cpv_extractor.extract_cpv_codes(text)
+        company_names = self.company_extractor.extract_companies(text)
+        emails = self.contact_extractor.extract_emails(text)
+        phones = self.contact_extractor.extract_phones(text)
+
+        result = ExtractionResult(
+            text=text,
+            engine_used='openpyxl',
+            page_count=metadata.get('sheet_count', 0),
+            has_tables=has_tables,
+            tables=tables,
+            cpv_codes=cpv_codes,
+            company_names=company_names,
+            emails=emails,
+            phones=phones,
+            metadata=metadata
+        )
+
+        logger.info(f"XLSX parsing complete: {len(text)} chars, {len(tables)} tables, "
+                   f"{len(cpv_codes)} CPV codes, {len(emails)} emails")
+
+        return result
+
+
+# Convenience functions
 def parse_pdf(pdf_path: str) -> ExtractionResult:
     """
     Parse PDF document with all features
@@ -716,3 +934,28 @@ def parse_pdf(pdf_path: str) -> ExtractionResult:
     """
     parser = ResilientDocumentParser()
     return parser.parse_document(pdf_path)
+
+
+def parse_file(file_path: str) -> ExtractionResult:
+    """
+    Parse any supported document (PDF, Word, Excel) with all features
+
+    Supported formats:
+        - PDF (.pdf)
+        - Word (.docx, .doc)
+        - Excel (.xlsx, .xls)
+
+    Usage:
+        result = parse_file('document.docx')
+        print(result.text)
+        print(result.cpv_codes)
+        print(result.emails)
+    """
+    parser = ResilientDocumentParser()
+    return parser.parse_document(file_path)
+
+
+def is_supported_document(file_path: str) -> bool:
+    """Check if file type is supported for parsing"""
+    ext = Path(file_path).suffix.lower()
+    return ext in ['.pdf', '.docx', '.doc', '.xlsx', '.xls']

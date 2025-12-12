@@ -449,16 +449,37 @@ class ContractsSpider(scrapy.Spider):
                                 self.contracts_scraped += 1
                                 self.stats['contracts_scraped'] += 1
 
+                                # ALWAYS yield basic data immediately to save to database
+                                # This ensures we don't lose data if scraping is interrupted
+                                yield contract_data
+
                                 # Collect detail URL for later scraping if logged in
                                 if self.scrape_details and detail_url:
                                     self.pending_detail_urls.append({
                                         'url': detail_url,
                                         'tender_id': contract_data.get('tender_id'),
-                                        'basic_data': dict(contract_data),
                                     })
-                                else:
-                                    # Yield immediately if not scraping details
-                                    yield contract_data
+
+                                    # Process details in batches of 100 to avoid memory issues
+                                    if len(self.pending_detail_urls) >= 100:
+                                        logger.info(f"Processing batch of {len(self.pending_detail_urls)} detail URLs...")
+                                        for detail_info in self.pending_detail_urls:
+                                            yield scrapy.Request(
+                                                url=detail_info['url'],
+                                                callback=self.parse_contract_detail,
+                                                meta={
+                                                    'playwright': True,
+                                                    'playwright_include_page': True,
+                                                    'playwright_page_goto_kwargs': {
+                                                        'wait_until': 'networkidle',
+                                                        'timeout': 120000,
+                                                    },
+                                                    'tender_id': detail_info['tender_id'],
+                                                },
+                                                errback=self.errback_playwright,
+                                                dont_filter=True,
+                                            )
+                                        self.pending_detail_urls = []  # Clear processed URLs
                         except Exception as e:
                             logger.warning(f"Error extracting row: {e}")
                             continue
@@ -488,9 +509,9 @@ class ContractsSpider(scrapy.Spider):
 
             await page.close()
 
-            # Now scrape detail pages if logged in
+            # Process any remaining detail URLs (final batch)
             if self.scrape_details and self.pending_detail_urls:
-                logger.warning(f"Starting detail scraping for {len(self.pending_detail_urls)} contracts...")
+                logger.warning(f"Processing final batch of {len(self.pending_detail_urls)} detail URLs...")
                 for detail_info in self.pending_detail_urls:
                     yield scrapy.Request(
                         url=detail_info['url'],
@@ -503,11 +524,11 @@ class ContractsSpider(scrapy.Spider):
                                 'timeout': 120000,
                             },
                             'tender_id': detail_info['tender_id'],
-                            'basic_data': detail_info['basic_data'],
                         },
                         errback=self.errback_playwright,
                         dont_filter=True,
                     )
+                self.pending_detail_urls = []
 
         except Exception as e:
             logger.error(f"Error parsing contracts list: {e}")
@@ -662,6 +683,11 @@ class ContractsSpider(scrapy.Spider):
 
             # Extract additional data from detail page
             html_content = await page.content()
+
+            # =========================================================
+            # SAVE RAW HTML for AI parsing of items/specs
+            # =========================================================
+            item['raw_page_html'] = html_content
 
             # =========================================================
             # Extract ALL bidders (not just winner)

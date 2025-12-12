@@ -110,21 +110,14 @@ JSON:"""
 
     try:
         def _sync_generate():
-            # Relaxed safety settings for business content
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-            ]
+            # No safety settings to avoid blocks
             model = genai.GenerativeModel(model_name)
             response = model.generate_content(
                 prompt,
                 generation_config=genai.GenerationConfig(
                     temperature=0.2,  # Low temperature for consistent extraction
                     max_output_tokens=2000
-                ),
-                safety_settings=safety_settings
+                )
             )
             try:
                 return response.text

@@ -19,7 +19,7 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-VENV_PATH="/home/ubuntu/nabavkidata/venv"
+VENV_PATH="/home/ubuntu/nabavkidata/backend/venv"
 LOG_DIR="/var/log/nabavkidata"
 
 # Load environment variables from .env file if it exists
@@ -54,7 +54,7 @@ LOG_FILE="$LOG_DIR/scrapy_contracts_$(date +%Y%m%d_%H%M%S).log"
 # Run the contracts spider
 # - max_pages limits pagination (default: 15000 pages = ~150K records)
 # - For daily updates, limit to recent pages (new contracts appear first)
-scrapy crawl contracts \
+"$VENV_PATH/bin/scrapy" crawl contracts \
     -a max_pages=500 \
     -s LOG_LEVEL=INFO \
     -s LOG_FILE="$LOG_FILE" || {

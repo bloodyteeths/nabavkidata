@@ -7,5 +7,12 @@ google-generativeai>=0.3.0
 asyncpg==0.30.0
 pgvector==0.2.4
 
+# Table Extraction
+pdfplumber>=0.10.0
+camelot-py>=0.11.0
+tabula-py>=2.8.0
+opencv-python>=4.8.0
+pandas>=2.0.0
+
 # Utilities
 python-dotenv==1.0.0

@@ -16,6 +16,7 @@ import statistics
 from database import get_db
 from models import User
 from api.auth import get_current_user
+from utils.timezone import get_ai_date_context
 
 router = APIRouter(prefix="/ai", tags=["pricing"])
 
@@ -602,8 +603,13 @@ async def get_bid_advisor(
         try:
             model = genai.GenerativeModel(GEMINI_MODEL)
 
+            # Add date context
+            date_context = get_ai_date_context()
+
             # Prepare context for AI
-            context = f"""Анализирај ги следниве историски податоци за тендерско наддавање и генерирај препораки за цена на понуда.
+            context = f"""{date_context}
+
+Анализирај ги следниве историски податоци за тендерско наддавање и генерирај препораки за цена на понуда.
 
 ТЕКОВЕН ТЕНДЕР:
 - Тендер ID: {tender_id}
@@ -673,13 +679,7 @@ async def get_bid_advisor(
 ВАЖНО: Препорачаните понуди МОРА да бидат базирани на историските податоци. Агресивната треба да биде пониска од медијаната, балансираната околу медијаната, а безбедната повисока."""
 
             # Relaxed safety settings for business content
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-            ]
-            response = model.generate_content(context, safety_settings=safety_settings)
+            response = model.generate_content(context)
             try:
                 response_text = response.text
             except ValueError:

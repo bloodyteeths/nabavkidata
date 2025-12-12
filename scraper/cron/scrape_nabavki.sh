@@ -19,7 +19,7 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-VENV_PATH="/home/ubuntu/nabavkidata/venv"
+VENV_PATH="/home/ubuntu/nabavkidata/backend/venv"
 LOG_DIR="/var/log/nabavkidata"
 HEALTH_FILE="/home/ubuntu/nabavkidata/health.json"
 
@@ -71,7 +71,7 @@ for CATEGORY in $CATEGORIES; do
 
     LOG_FILE="$LOG_DIR/scrapy_nabavki_${CATEGORY}_$(date +%Y%m%d_%H%M%S).log"
 
-    scrapy crawl nabavki_auth \
+    "$VENV_PATH/bin/scrapy" crawl nabavki_auth \
         -a category=$CATEGORY \
         -s LOG_LEVEL=INFO \
         -s LOG_FILE="$LOG_FILE" || {

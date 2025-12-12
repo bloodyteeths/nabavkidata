@@ -300,48 +300,74 @@ class PDFExtractionPipeline:
             return item
 
         try:
-            # Use multi-engine document parser
-            from document_parser import parse_pdf
-
-            result = parse_pdf(file_path)
-
-            # Store extracted text in item
-            adapter['content_text'] = result.text
-            adapter['extraction_status'] = 'success' if result.text else 'failed'
-
-            # Get file metadata
-            file_stats = Path(file_path).stat()
-            adapter['file_size_bytes'] = file_stats.st_size
-            adapter['page_count'] = result.page_count
-
-            # Store extracted metadata as JSON in specifications_json
             import json
-            metadata = {
-                'engine_used': result.engine_used,
-                'has_tables': result.has_tables,
-                'table_count': len(result.tables),
-                'cpv_codes': result.cpv_codes,
-                'company_names': result.company_names,
-                'emails': result.emails,
-                'phones': result.phones,
-            }
-            adapter['specifications_json'] = json.dumps(metadata, ensure_ascii=False)
+            file_ext = Path(file_path).suffix.lower()
+
+            # Use unified parse_file for all supported document types (PDF, Word, Excel)
+            from document_parser import parse_file, is_supported_document
+
+            if is_supported_document(file_path):
+                result = parse_file(file_path)
+
+                adapter['content_text'] = result.text
+                adapter['extraction_status'] = 'success' if result.text else 'failed'
+                adapter['page_count'] = result.page_count
+
+                metadata = {
+                    'engine_used': result.engine_used,
+                    'has_tables': result.has_tables,
+                    'table_count': len(result.tables),
+                    'tables': result.tables,  # Store actual table data as raw JSON
+                    'cpv_codes': result.cpv_codes,
+                    'company_names': result.company_names,
+                    'emails': result.emails,
+                    'phones': result.phones,
+                }
+                adapter['specifications_json'] = json.dumps(metadata, ensure_ascii=False)
+
+                logger.info(
+                    f"Extracted {len(result.text)} chars from {adapter.get('file_name')} "
+                    f"using {result.engine_used}. "
+                    f"CPV: {len(result.cpv_codes)}, Companies: {len(result.company_names)}, "
+                    f"Emails: {len(result.emails)}, Phones: {len(result.phones)}"
+                )
+
+            else:
+                logger.warning(f"Unsupported file type: {file_ext} for {adapter.get('file_name')}")
+                adapter['extraction_status'] = 'unsupported'
+                adapter['content_text'] = None
+
+            # Get file metadata BEFORE potential deletion
+            file_path_obj = Path(file_path)
+            if file_path_obj.exists():
+                file_stats = file_path_obj.stat()
+                adapter['file_size_bytes'] = file_stats.st_size
 
             # Verify Cyrillic preservation
-            if self._contains_cyrillic(result.text):
+            if adapter.get('content_text') and self._contains_cyrillic(adapter['content_text']):
                 logger.info(f"✓ Cyrillic text preserved in: {adapter.get('file_name')}")
 
-            logger.info(
-                f"Extracted {len(result.text)} chars from {adapter.get('file_name')} "
-                f"using {result.engine_used}. "
-                f"CPV: {len(result.cpv_codes)}, Companies: {len(result.company_names)}, "
-                f"Emails: {len(result.emails)}, Phones: {len(result.phones)}"
-            )
+            # AUTO-CLEANUP: Delete file after extraction attempt to save disk space
+            # Delete regardless of success - we've either extracted content or marked as failed
+            # The content (if any) is stored in DB, no need to keep file on disk
+            try:
+                if file_path_obj.exists():
+                    file_path_obj.unlink()
+                    logger.info(f"🗑️ Deleted file after extraction: {adapter.get('file_name')} (status: {adapter.get('extraction_status')})")
+            except Exception as cleanup_error:
+                logger.warning(f"Could not delete file after extraction: {cleanup_error}")
 
         except Exception as e:
-            logger.error(f"PDF extraction failed: {e}")
+            logger.error(f"Document extraction failed for {file_path}: {e}")
             adapter['extraction_status'] = 'failed'
             adapter['content_text'] = None
+            # Also cleanup on failure
+            try:
+                if file_path_obj.exists():
+                    file_path_obj.unlink()
+                    logger.info(f"🗑️ Deleted file after failed extraction: {adapter.get('file_name')}")
+            except:
+                pass
 
         return item
 
@@ -609,6 +635,10 @@ class DatabasePipeline:
                     if docs_data:
                         logger.info(f"Inserting {len(docs_data)} document(s) for tender {tender_id}")
                         for doc in docs_data:
+                            # Skip if doc is not a dict (sometimes it's a string URL)
+                            if not isinstance(doc, dict):
+                                logger.warning(f"Skipping non-dict document: {type(doc)}")
+                                continue
                             # Ensure required fields
                             doc.setdefault('doc_type', doc.get('doc_category') or 'document')
                             doc.setdefault('extraction_status', 'pending')
@@ -780,6 +810,8 @@ class DatabasePipeline:
             'documents_data': [doc if isinstance(doc, dict) else str(doc) for doc in (item.get('documents_data') or [])],
             'scraped_at': item.get('scraped_at'),
             'source_category': source_category,
+            'raw_page_html': item.get('raw_page_html'),  # Full HTML for AI parsing
+            'items_table_html': item.get('items_table_html'),  # Items table for AI
         }
         raw_data_json = json.dumps(raw_data, ensure_ascii=False, default=str)
 
@@ -1038,7 +1070,7 @@ class DatabasePipeline:
                     contract_date, contract_type, notification_url,
                     raw_data, source_url
                 ) VALUES (
-                    , , , , , , , , , , , 
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
                 )
                 ON CONFLICT (tender_id, award_number) DO UPDATE SET
                     lot_numbers = EXCLUDED.lot_numbers,

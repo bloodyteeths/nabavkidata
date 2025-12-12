@@ -9,11 +9,11 @@ import LiveUserCounter from "./LiveUserCounter";
 import StylizedMacedonianFlag from "./StylizedMacedonianFlag";
 
 const phrases = [
-    "Освојувајте тендери со Вештачка Интелигенција",
-    "Најдете ги вистинските тендери со AI",
-    "Победувајте со AI-базирани инсајти",
+    "Не губи тендери поради лошо пребарување",
+    "Дознај ги цените на конкурентите",
+    "Најди ги вистинските тендери веднаш",
     "Анализирајте конкуренција со AI",
-    "Зголемете ги шансите за успех со AI",
+    "Зголемете ги шансите за успех",
 ];
 
 export default function HeroSection() {
@@ -72,10 +72,11 @@ export default function HeroSection() {
                     className="flex flex-col items-center justify-center gap-4"
                 >
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <Link href="/auth/register">
+                        <Link href="/auth/register" className="flex flex-col items-center">
                             <Button size="lg" className="h-12 px-8 text-lg bg-primary hover:bg-primary/90 text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300">
-                                Пробај Бесплатно <ArrowRight className="ml-2 h-5 w-5" />
+                                Почни Бесплатно <ArrowRight className="ml-2 h-5 w-5" />
                             </Button>
+                            <span className="text-xs text-gray-400 mt-2">Не е потребна картичка</span>
                         </Link>
                         <Link href="#how-it-works">
                             <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/10 hover:bg-white/5 text-gray-300">

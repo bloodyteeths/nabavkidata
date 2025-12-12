@@ -8,6 +8,21 @@ import { motion } from "framer-motion";
 
 const plans = [
     {
+        name: "Бесплатно",
+        price: {
+            monthly: "0",
+            yearly: "0"
+        },
+        description: "Започнете без ризик. Идеално за истражување.",
+        features: [
+            "Преглед на сите тендери",
+            "Основно пребарување",
+            "Дневни известувања",
+            "Без кредитна картичка",
+            "Лимитиран пристап"
+        ]
+    },
+    {
         name: "Старт",
         price: {
             monthly: "899",
@@ -91,7 +106,7 @@ export default function PricingSection() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 max-w-7xl mx-auto">
                     {plans.map((plan, index) => (
                         <motion.div
                             key={index}
@@ -100,8 +115,8 @@ export default function PricingSection() {
                             viewport={{ once: true }}
                             transition={{ delay: index * 0.1 }}
                             className={`relative p-8 rounded-2xl border ${plan.popular
-                                    ? "bg-primary/10 border-primary shadow-[0_0_30px_rgba(124,58,237,0.2)]"
-                                    : "bg-white/5 border-white/10"
+                                ? "bg-primary/10 border-primary shadow-[0_0_30px_rgba(124,58,237,0.2)]"
+                                : "bg-white/5 border-white/10"
                                 }`}
                         >
                             {plan.popular && (
@@ -133,8 +148,8 @@ export default function PricingSection() {
                             <Button
                                 onClick={() => router.push('/auth/register')}
                                 className={`w-full ${plan.popular
-                                        ? "bg-primary hover:bg-primary/90 text-white"
-                                        : "bg-white/10 hover:bg-white/20 text-white"
+                                    ? "bg-primary hover:bg-primary/90 text-white"
+                                    : "bg-white/10 hover:bg-white/20 text-white"
                                     }`}
                             >
                                 Избери План

@@ -17,6 +17,7 @@ import json
 import logging
 
 from database import get_db
+from utils.timezone import now_mk, today_mk, format_mk_datetime, get_ai_date_context
 from models import User, Alert
 from api.auth import get_current_user
 
@@ -261,7 +262,12 @@ async def generate_briefing_summary(matches: List[Dict[str, Any]], user_alerts: 
 
         top_tender_title = matches[0]['tender']['title'][:150] if matches else 'Нема'
 
-        context = f"""Генерирај кратко извршно резиме (2-3 реченици) за дневен извештај за тендери на македонски јазик.
+        # Add current date context
+        date_context = get_ai_date_context()
+
+        context = f"""{date_context}
+
+Генерирај кратко извршно резиме (2-3 реченици) за дневен извештај за тендери на македонски јазик.
 
 Информации:
 - Вкупно совпаѓања: {len(matches)}
@@ -272,13 +278,7 @@ async def generate_briefing_summary(matches: List[Dict[str, Any]], user_alerts: 
 Биди концизен и нагласи ги итните можности. Користи македонски јазик."""
 
         # Relaxed safety settings for business content
-        safety_settings = [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-        ]
-        response = model.generate_content(context, safety_settings=safety_settings)
+        response = model.generate_content(context)
         try:
             return response.text.strip()
         except ValueError:
@@ -496,7 +496,7 @@ async def get_today_briefing(
     Returns AI-curated briefing with matching tenders for user's alerts.
     Cached - won't regenerate unless forced.
     """
-    today = date.today()
+    today = today_mk()
     user_id = current_user.user_id
 
     briefing = await get_or_create_briefing(user_id, today, db, force_regenerate=False)
@@ -596,7 +596,7 @@ async def get_briefing_by_date(
     user_id = current_user.user_id
 
     # Don't allow future dates
-    if briefing_date > date.today():
+    if briefing_date > today_mk():
         raise HTTPException(
             status_code=400,
             detail="Cannot generate briefing for future dates"
@@ -634,7 +634,7 @@ async def force_regenerate_briefing(
     Deletes existing briefing and generates a fresh one.
     Use when user wants updated data.
     """
-    today = date.today()
+    today = today_mk()
     user_id = current_user.user_id
 
     briefing = await get_or_create_briefing(user_id, today, db, force_regenerate=True)

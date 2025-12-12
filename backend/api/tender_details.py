@@ -12,6 +12,7 @@ from decimal import Decimal
 
 from database import get_db
 from models import Tender
+from utils.timezone import get_ai_date_context
 
 router = APIRouter(prefix="/tenders", tags=["tender-details"])
 
@@ -503,8 +504,13 @@ async def extract_products_with_ai(
     genai.configure(api_key=gemini_api_key)
     model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
 
+    # Add date context
+    date_context = get_ai_date_context()
+
     # Build extraction prompt
-    extraction_prompt = f"""Ти си експерт за анализа на тендерска документација. Од следниот текст извлечен од PDF документи, идентификувај ги сите ПРОИЗВОДИ, УСЛУГИ или СТАВКИ што се бараат во тендерот.
+    extraction_prompt = f"""{date_context}
+
+Ти си експерт за анализа на тендерска документација. Од следниот текст извлечен од PDF документи, идентификувај ги сите ПРОИЗВОДИ, УСЛУГИ или СТАВКИ што се бараат во тендерот.
 
 За секој производ/услуга извлечи:
 - name: Име на производот/услугата
@@ -547,21 +553,14 @@ async def extract_products_with_ai(
 
     try:
         def _sync_generate():
-            # Relaxed safety settings for business content
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}
-            ]
+            # No safety settings to avoid blocks
             model_obj = genai.GenerativeModel(model_name)
             response = model_obj.generate_content(
                 extraction_prompt,
                 generation_config=genai.GenerationConfig(
                     temperature=0.1,  # Low temperature for structured extraction
                     max_output_tokens=2000
-                ),
-                safety_settings=safety_settings
+                )
             )
 
             # Handle safety blocks (finish_reason=2 means SAFETY)

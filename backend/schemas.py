@@ -153,6 +153,11 @@ class DocumentBase(BaseModel):
     page_count: Optional[int] = None
     mime_type: Optional[str] = None
 
+    # AI Extraction fields (Phase 2.2)
+    ai_summary: Optional[str] = None
+    key_requirements: Optional[List[str]] = None
+    items_mentioned: Optional[List[Dict[str, Any]]] = None
+
 
 class DocumentCreate(DocumentBase):
     """Schema for creating document"""
@@ -173,6 +178,29 @@ class DocumentListResponse(BaseModel):
     """Schema for document list"""
     total: int
     items: List[DocumentResponse]
+
+
+class DocumentContentResponse(BaseModel):
+    """Schema for document content with full text and metadata"""
+    doc_id: UUID
+    file_name: Optional[str] = None
+    file_type: Optional[str] = None
+    content_text: Optional[str] = None
+    content_preview: Optional[str] = None
+    word_count: int
+    has_tables: bool
+    extraction_status: str
+    file_url: Optional[str] = None
+    tender_id: str
+    created_at: datetime
+
+    # AI Extraction fields (Phase 2.2)
+    ai_summary: Optional[str] = None
+    key_requirements: Optional[List[str]] = None
+    items_mentioned: Optional[List[Dict[str, Any]]] = None
+
+    class Config:
+        from_attributes = True
 
 
 # ============================================================================
@@ -755,3 +783,131 @@ class EPazarStatsResponse(BaseModel):
     status_breakdown: Dict[str, Dict[str, Any]]
     recent_tenders: List[Dict[str, Any]]
     top_suppliers: List[Dict[str, Any]]
+
+
+# ============================================================================
+# TENDER CHAT SCHEMAS (AI Chat with specific tender)
+# ============================================================================
+
+class TenderChatRequest(BaseModel):
+    """Request schema for tender chat"""
+    question: str = Field(..., min_length=1, max_length=1000, description="User question about the tender")
+    conversation_history: Optional[List[Dict[str, str]]] = Field(
+        default=[],
+        description="Previous Q&A pairs for context"
+    )
+
+
+class TenderChatSource(BaseModel):
+    """Source document reference for tender chat"""
+    doc_id: str
+    file_name: Optional[str] = None
+    excerpt: str = Field(..., description="Relevant excerpt from document")
+
+
+class TenderChatResponse(BaseModel):
+    """Response schema for tender chat"""
+    answer: str = Field(..., description="AI-generated answer in Macedonian")
+    sources: List[TenderChatSource] = Field(default=[], description="Document sources used")
+    confidence: float = Field(..., ge=0, le=1, description="Confidence score based on data availability")
+    tender_id: str
+
+
+# ============================================================================
+# BID ADVISOR SCHEMAS
+# ============================================================================
+
+class BidRecommendation(BaseModel):
+    """Single bid recommendation strategy"""
+    strategy: str  # "aggressive", "balanced", "safe"
+    recommended_bid: float
+    win_probability: float  # 0-1
+    reasoning: str
+
+
+class BidAdvisorResponse(BaseModel):
+    """AI-powered bid advisor response"""
+    tender_id: str
+    tender_title: str
+    estimated_value: Optional[float]
+    cpv_code: Optional[str]
+    category: Optional[str]
+    procuring_entity: Optional[str]
+    market_analysis: Dict[str, Any]
+    historical_data: Dict[str, Any]
+    recommendations: List[BidRecommendation]
+    competitor_insights: List[Dict[str, Any]]
+    ai_summary: str
+    generated_at: str
+
+
+# ============================================================================
+# COMPETITOR TRACKING SCHEMAS
+# ============================================================================
+
+class TrackedCompetitorCreate(BaseModel):
+    """Schema for adding a competitor to track"""
+    company_name: str = Field(..., min_length=1, max_length=500, description="Company name to track")
+    tax_id: Optional[str] = Field(None, max_length=100, description="Optional tax ID")
+    notes: Optional[str] = Field(None, description="Optional notes about this competitor")
+
+
+class TrackedCompetitorResponse(BaseModel):
+    """Schema for tracked competitor response"""
+    tracking_id: UUID
+    user_id: UUID
+    company_name: str
+    tax_id: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TrackedCompetitorListResponse(BaseModel):
+    """Schema for list of tracked competitors"""
+    total: int
+    items: List[TrackedCompetitorResponse]
+
+
+class CompetitorTender(BaseModel):
+    """Single tender participation"""
+    tender_id: str
+    title: str
+    procuring_entity: Optional[str] = None
+    bid_amount_mkd: Optional[Decimal] = None
+    estimated_value_mkd: Optional[Decimal] = None
+    is_winner: bool = False
+    rank: Optional[int] = None
+    closing_date: Optional[date] = None
+    status: Optional[str] = None
+
+
+class CompetitorStatsResponse(BaseModel):
+    """Detailed competitor statistics"""
+    company_name: str
+    total_bids: int
+    total_wins: int
+    win_rate: Optional[float] = None
+    avg_bid_discount: Optional[float] = None
+    top_cpv_codes: List[Dict[str, Any]] = []
+    top_categories: List[Dict[str, Any]] = []
+    recent_tenders: List[CompetitorTender] = []
+    last_updated: Optional[datetime] = None
+
+
+class CompetitorSearchResult(BaseModel):
+    """Search result for companies"""
+    company_name: str
+    tax_id: Optional[str] = None
+    total_bids: int = 0
+    total_wins: int = 0
+    win_rate: Optional[float] = None
+    total_contract_value: Optional[Decimal] = None
+
+
+class CompetitorSearchResponse(BaseModel):
+    """Response for competitor search"""
+    total: int
+    items: List[CompetitorSearchResult]

@@ -858,6 +858,20 @@ async def summarize_tender(
         )
         offers = offers_result.fetchall()
 
+        # Get documents with extracted content
+        docs_result = await db.execute(
+            text("""
+                SELECT file_name, doc_type, content_text
+                FROM epazar_documents
+                WHERE tender_id = :tender_id
+                  AND extraction_status = 'success'
+                  AND content_text IS NOT NULL
+                  AND content_text != ''
+            """),
+            {'tender_id': tender_id}
+        )
+        documents = docs_result.fetchall()
+
         # Build context for AI
         context = {
             'tender_title': tender.title,
@@ -883,6 +897,14 @@ async def summarize_tender(
                 }
                 for offer in offers
             ],
+            'documents': [
+                {
+                    'file_name': doc.file_name,
+                    'doc_type': doc.doc_type,
+                    'content': doc.content_text[:5000] if doc.content_text else None,  # Limit to 5k chars per doc
+                }
+                for doc in documents
+            ],
         }
 
         # Call AI service (using existing RAG infrastructure)
@@ -895,6 +917,7 @@ async def summarize_tender(
             'summary': summary,
             'items_count': len(items),
             'offers_count': len(offers),
+            'documents_used': len(documents),
         }
 
     except HTTPException:

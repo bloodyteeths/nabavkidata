@@ -17,8 +17,35 @@ const MONTHS_LONG_MK = [
   "декември",
 ];
 
+// Macedonia timezone
+export const MACEDONIA_TZ = "Europe/Skopje";
+
 const toDate = (value: string | number | Date) =>
   value instanceof Date ? value : new Date(value);
+
+// Convert to Macedonia timezone and get date parts
+const toMacedoniaDate = (date: Date) => {
+  // Use Intl.DateTimeFormat to get parts in Macedonia timezone
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: MACEDONIA_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(date);
+  const partMap: Record<string, string> = {};
+  parts.forEach(p => { partMap[p.type] = p.value; });
+  return {
+    year: parseInt(partMap.year || "0"),
+    month: parseInt(partMap.month || "1") - 1, // 0-indexed
+    day: parseInt(partMap.day || "1"),
+    hour: parseInt(partMap.hour || "0"),
+    minute: parseInt(partMap.minute || "0"),
+  };
+};
 
 const pad2 = (n: number) => n.toString().padStart(2, "0");
 
@@ -50,21 +77,22 @@ export function formatDate(
   if (!date) return "N/A";
 
   const d = toDate(date);
+  const mkDate = toMacedoniaDate(d);
   const monthOpt = options.month ?? "short";
   const dayOpt = options.day ?? "numeric";
   const yearOpt = options.year ?? "numeric";
 
   const month =
     monthOpt === "long"
-      ? MONTHS_LONG_MK[d.getUTCMonth()]
+      ? MONTHS_LONG_MK[mkDate.month]
       : monthOpt === "short"
-      ? MONTHS_SHORT_MK[d.getUTCMonth()]
+      ? MONTHS_SHORT_MK[mkDate.month]
       : monthOpt === "2-digit"
-      ? pad2(d.getUTCMonth() + 1)
-      : (d.getUTCMonth() + 1).toString();
+      ? pad2(mkDate.month + 1)
+      : (mkDate.month + 1).toString();
 
-  const day = dayOpt === "2-digit" ? pad2(d.getUTCDate()) : d.getUTCDate().toString();
-  const year = yearOpt === "numeric" ? d.getUTCFullYear().toString() : "";
+  const day = dayOpt === "2-digit" ? pad2(mkDate.day) : mkDate.day.toString();
+  const year = yearOpt === "numeric" ? mkDate.year.toString() : "";
 
   // Common formats used across the app; join parts that exist.
   const parts = [day, month, year].filter(Boolean);
@@ -90,9 +118,10 @@ export function formatDateTime(
   }
 
   const d = toDate(date);
+  const mkDate = toMacedoniaDate(d);
   const datePart = mappedOptions.year || mappedOptions.month || mappedOptions.day ? formatDate(d, mappedOptions) : "";
-  const hour = mappedOptions.hour ? pad2(d.getUTCHours()) : "";
-  const minute = mappedOptions.minute ? pad2(d.getUTCMinutes()) : "";
+  const hour = mappedOptions.hour ? pad2(mkDate.hour) : "";
+  const minute = mappedOptions.minute ? pad2(mkDate.minute) : "";
   const timePart = hour && minute ? `${hour}:${minute}` : hour || minute;
 
   if (datePart && timePart) return `${datePart} ${timePart}`;
@@ -110,4 +139,16 @@ export function formatRelativeTime(date: string): string {
   if (diffDays < 7) return `Пред ${diffDays} дена`;
   if (diffDays < 30) return `Пред ${Math.floor(diffDays / 7)} недели`;
   return formatDate(date);
+}
+
+// Get current date in Macedonia timezone (YYYY-MM-DD format)
+export function getTodayMK(): string {
+  const now = new Date();
+  const mkDate = toMacedoniaDate(now);
+  return `${mkDate.year}-${pad2(mkDate.month + 1)}-${pad2(mkDate.day)}`;
+}
+
+// Get current datetime in Macedonia timezone
+export function getNowMK(): { year: number; month: number; day: number; hour: number; minute: number } {
+  return toMacedoniaDate(new Date());
 }

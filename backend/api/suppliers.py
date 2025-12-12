@@ -175,6 +175,161 @@ async def list_suppliers(
 
 
 # ============================================================================
+# GET ALL KNOWN WINNERS (for competitor selection)
+# IMPORTANT: Must be defined BEFORE /{supplier_id} to avoid route conflict
+# ============================================================================
+
+@router.get("/winners")
+async def get_known_winners(
+    search: str = Query(None, description="Optional search filter"),
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get list of all known tender winners for competitor selection.
+
+    This combines:
+    1. Winners from tender_bidders table
+    2. Winners from tenders.winner field
+    3. Suppliers from suppliers table
+
+    Returns a deduplicated list sorted by win count.
+    """
+    # Combined query to get all known winning companies
+    query = text("""
+        WITH all_winners AS (
+            -- From suppliers table
+            SELECT
+                company_name,
+                total_wins as wins,
+                total_bids as bids,
+                total_contract_value_mkd as total_value
+            FROM suppliers
+            WHERE total_wins > 0
+
+            UNION ALL
+
+            -- From tender_bidders
+            SELECT
+                company_name,
+                COUNT(*) FILTER (WHERE is_winner) as wins,
+                COUNT(*) as bids,
+                SUM(bid_amount_mkd) FILTER (WHERE is_winner) as total_value
+            FROM tender_bidders
+            WHERE company_name IS NOT NULL
+            GROUP BY company_name
+
+            UNION ALL
+
+            -- From tenders.winner field
+            SELECT
+                winner as company_name,
+                COUNT(*) as wins,
+                COUNT(*) as bids,
+                SUM(actual_value_mkd) as total_value
+            FROM tenders
+            WHERE winner IS NOT NULL AND winner != ''
+            GROUP BY winner
+        ),
+        aggregated AS (
+            SELECT
+                company_name,
+                SUM(wins) as total_wins,
+                SUM(bids) as total_bids,
+                SUM(total_value) as total_contract_value
+            FROM all_winners
+            WHERE company_name IS NOT NULL AND company_name != ''
+            GROUP BY company_name
+        )
+        SELECT
+            company_name,
+            total_wins,
+            total_bids,
+            total_contract_value
+        FROM aggregated
+        WHERE company_name ILIKE :search_pattern
+        ORDER BY total_wins DESC, total_bids DESC
+        LIMIT :limit
+    """)
+
+    search_pattern = f"%{search}%" if search else "%"
+    result = await db.execute(query, {
+        "search_pattern": search_pattern,
+        "limit": limit
+    })
+    rows = result.fetchall()
+
+    return {
+        "total": len(rows),
+        "winners": [
+            {
+                "company_name": row.company_name,
+                "total_wins": row.total_wins or 0,
+                "total_bids": row.total_bids or 0,
+                "total_contract_value": float(row.total_contract_value) if row.total_contract_value else None
+            }
+            for row in rows
+        ]
+    }
+
+
+# ============================================================================
+# SEARCH SUPPLIERS BY NAME
+# IMPORTANT: Must be defined BEFORE /{supplier_id} to avoid route conflict
+# ============================================================================
+
+@router.get("/search/{company_name}", response_model=List[SupplierResponse])
+async def search_suppliers_by_name(
+    company_name: str,
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Search suppliers by company name (fuzzy search)
+
+    Parameters:
+    - company_name: Search term
+    - limit: Maximum results to return
+    """
+    search_query = text("""
+        SELECT
+            supplier_id::text, company_name, tax_id,
+            address, city,
+            contact_person, contact_email, contact_phone, website,
+            total_bids, total_wins, win_rate, total_contract_value_mkd,
+            created_at
+        FROM suppliers
+        WHERE company_name ILIKE :search
+        ORDER BY total_wins DESC NULLS LAST
+        LIMIT :limit
+    """)
+
+    result = await db.execute(search_query, {"search": f"%{company_name}%", "limit": limit})
+    rows = result.fetchall()
+
+    return [
+        SupplierResponse(
+            supplier_id=str(row.supplier_id),
+            company_name=row.company_name,
+            tax_id=row.tax_id,
+            address=row.address,
+            city=row.city,
+            country="North Macedonia",
+            contact_person=row.contact_person,
+            contact_email=row.contact_email,
+            contact_phone=row.contact_phone,
+            website=row.website,
+            total_bids=row.total_bids or 0,
+            total_wins=row.total_wins or 0,
+            win_rate=float(row.win_rate) if row.win_rate else None,
+            total_value_won_mkd=row.total_contract_value_mkd,
+            created_at=row.created_at
+        )
+        for row in rows
+    ]
+
+
+# ============================================================================
 # GET SUPPLIER BY ID
 # ============================================================================
 
@@ -303,157 +458,3 @@ async def get_supplier(
         response.wins_by_entity = {r.procuring_entity: r.win_count for r in entity_result}
 
     return response
-
-
-# ============================================================================
-# GET ALL KNOWN WINNERS (for competitor selection)
-# ============================================================================
-
-@router.get("/winners")
-async def get_known_winners(
-    search: str = Query(None, description="Optional search filter"),
-    limit: int = Query(50, ge=1, le=200),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get list of all known tender winners for competitor selection.
-
-    This combines:
-    1. Winners from tender_bidders table
-    2. Winners from tenders.winner field
-    3. Suppliers from suppliers table
-
-    Returns a deduplicated list sorted by win count.
-    """
-    # Combined query to get all known winning companies
-    query = text("""
-        WITH all_winners AS (
-            -- From suppliers table
-            SELECT
-                company_name,
-                total_wins as wins,
-                total_bids as bids,
-                total_contract_value_mkd as total_value
-            FROM suppliers
-            WHERE total_wins > 0
-
-            UNION ALL
-
-            -- From tender_bidders
-            SELECT
-                company_name,
-                COUNT(*) FILTER (WHERE is_winner) as wins,
-                COUNT(*) as bids,
-                SUM(bid_amount_mkd) FILTER (WHERE is_winner) as total_value
-            FROM tender_bidders
-            WHERE company_name IS NOT NULL
-            GROUP BY company_name
-
-            UNION ALL
-
-            -- From tenders.winner field
-            SELECT
-                winner as company_name,
-                COUNT(*) as wins,
-                COUNT(*) as bids,
-                SUM(actual_value_mkd) as total_value
-            FROM tenders
-            WHERE winner IS NOT NULL AND winner != ''
-            GROUP BY winner
-        ),
-        aggregated AS (
-            SELECT
-                company_name,
-                SUM(wins) as total_wins,
-                SUM(bids) as total_bids,
-                SUM(total_value) as total_contract_value
-            FROM all_winners
-            WHERE company_name IS NOT NULL AND company_name != ''
-            GROUP BY company_name
-        )
-        SELECT
-            company_name,
-            total_wins,
-            total_bids,
-            total_contract_value
-        FROM aggregated
-        WHERE (:search IS NULL OR company_name ILIKE :search_pattern)
-        ORDER BY total_wins DESC, total_bids DESC
-        LIMIT :limit
-    """)
-
-    search_pattern = f"%{search}%" if search else None
-    result = await db.execute(query, {
-        "search": search,
-        "search_pattern": search_pattern,
-        "limit": limit
-    })
-    rows = result.fetchall()
-
-    return {
-        "total": len(rows),
-        "winners": [
-            {
-                "company_name": row.company_name,
-                "total_wins": row.total_wins or 0,
-                "total_bids": row.total_bids or 0,
-                "total_contract_value": float(row.total_contract_value) if row.total_contract_value else None
-            }
-            for row in rows
-        ]
-    }
-
-
-# ============================================================================
-# SEARCH SUPPLIERS BY NAME
-# ============================================================================
-
-@router.get("/search/{company_name}", response_model=List[SupplierResponse])
-async def search_suppliers_by_name(
-    company_name: str,
-    limit: int = Query(10, ge=1, le=50),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Search suppliers by company name (fuzzy search)
-
-    Parameters:
-    - company_name: Search term
-    - limit: Maximum results to return
-    """
-    search_query = text("""
-        SELECT
-            supplier_id::text, company_name, tax_id,
-            address, city,
-            contact_person, contact_email, contact_phone, website,
-            total_bids, total_wins, win_rate, total_contract_value_mkd,
-            created_at
-        FROM suppliers
-        WHERE company_name ILIKE :search
-        ORDER BY total_wins DESC NULLS LAST
-        LIMIT :limit
-    """)
-
-    result = await db.execute(search_query, {"search": f"%{company_name}%", "limit": limit})
-    rows = result.fetchall()
-
-    return [
-        SupplierResponse(
-            supplier_id=str(row.supplier_id),
-            company_name=row.company_name,
-            tax_id=row.tax_id,
-            address=row.address,
-            city=row.city,
-            country="North Macedonia",
-            contact_person=row.contact_person,
-            contact_email=row.contact_email,
-            contact_phone=row.contact_phone,
-            website=row.website,
-            total_bids=row.total_bids or 0,
-            total_wins=row.total_wins or 0,
-            win_rate=float(row.win_rate) if row.win_rate else None,
-            total_value_won_mkd=row.total_contract_value_mkd,
-            created_at=row.created_at
-        )
-        for row in rows
-    ]

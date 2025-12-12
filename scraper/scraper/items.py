@@ -63,6 +63,15 @@ class TenderItem(scrapy.Item):
     dossier_id = scrapy.Field()   # UUID from the tender URL (e-nabavki dossie ID)
     tender_uuid = scrapy.Field()  # Alternative tender UUID if different from dossier_id
 
+    # RAW HTML: Full page content for AI parsing of items/specs
+    raw_page_html = scrapy.Field()  # Complete HTML content from detail page
+    items_table_html = scrapy.Field()  # Extracted items/lots table HTML for AI
+
+    # JSON fields for Angular-extracted data
+    all_bidders_json = scrapy.Field()  # JSON of all bidders extracted from Angular scope
+    lot_awards_json = scrapy.Field()  # JSON of lot-level awards
+    raw_offers_html = scrapy.Field()  # Raw HTML of offers section for AI parsing
+
 class DocumentItem(scrapy.Item):
     """Document data structure"""
     tender_id = scrapy.Field()
@@ -94,8 +103,13 @@ class LotAwardItem(scrapy.Item):
     winner_tax_id = scrapy.Field()
     award_value_mkd = scrapy.Field()
     award_value_eur = scrapy.Field()
+    contract_value_mkd = scrapy.Field()  # Contract value if different from award
+    contract_value_eur = scrapy.Field()  # Contract value EUR
     award_date = scrapy.Field()
+    contract_date = scrapy.Field()  # Contract signing date
     contract_number = scrapy.Field()
     num_bidders = scrapy.Field()
+    num_lots = scrapy.Field()  # Number of lots in this award
     all_bidders = scrapy.Field()  # JSON array of all bidders for this lot
     raw_data = scrapy.Field()  # Original extracted data
+    source_url = scrapy.Field()  # URL of the tender page

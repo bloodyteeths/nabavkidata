@@ -4,10 +4,15 @@ Standalone script to process and extract text/specifications from documents.
 
 This script:
 1. Downloads documents that haven't been downloaded yet
-2. Extracts text from PDFs
+2. Extracts text from PDFs, Word (.docx), and Excel (.xlsx) documents
 3. Parses technical specifications (products, quantities, prices)
 4. Creates embeddings for semantic search
 5. Updates the database with extracted content
+
+Supported document types:
+- PDF (.pdf) - using PyMuPDF/PDFMiner/Tesseract OCR
+- Word (.docx, .doc) - using python-docx
+- Excel (.xlsx, .xls) - using openpyxl
 
 Usage:
     python process_documents.py --limit 100
@@ -32,7 +37,7 @@ import aiofiles
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from document_parser import parse_pdf, ExtractionResult
+from document_parser import parse_pdf, parse_file, is_supported_document, ExtractionResult
 from spec_extractor import extract_specifications, TechnicalSpecification
 from financial_bid_extractor import FinancialBidExtractor, FinancialBid, BidItem
 
@@ -44,7 +49,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata')
+def _normalize_database_url(url: str) -> str:
+    """Convert SQLAlchemy URL format to asyncpg format"""
+    if url.startswith('postgresql+asyncpg://'):
+        return url.replace('postgresql+asyncpg://', 'postgresql://')
+    return url
+
+DATABASE_URL = _normalize_database_url(os.getenv('DATABASE_URL', 'postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata'))
 FILES_STORE = Path(os.getenv('FILES_STORE', '/home/ubuntu/nabavkidata/scraper/downloads/files'))
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 
@@ -170,22 +181,24 @@ class DocumentProcessor:
         return '.pdf'  # Default
 
     async def extract_text(self, file_path: Path) -> Optional[ExtractionResult]:
-        """Extract text from PDF using multi-engine parser"""
+        """Extract text from document (PDF, Word, Excel) using multi-engine parser"""
         if not file_path.exists():
             return None
 
-        if not str(file_path).lower().endswith('.pdf'):
-            logger.info(f"Skipping non-PDF: {file_path.name}")
+        # Check if file type is supported
+        if not is_supported_document(str(file_path)):
+            logger.info(f"Skipping unsupported file type: {file_path.name}")
             return None
 
         try:
-            result = parse_pdf(str(file_path))
-            logger.info(f"Extracted {len(result.text)} chars, "
+            # Use universal parser for all supported file types
+            result = parse_file(str(file_path))
+            logger.info(f"Extracted {len(result.text)} chars from {file_path.suffix}, "
                        f"{len(result.cpv_codes)} CPV codes, "
                        f"{len(result.company_names)} companies")
             return result
         except Exception as e:
-            logger.error(f"Extraction error: {e}")
+            logger.error(f"Extraction error for {file_path.name}: {e}")
             return None
 
     def extract_specifications(self, text: str, tables: List,
