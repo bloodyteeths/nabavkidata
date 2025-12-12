@@ -86,7 +86,7 @@ export default function ComparisonSection() {
                             </li>
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                RAG Chat со документација
+                                Разговарај со Тендери (Chat)
                             </li>
                         </ul>
                     </motion.div>

@@ -6,8 +6,8 @@ import { Brain, Search, Zap, Shield, BarChart3, Bell } from "lucide-react";
 const features = [
     {
         icon: Brain,
-        title: "RAG Chat sa Tenderima",
-        description: "Razgovarajte sa tenderskom dokumentacijom. Postavite pitanje i dobijte odgovor odmah, umesto da čitate stotine stranica."
+        title: "Razgovarajte sa Tenderima",
+        description: "Postavite pitanje i dobijte odgovor odmah iz dokumentacije, umesto da čitate stotine stranica."
     },
     {
         icon: Search,
