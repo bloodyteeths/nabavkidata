@@ -9,11 +9,11 @@ import LiveUserCounter from "./LiveUserCounter";
 import StylizedMacedonianFlag from "./StylizedMacedonianFlag";
 
 const phrases = [
-    "Не губи тендери поради лошо пребарување",
-    "Дознај ги цените на конкурентите",
-    "Најди ги вистинските тендери веднаш",
-    "Анализирајте конкуренција со AI",
-    "Зголемете ги шансите за успех",
+    "Нефер Предност во Јавните Набавки",
+    "Предвидете ги понудите на конкурентите",
+    "Извадете барања за секунди",
+    "Анализирајте 5 години историја",
+    "Победувајте почесто со AI",
 ];
 
 export default function HeroSection() {
@@ -62,7 +62,7 @@ export default function HeroSection() {
                     transition={{ duration: 0.5, delay: 0.2 }}
                     className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10"
                 >
-                    Nabavkidata користи напредна AI технологија за да ви помогне да ги најдете вистинските тендери, да ја анализирате конкуренцијата и да победувате почесто.
+                    Не пребарувајте само тендери. Анализирајте 5 години историја, предвидете ги понудите на конкурентите и извадете барања со AI.
                 </motion.p>
 
                 <motion.div

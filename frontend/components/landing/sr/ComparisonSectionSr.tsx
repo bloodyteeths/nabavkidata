@@ -28,23 +28,23 @@ export default function ComparisonSectionSr() {
                         <ul className="space-y-4">
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Ručna pretraga
+                                Ručno čitanje 50+ strana PDF-a
                             </li>
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Osnovne ključne reči
+                                Pogađanje cena konkurenata
                             </li>
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Bez analize rizika
+                                Propušteni rokovi i šanse
                             </li>
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Zastareli podaci
+                                Nema istorijskih podataka
                             </li>
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Komplikovan interfejs
+                                Kompleksan i spor proces
                             </li>
                         </ul>
                     </motion.div>
@@ -70,23 +70,23 @@ export default function ComparisonSectionSr() {
                         <ul className="space-y-4">
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                AI Automatizacija
+                                AI izvlači zahteve za sekunde
                             </li>
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                Semantičko razumevanje
+                                Kompletna istorija konkurenata
                             </li>
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                Napredna procena rizika
+                                Win Factors - zašto pobeđuju?
                             </li>
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                Real-time ažuriranja
+                                Analiza 5-godišnje arhive
                             </li>
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                Moderan i jednostavan UI
+                                RAG Chat sa dokumentacijom
                             </li>
                         </ul>
                     </motion.div>

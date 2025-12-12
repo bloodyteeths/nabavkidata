@@ -28,23 +28,23 @@ export default function ComparisonSection() {
                         <ul className="space-y-4">
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Рачно пребарување
+                                Рачно читање на 50+ страни PDF
                             </li>
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Основни клучни зборови
+                                Погодување на цени на конкуренти
                             </li>
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Без анализа на ризик
+                                Пропуштени рокови и шанси
                             </li>
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Застарени податоци
+                                Нема историски податоци
                             </li>
                             <li className="flex items-center gap-3 text-gray-400">
                                 <X className="w-5 h-5 text-red-500" />
-                                Комплексен интерфејс
+                                Комплексен и бавен процес
                             </li>
                         </ul>
                     </motion.div>
@@ -70,23 +70,23 @@ export default function ComparisonSection() {
                         <ul className="space-y-4">
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                AI Автоматизација
+                                AI ги вади барањата за секунди
                             </li>
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                Семантичко разбирање
+                                Целосна историја на конкуренти
                             </li>
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                Напредна проценка на ризик
+                                Win Factors - зошто победуваат?
                             </li>
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                Real-time ажурирања
+                                Анализа на 5-годишна архива
                             </li>
                             <li className="flex items-center gap-3 text-white">
                                 <Check className="w-5 h-5 text-primary" />
-                                Модерен и едноставен UI
+                                RAG Chat со документација
                             </li>
                         </ul>
                     </motion.div>

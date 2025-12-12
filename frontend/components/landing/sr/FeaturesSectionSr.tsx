@@ -6,8 +6,8 @@ import { Brain, Search, Zap, Shield, BarChart3, Bell } from "lucide-react";
 const features = [
     {
         icon: Brain,
-        title: "AI Analiza",
-        description: "Naši algoritmi analiziraju svu tendersku dokumentaciju da vam pruže najvažnije informacije odmah."
+        title: "RAG Chat sa Tenderima",
+        description: "Razgovarajte sa tenderskom dokumentacijom. Postavite pitanje i dobijte odgovor odmah, umesto da čitate stotine stranica."
     },
     {
         icon: Search,
@@ -21,13 +21,13 @@ const features = [
     },
     {
         icon: Shield,
-        title: "Procena Rizika",
-        description: "Automatska detekcija rizičnih tendera i skrivenih uslova koji vas mogu skupo koštati."
+        title: "Automatska Ekstrakcija",
+        description: "AI čita PDF dokumente i automatski izvlači sve tehničke i finansijske zahteve, štedeći vam sate rada."
     },
     {
         icon: BarChart3,
-        title: "Konkurentska Analiza",
-        description: "Saznajte sve o vašim konkurentima. Njihove cene, strategije i istoriju pobeda."
+        title: "Win Factors & Analiza",
+        description: "Otkrijte zašto konkurenti pobeđuju. Da li je cena ili kvalitet? Naša AI analiza vam otkriva njihove tajne."
     },
     {
         icon: Bell,

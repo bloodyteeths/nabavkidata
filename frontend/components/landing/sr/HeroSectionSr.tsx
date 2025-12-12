@@ -8,11 +8,11 @@ import { useTypingEffect } from "@/hooks/useTypingEffect";
 import LiveUserCounterSr from "./LiveUserCounterSr";
 
 const phrases = [
-    "Ne gubite tendere zbog loše pretrage",
-    "Saznajte cene konkurenata",
-    "Pronađite prave tendere odmah",
-    "Analizirajte konkurenciju sa AI",
-    "Povećajte šanse za uspeh",
+    "Nepravedna Prednost u Javnim Nabavkama",
+    "Predvidite ponude konkurenata",
+    "Izvucite zahteve za sekunde",
+    "Analizirajte 5 godina istorije",
+    "Pobeđujte češće uz AI",
 ];
 
 export default function HeroSectionSr() {
@@ -53,7 +53,7 @@ export default function HeroSectionSr() {
                     transition={{ duration: 0.5, delay: 0.2 }}
                     className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10"
                 >
-                    Nabavkidata koristi naprednu AI tehnologiju da vam pomogne da pronađete prave tendere, analizirate konkurenciju i pobeđujete češće.
+                    Ne pretražujte samo tendere. Analizirajte 5 godina istorije, predvidite ponude konkurenata i izvucite zahteve pomoću AI.
                 </motion.p>
 
                 <motion.div
