@@ -8,11 +8,11 @@ import { useTypingEffect } from "@/hooks/useTypingEffect";
 import LiveUserCounterSr from "./LiveUserCounterSr";
 
 const phrases = [
-    "Osvajajte tendere uz Veštačku Inteligenciju",
-    "Pronađite prave tendere sa AI",
-    "Pobeđujte uz AI-bazirane uvide",
+    "Ne gubite tendere zbog loše pretrage",
+    "Saznajte cene konkurenata",
+    "Pronađite prave tendere odmah",
     "Analizirajte konkurenciju sa AI",
-    "Povećajte šanse za uspeh sa AI",
+    "Povećajte šanse za uspeh",
 ];
 
 export default function HeroSectionSr() {
@@ -63,10 +63,11 @@ export default function HeroSectionSr() {
                     className="flex flex-col items-center justify-center gap-4"
                 >
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <Link href="/auth/register">
+                        <Link href="/auth/register" className="flex flex-col items-center">
                             <Button size="lg" className="h-12 px-8 text-lg bg-primary hover:bg-primary/90 text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300">
-                                Isprobaj Besplatno <ArrowRight className="ml-2 h-5 w-5" />
+                                Počni Besplatno <ArrowRight className="ml-2 h-5 w-5" />
                             </Button>
+                            <span className="text-xs text-gray-400 mt-2">Nije potrebna kartica</span>
                         </Link>
                         <Link href="/sr#how-it-works">
                             <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/10 hover:bg-white/5 text-gray-300">
