@@ -41,7 +41,7 @@ export default function HeroSectionSr() {
                     transition={{ duration: 0.5, delay: 0.1 }}
                     className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 min-h-[180px] md:min-h-[200px] flex items-center justify-center"
                 >
-                    <span className="text-white">
+                    <span className="text-white notranslate">
                         {typedText}
                         <span className="inline-block w-1 h-12 md:h-16 bg-primary ml-1 animate-pulse" />
                     </span>

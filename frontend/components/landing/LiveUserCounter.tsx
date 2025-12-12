@@ -42,7 +42,7 @@ export default function LiveUserCounter() {
                     initial={{ scale: 1.3, color: "#7c3aed" }}
                     animate={{ scale: 1, color: "#ffffff" }}
                     transition={{ duration: 0.5 }}
-                    className="font-semibold"
+                    className="font-semibold notranslate"
                 >
                     {count.toLocaleString('mk-MK')}+
                 </motion.span>
