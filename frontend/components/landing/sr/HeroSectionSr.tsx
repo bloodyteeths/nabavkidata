@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles, Search } from "lucide-react";
 import { useTypingEffect } from "@/hooks/useTypingEffect";
 import LiveUserCounterSr from "./LiveUserCounterSr";
 
@@ -74,6 +74,37 @@ export default function HeroSectionSr() {
                                 Kako funkcioniše?
                             </Button>
                         </Link>
+                    </div>
+
+                    {/* Try it now hook */}
+                    <div className="mt-8 w-full max-w-md mx-auto">
+                        <p className="text-sm text-gray-400 mb-2">Ili probajte odmah:</p>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                placeholder="Unesite ključnu reč (npr. Laptopovi)"
+                                className="flex-1 h-12 rounded-lg bg-white/5 border border-white/10 px-4 text-white placeholder:text-gray-500 focus:outline-none focus:border-primary/50 transition-colors"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        const target = e.target as HTMLInputElement;
+                                        if (target.value.trim()) {
+                                            window.location.href = `/auth/register?keyword=${encodeURIComponent(target.value)}`;
+                                        }
+                                    }
+                                }}
+                            />
+                            <Button
+                                className="h-12 px-6 bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                                onClick={(e) => {
+                                    const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                    if (input.value.trim()) {
+                                        window.location.href = `/auth/register?keyword=${encodeURIComponent(input.value)}`;
+                                    }
+                                }}
+                            >
+                                <Search className="w-5 h-5" />
+                            </Button>
+                        </div>
                     </div>
 
                     <LiveUserCounterSr />

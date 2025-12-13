@@ -71,14 +71,21 @@ export default function Navbar() {
                     </Link>
                 </div>
 
-                {/* Mobile Menu Button */}
-                <button
-                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    className="md:hidden p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
-                    aria-label="Toggle menu"
-                >
-                    {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                </button>
+                {/* Mobile Actions */}
+                <div className="md:hidden flex items-center gap-3">
+                    <Link href="/auth/register">
+                        <Button size="sm" className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_10px_rgba(124,58,237,0.3)] h-9 px-4">
+                            Start
+                        </Button>
+                    </Link>
+                    <button
+                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                        className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+                        aria-label="Toggle menu"
+                    >
+                        {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                    </button>
+                </div>
             </motion.nav>
 
             {/* Mobile Menu */}
