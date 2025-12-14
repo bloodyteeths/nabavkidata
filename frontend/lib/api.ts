@@ -997,10 +997,18 @@ class APIClient {
   }
 
   // RAG/AI
-  async queryRAG(question: string, tenderId?: string) {
+  async queryRAG(
+    question: string,
+    tenderId?: string,
+    conversationHistory?: Array<{ role: string; content: string }>
+  ) {
     return this.request<RAGQueryResponse>('/api/rag/query', {
       method: 'POST',
-      body: JSON.stringify({ question, tender_id: tenderId }),
+      body: JSON.stringify({
+        question,
+        tender_id: tenderId,
+        conversation_history: conversationHistory
+      }),
     });
   }
 

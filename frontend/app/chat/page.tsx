@@ -127,7 +127,13 @@ export default function ChatPage() {
     scrollToBottom();
 
     try {
-      const response = await api.queryRAG(content);
+      // Build conversation history from previous messages (last 10 exchanges max)
+      const conversationHistory = messages.slice(-20).map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      const response = await api.queryRAG(content, undefined, conversationHistory);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
