@@ -21,14 +21,14 @@ const partners = [
         description: "Secure Payments"
     },
     {
-        name: "PostgreSQL",
-        logo: "https://wiki.postgresql.org/images/a/a4/PostgreSQL_logo.3colors.svg",
-        description: "Database"
+        name: "e-nabavki",
+        logo: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40'%3E%3Ctext x='10' y='28' font-family='Arial, sans-serif' font-size='20' font-weight='bold' fill='white'%3Ee-nabavki%3C/text%3E%3C/svg%3E",
+        description: "Јавни набавки"
     },
     {
-        name: "Vercel",
-        logo: "https://assets.vercel.com/image/upload/front/favicon/vercel/180x180.png",
-        description: "Deployment Platform"
+        name: "e-pazar",
+        logo: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40'%3E%3Ctext x='10' y='28' font-family='Arial, sans-serif' font-size='20' font-weight='bold' fill='white'%3Ee-pazar%3C/text%3E%3C/svg%3E",
+        description: "Електронски пазар"
     }
 ];
 
@@ -108,11 +108,12 @@ export default function TrustSection() {
                                 transition={{ delay: index * 0.1 }}
                                 className="flex flex-col items-center gap-2 md:gap-3 p-4 md:p-6 rounded-xl hover:bg-white/5 transition-colors group"
                             >
-                                <div className="relative w-20 h-12 md:w-24 md:h-14 flex items-center justify-center opacity-60 group-hover:opacity-100 transition-opacity">
+                                <div className="relative w-20 h-12 md:w-24 md:h-14 flex items-center justify-center opacity-70 group-hover:opacity-100 transition-opacity">
                                     <img
                                         src={partner.logo}
                                         alt={partner.name}
-                                        className="max-w-full max-h-full object-contain filter brightness-0 invert"
+                                        className="max-w-full max-h-full object-contain"
+                                        style={{ filter: 'brightness(0) invert(1)' }}
                                     />
                                 </div>
                                 <p className="text-xs text-gray-500 text-center">{partner.description}</p>
