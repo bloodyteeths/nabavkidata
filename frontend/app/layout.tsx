@@ -12,7 +12,31 @@ export const metadata: Metadata = {
     template: "%s | Nabavkidata.com"
   },
   description: "Македонска платформа за анализа и следење на јавни набавки со AI-базирани препораки и инсајти.",
-  keywords: ["јавни набавки", "тендери", "Македонија", "AI анализа", "набавки"],
+  keywords: ["јавни набавки", "тендери", "Македонија", "AI анализа", "набавки", "tender analysis", "procurement"],
+  openGraph: {
+    title: "Nabavkidata - Победувајте во Јавните Набавки со AI",
+    description: "AI-базирана платформа за интелигентна анализа на тендери. Предвидете ги понудите на конкурентите, анализирајте историја и извадете барања за секунди.",
+    url: "https://www.nabavkidata.com",
+    siteName: "Nabavkidata",
+    locale: "mk_MK",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Nabavkidata - AI Платформа за Јавни Набавки",
+    description: "Победувајте во јавните набавки со AI-базирана анализа на тендери и конкуренти.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 };
 
 import { Toaster } from "sonner";

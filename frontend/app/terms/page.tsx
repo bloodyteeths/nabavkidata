@@ -45,7 +45,7 @@ function MacedonianTerms() {
     <div className="prose prose-invert max-w-none space-y-8">
       <section>
         <p className="text-sm text-muted-foreground mb-6">
-          Последно ажурирање: Ноември 2025
+          Последно ажурирање: Декември 2025
         </p>
         <p className="text-muted-foreground mb-6">
           Ве молиме внимателно прочитајте ги овие Услови за користење ("Услови", "Услови за користење") пред да ја користите
@@ -124,63 +124,59 @@ function MacedonianTerms() {
 
         <h3 className="text-xl font-semibold mb-3 mt-6">4.1 Достапни пакети</h3>
         <p className="text-muted-foreground mb-4">
-          Нудиме различни нивоа на претплата прилагодени на различни потреби. Сите цени се прикажани во евра (EUR) и не
+          Нудиме различни нивоа на претплата прилагодени на различни потреби. Сите цени се прикажани во македонски денари (МКД) и не
           вклучуваат применливи даноци:
         </p>
 
         <div className="space-y-4 ml-4 not-prose">
           <div className="border border-muted rounded-lg p-4">
-            <h4 className="text-lg font-semibold mb-2 text-foreground">FREE (Бесплатно)</h4>
-            <p className="text-muted-foreground mb-2"><strong>Цена:</strong> €0.00/месец</p>
+            <h4 className="text-lg font-semibold mb-2 text-foreground">БЕСПЛАТНО</h4>
+            <p className="text-muted-foreground mb-2"><strong>Цена:</strong> 0 ден/месец</p>
             <p className="text-muted-foreground mb-2"><strong>Карактеристики:</strong></p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
-              <li>3 AI пребарувања/анализи дневно</li>
-              <li>14-дневен пробен период за пристап до платени функции</li>
-              <li>Ограничен пристап до база на податоци за тендери</li>
-              <li>Основни филтри за пребарување</li>
+              <li>Преглед на сите тендери</li>
+              <li>Основно пребарување</li>
+              <li>Дневни известувања</li>
+              <li>Лимитиран пристап</li>
             </ul>
           </div>
 
           <div className="border border-muted rounded-lg p-4">
-            <h4 className="text-lg font-semibold mb-2 text-foreground">STARTER (Почетен)</h4>
-            <p className="text-muted-foreground mb-2"><strong>Цена:</strong> €14.99/месец</p>
+            <h4 className="text-lg font-semibold mb-2 text-foreground">СТАРТ</h4>
+            <p className="text-muted-foreground mb-2"><strong>Цена:</strong> 899 ден/месец (или 8.990 ден/годишно)</p>
             <p className="text-muted-foreground mb-2"><strong>Карактеристики:</strong></p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
-              <li>5 AI пребарувања/анализи дневно</li>
-              <li>Целосен пристап до база на податоци за тендери</li>
-              <li>Основна AI анализа и препораки</li>
-              <li>Е-маил известувања</li>
-              <li>Основна контролна табла</li>
-            </ul>
-          </div>
-
-          <div className="border border-muted rounded-lg p-4">
-            <h4 className="text-lg font-semibold mb-2 text-foreground">PROFESSIONAL (Професионален)</h4>
-            <p className="text-muted-foreground mb-2"><strong>Цена:</strong> €39.99/месец</p>
-            <p className="text-muted-foreground mb-2"><strong>Карактеристики:</strong></p>
-            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
-              <li>20 AI пребарувања/анализи дневно</li>
-              <li>Напредна AI анализа и детални инсајти</li>
-              <li>Следење на конкуренти</li>
-              <li>Приоритетни известувања</li>
-              <li>Персонализирана контролна табла</li>
-              <li>Напредна аналитика и извештаи</li>
+              <li>Пристап до сите тендери</li>
+              <li>5 AI пребарувања дневно</li>
+              <li>Дневни известувања</li>
+              <li>CSV/PDF експорт</li>
               <li>Приоритетна поддршка</li>
             </ul>
           </div>
 
           <div className="border border-muted rounded-lg p-4">
-            <h4 className="text-lg font-semibold mb-2 text-foreground">ENTERPRISE (Деловен)</h4>
-            <p className="text-muted-foreground mb-2"><strong>Цена:</strong> €99.99/месец</p>
+            <h4 className="text-lg font-semibold mb-2 text-foreground">ПРО</h4>
+            <p className="text-muted-foreground mb-2"><strong>Цена:</strong> 2.399 ден/месец (или 23.990 ден/годишно)</p>
             <p className="text-muted-foreground mb-2"><strong>Карактеристики:</strong></p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
-              <li>Неограничени AI пребарувања/анализи</li>
-              <li>Сите професионални функции</li>
-              <li>API пристап (доколку е достапен)</li>
-              <li>Прилагодени извештаи</li>
-              <li>Посветен менаџер на сметка</li>
-              <li>Обука и онбоардинг</li>
-              <li>24/7 премиум поддршка</li>
+              <li>Сè од Старт пакетот</li>
+              <li>20 AI пребарувања дневно</li>
+              <li>Аналитика</li>
+              <li>Интеграции</li>
+              <li>Дедицирана поддршка</li>
+            </ul>
+          </div>
+
+          <div className="border border-muted rounded-lg p-4">
+            <h4 className="text-lg font-semibold mb-2 text-foreground">ЕНТЕРПРАЈЗ</h4>
+            <p className="text-muted-foreground mb-2"><strong>Цена:</strong> 5.999 ден/месец (или 59.990 ден/годишно)</p>
+            <p className="text-muted-foreground mb-2"><strong>Карактеристики:</strong></p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
+              <li>Сè од Про пакетот</li>
+              <li>Неограничени AI пребарувања</li>
+              <li>API пристап</li>
+              <li>White-label</li>
+              <li>24/7 поддршка</li>
             </ul>
           </div>
         </div>
@@ -379,7 +375,7 @@ function MacedonianTerms() {
         <h3 className="text-xl font-semibold mb-3 mt-6">10.2 Максимална одговорност</h3>
         <p className="text-muted-foreground">
           До максималниот обем дозволен од применливото право, нашата вкупна одговорност кон вас за сите барања
-          поврзани со Услугата е ограничена на износот што сте го платиле до нас во последните 12 месеци или €100,
+          поврзани со Услугата е ограничена на износот што сте го платиле до нас во последните 12 месеци или 6.000 ден,
           која било што е поголема.
         </p>
       </section>
@@ -511,7 +507,31 @@ function MacedonianTerms() {
       </section>
 
       <section>
-        <h2 className="text-2xl font-semibold mb-4">16. Контакт информации</h2>
+        <h2 className="text-2xl font-semibold mb-4">16. Маркетинг комуникации и одјава</h2>
+
+        <h3 className="text-xl font-semibold mb-3 mt-6">16.1 Маркетинг е-пошта</h3>
+        <p className="text-muted-foreground mb-4">
+          Може да ви испраќаме маркетинг комуникации за нашите услуги, нови функции и релевантни понуди.
+          Овие комуникации се испраќаат само ако сте дале согласност или ако имаме легитимен интерес за комуникација со вас.
+        </p>
+
+        <h3 className="text-xl font-semibold mb-3 mt-6">16.2 Одјава од маркетинг комуникации</h3>
+        <p className="text-muted-foreground mb-4">
+          Можете да се одјавите од маркетинг е-пошта во секое време на следниве начини:
+        </p>
+        <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4 mb-4">
+          <li>Кликнете на линкот за одјава на дното на секоја маркетинг е-пошта</li>
+          <li>Испратете е-маил на <a href="mailto:unsubscribe@nabavkidata.com" className="text-primary hover:underline">unsubscribe@nabavkidata.com</a></li>
+          <li>Контактирајте не на support@nabavkidata.com со барање за одјава</li>
+        </ul>
+        <p className="text-muted-foreground">
+          По одјавата, нема да добивате маркетинг е-пошта, но сè уште може да добивате трансакциски е-пошта
+          (потврди за плаќање, известувања за профилот, безбедносни предупредувања).
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">17. Контакт информации</h2>
         <p className="text-muted-foreground mb-4">
           Ако имате било какви прашања, забелешки или барања во врска со овие Услови за користење, ве молиме
           контактирајте не на:
@@ -524,7 +544,13 @@ function MacedonianTerms() {
             Адреса: 131 Continental Dr Ste 305, New Castle, DE 19713
           </p>
           <p className="text-muted-foreground">
-            Е-пошта: <a href="mailto:support@nabavkidata.com" className="text-primary hover:underline">support@nabavkidata.com</a>
+            Општа поддршка: <a href="mailto:support@nabavkidata.com" className="text-primary hover:underline">support@nabavkidata.com</a>
+          </p>
+          <p className="text-muted-foreground">
+            Приватност и GDPR: <a href="mailto:privacy@nabavkidata.com" className="text-primary hover:underline">privacy@nabavkidata.com</a>
+          </p>
+          <p className="text-muted-foreground">
+            Одјава од е-пошта: <a href="mailto:unsubscribe@nabavkidata.com" className="text-primary hover:underline">unsubscribe@nabavkidata.com</a>
           </p>
           <p className="text-muted-foreground">
             Веб-страница: <a href="https://nabavkidata.com" className="text-primary hover:underline">https://nabavkidata.com</a>
@@ -534,7 +560,7 @@ function MacedonianTerms() {
 
       <section className="pt-8 border-t border-muted">
         <p className="text-sm text-muted-foreground text-center">
-          Последно ажурирање: Ноември 2025
+          Последно ажурирање: Декември 2025
         </p>
         <p className="text-sm text-muted-foreground text-center mt-2">
           Со користење на nabavkidata.com, вие се согласувате да ги прифатите овие Услови за користење.
@@ -549,7 +575,7 @@ function EnglishTerms() {
     <div className="prose prose-invert max-w-none space-y-8">
       <section>
         <p className="text-sm text-muted-foreground mb-6">
-          Last Updated: November 2025
+          Last Updated: December 2025
         </p>
         <p className="text-muted-foreground mb-6">
           Please read these Terms of Service ("Terms", "Terms of Service") carefully before using the nabavkidata.com
@@ -627,63 +653,59 @@ function EnglishTerms() {
 
         <h3 className="text-xl font-semibold mb-3 mt-6">4.1 Available Plans</h3>
         <p className="text-muted-foreground mb-4">
-          We offer different subscription tiers tailored to different needs. All prices are displayed in Euros (EUR) and
+          We offer different subscription tiers tailored to different needs. All prices are displayed in Macedonian Denars (MKD) and
           do not include applicable taxes:
         </p>
 
         <div className="space-y-4 ml-4 not-prose">
           <div className="border border-muted rounded-lg p-4">
             <h4 className="text-lg font-semibold mb-2 text-foreground">FREE</h4>
-            <p className="text-muted-foreground mb-2"><strong>Price:</strong> €0.00/month</p>
+            <p className="text-muted-foreground mb-2"><strong>Price:</strong> 0 MKD/month</p>
             <p className="text-muted-foreground mb-2"><strong>Features:</strong></p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
-              <li>3 AI queries/analyses per day</li>
-              <li>14-day trial period for premium features</li>
-              <li>Limited access to tender database</li>
-              <li>Basic search filters</li>
+              <li>View all tenders</li>
+              <li>Basic search</li>
+              <li>Daily notifications</li>
+              <li>Limited access</li>
             </ul>
           </div>
 
           <div className="border border-muted rounded-lg p-4">
-            <h4 className="text-lg font-semibold mb-2 text-foreground">STARTER</h4>
-            <p className="text-muted-foreground mb-2"><strong>Price:</strong> €14.99/month</p>
+            <h4 className="text-lg font-semibold mb-2 text-foreground">START</h4>
+            <p className="text-muted-foreground mb-2"><strong>Price:</strong> 899 MKD/month (or 8,990 MKD/year)</p>
             <p className="text-muted-foreground mb-2"><strong>Features:</strong></p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
-              <li>5 AI queries/analyses per day</li>
-              <li>Full access to tender database</li>
-              <li>Basic AI analysis and recommendations</li>
-              <li>Email notifications</li>
-              <li>Basic dashboard</li>
-            </ul>
-          </div>
-
-          <div className="border border-muted rounded-lg p-4">
-            <h4 className="text-lg font-semibold mb-2 text-foreground">PROFESSIONAL</h4>
-            <p className="text-muted-foreground mb-2"><strong>Price:</strong> €39.99/month</p>
-            <p className="text-muted-foreground mb-2"><strong>Features:</strong></p>
-            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
-              <li>20 AI queries/analyses per day</li>
-              <li>Advanced AI analysis and detailed insights</li>
-              <li>Competitor tracking</li>
-              <li>Priority notifications</li>
-              <li>Personalized dashboard</li>
-              <li>Advanced analytics and reports</li>
+              <li>Access to all tenders</li>
+              <li>5 AI queries per day</li>
+              <li>Daily notifications</li>
+              <li>CSV/PDF export</li>
               <li>Priority support</li>
             </ul>
           </div>
 
           <div className="border border-muted rounded-lg p-4">
-            <h4 className="text-lg font-semibold mb-2 text-foreground">ENTERPRISE</h4>
-            <p className="text-muted-foreground mb-2"><strong>Price:</strong> €99.99/month</p>
+            <h4 className="text-lg font-semibold mb-2 text-foreground">PRO</h4>
+            <p className="text-muted-foreground mb-2"><strong>Price:</strong> 2,399 MKD/month (or 23,990 MKD/year)</p>
             <p className="text-muted-foreground mb-2"><strong>Features:</strong></p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
-              <li>Unlimited AI queries/analyses</li>
-              <li>All Professional features</li>
-              <li>API access (if available)</li>
-              <li>Custom reports</li>
-              <li>Dedicated account manager</li>
-              <li>Training and onboarding</li>
-              <li>24/7 premium support</li>
+              <li>Everything in Start</li>
+              <li>20 AI queries per day</li>
+              <li>Analytics</li>
+              <li>Integrations</li>
+              <li>Dedicated support</li>
+            </ul>
+          </div>
+
+          <div className="border border-muted rounded-lg p-4">
+            <h4 className="text-lg font-semibold mb-2 text-foreground">ENTERPRISE</h4>
+            <p className="text-muted-foreground mb-2"><strong>Price:</strong> 5,999 MKD/month (or 59,990 MKD/year)</p>
+            <p className="text-muted-foreground mb-2"><strong>Features:</strong></p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
+              <li>Everything in Pro</li>
+              <li>Unlimited AI queries</li>
+              <li>API access</li>
+              <li>White-label</li>
+              <li>24/7 support</li>
             </ul>
           </div>
         </div>
@@ -880,7 +902,7 @@ function EnglishTerms() {
         <h3 className="text-xl font-semibold mb-3 mt-6">10.2 Maximum Liability</h3>
         <p className="text-muted-foreground">
           To the maximum extent permitted by applicable law, our total liability to you for all claims related to the
-          Service is limited to the amount you have paid us in the last 12 months or €100, whichever is greater.
+          Service is limited to the amount you have paid us in the last 12 months or 6,000 MKD, whichever is greater.
         </p>
       </section>
 
@@ -1007,7 +1029,31 @@ function EnglishTerms() {
       </section>
 
       <section>
-        <h2 className="text-2xl font-semibold mb-4">16. Contact Information</h2>
+        <h2 className="text-2xl font-semibold mb-4">16. Marketing Communications and Unsubscribe</h2>
+
+        <h3 className="text-xl font-semibold mb-3 mt-6">16.1 Marketing Emails</h3>
+        <p className="text-muted-foreground mb-4">
+          We may send you marketing communications about our services, new features, and relevant offers.
+          These communications are only sent if you have given consent or if we have a legitimate interest in communicating with you.
+        </p>
+
+        <h3 className="text-xl font-semibold mb-3 mt-6">16.2 Unsubscribe from Marketing Communications</h3>
+        <p className="text-muted-foreground mb-4">
+          You can unsubscribe from marketing emails at any time through the following methods:
+        </p>
+        <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4 mb-4">
+          <li>Click the unsubscribe link at the bottom of any marketing email</li>
+          <li>Send an email to <a href="mailto:unsubscribe@nabavkidata.com" className="text-primary hover:underline">unsubscribe@nabavkidata.com</a></li>
+          <li>Contact us at support@nabavkidata.com with an unsubscribe request</li>
+        </ul>
+        <p className="text-muted-foreground">
+          After unsubscribing, you will not receive marketing emails, but you may still receive transactional emails
+          (payment confirmations, account notifications, security alerts).
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">17. Contact Information</h2>
         <p className="text-muted-foreground mb-4">
           If you have any questions, comments, or requests regarding these Terms of Service, please contact us at:
         </p>
@@ -1019,7 +1065,13 @@ function EnglishTerms() {
             Address: 131 Continental Dr Ste 305, New Castle, DE 19713
           </p>
           <p className="text-muted-foreground">
-            Email: <a href="mailto:support@nabavkidata.com" className="text-primary hover:underline">support@nabavkidata.com</a>
+            General Support: <a href="mailto:support@nabavkidata.com" className="text-primary hover:underline">support@nabavkidata.com</a>
+          </p>
+          <p className="text-muted-foreground">
+            Privacy and GDPR: <a href="mailto:privacy@nabavkidata.com" className="text-primary hover:underline">privacy@nabavkidata.com</a>
+          </p>
+          <p className="text-muted-foreground">
+            Email Unsubscribe: <a href="mailto:unsubscribe@nabavkidata.com" className="text-primary hover:underline">unsubscribe@nabavkidata.com</a>
           </p>
           <p className="text-muted-foreground">
             Website: <a href="https://nabavkidata.com" className="text-primary hover:underline">https://nabavkidata.com</a>
@@ -1029,7 +1081,7 @@ function EnglishTerms() {
 
       <section className="pt-8 border-t border-muted">
         <p className="text-sm text-muted-foreground text-center">
-          Last Updated: November 2025
+          Last Updated: December 2025
         </p>
         <p className="text-sm text-muted-foreground text-center mt-2">
           By using nabavkidata.com, you agree to accept these Terms of Service.

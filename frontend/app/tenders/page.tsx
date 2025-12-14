@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { TenderCard } from "@/components/tenders/TenderCard";
 import { TenderFilters, type FilterState } from "@/components/tenders/TenderFilters";
@@ -11,8 +11,51 @@ import { ExportButton } from "@/components/ExportButton";
 import { api, type Tender } from "@/lib/api";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
 
+// Loading fallback for Suspense
+function TendersLoadingFallback() {
+  return (
+    <div className="p-3 md:p-6 lg:p-8 space-y-4 md:space-y-6">
+      <div>
+        <Skeleton className="h-8 w-64 mb-2" />
+        <Skeleton className="h-4 w-96" />
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4">
+              <Skeleton className="h-4 w-20 mb-2" />
+              <Skeleton className="h-8 w-16" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="space-y-4">
+        {[...Array(5)].map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4">
+              <Skeleton className="h-5 w-3/4 mb-2" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Main content wrapped in Suspense boundary
 export default function TendersPage() {
+  return (
+    <Suspense fallback={<TendersLoadingFallback />}>
+      <TendersPageContent />
+    </Suspense>
+  );
+}
+
+function TendersPageContent() {
   const searchParams = useSearchParams();
   const [isHydrated, setIsHydrated] = useState(false);
   const [tenders, setTenders] = useState<Tender[]>([]);

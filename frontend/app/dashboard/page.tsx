@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { api, type DashboardData } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight } from "lucide-react";
+import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Bell, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -15,6 +16,14 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const { user } = useAuth();
+
+  // Onboarding state
+  const [onboardingData, setOnboardingData] = useState({
+    hasAlerts: false,
+    hasSearches: false,
+    hasTrackedCompetitors: false,
+    hasSetPreferences: false,
+  });
 
   // Track hydration to prevent client-side navigation errors
   useEffect(() => {
@@ -24,7 +33,28 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isHydrated || !user) return;
     loadDashboard();
+    loadOnboardingStatus();
   }, [isHydrated, user]);
+
+  async function loadOnboardingStatus() {
+    try {
+      // Check for alerts, saved searches, and tracked competitors
+      const [alertsRes, searchesRes, competitorsRes] = await Promise.allSettled([
+        api.getAlerts(),
+        api.getSavedSearches(),
+        api.getTrackedCompetitors(),
+      ]);
+
+      setOnboardingData({
+        hasAlerts: alertsRes.status === "fulfilled" && ((alertsRes.value as any)?.alerts?.length || (alertsRes.value as any)?.length || 0) > 0,
+        hasSearches: searchesRes.status === "fulfilled" && ((searchesRes.value as any)?.searches?.length || (searchesRes.value as any)?.length || 0) > 0,
+        hasTrackedCompetitors: competitorsRes.status === "fulfilled" && ((competitorsRes.value as any)?.competitors?.length || (competitorsRes.value as any)?.length || 0) > 0,
+        hasSetPreferences: Boolean((user as any)?.preferences_set || (user as any)?.industry || (user as any)?.cpv_codes?.length),
+      });
+    } catch (error) {
+      console.debug("Failed to load onboarding status:", error);
+    }
+  }
 
   async function loadDashboard() {
     if (!user?.user_id) return;
@@ -120,6 +150,14 @@ export default function DashboardPage() {
           </Card>
         </div>
       )}
+
+      {/* Onboarding Checklist - Show for users who haven't completed key steps */}
+      <OnboardingChecklist
+        hasAlerts={onboardingData.hasAlerts}
+        hasSearches={onboardingData.hasSearches}
+        hasTrackedCompetitors={onboardingData.hasTrackedCompetitors}
+        hasSetPreferences={onboardingData.hasSetPreferences}
+      />
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
@@ -224,10 +262,26 @@ export default function DashboardPage() {
             <CardContent className="p-4 md:p-6 pt-0">
               <div className="space-y-3 md:space-y-4">
                 {(!data?.recommended_tenders || data.recommended_tenders.length === 0) && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Target className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 opacity-50" />
-                    <p className="text-sm">Нема препорачани тендери моментално.</p>
-                    <p className="text-xs mt-1">Кликнете на &quot;Нова Анализа&quot; за да ги освежите резултатите.</p>
+                  <div className="text-center py-8">
+                    <Target className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 text-primary/50" />
+                    <h3 className="text-sm font-semibold mb-2">Персонализирајте ги препораките</h3>
+                    <p className="text-xs text-muted-foreground mb-4 max-w-sm mx-auto">
+                      Поставете ги вашите преференци за да добивате AI препораки за релевантни тендери.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                      <Link href="/settings">
+                        <Button size="sm" className="w-full sm:w-auto">
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Постави преференци
+                        </Button>
+                      </Link>
+                      <Link href="/tenders">
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto">
+                          <Search className="h-4 w-4 mr-2" />
+                          Истражи тендери
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 )}
                 {(data?.recommended_tenders || []).slice(0, 5).map((tender) => (
@@ -288,9 +342,18 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="p-4 md:p-6 pt-0 space-y-3 md:space-y-4">
                 {(!data?.insights || data.insights.length === 0) ? (
-                  <div className="text-center py-4 text-muted-foreground">
-                    <Sparkles className="h-6 w-6 md:h-8 md:w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs">AI анализата се генерира...</p>
+                  <div className="text-center py-4">
+                    <Sparkles className="h-6 w-6 md:h-8 md:w-8 mx-auto mb-2 text-primary/50" />
+                    <p className="text-xs font-medium mb-1">AI инсајти</p>
+                    <p className="text-[10px] text-muted-foreground mb-3">
+                      Креирајте алерт за персонализирани анализи
+                    </p>
+                    <Link href="/alerts?tab=create">
+                      <Button size="sm" variant="outline" className="h-7 text-xs">
+                        <Bell className="h-3 w-3 mr-1" />
+                        Креирај алерт
+                      </Button>
+                    </Link>
                   </div>
                 ) : (
                   data.insights.map((insight, idx) => {

@@ -55,17 +55,18 @@ export default function Navbar() {
                         href="/sr"
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
                         title="Srpski"
+                        aria-label="Префрли на српски јазик"
                     >
                         <Globe className="w-4 h-4" />
                         <span>SR</span>
                     </Link>
                     <Link href="/auth/login">
-                        <Button variant="ghost" className="text-white hover:text-white hover:bg-white/10">
+                        <Button variant="ghost" className="text-white hover:text-white hover:bg-white/10" aria-label="Најави се">
                             Најава
                         </Button>
                     </Link>
                     <Link href="/auth/register">
-                        <Button className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.5)]">
+                        <Button className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.5)]" aria-label="Започни бесплатна регистрација">
                             Започни Бесплатно
                         </Button>
                     </Link>
@@ -74,8 +75,8 @@ export default function Navbar() {
                 {/* Mobile Actions */}
                 <div className="md:hidden flex items-center gap-3">
                     <Link href="/auth/register">
-                        <Button size="sm" className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_10px_rgba(124,58,237,0.3)] h-9 px-4">
-                            Start
+                        <Button size="sm" className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_10px_rgba(124,58,237,0.3)] px-4" aria-label="Започни регистрација">
+                            Започни
                         </Button>
                     </Link>
                     <button
@@ -137,12 +138,12 @@ export default function Navbar() {
                             {/* Auth Buttons */}
                             <div className="flex flex-col gap-3 mt-auto">
                                 <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
-                                    <Button variant="outline" className="w-full h-12 text-white border-white/20 hover:bg-white/10">
+                                    <Button variant="outline" className="w-full h-12 text-white border-white/20 hover:bg-white/10" aria-label="Најави се">
                                         Најава
                                     </Button>
                                 </Link>
                                 <Link href="/auth/register" onClick={() => setMobileMenuOpen(false)}>
-                                    <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.5)]">
+                                    <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.5)]" aria-label="Започни бесплатна регистрација">
                                         Започни Бесплатно
                                     </Button>
                                 </Link>

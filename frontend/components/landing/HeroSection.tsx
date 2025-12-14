@@ -73,13 +73,13 @@ export default function HeroSection() {
                 >
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <Link href="/auth/register" className="flex flex-col items-center">
-                            <Button size="lg" className="h-12 px-8 text-lg bg-primary hover:bg-primary/90 text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300">
+                            <Button size="lg" className="h-12 px-8 text-lg bg-primary hover:bg-primary/90 text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300" aria-label="Започни бесплатна регистрација">
                                 Почни Бесплатно <ArrowRight className="ml-2 h-5 w-5" />
                             </Button>
                             <span className="text-xs text-gray-400 mt-2">Не е потребна картичка</span>
                         </Link>
                         <Link href="#how-it-works">
-                            <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/10 hover:bg-white/5 text-gray-300">
+                            <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/10 hover:bg-white/5 text-gray-300" aria-label="Дознајте како работи платформата">
                                 Како работи?
                             </Button>
                         </Link>
@@ -92,6 +92,7 @@ export default function HeroSection() {
                             <input
                                 type="text"
                                 placeholder="Внесете клучен збор (пр. Лаптопи)"
+                                aria-label="Внесете клучен збор за пребарување на тендери"
                                 className="flex-1 h-12 rounded-lg bg-white/5 border border-white/10 px-4 text-white placeholder:text-gray-500 focus:outline-none focus:border-primary/50 transition-colors"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
@@ -104,6 +105,7 @@ export default function HeroSection() {
                             />
                             <Button
                                 className="h-12 px-6 bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                                aria-label="Пребарај тендери"
                                 onClick={(e) => {
                                     const input = e.currentTarget.previousElementSibling as HTMLInputElement;
                                     if (input.value.trim()) {
