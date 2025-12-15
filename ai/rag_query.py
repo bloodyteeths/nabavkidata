@@ -1562,8 +1562,29 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
         """
         pool = await get_pool()
 
+        # Filter out generic/institution keywords that would match too many items
+        # These are for tender filtering, not item filtering
+        generic_keywords = {
+            'здравство', 'министерство', 'ministry', 'health', 'hospital', 'болница',
+            'медицински', 'медицинска', 'медицинско', 'медицински материјал',
+            'медицинска опрема', 'medical', 'equipment', 'опрема', 'материјал',
+            'општина', 'municipality', 'јавно', 'претпријатие', 'институција'
+        }
+
+        # Only use product-specific keywords for item search
+        product_keywords = [kw for kw in search_keywords
+                          if kw.lower() not in generic_keywords
+                          and not any(gen in kw.lower() for gen in generic_keywords)]
+
+        # If no product keywords remain, use first 3 original keywords (likely product names)
+        if not product_keywords:
+            product_keywords = search_keywords[:3]
+
+        print(f"[ITEM SEARCH DEBUG] Original keywords: {search_keywords}")
+        print(f"[ITEM SEARCH DEBUG] Product keywords for item search: {product_keywords}")
+
         async with pool.acquire() as conn:
-            keyword_patterns = [f'%{kw}%' for kw in search_keywords]
+            keyword_patterns = [f'%{kw}%' for kw in product_keywords]
 
             # Search product_items table
             product_items = await conn.fetch(f"""
