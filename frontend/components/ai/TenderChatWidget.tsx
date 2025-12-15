@@ -127,13 +127,13 @@ export function TenderChatWidget({ tenderId, tenderTitle }: TenderChatWidgetProp
     setIsLoading(true);
 
     try {
-      // Build conversation history for context
-      const conversationHistory = messages.map((msg) => ({
+      // Build conversation history for context (last 10 messages)
+      const conversationHistory = messages.slice(-10).map((msg) => ({
         role: msg.role,
         content: msg.content,
       }));
 
-      const response = await api.queryRAG(userMessage.content, tenderId);
+      const response = await api.queryRAG(userMessage.content, tenderId, conversationHistory);
 
       const assistantMessage: Message = {
         role: "assistant",

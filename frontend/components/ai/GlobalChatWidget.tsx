@@ -138,7 +138,13 @@ export function GlobalChatWidget() {
     setIsLoading(true);
 
     try {
-      const response = await api.queryRAG(userMessage.content);
+      // Build conversation history from previous messages for context
+      const conversationHistory = messages.slice(-10).map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      const response = await api.queryRAG(userMessage.content, undefined, conversationHistory);
 
       const assistantMessage: Message = {
         role: "assistant",

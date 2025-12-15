@@ -385,7 +385,13 @@ export default function TenderDetailPage() {
     setChatLoading(true);
 
     try {
-      const result = await api.queryRAG(message, tenderId!);
+      // Build conversation history for context
+      const conversationHistory = chatMessages.slice(-10).map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      const result = await api.queryRAG(message, tenderId!, conversationHistory);
       setChatMessages((prev) => [
         ...prev,
         {
