@@ -215,36 +215,42 @@ Be specific with numbers, names, and dates."""
 
         try:
             def _sync_search():
-                # Use Gemini with Google Search grounding for real web search
-                try:
-                    from google.generativeai import protos
-                    google_search_tool = protos.Tool(
-                        google_search_retrieval=protos.GoogleSearchRetrieval()
-                    )
-                    model = genai.GenerativeModel(
-                        'gemini-2.0-flash',
-                        tools=[google_search_tool]
-                    )
-                except (ImportError, AttributeError) as e:
-                    logger.warning(f"Google Search grounding not available: {e}, using standard model")
-                    model = genai.GenerativeModel('gemini-2.0-flash')
+                # Use Gemini REST API with Google Search grounding for REAL web search
+                import requests
 
-                response = model.generate_content(
-                    prompt,
-                    generation_config=genai.GenerationConfig(
-                        temperature=0.3,
-                        max_output_tokens=2000
-                    ),
-                    safety_settings=SAFETY_SETTINGS
-                )
+                url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={self.api_key}'
+
+                payload = {
+                    'contents': [{
+                        'parts': [{'text': prompt}]
+                    }],
+                    'tools': [{
+                        'google_search': {}
+                    }],
+                    'generationConfig': {
+                        'temperature': 0.3,
+                        'maxOutputTokens': 2000
+                    }
+                }
 
                 try:
-                    text = response.text
-                    if not text or not text.strip():
+                    response = requests.post(url, json=payload, timeout=30)
+                    data = response.json()
+
+                    if 'error' in data:
+                        logger.warning(f"Gemini API error: {data['error'].get('message', 'Unknown error')}")
                         return ""
-                    return text
-                except ValueError as e:
-                    logger.warning(f"Error accessing response text: {e}")
+
+                    # Check for grounding metadata (indicates real web search was used)
+                    grounding = data.get('candidates', [{}])[0].get('groundingMetadata', {})
+                    if grounding:
+                        logger.info("Google Search grounding active - real web search performed")
+
+                    text = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                    return text if text else ""
+
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Request error in Gemini web search: {e}")
                     return ""
 
             response_text = await asyncio.to_thread(_sync_search)
