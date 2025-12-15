@@ -244,6 +244,35 @@ CRITICAL INSTRUCTIONS:
    - Tell them: "I didn't find exact matches for [X], but here are related items: [Y, Z]"
    - Don't pretend irrelevant data is relevant
 
+
+1A. CRITICAL: UNDERSTAND PRICE VS VALUE - COMPLETELY DIFFERENT!
+
+   **ITEM-LEVEL PRICES (Per-Unit Costs):**
+   - `unit_price` / "Единечна цена" = Price per item (50 МКД/маска)
+   - `total_price` / "Вкупна цена" = unit_price × quantity (10,000 МКД for 200 masks)
+   - `estimated_unit_price_mkd` = Budget per unit (e-Pazar)
+   - Found in: "ПРОИЗВОДИ / АРТИКЛИ" and "ИСТОРИЈА НА ЦЕНИ (ПО ПРОИЗВОД/АРТИКЛ)"
+   - **This is what suppliers CHARGE per item**
+   - **USE THIS for "What are prices for X?" questions**
+
+   **TENDER-LEVEL VALUES (Total Contract):**
+   - `estimated_value_mkd` / "Проценета вредност" = BUDGET (for ENTIRE tender)
+   - `actual_value_mkd` / "ПОБЕДНИЧКА ПОНУДА" = PAID (final contract value)
+   - This is TOTAL for whole tender (dozens of different products!)
+   - **CRITICAL: DO NOT use tender value as "price per item" - that's WRONG!**
+
+   **Price Query Handling:**
+   - "What are prices for surgical gloves?" → Look for unit_price in ПРОИЗВОДИ/АРТИКЛИ
+     Report: "Хируршки ракавици: просек 45 МКД/парче (опсег: 35-55, 12 тендери)"
+   - If NO item data: Explain "Имам вкупни тендери (500,000 МКД), но немам цени по производ"
+   - "How much paid?" → actual_value_mkd vs estimated_value_mkd: "Буџет: 500K, Платено: 450K (10% заштеда)"
+   - "Average price for laptops?" → AVG(unit_price): "Просек 35,000 МКД (опсег: 28-45K)"
+   - "Cheapest supplier?" → MIN(unit_price) by supplier: "Најевтин: Компанија А - 145 МКД/парче"
+   - "Expensive suppliers?" → Show above-average: "Компанија Б: 175 МКД (15% над просек)"
+   - "Price trends?" → Compare years: "Цените паднаа 9% од 2023 до 2024"
+
+   **Currency:** MKD default, ≈61.5 MKD/EUR. Format: "150 МКД (≈2.44 EUR)"
+
 2. FOCUS ON ITEM-LEVEL DATA when available:
    - Look for "ПРОИЗВОДИ / АРТИКЛИ" section - these have per-item prices
    - Report: item name, unit price, quantity, who bought it, who supplied it
@@ -277,15 +306,21 @@ CRITICAL INSTRUCTIONS:
    Example response for "What are prices for surgical drapes?":
    "Based on X tenders over the last Y years:
 
-   **Surgical Drapes Price History:**
-   - 2024: Avg 150 MKD/piece (range: 120-180, 15 tenders)
-   - 2023: Avg 165 MKD/piece (range: 140-190, 12 tenders)
+   **Цени по единица - Хируршки драперии:**
+   - 2024: Просек 150 МКД/парче (опсег: 120-180 МКД, 15 тендери)
+   - 2023: Просек 165 МКД/парче (опсег: 140-190 МКД, 12 тендери)
+   - **Тренд: Цените паднаа 9% од 2023 до 2024**
 
-   **Top Suppliers:**
-   1. MediSupply DOO - Won 8 contracts, avg price 145 MKD
-   2. HealthCare Ltd - Won 5 contracts, avg price 155 MKD
+   **Топ добавувачи (по конкурентност на цената):**
+   1. MediSupply ДОО - 8 победи, просечна цена 145 МКД/парче (НАЈЕВТИН, 3% под просек)
+   2. HealthCare Ltd - 5 победи, просечна цена 155 МКД/парче (3% над просек)
+   3. Medical ДООЕЛ - 3 победи, просечна цена 175 МКД/парче (17% над просек)
 
-   **Common Specifications:**
+   **Пазарен увид:**
+   Конкурентен опсег: 120-155 МКД. Цени над 170 МКД се 15%+ над пазарен просек.
+   Препорака: За конкурентна понуда, целете 140-155 МКД опсег.
+
+   **Типични спецификации:**
    - Material: Non-woven SMS fabric
    - Sizes: 120x150cm, 150x200cm
    - Sterility: EO sterilized
@@ -293,6 +328,20 @@ CRITICAL INSTRUCTIONS:
    Sources: [tender IDs]"
 
 LANGUAGE: ОДГОВОРИ НА МАКЕДОНСКИ ЈАЗИК.
+
+7. HANDLE "INSTITUTION + PRODUCT" QUERIES INTELLIGENTLY:
+   When user asks for specific institution + specific product (e.g., "Ministry of Health tenders for intraocular lenses"):
+   - Search ALL available data (database + web search results in context)
+   - Present whatever relevant information you find - don't say "no data" if web search found results
+   - If web search found historical tenders or links, present those as useful information
+   - If recent DB tenders don't match, but web search shows historical ones exist, say:
+     "Последниот тендер на [institution] за [product] беше [info from web search]"
+   - Always provide value - synthesize information from all sources seamlessly
+
+8. CONVERSATION CONTEXT - MAINTAIN THE TOPIC:
+   - If user asks about "intraocular lenses" then says "ministry tender for it" - "it" = intraocular lenses!
+   - Track the product/topic across the conversation
+   - If follow-up asks about institution for previous product, find that specific combination
 
 IMPORTANT - NEVER TELL USERS TO CHECK WEBSITES THEMSELVES:
 - You are a HYBRID AI that searches both database AND web automatically
@@ -345,24 +394,41 @@ IMPORTANT - NEVER TELL USERS TO CHECK WEBSITES THEMSELVES:
 
         # Add conversation history if provided (with token limit)
         if conversation_history:
-            prompt_parts.append("Previous conversation:\n")
+            prompt_parts.append("PREVIOUS CONVERSATION (CRITICAL - understand the topic):\n")
             history_tokens = 0
             max_history_tokens = 1000  # Limit history to ~1000 tokens
 
-            # Process only last 3 turns, with token limit
-            for turn in conversation_history[-3:]:
-                q_text = turn.get('question', '')[:500]  # Truncate long questions
-                a_text = turn.get('answer', '')[:1000]   # Truncate long answers
+            # Process last 4-6 messages (2-3 turns), handle both formats
+            for turn in conversation_history[-6:]:
+                # Handle role/content format (from API)
+                if 'role' in turn and 'content' in turn:
+                    role = turn.get('role', '')
+                    content = str(turn.get('content', ''))[:600]
 
-                # Approximate token count (4 chars per token)
-                turn_tokens = (len(q_text) + len(a_text)) // 4
+                    turn_tokens = len(content) // 4
+                    if history_tokens + turn_tokens > max_history_tokens:
+                        break
 
-                if history_tokens + turn_tokens > max_history_tokens:
-                    break
+                    if role == 'user':
+                        prompt_parts.append(f"User: {content}\n")
+                    elif role == 'assistant':
+                        prompt_parts.append(f"Assistant: {content}\n\n")
+                    history_tokens += turn_tokens
 
-                prompt_parts.append(f"Q: {q_text}\n")
-                prompt_parts.append(f"A: {a_text}\n\n")
-                history_tokens += turn_tokens
+                # Handle question/answer format (legacy)
+                elif 'question' in turn:
+                    q_text = turn.get('question', '')[:500]
+                    a_text = turn.get('answer', '')[:1000]
+
+                    turn_tokens = (len(q_text) + len(a_text)) // 4
+                    if history_tokens + turn_tokens > max_history_tokens:
+                        break
+
+                    prompt_parts.append(f"User: {q_text}\n")
+                    prompt_parts.append(f"Assistant: {a_text}\n\n")
+                    history_tokens += turn_tokens
+
+            prompt_parts.append("\n")
 
         # Add current query with context
         prompt_parts.append("Контекст од документи за тендери:\n\n")
@@ -370,11 +436,38 @@ IMPORTANT - NEVER TELL USERS TO CHECK WEBSITES THEMSELVES:
         prompt_parts.append("\n\n---\n\n")
         prompt_parts.append(f"Прашање: {question}\n\n")
         prompt_parts.append(
-            "Based on the context above, answer the user's question. "
-            "BE SPECIFIC - use actual numbers, company names, and dates from the data. "
-            "If asked about prices, extract and report the 'Проценета вредност' values. "
-            "If asked about winners, report the 'Победник' names and their statistics from 'НАЈЧЕСТИ ПОБЕДНИЦИ'. "
-            "Match the language of the user's question in your response."
+            """Based on the context above, answer the user's question.
+
+CRITICAL ANALYSIS REQUIRED - FOLLOW THESE STEPS:
+
+STEP 1: IDENTIFY THE PRODUCT FROM CONVERSATION
+- Look at PREVIOUS CONVERSATION above
+- If user previously asked about a specific product (e.g., "intraocular lenses", "леќи")
+- And now uses pronouns like "it", "this item", "these", "for it" - they mean THAT PRODUCT
+- Example: Previous Q about "intraocular lenses" + current Q "ministry tender for it" → they want intraocular lenses from ministry!
+
+STEP 2: USE ALL DATA SOURCES
+- Check the context for BOTH database results AND web search results
+- Web search results appear as "=== Резултати од веб ===" or "=== Вести и информации ==="
+- If database doesn't have exact match, USE the web search results!
+- Web results often contain historical tender information, news, or links to official pages
+
+STEP 3: RESPOND WITH WHATEVER YOU FIND
+- If you find tender info in web search results - USE IT and present it as the answer
+- Example: Web search shows "Министерство за здравство - тендер за интраокуларни леќи" link
+  → Present this: "Министерството за здравство има објавувано тендери за интраокуларни леќи. [details from web]"
+- If web results show links to zdravstvo.gov.mk/javni-nabavki - mention those as sources for historical tenders
+- NEVER say "нема тендери" if web search found relevant results
+
+ABSOLUTE RULES:
+❌ NEVER show IT equipment when user asked about medical lenses
+❌ NEVER show random tenders from an institution when user asked for specific product
+❌ NEVER say "no tenders exist" if web search found relevant information
+✅ Synthesize information from ALL sources (database + web search)
+✅ Present web search findings as useful historical/reference data
+
+BE SPECIFIC - use actual numbers, company names, and dates from the data.
+Match the language of the user's question in your response (Macedonian or English)."""
         )
 
         return "".join(prompt_parts)
@@ -685,7 +778,7 @@ class RAGQueryPipeline:
             # Vector search often returns irrelevant results (e.g., office supplies for IT query)
             # ALWAYS use SQL search for now until we have comprehensive embeddings
             logger.info("Using SQL search (more reliable with current embedding coverage)...")
-            search_results, context = await self._fallback_sql_search(question, tender_id)
+            search_results, context = await self._fallback_sql_search(question, tender_id, conversation_history)
 
             if not search_results:
                 logger.warning("No tenders found in database")
@@ -796,107 +889,329 @@ class RAGQueryPipeline:
 
     async def _search_external_sources(self, search_terms: List[str], question: str) -> Tuple[List[dict], str]:
         """
-        Search external sources (e-nabavki.gov.mk, e-pazar.mk) when database has no results.
+        Search external sources using SERPER or Gemini web search.
 
-        This fetches live data from the procurement portals to answer user questions.
+        This searches Google for e-nabavki.gov.mk and e-pazar.mk results
+        to find tenders not in our database.
         Returns tender data and formatted context.
         """
         import aiohttp
-        import re
+        import json as json_module
 
         results = []
         context_parts = []
+        search_query = ' '.join(search_terms[:4])
 
-        # Try e-nabavki.gov.mk search
+        serper_api_key = os.getenv('SERPER_API_KEY')
+
+        # Try SERPER first, fallback to Gemini web search
+        if not serper_api_key:
+            logger.info("SERPER_API_KEY not set, trying Gemini web search")
+            return await self._gemini_web_search(search_terms, question)
+
+        # Search e-nabavki.gov.mk via SERPER
         try:
-            search_query = ' '.join(search_terms[:3])  # Use top 3 terms
-            e_nabavki_url = f"https://e-nabavki.gov.mk/SearchTender.aspx"
-
-            logger.info(f"Searching e-nabavki.gov.mk for: {search_query}")
+            logger.info(f"Searching web for e-nabavki: {search_query}")
 
             async with aiohttp.ClientSession() as session:
-                # Search e-nabavki
-                async with session.get(
-                    e_nabavki_url,
-                    params={'q': search_query},
-                    timeout=aiohttp.ClientTimeout(total=15),
-                    headers={'User-Agent': 'NabavkiData/1.0'}
+                # Search specifically for e-nabavki.gov.mk results
+                payload = {
+                    "q": f"{search_query} site:e-nabavki.gov.mk",
+                    "gl": "mk",
+                    "hl": "mk",
+                    "num": 10
+                }
+
+                async with session.post(
+                    "https://google.serper.dev/search",
+                    json=payload,
+                    headers={
+                        "X-API-KEY": serper_api_key,
+                        "Content-Type": "application/json"
+                    },
+                    timeout=aiohttp.ClientTimeout(total=15)
                 ) as response:
                     if response.status == 200:
-                        html = await response.text()
-                        # Extract tender information from HTML
-                        # This is a simplified extraction - would need proper parsing
-                        tender_matches = re.findall(
-                            r'<a[^>]*href="[^"]*TenderID=(\d+)[^"]*"[^>]*>([^<]+)</a>',
-                            html, re.IGNORECASE
-                        )
-                        for tender_id, title in tender_matches[:10]:
-                            results.append({
-                                'source': 'e-nabavki.gov.mk',
-                                'tender_id': tender_id,
-                                'title': title.strip(),
-                                'url': f"https://e-nabavki.gov.mk/PublicAccess/ViewTender.aspx?TenderID={tender_id}"
-                            })
+                        data = await response.json()
+                        organic = data.get('organic', [])
 
-                        if tender_matches:
-                            context_parts.append(f"=== Резултати од e-nabavki.gov.mk за '{search_query}' ===\n")
-                            for tender_id, title in tender_matches[:10]:
-                                context_parts.append(f"- {title.strip()} (ID: {tender_id})\n")
-                                context_parts.append(f"  Линк: https://e-nabavki.gov.mk/PublicAccess/ViewTender.aspx?TenderID={tender_id}\n")
+                        if organic:
+                            context_parts.append(f"=== Резултати од e-nabavki.gov.mk за '{search_query}' ===\n\n")
+                            for item in organic[:8]:
+                                title = item.get('title', 'N/A')
+                                link = item.get('link', '')
+                                snippet = item.get('snippet', '')
+
+                                results.append({
+                                    'source': 'e-nabavki.gov.mk',
+                                    'title': title,
+                                    'url': link,
+                                    'snippet': snippet
+                                })
+
+                                context_parts.append(f"• {title}\n")
+                                if snippet:
+                                    context_parts.append(f"  {snippet[:200]}\n")
+                                context_parts.append(f"  Линк: {link}\n\n")
+
+                            logger.info(f"Found {len(organic)} e-nabavki results via SERPER")
+                    elif response.status in [429, 402, 403]:
+                        # Rate limited or quota exhausted - fallback to Gemini
+                        logger.warning(f"SERPER API exhausted (status {response.status}), using Gemini")
+                        return await self._gemini_web_search(search_terms, question)
+                    else:
+                        logger.warning(f"SERPER e-nabavki search failed: {response.status}")
+
         except Exception as e:
-            logger.warning(f"Error searching e-nabavki: {e}")
+            logger.warning(f"Error in SERPER e-nabavki search: {e}")
 
-        # Try e-pazar.mk search
+        # Search e-pazar.mk via SERPER
         try:
-            search_query = ' '.join(search_terms[:3])
-            e_pazar_url = "https://e-pazar.mk/api/search"
-
-            logger.info(f"Searching e-pazar.mk for: {search_query}")
+            logger.info(f"Searching web for e-pazar: {search_query}")
 
             async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"https://e-pazar.mk/search?q={search_query}",
-                    timeout=aiohttp.ClientTimeout(total=15),
-                    headers={'User-Agent': 'NabavkiData/1.0'}
+                payload = {
+                    "q": f"{search_query} site:e-pazar.mk OR site:e-pazar.gov.mk",
+                    "gl": "mk",
+                    "hl": "mk",
+                    "num": 10
+                }
+
+                async with session.post(
+                    "https://google.serper.dev/search",
+                    json=payload,
+                    headers={
+                        "X-API-KEY": serper_api_key,
+                        "Content-Type": "application/json"
+                    },
+                    timeout=aiohttp.ClientTimeout(total=15)
                 ) as response:
                     if response.status == 200:
-                        html = await response.text()
-                        # Extract tender/item information
-                        item_matches = re.findall(
-                            r'<div[^>]*class="[^"]*item[^"]*"[^>]*>.*?<h\d[^>]*>([^<]+)</h\d>.*?цена[:\s]*([0-9,.]+)',
-                            html, re.IGNORECASE | re.DOTALL
-                        )
-                        for title, price in item_matches[:10]:
-                            results.append({
-                                'source': 'e-pazar.mk',
-                                'title': title.strip(),
-                                'price': price.strip()
-                            })
+                        data = await response.json()
+                        organic = data.get('organic', [])
 
-                        if item_matches:
-                            context_parts.append(f"\n=== Резултати од e-pazar.mk за '{search_query}' ===\n")
-                            for title, price in item_matches[:10]:
-                                context_parts.append(f"- {title.strip()}: {price} МКД\n")
+                        if organic:
+                            context_parts.append(f"\n=== Резултати од e-pazar.mk за '{search_query}' ===\n\n")
+                            for item in organic[:8]:
+                                title = item.get('title', 'N/A')
+                                link = item.get('link', '')
+                                snippet = item.get('snippet', '')
+
+                                results.append({
+                                    'source': 'e-pazar.mk',
+                                    'title': title,
+                                    'url': link,
+                                    'snippet': snippet
+                                })
+
+                                context_parts.append(f"• {title}\n")
+                                if snippet:
+                                    context_parts.append(f"  {snippet[:200]}\n")
+                                context_parts.append(f"  Линк: {link}\n\n")
+
+                            logger.info(f"Found {len(organic)} e-pazar results via SERPER")
+                    else:
+                        logger.warning(f"SERPER e-pazar search failed: {response.status}")
+
         except Exception as e:
-            logger.warning(f"Error searching e-pazar: {e}")
+            logger.warning(f"Error in SERPER e-pazar search: {e}")
 
-        # If we found results, add guidance for the LLM
+        # Also do a general Macedonia tender search
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "q": f"{search_query} тендер Macedonia набавка",
+                    "gl": "mk",
+                    "hl": "mk",
+                    "num": 5
+                }
+
+                async with session.post(
+                    "https://google.serper.dev/search",
+                    json=payload,
+                    headers={
+                        "X-API-KEY": serper_api_key,
+                        "Content-Type": "application/json"
+                    },
+                    timeout=aiohttp.ClientTimeout(total=15)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        organic = data.get('organic', [])
+
+                        # Filter to relevant sources only
+                        relevant_domains = ['gov.mk', 'vlada.mk', 'bjn.gov.mk', 'fzo.org.mk']
+                        filtered = [o for o in organic if any(d in o.get('link', '') for d in relevant_domains)]
+
+                        if filtered:
+                            context_parts.append(f"\n=== Други релевантни резултати ===\n\n")
+                            for item in filtered[:5]:
+                                title = item.get('title', 'N/A')
+                                link = item.get('link', '')
+                                snippet = item.get('snippet', '')
+
+                                results.append({
+                                    'source': 'web',
+                                    'title': title,
+                                    'url': link,
+                                    'snippet': snippet
+                                })
+
+                                context_parts.append(f"• {title}\n")
+                                if snippet:
+                                    context_parts.append(f"  {snippet[:200]}\n")
+                                context_parts.append(f"  Линк: {link}\n\n")
+
+        except Exception as e:
+            logger.warning(f"Error in general web search: {e}")
+
+        # Add guidance
         if results:
             context_parts.append("\n=== НАПОМЕНА ===\n")
-            context_parts.append("Горенаведените резултати се пронајдени на официјалните портали.\n")
-            context_parts.append("За детални информации, корисникот треба да ги посети линковите.\n")
+            context_parts.append("Горенаведените резултати се пронајдени преку веб пребарување.\n")
+            context_parts.append("За најточни информации, посетете ги официјалните линкови.\n")
         else:
-            # No results found anywhere - provide helpful response
-            context_parts.append(f"\n=== ПРЕБАРУВАЊЕ: '{' '.join(search_terms[:5])}' ===\n")
-            context_parts.append("Не се пронајдени тендери со овие термини во базата или на порталите.\n")
-            context_parts.append("Можни причини:\n")
-            context_parts.append("- Моментално нема активни тендери за овој производ\n")
-            context_parts.append("- Обидете се со други термини или синоними\n")
-            context_parts.append("- Проверете директно на e-nabavki.gov.mk или e-pazar.mk\n")
+            # SERPER found nothing, try Gemini web search as fallback
+            logger.info("SERPER found no results, trying Gemini web search")
+            try:
+                gemini_results, gemini_context = await self._gemini_web_search(search_terms, question)
+                if gemini_results or (gemini_context and 'Не се пронајдени' not in gemini_context):
+                    return gemini_results, gemini_context
+            except Exception as e:
+                logger.warning(f"Gemini web search fallback failed: {e}")
+
+            context_parts.append(f"\n=== ПРЕБАРУВАЊЕ: '{search_query}' ===\n")
+            context_parts.append("Не се пронајдени дополнителни тендери на веб.\n")
+            context_parts.append("Проверете директно на e-nabavki.gov.mk или e-pazar.mk\n")
 
         return results, ''.join(context_parts)
 
-    async def _generate_smart_search_terms(self, question: str) -> List[str]:
+    async def _gemini_web_search(self, search_terms: List[str], question: str) -> Tuple[List[dict], str]:
+        """
+        Use DuckDuckGo search as a free fallback when SERPER is not available.
+        """
+        import aiohttp
+        import re
+        import urllib.parse
+
+        results = []
+        context_parts = []
+        search_query = ' '.join(search_terms[:4])
+
+        # Try DuckDuckGo HTML search (free, no API key needed)
+        try:
+            logger.info(f"Searching DuckDuckGo for: {search_query} site:e-nabavki.gov.mk")
+
+            async with aiohttp.ClientSession() as session:
+                # Search e-nabavki via DuckDuckGo
+                ddg_url = "https://html.duckduckgo.com/html/"
+                params = {"q": f"{search_query} site:e-nabavki.gov.mk"}
+
+                async with session.post(
+                    ddg_url,
+                    data=params,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    },
+                    timeout=aiohttp.ClientTimeout(total=20)
+                ) as response:
+                    if response.status == 200:
+                        html = await response.text()
+
+                        # Extract results from DuckDuckGo HTML - multiple patterns for robustness
+                        result_pattern = r'<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)</a>'
+                        # Try multiple snippet patterns
+                        snippet_pattern1 = r'class="result__snippet"[^>]*>([^<]+)<'
+                        snippet_pattern2 = r'<a[^>]*class="result__snippet"[^>]*>(.+?)</a>'
+                        snippet_pattern3 = r'result__body[^>]*>.*?<[^>]*>([^<]{20,})<'
+
+                        matches = re.findall(result_pattern, html)
+                        snippets = re.findall(snippet_pattern1, html, re.DOTALL)
+                        if not snippets:
+                            snippets = re.findall(snippet_pattern2, html, re.DOTALL)
+                        if not snippets:
+                            snippets = re.findall(snippet_pattern3, html, re.DOTALL)
+
+                        if matches:
+                            context_parts.append(f"=== Резултати од веб за '{search_query}' ===\n\n")
+                            for i, (url, title) in enumerate(matches[:8]):
+                                # Clean up DuckDuckGo redirect URL
+                                if 'uddg=' in url:
+                                    url_match = re.search(r'uddg=([^&]+)', url)
+                                    if url_match:
+                                        url = urllib.parse.unquote(url_match.group(1))
+
+                                snippet = snippets[i] if i < len(snippets) else ''
+
+                                results.append({
+                                    'source': 'duckduckgo',
+                                    'title': title.strip(),
+                                    'url': url,
+                                    'snippet': snippet
+                                })
+
+                                context_parts.append(f"• {title.strip()}\n")
+                                if snippet:
+                                    context_parts.append(f"  {snippet[:200]}\n")
+                                context_parts.append(f"  Линк: {url}\n\n")
+
+                            logger.info(f"Found {len(matches)} results via DuckDuckGo")
+
+                # Also search for news/articles about this tender (broader search)
+                params2 = {"q": f"{search_query} тендер јавна набавка"}
+                async with session.post(
+                    ddg_url,
+                    data=params2,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    },
+                    timeout=aiohttp.ClientTimeout(total=20)
+                ) as response2:
+                    if response2.status == 200:
+                        html2 = await response2.text()
+                        matches2 = re.findall(result_pattern, html2)
+                        snippets2 = re.findall(snippet_pattern1, html2, re.DOTALL)
+
+                        if matches2:
+                            context_parts.append(f"\n=== Вести и информации ===\n\n")
+                            for i, (url, title) in enumerate(matches2[:6]):
+                                if 'uddg=' in url:
+                                    url_match = re.search(r'uddg=([^&]+)', url)
+                                    if url_match:
+                                        url = urllib.parse.unquote(url_match.group(1))
+
+                                # Skip if already in results
+                                if any(r.get('url') == url for r in results):
+                                    continue
+
+                                snippet = snippets2[i] if i < len(snippets2) else ''
+
+                                results.append({
+                                    'source': 'duckduckgo',
+                                    'title': title.strip(),
+                                    'url': url,
+                                    'snippet': snippet
+                                })
+                                context_parts.append(f"• {title.strip()}\n")
+                                if snippet:
+                                    context_parts.append(f"  {snippet[:250]}\n")
+                                context_parts.append(f"  Линк: {url}\n\n")
+
+        except Exception as e:
+            logger.warning(f"DuckDuckGo search failed: {e}")
+
+        if results:
+            context_parts.append("\n=== НАПОМЕНА ===\n")
+            context_parts.append("Резултатите се од веб пребарување.\n")
+            context_parts.append("За најточни информации, посетете ги официјалните линкови.\n")
+        else:
+            context_parts.append(f"\n=== ПРЕБАРУВАЊЕ: '{search_query}' ===\n")
+            context_parts.append("Не се пронајдени дополнителни тендери на веб.\n")
+            context_parts.append("Проверете директно на e-nabavki.gov.mk или e-pazar.mk\n")
+
+        return results, ''.join(context_parts)
+
+    async def _generate_smart_search_terms(self, question: str, conversation_history: Optional[List[Dict]] = None) -> List[str]:
         """
         Use LLM to generate intelligent search terms from user question.
 
@@ -905,31 +1220,70 @@ class RAGQueryPipeline:
         - Generate synonyms and related terms
         - Fix typos and understand intent
         - Provide product category terms
+        - USE CONVERSATION HISTORY to understand topic context for follow-up questions
 
         Returns list of search terms optimized for database search.
         """
         import json
 
+        # DEBUG: Log incoming conversation history
+        print(f"[SEARCH DEBUG] _generate_smart_search_terms called")
+        print(f"[SEARCH DEBUG] Question: {question[:100]}")
+        if conversation_history:
+            print(f"[SEARCH DEBUG] Conversation history: {len(conversation_history)} messages")
+            for i, msg in enumerate(conversation_history[-3:]):
+                role = msg.get('role', msg.get('question', 'unknown')[:20])
+                content = str(msg.get('content', msg.get('answer', '')))[:80]
+                print(f"[SEARCH DEBUG]   [{i}] {role}: {content}...")
+        else:
+            print(f"[SEARCH DEBUG] No conversation history provided")
+
+        # Build conversation context for topic understanding
+        conversation_context = ""
+        if conversation_history:
+            recent_exchanges = []
+            for turn in conversation_history[-4:]:  # Last 4 messages
+                if 'role' in turn and 'content' in turn:
+                    content = str(turn.get('content', ''))[:400]
+                    role = turn.get('role', '')
+                    recent_exchanges.append(f"{role}: {content}")
+                elif 'question' in turn:
+                    recent_exchanges.append(f"user: {turn.get('question', '')[:400]}")
+                    if turn.get('answer'):
+                        recent_exchanges.append(f"assistant: {turn.get('answer', '')[:400]}")
+
+            if recent_exchanges:
+                conversation_context = f"""
+PREVIOUS CONVERSATION (CRITICAL - extract the TOPIC from this!):
+{chr(10).join(recent_exchanges)}
+
+CRITICAL: If the current question uses "it", "this", "that", "these", "this item", "for it" etc.,
+you MUST identify what product/service was discussed and include those terms!
+Example: Previous talk about "intraocular lenses" + current question "ministry of health tender for it"
+→ MUST include "интраокуларни леќи", "леќи" in search terms!
+"""
+
         prompt = f"""You are a search query optimizer for a Macedonian public procurement database.
 The database contains tender TITLES in MACEDONIAN language.
-
-User question: "{question}"
+{conversation_context}
+Current question: "{question}"
 
 Your task: Generate search terms that will match TENDER TITLES in the database.
 
-IMPORTANT RULES:
+CRITICAL RULES:
 1. DO NOT include words like "тендер", "тендери", "набавка", "јавна" - these are NOT in tender titles
 2. Generate PRODUCT/SERVICE names only
 3. Include variations: singular/plural, abbreviations, English terms used in Macedonia
-4. Be specific to the product category
+4. **IF THIS IS A FOLLOW-UP**: Extract the product/topic from previous conversation and INCLUDE IT!
+   - "ministry of health tender for it" after discussing lenses → include "интраокуларни", "леќи"
+   - "their biggest tenders" after discussing hospital → include hospital name/category
+5. If institution mentioned (ministry, hospital), also include category terms they typically buy
 
 Examples:
 - "ИТ тендери" → ["компјутер", "софтвер", "хардвер", "информатичк", "ИТ опрема", "сервер", "лаптоп", "монитор", "принтер", "мрежа"]
-- "surgical drapes" → ["хируршки чаршафи", "хируршки драперии", "стерилни чаршафи", "операциски"]
-- "toner" → ["тонер", "касета", "картриџ", "печатач", "принтер"]
+- "intraocular lenses" → ["интраокуларни леќи", "интраокуларна леќа", "леќи", "IOL", "катаракта", "очна леќа"]
+- Follow-up "ministry tender for it" (after lenses) → ["интраокуларни", "леќи", "здравство", "министерство"]
 - "medical supplies" → ["медицински материјал", "медицинска опрема", "санитетски", "здравствен"]
-- "construction" → ["градежен", "градежни работи", "бетон", "цемент", "арматура", "градба"]
-- "cleaning supplies" → ["средства за хигиена", "детергент", "чистење", "дезинфекција"]
 
 Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words).
 """
@@ -969,13 +1323,16 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                 terms = json.loads(json_match.group())
                 if isinstance(terms, list) and len(terms) > 0:
                     logger.info(f"LLM generated search terms: {terms}")
+                    print(f"[SEARCH DEBUG] Generated search terms: {terms}")
                     return terms[:15]
 
             logger.warning(f"Could not parse LLM search terms from: {response_text}")
+            print(f"[SEARCH DEBUG] Failed to parse search terms from: {response_text[:200]}")
             return []
 
         except Exception as e:
             logger.error(f"Error generating smart search terms: {e}")
+            print(f"[SEARCH DEBUG] Exception generating search terms: {e}")
             return []
 
     def _extract_basic_keywords(self, question: str) -> List[str]:
@@ -1069,6 +1426,124 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                 return True
 
         return False
+
+    def _extract_institution_names(self, question: str, conversation_history: Optional[List[Dict]] = None) -> List[str]:
+        """
+        Extract institution/procuring entity names from user question.
+
+        Handles:
+        - Macedonian and English institution names
+        - Common variations and abbreviations
+        - Pronoun references to previously mentioned institutions
+
+        Returns:
+            List of institution name patterns to match against procuring_entity column
+        """
+        import re
+
+        question_lower = question.lower()
+        institutions = []
+
+        # Check conversation history for institution context (pronoun resolution)
+        if conversation_history:
+            for turn in conversation_history[-3:]:  # Last 3 messages
+                content = ""
+                if 'question' in turn:
+                    content = str(turn.get('question', '')).lower()
+                elif 'content' in turn and turn.get('role') == 'user':
+                    content = str(turn.get('content', '')).lower()
+
+                # Extract institutions from previous messages
+                if content:
+                    for pattern in self._get_institution_patterns():
+                        matches = re.findall(pattern, content, re.IGNORECASE)
+                        if matches:
+                            # User is referring to this institution with pronouns
+                            if any(word in question_lower for word in ['нивни', 'нивните', 'their', 'тие', 'they', 'it', 'тоа']):
+                                institutions.extend(matches)
+
+        # Direct institution mentions in current question
+        for pattern in self._get_institution_patterns():
+            matches = re.findall(pattern, question_lower, re.IGNORECASE)
+            institutions.extend(matches)
+
+        # Common institution keywords to expand
+        institution_expansions = {
+            'здравство': ['министерство за здравство', 'ministry of health', 'мз'],
+            'ministry of health': ['министерство за здравство', 'здравство', 'мз'],
+            'универзитет': ['универзитет', 'university', 'факултет'],
+            'university': ['универзитет', 'универзитетск', 'university'],
+            'болница': ['болница', 'hospital', 'клиника', 'клинички'],
+            'hospital': ['болница', 'hospital', 'клиника', 'клинички'],
+            'општина': ['општина', 'municipality', 'град'],
+            'municipality': ['општина', 'municipality'],
+            'скопје': ['скопје', 'skopje', 'град скопје'],
+            'skopje': ['скопје', 'skopje', 'град скопје'],
+            'министерство': ['министерство', 'ministry'],
+            'ministry': ['министерство', 'ministry'],
+            'агенција': ['агенција', 'agency'],
+            'agency': ['агенција', 'agency'],
+        }
+
+        # Expand institution keywords
+        expanded = []
+        for inst in institutions:
+            inst_lower = inst.lower()
+            expanded.append(inst)
+            for keyword, expansions in institution_expansions.items():
+                if keyword in inst_lower:
+                    expanded.extend(expansions)
+
+        # Deduplicate
+        unique_institutions = list(dict.fromkeys(expanded))
+
+        if unique_institutions:
+            logger.info(f"Extracted institutions: {unique_institutions}")
+
+        return unique_institutions
+
+    def _get_institution_patterns(self) -> List[str]:
+        """
+        Get regex patterns for matching institution names in text.
+
+        Returns:
+            List of regex patterns for common institution types
+        """
+        return [
+            # Ministries
+            r'министерство\s+(?:за\s+)?[\wа-яѓѕјљњќџ\s]+',
+            r'ministry\s+of\s+[\w\s]+',
+            r'\bмз\b|\bмф\b|\bмвр\b|\bмтсп\b',  # Common abbreviations
+
+            # Municipalities
+            r'општина\s+[\wа-яѓѕјљњќџ\s]+',
+            r'municipality\s+of\s+[\w\s]+',
+            r'град\s+[\wа-яѓѕјљњќџ]+',
+            r'city\s+of\s+\w+',
+
+            # Hospitals/Healthcare
+            r'[\wа-яѓѕјљњќџ\s]*болница[\wа-яѓѕјљњќџ\s]*',
+            r'[\w\s]*hospital[\w\s]*',
+            r'клиника[\wа-яѓѕјљњќџ\s]*',
+            r'клинички\s+центар[\wа-яѓѕјљњќџ\s]*',
+            r'здравствен\s+дом[\wа-яѓѕјљњќџ\s]*',
+
+            # Universities/Schools
+            r'универзитет[\wа-яѓѕјљњќџ\s]*',
+            r'university[\w\s]*',
+            r'факултет[\wа-яѓѕјљњќџ\s]*',
+            r'faculty\s+of\s+[\w\s]+',
+            r'оо?у\s+[„"]?[\wа-яѓѕјљњќџ\s]+[„"]?',  # Schools
+
+            # Agencies
+            r'агенција\s+(?:за\s+)?[\wа-яѓѕјљњќџ\s]+',
+            r'agency\s+(?:for\s+)?[\w\s]+',
+
+            # Other public institutions
+            r'јавно\s+претпријатие[\wа-яѓѕјљњќџ\s]*',
+            r'јп\s+[\wа-яѓѕјљњќџ\s]+',
+            r'public\s+enterprise[\w\s]*',
+        ]
 
     async def _search_product_items(
         self,
@@ -1348,7 +1823,8 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
     async def _fallback_sql_search(
         self,
         question: str,
-        tender_id: Optional[str] = None
+        tender_id: Optional[str] = None,
+        conversation_history: Optional[List[Dict]] = None
     ) -> Tuple[List[SearchResult], str]:
         """
         Fallback: Query tenders AND epazar tables directly when no embeddings exist.
@@ -1363,7 +1839,8 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
 
         async with pool.acquire() as conn:
             # Use LLM to generate smart search terms (translations, synonyms, etc.)
-            search_keywords = await self._generate_smart_search_terms(question)
+            # Pass conversation history so follow-up questions maintain topic context
+            search_keywords = await self._generate_smart_search_terms(question, conversation_history)
 
             # Fallback to basic extraction if LLM fails
             if not search_keywords:
@@ -1648,6 +2125,81 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
             # Build context from tender data
             context_parts = []
             search_results = []
+
+            # CRITICAL: Detect institution+product queries and add explicit match analysis
+            # This helps the LLM correctly say "no match" when institution has no tenders for product
+            institution_keywords = ['министерство', 'ministry', 'општина', 'municipality', 'болница', 'hospital', 'здравствен дом']
+            product_keywords_from_search = [kw for kw in search_keywords if kw.lower() not in
+                                           ['здравство', 'ministry', 'министерство', 'здравствен', 'медицински', 'медицинска']]
+
+            has_institution_query = any(
+                any(inst.lower() in kw.lower() for inst in institution_keywords)
+                for kw in search_keywords
+            )
+            has_product_query = len(product_keywords_from_search) > 0
+
+            if has_institution_query and has_product_query and rows:
+                # Analyze which institutions have which products
+                product_kws = [kw.lower() for kw in product_keywords_from_search[:3]]  # Top product keywords
+                institution_kws = [kw.lower() for kw in search_keywords if any(inst.lower() in kw.lower() for inst in institution_keywords)]
+
+                matching_tenders = []
+                institution_tenders = []
+                product_tenders = []
+
+                for row in rows:
+                    title_lower = (row.get('title') or '').lower()
+                    entity_lower = (row.get('procuring_entity') or '').lower()
+                    desc_lower = (row.get('description') or '').lower()
+                    all_text = title_lower + ' ' + entity_lower + ' ' + desc_lower
+
+                    has_product = any(pk in all_text for pk in product_kws)
+                    has_institution = any(ik in all_text for ik in institution_kws)
+
+                    if has_product and has_institution:
+                        matching_tenders.append(row)
+                    elif has_institution:
+                        institution_tenders.append(row)
+                    elif has_product:
+                        product_tenders.append(row)
+
+                # Add explicit analysis to context
+                analysis_text = "\n=== АНАЛИЗА НА БАРАЊЕТО ===\n\n"
+                analysis_text += f"Барање: Тендери од ИНСТИТУЦИЈА ({', '.join(institution_kws)}) за ПРОИЗВОД ({', '.join(product_kws[:3])})\n\n"
+
+                if matching_tenders:
+                    analysis_text += f"✅ ПРОНАЈДЕНИ {len(matching_tenders)} тендер(и) во базата:\n"
+                    for t in matching_tenders[:3]:
+                        analysis_text += f"   - {t.get('title', 'N/A')[:60]} од {t.get('procuring_entity', 'N/A')[:40]}\n"
+                else:
+                    analysis_text += f"📋 Неодамнешни тендери во базата не содржат оваа комбинација.\n"
+                    analysis_text += f"🔍 Пребарување на историски тендери и веб извори...\n\n"
+                    if product_tenders:
+                        analysis_text += f"   Неодамнешни тендери за {', '.join(product_kws[:2])} се од:\n"
+                        seen_entities = set()
+                        for t in product_tenders[:5]:
+                            entity = t.get('procuring_entity', 'N/A')
+                            if entity not in seen_entities:
+                                analysis_text += f"      • {entity[:60]}\n"
+                                seen_entities.add(entity)
+
+                analysis_text += "\n"
+                context_parts.append(analysis_text)
+
+                # If no match found, also search online for historical tenders
+                if not matching_tenders:
+                    try:
+                        combined_search = ' '.join(institution_kws[:1] + product_kws[:2])
+                        external_results, external_context = await self._search_external_sources(
+                            institution_kws[:1] + product_kws[:2],
+                            question
+                        )
+                        if external_context and 'Не се пронајдени' not in external_context:
+                            context_parts.append("\n=== ОНЛАЈН ПРЕБАРУВАЊЕ ===\n")
+                            context_parts.append(external_context)
+                            logger.info(f"Found external results for institution+product query")
+                    except Exception as e:
+                        logger.warning(f"External search failed: {e}")
 
             # Add product/items context first (most relevant for product searches)
             if items:

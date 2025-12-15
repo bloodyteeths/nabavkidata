@@ -100,6 +100,17 @@ async def query_rag(
 
     start_time = time.time()
 
+    # DEBUG: Log conversation history
+    if request.conversation_history:
+        print(f"[RAG DEBUG] Received conversation_history with {len(request.conversation_history)} messages")
+        for i, msg in enumerate(request.conversation_history[-3:]):
+            role = msg.get('role', 'unknown')
+            content = msg.get('content', '')[:100]
+            print(f"[RAG DEBUG]   [{i}] {role}: {content}...")
+    else:
+        print(f"[RAG DEBUG] No conversation_history received")
+    print(f"[RAG DEBUG] Question: {request.question[:100]}...")
+
     try:
         # Initialize RAG pipeline
         pipeline = RAGQueryPipeline(top_k=request.top_k)
