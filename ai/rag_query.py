@@ -1583,8 +1583,18 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
         print(f"[ITEM SEARCH DEBUG] Original keywords: {search_keywords}")
         print(f"[ITEM SEARCH DEBUG] Product keywords for item search: {product_keywords}")
 
+        # Filter out short keywords (< 4 chars) that cause false positives
+        # e.g., "IOL" matches "microbIOLogy"
+        safe_keywords = [kw for kw in product_keywords if len(kw) >= 4]
+
+        # If all keywords were filtered, use the longest ones
+        if not safe_keywords and product_keywords:
+            safe_keywords = sorted(product_keywords, key=len, reverse=True)[:3]
+
+        print(f"[ITEM SEARCH DEBUG] Safe keywords (>=4 chars): {safe_keywords}")
+
         async with pool.acquire() as conn:
-            keyword_patterns = [f'%{kw}%' for kw in product_keywords]
+            keyword_patterns = [f'%{kw}%' for kw in safe_keywords]
 
             # Search product_items table
             product_items = await conn.fetch(f"""
