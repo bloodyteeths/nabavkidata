@@ -11,8 +11,9 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  AlertCircle,
+  BookOpen,
 } from "lucide-react";
+import Link from "next/link";
 
 /**
  * Source document with metadata
@@ -141,14 +142,14 @@ export function SourceCitation({
   const hasMore = validSources.length > maxVisible;
 
   return (
-    <Card className="border border-primary/20 bg-primary/5 mt-3">
-      <CardContent className="p-4">
+    <Card className="border border-border/50 bg-muted/30 mt-3">
+      <CardContent className="p-3">
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold text-primary">ИЗВОРИ</h3>
-            <Badge variant="secondary" className="text-xs">
+            <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+            <h3 className="text-xs font-medium text-muted-foreground">Извори</h3>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-muted">
               {validSources.length}
             </Badge>
           </div>
@@ -158,71 +159,76 @@ export function SourceCitation({
         </div>
 
         {/* Source List */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {visibleSources.map((source, index) => {
             const excerpt = source.excerpt || source.chunk_text || '';
             const fileName = source.file_name || source.title || `Документ ${index + 1}`;
             const relevanceScore = formatRelevance(source);
 
+            // Build the tender link URL
+            const tenderUrl = source.tender_id ? `/tenders/${encodeURIComponent(source.tender_id)}` : null;
+
             return (
               <div
                 key={source.doc_id || source.tender_id || index}
-                className="rounded-lg border bg-white dark:bg-gray-800 p-3 hover:shadow-md transition-shadow"
+                className="rounded-md border border-border/40 bg-background/50 p-2.5 hover:bg-accent/30 transition-colors"
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2.5">
                   {/* File Icon */}
-                  <div className="flex-shrink-0 mt-1">
+                  <div className="flex-shrink-0 mt-0.5">
                     {getFileIcon(source.file_name)}
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    {/* File Name */}
+                    {/* File Name with optional link */}
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <h4 className="text-sm font-medium text-foreground truncate">
-                        {fileName}
-                      </h4>
+                      {tenderUrl ? (
+                        <Link
+                          href={tenderUrl}
+                          className="text-xs font-medium text-foreground hover:text-primary hover:underline truncate"
+                        >
+                          {fileName}
+                        </Link>
+                      ) : (
+                        <h4 className="text-xs font-medium text-foreground truncate">
+                          {fileName}
+                        </h4>
+                      )}
                       {relevanceScore && (
-                        <Badge variant="outline" className="text-xs flex-shrink-0">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0 bg-background">
                           {relevanceScore}
                         </Badge>
                       )}
                     </div>
 
-                    {/* Category/Tender Info */}
+                    {/* Category/Tender Info - Make tender_id clickable */}
                     {(source.category || source.tender_id) && (
-                      <div className="flex flex-wrap gap-1 mb-2">
+                      <div className="flex flex-wrap gap-1 mb-1.5">
                         {source.category && (
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-muted/80">
                             {source.category}
                           </Badge>
                         )}
-                        {source.tender_id && (
-                          <Badge variant="outline" className="text-xs">
-                            ID: {source.tender_id}
-                          </Badge>
+                        {source.tender_id && tenderUrl && (
+                          <Link href={tenderUrl}>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 h-4 bg-primary/5 hover:bg-primary/10 cursor-pointer border-primary/20 text-primary"
+                            >
+                              <ExternalLink className="h-2.5 w-2.5 mr-1" />
+                              Отвори тендер
+                            </Badge>
+                          </Link>
                         )}
                       </div>
                     )}
 
                     {/* Excerpt */}
                     {excerpt && (
-                      <p className="text-xs text-muted-foreground leading-relaxed mb-2">
-                        "{truncateText(excerpt, 150)}"
+                      <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+                        {truncateText(excerpt, 120)}
                       </p>
-                    )}
-
-                    {/* View Button */}
-                    {onViewDocument && source.doc_id && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => onViewDocument(source.doc_id!, source.file_name)}
-                      >
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        Отвори
-                      </Button>
                     )}
                   </div>
                 </div>
