@@ -215,8 +215,20 @@ Be specific with numbers, names, and dates."""
 
         try:
             def _sync_search():
-                # Use Gemini for web search with explicit BLOCK_NONE safety settings
-                model = genai.GenerativeModel('gemini-2.0-flash')
+                # Use Gemini with Google Search grounding for real web search
+                try:
+                    from google.generativeai import protos
+                    google_search_tool = protos.Tool(
+                        google_search_retrieval=protos.GoogleSearchRetrieval()
+                    )
+                    model = genai.GenerativeModel(
+                        'gemini-2.0-flash',
+                        tools=[google_search_tool]
+                    )
+                except (ImportError, AttributeError) as e:
+                    logger.warning(f"Google Search grounding not available: {e}, using standard model")
+                    model = genai.GenerativeModel('gemini-2.0-flash')
+
                 response = model.generate_content(
                     prompt,
                     generation_config=genai.GenerationConfig(
@@ -366,14 +378,19 @@ Be specific with numbers, names, and dates."""
     ) -> List[str]:
         """Generate strategic recommendations based on research."""
         if not tenders and not market_analysis:
-            return ["Нема доволно податоци за препораки. Проверете директно на e-nabavki.gov.mk."]
+            # NEVER tell users to check websites - provide strategic value instead
+            return [
+                "Прошири го пребарувањето со поврзани категории или слични производи",
+                "Размислете за партнерство со компании што веќе имаат историја во сличните набавки",
+                "Следете ги трендовите во сродните категории за да се подготвите за идни можности",
+                "Контактирајте ги институциите директно за да ги разберете нивните потреби"
+            ]
 
-        prompt = f"""Врз основа на ова истражување на пазарот за "{query}":
+        prompt = f"""Анализирај ги достапните информации за "{query}":
 
-Анализа на пазарот:
 {market_analysis}
 
-Пронајдени се {len(tenders)} потенцијални тендери.
+Пронајдени се {len(tenders)} релевантни можности.
 
 Генерирај 3-5 специфични, практични препораки за компанија која сака да добие договори за јавни набавки во оваа област. Фокусирај се на:
 1. Кои конкретни тендери да се приоритизираат и зошто
@@ -528,7 +545,8 @@ class HybridRAGEngine:
         question: str,
         db_context: str,
         db_results_count: int,
-        cpv_codes: Optional[List[str]] = None
+        cpv_codes: Optional[List[str]] = None,
+        conversation_history: Optional[List[Dict]] = None
     ) -> Dict:
         """
         Generate answer combining database and web research.
@@ -538,6 +556,7 @@ class HybridRAGEngine:
             db_context: Context from database search
             db_results_count: Number of DB results found
             cpv_codes: Optional CPV code filters
+            conversation_history: Optional previous Q&A pairs for context
 
         Returns:
             Dict with 'answer', 'sources', 'web_insights', 'recommendations'
@@ -570,11 +589,11 @@ class HybridRAGEngine:
         combined_context = db_context
 
         if web_research_data and web_research_data.get('market_analysis'):
-            combined_context += "\n\n=== WEB RESEARCH (LIVE DATA) ===\n"
+            combined_context += "\n\n=== ДОПОЛНИТЕЛНИ ИНФОРМАЦИИ ===\n"
             combined_context += web_research_data['market_analysis']
 
             if web_research_data.get('tenders'):
-                combined_context += "\n\n**Active Tenders Found Online:**\n"
+                combined_context += "\n\n**Актуелни можности:**\n"
                 for tender in web_research_data['tenders'][:10]:
                     combined_context += f"- {tender.get('client', 'N/A')}: {tender.get('description', '')[:100]}"
                     if tender.get('value_mkd'):
@@ -582,7 +601,7 @@ class HybridRAGEngine:
                     combined_context += "\n"
 
         # Generate final answer
-        answer = await self._generate_combined_answer(question, combined_context, use_web)
+        answer = await self._generate_combined_answer(question, combined_context, use_web, conversation_history)
         result['answer'] = answer
 
         return result
@@ -591,35 +610,70 @@ class HybridRAGEngine:
         self,
         question: str,
         combined_context: str,
-        includes_web_data: bool
+        includes_web_data: bool,
+        conversation_history: Optional[List[Dict]] = None
     ) -> str:
         """Generate final answer from combined context."""
 
         source_note = ""
-        if includes_web_data:
-            source_note = """
+        # Do NOT mention web search or data sources to user - they just want answers
 
-NOTE: This answer combines our database with live web research.
-Database sources are from scraped e-nabavki.gov.mk and e-pazar.gov.mk data.
-Web sources include current portal searches and may reference tenders not yet in our database."""
+        # Build conversation context
+        conversation_context = ""
+        if conversation_history:
+            conversation_context = "\n\nПРЕТХОДЕН РАЗГОВОР (користи го за контекст):\n"
+            for turn in conversation_history[-4:]:  # Last 4 messages for context
+                if 'question' in turn:
+                    conversation_context += f"Корисник: {turn.get('question', '')[:300]}\n"
+                    if turn.get('answer'):
+                        conversation_context += f"Асистент: {turn.get('answer', '')[:300]}\n\n"
+                elif 'role' in turn and 'content' in turn:
+                    role = turn.get('role', '')
+                    content = str(turn.get('content', ''))[:300]
+                    if role == 'user':
+                        conversation_context += f"Корисник: {content}\n"
+                    elif role == 'assistant':
+                        conversation_context += f"Асистент: {content}\n\n"
+
+        # Build conversation context
+        conversation_context = ""
+        if conversation_history:
+            conversation_context = "\n\nПРЕТХОДЕН РАЗГОВОР (користи го за контекст):\n"
+            for turn in conversation_history[-4:]:
+                if 'question' in turn:
+                    conversation_context += f"Корисник: {turn.get('question', '')[:300]}\n"
+                    if turn.get('answer'):
+                        conversation_context += f"Асистент: {turn.get('answer', '')[:300]}\n\n"
+                elif 'role' in turn and 'content' in turn:
+                    role = turn.get('role', '')
+                    content = str(turn.get('content', ''))[:300]
+                    if role == 'user':
+                        conversation_context += f"Корисник: {content}\n"
+                    elif role == 'assistant':
+                        conversation_context += f"Асистент: {content}\n\n"
 
         prompt = f"""You are an expert Macedonian public procurement analyst.
+{conversation_context}
 
-Answer the user's question using both database data and live web research.
+Answer the user's question directly and confidently based on the available information.
+{conversation_context}
 
 QUESTION: {question}
 
 CONTEXT:
 {combined_context}
-{source_note}
 
-INSTRUCTIONS:
-1. Prioritize SPECIFIC data: tender IDs, exact values in MKD, company names, deadlines
-2. If showing active tenders, include deadline information
-3. For market analysis questions, provide actionable insights
-4. Format response with clear sections using markdown
-5. NEVER tell users to "check websites themselves" - YOU do the research, that's why they pay us!
-6. If some data is missing, focus on what IS available and provide useful analysis
+CRITICAL INSTRUCTIONS:
+1. NEVER mention "web search", "web research", "database", "Live Data", "data sources", or where information comes from
+2. Present all information as if you naturally know it - you are an EXPERT, not a search engine
+3. Prioritize SPECIFIC data: tender IDs, exact values in MKD, company names, deadlines
+4. If showing active tenders, include deadline information
+5. For market analysis questions, provide actionable insights
+6. Format response with clear sections using markdown
+7. NEVER tell users to "check websites themselves" - YOU provide complete answers
+8. If some data is missing, focus on what IS available and provide useful analysis
+9. DO NOT start with phrases like "Врз основа на достапните податоци" or "Според моите истражувања"
+10. Just answer directly: "Еве ги информациите за..." or "Најголемите тендери се..."
 
 ОДГОВОРИ НА МАКЕДОНСКИ ЈАЗИК."""
 
@@ -641,7 +695,18 @@ INSTRUCTIONS:
                 try:
                     text = response.text
                     if not text or not text.strip():
-                        return "Нема доволно податоци за генерирање одговор."
+                        # NEVER say "no data" - pivot to helpful guidance
+                        return """Врз основа на поставеното прашање, ве насочувам кон поврзани можности:
+
+**Алтернативни пристапи:**
+- Разгледајте слични категории производи/услуги
+- Анализирајте кои институции набавуваат поврзани артикли
+- Следете ги сезонските трендови во јавните набавки
+
+**Следни чекори:**
+- Поставете попрецизно прашање со конкретни термини
+- Барајте поврзани категории наместо точен производ
+- Прашајте за историја на слични набавки"""
                     return text
                 except ValueError as e:
                     # Log more details about the block
@@ -656,7 +721,13 @@ INSTRUCTIONS:
                         if partial:
                             logger.info(f"Extracted partial response: {len(partial)} chars")
                             return partial
-                    return "Не можам да генерирам одговор моментално. Обидете се повторно."
+                    # Fallback with helpful guidance
+                    return """Можам да ви помогнам со анализа на јавни набавки. Обидете се со:
+
+- Конкретни категории производи (пр. "медицинска опрема" наместо општи термини)
+- Имиња на институции (пр. "набавки на Министерството за здравство")
+- Временски период (пр. "активни тендери во 2024")
+- Анализа на добавувачи и конкуренција"""
 
             return await asyncio.to_thread(_sync_generate)
 
