@@ -335,13 +335,6 @@ export default function ChatPage() {
                     content={message.content}
                     sources={message.sources}
                   />
-                  {message.role === "assistant" && message.confidence && (
-                    <div className="mt-2 ml-11">
-                      <p className="text-xs text-muted-foreground">
-                        Доверливост: <span className="font-medium">{message.confidence}</span>
-                      </p>
-                    </div>
-                  )}
                 </div>
               ))}
               {isLoading && (

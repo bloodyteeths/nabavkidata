@@ -60,8 +60,6 @@ export function ChatMessage({ role, content, sources, confidence, onViewDocument
             sources={formattedSources}
             onViewDocument={onViewDocument}
             maxVisible={3}
-            showConfidence={true}
-            confidence={confidence}
           />
         )}
       </div>
