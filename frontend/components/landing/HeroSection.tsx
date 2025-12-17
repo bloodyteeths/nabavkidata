@@ -62,7 +62,7 @@ export default function HeroSection() {
                     transition={{ duration: 0.5, delay: 0.2 }}
                     className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10"
                 >
-                    Не пребарувајте само тендери. Анализирајте 5 години историја, предвидете ги понудите на конкурентите и извадете барања со AI.
+                    Анализирајте 9,181 тендери, 31,592 документи и 5 години историја со AI. Предвидете цени, победете конкуренти.
                 </motion.p>
 
                 <motion.div
