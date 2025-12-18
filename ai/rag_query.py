@@ -3438,9 +3438,12 @@ class LLMDrivenAgent:
                 logger.error(f"[AGENT] Error fetching tender {tender_id}: {e}")
 
         # Step 1: Ask LLM which tools to use (if not already determined by follow-up handling)
-        # SPECIAL CASE: If tender_id is provided, skip tool selection and use tender context directly
-        if tender_id and tender_context:
-            logger.info(f"[AGENT] Using tender-specific context directly (skipping tool selection)")
+        # SPECIAL CASE: If tender_id is provided with risk-specific questions, skip tool selection
+        is_risk_question = any(word in question.lower() for word in ['ризик', 'ризици', 'опасност', 'проблем', 'предизвик'])
+        is_summary_question = any(word in question.lower() for word in ['резиме', 'преглед', 'опис', 'summary'])
+
+        if tender_id and tender_context and (is_risk_question or is_summary_question):
+            logger.info(f"[AGENT] Using tender-specific context directly for risk/summary question")
             # Go directly to answer generation with tender context
             final_prompt = f"""Ти си AI консултант за јавни набавки во Македонија.
 
@@ -3685,11 +3688,20 @@ class LLMDrivenAgent:
                    f"{len(conversation_context.last_company_names)} companies")
 
         # Step 3: Let LLM generate final answer based on tool results
+        # Include tender context if available (for tender-specific questions)
+        tender_section = ""
+        if tender_id and tender_context:
+            tender_section = f"""
+=== КОНКРЕТЕН ТЕНДЕР ЗА АНАЛИЗА ===
+{tender_context}
+ВАЖНО: Одговорот треба да се фокусира на горниот тендер (ID: {tender_id})!
+"""
+
         final_prompt = f"""{AGENT_SYSTEM_PROMPT}
 
 ПРАШАЊЕ: {question}
-
-РЕЗУЛТАТИ ОД ПРЕБАРУВАЊЕ:
+{tender_section}
+РЕЗУЛТАТИ ОД ПРЕБАРУВАЊЕ (дополнителни информации):
 {combined_results}
 
 Врз основа на горните податоци, одговори на прашањето.
