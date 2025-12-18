@@ -1,4 +1,4 @@
-import { LayoutDashboard, Search, TrendingUp, Mail, MessageSquare, Settings, Package, ShoppingCart, Building2, BarChart3, LineChart, Users, Bell } from 'lucide-react';
+import { LayoutDashboard, Search, TrendingUp, Mail, MessageSquare, Settings, Package, ShoppingCart, Building2, BarChart3, LineChart, Users, Bell, ShieldAlert } from 'lucide-react';
 
 export const navigation = [
   {
@@ -30,6 +30,11 @@ export const navigation = [
     name: 'Аналитика',
     href: '/analytics',
     icon: BarChart3,
+  },
+  {
+    name: 'Анализа на Ризик',
+    href: '/risk-analysis',
+    icon: ShieldAlert,
   },
   {
     name: 'Конкуренти',

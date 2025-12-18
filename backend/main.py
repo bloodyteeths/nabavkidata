@@ -15,7 +15,7 @@ import os
 from database import init_db, close_db, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk
 from middleware.fraud import FraudPreventionMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 
@@ -95,6 +95,8 @@ app.include_router(market_analytics.router, prefix="/api")  # Market analytics e
 app.include_router(alerts.router, prefix="/api")  # Alert matching engine (Phase 6.1)
 app.include_router(briefings.router, prefix="/api")  # Daily briefings (Phase 6.2)
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])  # Push notifications (Phase 6.5)
+app.include_router(corruption.router)  # Corruption detection & risk analysis
+app.include_router(risk.router)  # Risk investigation (corruption research orchestrator)
 
 
 # Root endpoints
