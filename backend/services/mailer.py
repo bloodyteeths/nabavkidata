@@ -462,7 +462,8 @@ class MailerService:
         Returns:
             bool: True if sent successfully
         """
-        tender_link = f"{self.frontend_url}/tenders/{tender_id}"
+        from urllib.parse import quote
+        tender_link = f"{self.frontend_url}/tenders/{quote(tender_id, safe='')}"
 
         details_html = f"""
         <tr>

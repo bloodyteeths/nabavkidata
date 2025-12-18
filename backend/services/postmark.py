@@ -336,7 +336,8 @@ class PostmarkService:
         category: Optional[str] = None
     ) -> bool:
         """Send tender notification email to user."""
-        tender_link = f"{self.frontend_url}/tenders/{tender_id}"
+        from urllib.parse import quote
+        tender_link = f"{self.frontend_url}/tenders/{quote(tender_id, safe='')}"
 
         details_html = f"""
         <tr>

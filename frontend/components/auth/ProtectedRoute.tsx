@@ -23,8 +23,9 @@ export default function ProtectedRoute({
   useEffect(() => {
     if (!isLoading) {
       if (requireAuth && !user) {
-        const returnUrl = pathname !== '/auth/login' ? `?returnUrl=${encodeURIComponent(pathname)}` : '';
-        router.push(`${redirectTo}${returnUrl}`);
+        // Use 'redirect' param for consistency with middleware and login page
+        const redirectParam = pathname !== '/auth/login' ? `?redirect=${encodeURIComponent(pathname)}` : '';
+        router.push(`${redirectTo}${redirectParam}`);
       } else {
         setIsChecking(false);
       }

@@ -39,12 +39,12 @@ export default function DashboardLayout({
     const SidebarContent = () => (
         <>
             <div className="p-6">
-                <div className="flex items-center gap-2 mb-1">
+                <Link href="/dashboard" className="flex items-center gap-2 mb-1 hover:opacity-80 transition-opacity">
                     <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                         <span className="text-white font-bold text-xl">N</span>
                     </div>
                     <h1 className="text-xl font-bold text-white tracking-tight">nabavkidata</h1>
-                </div>
+                </Link>
                 <p className="text-xs text-muted-foreground ml-10">Тендер Интелигенција</p>
             </div>
 
@@ -111,12 +111,12 @@ export default function DashboardLayout({
             <div className="flex h-screen bg-background">
                 {/* Mobile Header */}
                 <div className="md:hidden fixed top-0 left-0 right-0 h-16 border-b border-white/10 bg-background/80 backdrop-blur-md z-30 flex items-center justify-between px-4">
-                    <div className="flex items-center gap-2">
+                    <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                             <span className="text-white font-bold text-xl">N</span>
                         </div>
                         <span className="font-bold text-white">nabavkidata</span>
-                    </div>
+                    </Link>
                     <div className="flex items-center gap-2">
                         <NotificationBell />
                         <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>

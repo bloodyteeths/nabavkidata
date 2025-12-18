@@ -181,11 +181,12 @@ async def generate_instant_alert_html(
     </p>
     """
 
+    from urllib.parse import quote
     return postmark_service._get_email_template(
         title="🔔 Нов Тендер",
         content=content,
         button_text="Погледни го тендерот",
-        button_link=f"{FRONTEND_URL}/tenders/{tender.tender_id}"
+        button_link=f"{FRONTEND_URL}/tenders/{quote(tender.tender_id, safe='')}"
     )
 
 

@@ -70,7 +70,9 @@ export default function LoginPage() {
 
     try {
       await login(formData.email, formData.password);
-      router.push('/dashboard');
+      // Redirect to the original page or dashboard
+      const redirectUrl = searchParams.get('redirect') || '/dashboard';
+      router.push(redirectUrl);
     } catch (error: any) {
       setErrors({ general: error.message || 'Погрешна е-пошта или лозинка' });
     } finally {
@@ -81,6 +83,11 @@ export default function LoginPage() {
   const handleGoogleLogin = () => {
     setGoogleLoading(true);
     setErrors({});
+    // Store the redirect URL for after OAuth callback
+    const redirectUrl = searchParams.get('redirect');
+    if (redirectUrl) {
+      localStorage.setItem('auth_redirect', redirectUrl);
+    }
     // Redirect to backend Google OAuth endpoint
     const apiUrl = window.location.hostname === 'localhost'
       ? 'http://localhost:8000'
