@@ -3364,6 +3364,7 @@ class LLMDrivenAgent:
                         tender_data = await conn.fetchrow("""
                             SELECT tender_id, title, description, contracting_authority as procuring_entity,
                                    estimated_value_mkd, status, publication_date, closing_date,
+                                   procedure_type, contract_number, items_data,
                                    (SELECT supplier_name FROM epazar_offers WHERE tender_id = et.tender_id AND is_winner = true LIMIT 1) as winner
                             FROM epazar_tenders et
                             WHERE tender_id = $1
@@ -3399,6 +3400,12 @@ class LLMDrivenAgent:
                             tender_context += f"Тип постапка: {tender_data['procedure_type']}\n"
                         if tender_data.get('status'):
                             tender_context += f"Статус: {tender_data['status']}\n"
+                        if tender_data.get('publication_date'):
+                            tender_context += f"Датум на објава: {tender_data['publication_date']}\n"
+                        if tender_data.get('closing_date'):
+                            tender_context += f"Краен рок за понуди: {tender_data['closing_date']}\n"
+                        if tender_data.get('contract_number'):
+                            tender_context += f"Број на договор: {tender_data['contract_number']}\n"
 
                         # Fetch bidders/offers for this tender
                         if is_epazar:
@@ -3424,6 +3431,25 @@ class LLMDrivenAgent:
                                 for item in items:
                                     price = f"{item['estimated_unit_price_mkd']:,.0f} МКД/ед" if item['estimated_unit_price_mkd'] else "N/A"
                                     tender_context += f"  - {item['item_name']} (x{item['quantity']} {item['unit'] or ''}) - {price}\n"
+                            elif tender_data.get('items_data'):
+                                # Fallback: Parse items from JSON column
+                                try:
+                                    import json
+                                    items_json = tender_data['items_data']
+                                    if isinstance(items_json, str):
+                                        items_json = json.loads(items_json)
+                                    if items_json:
+                                        tender_context += f"\nАртикли ({len(items_json)}):\n"
+                                        for item in items_json:
+                                            item_name = item.get('item_name', 'N/A')
+                                            quantity = item.get('quantity', 'N/A')
+                                            unit = item.get('unit', '')
+                                            desc = item.get('item_description', '')
+                                            tender_context += f"  - {item_name} (x{quantity} {unit})\n"
+                                            if desc and desc != item_name:
+                                                tender_context += f"    Опис: {desc}\n"
+                                except Exception as e:
+                                    logger.warning(f"Failed to parse items_data JSON: {e}")
                         else:
                             bidders = await conn.fetch("""
                                 SELECT company_name, bid_amount_mkd, is_winner, rank
