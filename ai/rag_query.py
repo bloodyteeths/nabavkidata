@@ -3489,62 +3489,10 @@ class LLMDrivenAgent:
             except Exception as e:
                 logger.error(f"[AGENT] Error fetching tender {tender_id}: {e}")
 
-        # Step 1: Ask LLM which tools to use (if not already determined by follow-up handling)
-        # SPECIAL CASE: If tender_id is provided AND we have tender context, answer directly for ALL QuickAction questions
-        # This ensures e-pazar and regular tender-specific questions get answered from the specific tender data
-        is_risk_question = any(word in question.lower() for word in ['ризик', 'ризици', 'опасност', 'проблем', 'предизвик'])
-        is_summary_question = any(word in question.lower() for word in ['резиме', 'преглед', 'опис', 'summary'])
-        is_requirements_question = any(word in question.lower() for word in ['барања', 'критериуми', 'услови', 'requirements'])
-        is_price_question = any(word in question.lower() for word in ['цена', 'цени', 'вредност', 'price', 'буџет', 'проценет'])
-        is_competitor_question = any(word in question.lower() for word in ['конкурент', 'понудувач', 'компании', 'учествува', 'добива'])
-        is_deadline_question = any(word in question.lower() for word in ['рок', 'датум', 'deadline', 'краен'])
-
-        is_tender_specific_question = (
-            is_risk_question or is_summary_question or is_requirements_question or
-            is_price_question or is_competitor_question or is_deadline_question
-        )
-
-        if tender_id and tender_context and is_tender_specific_question:
-            logger.info(f"[AGENT] Using tender-specific context directly for tender question: {question[:50]}...")
-            # Go directly to answer generation with tender context
-
-            # Determine question type for tailored response format
-            if is_requirements_question:
-                format_instructions = """ФОРМАТ НА ОДГОВОР:
-1. Главни технички барања (спецификации од артиклите)
-2. Административни барања (документи, рокови)
-3. Критериуми за оценување (цена, квалитет)
-4. Совет за понудувачи"""
-            elif is_price_question:
-                format_instructions = """ФОРМАТ НА ОДГОВОР:
-1. Проценета вредност на тендерот
-2. Детали за артиклите и нивните цени
-3. Анализа на цената (дали е реална, што вклучува)
-4. Препорака за понуда"""
-            elif is_competitor_question:
-                format_instructions = """ФОРМАТ НА ОДГОВОР:
-1. Моментални понудувачи на овој тендер (ако има)
-2. Победник (ако е избран)
-3. Карактеристики на успешни понудувачи
-4. Стратегија за конкуренција"""
-            elif is_deadline_question:
-                format_instructions = """ФОРМАТ НА ОДГОВОР:
-1. Датум на објава
-2. Краен рок за понуди
-3. Очекуван датум на одлука
-4. Важни временски точки"""
-            elif is_risk_question:
-                format_instructions = """ФОРМАТ НА ОДГОВОР:
-1. Идентификувани ризици (ако има)
-2. Детална анализа на секој ризик
-3. Потенцијални проблеми за понудувачи
-4. Препораки за минимизирање ризик"""
-            else:  # summary
-                format_instructions = """ФОРМАТ НА ОДГОВОР:
-1. Краток преглед на тендерот
-2. Главни карактеристики
-3. Статус и важни информации
-4. Препорака"""
+        # Step 1: If tender_id is provided with tender context, ALWAYS use it
+        # The LLM is smart enough to understand ANY question about the tender - no keyword matching needed
+        if tender_id and tender_context:
+            logger.info(f"[AGENT] Using tender-specific context for: {question[:50]}...")
 
             final_prompt = f"""Ти си експерт AI консултант за јавни набавки во Македонија.
 
@@ -3553,18 +3501,13 @@ class LLMDrivenAgent:
 ПРАШАЊЕ ОД КОРИСНИКОТ:
 {question}
 
-КРИТИЧНИ ИНСТРУКЦИИ:
+ИНСТРУКЦИИ:
 - Одговори базирано на податоците за тендер {tender_id}
-- НИКОГАШ не кажувај "немам доволно податоци" или "не можам да најдам"
-- Ако некоја информација недостасува, дај општ совет базиран на пракса во јавни набавки
-- За артикли/производи - опиши ги детално од податоците погоре
-- За цени - ако нема понуда, анализирај ја проценетата вредност
-- За конкуренти - ако нема понудувачи, објасни кој типично учествува за ваков тендер
-- За рокови - ако нема датум, објасни типични рокови за ваков тип набавка
+- Користи ги сите информации од тендерот погоре (наслов, опис, артикли, датуми, понуди итн.)
+- НИКОГАШ не кажувај "немам доволно податоци" - користи ги достапните податоци!
+- Ако некоја информација недостасува, дај практичен совет базиран на искуство
 - Одговорот нека биде на македонски јазик
-- Биди корисен, конкретен и практичен!
-
-{format_instructions}
+- Дај структуриран, корисен и конкретен одговор
 """
             try:
                 model = genai.GenerativeModel('gemini-2.0-flash')
