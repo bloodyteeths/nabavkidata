@@ -3400,18 +3400,44 @@ class LLMDrivenAgent:
                         if tender_data.get('status'):
                             tender_context += f"Статус: {tender_data['status']}\n"
 
-                        # Fetch bidders for this tender
-                        bidders = await conn.fetch("""
-                            SELECT company_name, bid_amount_mkd, is_winner, rank
-                            FROM tender_bidders
-                            WHERE tender_id = $1
-                            ORDER BY rank NULLS LAST, bid_amount_mkd ASC
-                        """, tender_id)
+                        # Fetch bidders/offers for this tender
+                        if is_epazar:
+                            # E-pazar: fetch from epazar_offers
+                            bidders = await conn.fetch("""
+                                SELECT supplier_name as company_name, total_bid_mkd as bid_amount_mkd,
+                                       is_winner, ranking as rank, disqualified
+                                FROM epazar_offers
+                                WHERE tender_id = $1
+                                ORDER BY ranking NULLS LAST, total_bid_mkd ASC
+                            """, tender_id)
+
+                            # Also fetch items for e-pazar
+                            items = await conn.fetch("""
+                                SELECT item_name, quantity, unit, estimated_unit_price_mkd, estimated_total_price_mkd
+                                FROM epazar_items
+                                WHERE tender_id = $1
+                                ORDER BY line_number
+                            """, tender_id)
+
+                            if items:
+                                tender_context += f"\nАртикли ({len(items)}):\n"
+                                for item in items:
+                                    price = f"{item['estimated_unit_price_mkd']:,.0f} МКД/ед" if item['estimated_unit_price_mkd'] else "N/A"
+                                    tender_context += f"  - {item['item_name']} (x{item['quantity']} {item['unit'] or ''}) - {price}\n"
+                        else:
+                            bidders = await conn.fetch("""
+                                SELECT company_name, bid_amount_mkd, is_winner, rank
+                                FROM tender_bidders
+                                WHERE tender_id = $1
+                                ORDER BY rank NULLS LAST, bid_amount_mkd ASC
+                            """, tender_id)
 
                         if bidders:
                             tender_context += f"\nПонудувачи ({len(bidders)}):\n"
                             for b in bidders:
                                 winner_mark = " ★ ПОБЕДНИК" if b['is_winner'] else ""
+                                if is_epazar and b.get('disqualified'):
+                                    winner_mark = " ❌ ДИСКВАЛИФИКУВАН"
                                 bid = f"{b['bid_amount_mkd']:,.0f} МКД" if b['bid_amount_mkd'] else "N/A"
                                 tender_context += f"  - {b['company_name']} ({bid}){winner_mark}\n"
 
@@ -3438,33 +3464,81 @@ class LLMDrivenAgent:
                 logger.error(f"[AGENT] Error fetching tender {tender_id}: {e}")
 
         # Step 1: Ask LLM which tools to use (if not already determined by follow-up handling)
-        # SPECIAL CASE: If tender_id is provided with risk-specific questions, skip tool selection
+        # SPECIAL CASE: If tender_id is provided AND we have tender context, answer directly for ALL QuickAction questions
+        # This ensures e-pazar and regular tender-specific questions get answered from the specific tender data
         is_risk_question = any(word in question.lower() for word in ['ризик', 'ризици', 'опасност', 'проблем', 'предизвик'])
         is_summary_question = any(word in question.lower() for word in ['резиме', 'преглед', 'опис', 'summary'])
+        is_requirements_question = any(word in question.lower() for word in ['барања', 'критериуми', 'услови', 'requirements'])
+        is_price_question = any(word in question.lower() for word in ['цена', 'цени', 'вредност', 'price', 'буџет', 'проценет'])
+        is_competitor_question = any(word in question.lower() for word in ['конкурент', 'понудувач', 'компании', 'учествува', 'добива'])
+        is_deadline_question = any(word in question.lower() for word in ['рок', 'датум', 'deadline', 'краен'])
 
-        if tender_id and tender_context and (is_risk_question or is_summary_question):
-            logger.info(f"[AGENT] Using tender-specific context directly for risk/summary question")
+        is_tender_specific_question = (
+            is_risk_question or is_summary_question or is_requirements_question or
+            is_price_question or is_competitor_question or is_deadline_question
+        )
+
+        if tender_id and tender_context and is_tender_specific_question:
+            logger.info(f"[AGENT] Using tender-specific context directly for tender question: {question[:50]}...")
             # Go directly to answer generation with tender context
-            final_prompt = f"""Ти си AI консултант за јавни набавки во Македонија.
+
+            # Determine question type for tailored response format
+            if is_requirements_question:
+                format_instructions = """ФОРМАТ НА ОДГОВОР:
+1. Главни технички барања (спецификации од артиклите)
+2. Административни барања (документи, рокови)
+3. Критериуми за оценување (цена, квалитет)
+4. Совет за понудувачи"""
+            elif is_price_question:
+                format_instructions = """ФОРМАТ НА ОДГОВОР:
+1. Проценета вредност на тендерот
+2. Детали за артиклите и нивните цени
+3. Анализа на цената (дали е реална, што вклучува)
+4. Препорака за понуда"""
+            elif is_competitor_question:
+                format_instructions = """ФОРМАТ НА ОДГОВОР:
+1. Моментални понудувачи на овој тендер (ако има)
+2. Победник (ако е избран)
+3. Карактеристики на успешни понудувачи
+4. Стратегија за конкуренција"""
+            elif is_deadline_question:
+                format_instructions = """ФОРМАТ НА ОДГОВОР:
+1. Датум на објава
+2. Краен рок за понуди
+3. Очекуван датум на одлука
+4. Важни временски точки"""
+            elif is_risk_question:
+                format_instructions = """ФОРМАТ НА ОДГОВОР:
+1. Идентификувани ризици (ако има)
+2. Детална анализа на секој ризик
+3. Потенцијални проблеми за понудувачи
+4. Препораки за минимизирање ризик"""
+            else:  # summary
+                format_instructions = """ФОРМАТ НА ОДГОВОР:
+1. Краток преглед на тендерот
+2. Главни карактеристики
+3. Статус и важни информации
+4. Препорака"""
+
+            final_prompt = f"""Ти си експерт AI консултант за јавни набавки во Македонија.
 
 {tender_context}
 
 ПРАШАЊЕ ОД КОРИСНИКОТ:
 {question}
 
-ИНСТРУКЦИИ:
-- Одговори САМО базирано на податоците за овој конкретен тендер (ID: {tender_id})
-- НЕ спомнувај други тендери или компании што не се дел од овој тендер
-- Ако има детектирани ризици, анализирај ги детално
-- Ако нема ризици, кажи дека тендерот изгледа регуларен
+КРИТИЧНИ ИНСТРУКЦИИ:
+- Одговори базирано на податоците за тендер {tender_id}
+- НИКОГАШ не кажувај "немам доволно податоци" или "не можам да најдам"
+- Ако некоја информација недостасува, дај општ совет базиран на пракса во јавни набавки
+- За артикли/производи - опиши ги детално од податоците погоре
+- За цени - ако нема понуда, анализирај ја проценетата вредност
+- За конкуренти - ако нема понудувачи, објасни кој типично учествува за ваков тендер
+- За рокови - ако нема датум, објасни типични рокови за ваков тип набавка
 - Одговорот нека биде на македонски јазик
-- Биди конкретен и фактички точен
+- Биди корисен, конкретен и практичен!
 
-ФОРМАТ НА ОДГОВОР:
-Дај структуриран одговор со:
-1. Краток преглед на тендерот
-2. Идентификувани ризици (ако има)
-3. Препораки за понудувачите
+{format_instructions}
 """
             try:
                 model = genai.GenerativeModel('gemini-2.0-flash')
