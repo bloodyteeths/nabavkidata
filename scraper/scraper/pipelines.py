@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from itemadapter import ItemAdapter
 from scrapy.utils.defer import deferred_from_coro
+from scrapy.exceptions import DropItem
 from scraper.items import DocumentItem, LotAwardItem
 import aiofiles
 import fitz  # PyMuPDF
@@ -276,12 +277,26 @@ class PDFExtractionPipeline:
     REQUIREMENT 1: UTF-8 Cyrillic handling
     ENHANCED: Multi-engine extraction with automatic selection
 
-    Extracts text from PDF files while preserving Cyrillic characters.
-    Uses multi-engine approach: PyMuPDF → PDFMiner → Tesseract OCR
+    NON-BLOCKING: Documents are marked as 'pending' and saved to database.
+    Actual text extraction (OCR) happens in a separate worker process to avoid
+    blocking the scraper. This allows the scraper to continue immediately after
+    downloading files.
+
+    Worker process: A separate CLI script processes documents with status='pending'
+    and updates the extraction_status, content_text, and specifications_json fields.
     """
 
     async def process_item(self, item, spider):
-        """Extract text from downloaded PDF using multi-engine parser."""
+        """
+        Mark document as pending for extraction (non-blocking).
+
+        The actual extraction happens in a separate worker process that:
+        1. Queries documents with extraction_status='pending'
+        2. Runs parse_file() with OCR if needed
+        3. Updates extraction_status, content_text, specifications_json
+
+        This keeps the scraper fast and non-blocking.
+        """
         adapter = ItemAdapter(item)
 
         # Only process DocumentItem with file_path
@@ -299,75 +314,33 @@ class PDFExtractionPipeline:
             adapter['extraction_status'] = 'skipped_external'
             return item
 
-        try:
-            import json
-            file_ext = Path(file_path).suffix.lower()
+        # NON-BLOCKING: Mark as pending instead of extracting immediately
+        # A separate worker will process this document asynchronously
+        file_ext = Path(file_path).suffix.lower()
 
-            # Use unified parse_file for all supported document types (PDF, Word, Excel)
-            from document_parser import parse_file, is_supported_document
+        # Check if file type is supported for extraction
+        from document_parser import is_supported_document
 
-            if is_supported_document(file_path):
-                result = parse_file(file_path)
-
-                adapter['content_text'] = result.text
-                adapter['extraction_status'] = 'success' if result.text else 'failed'
-                adapter['page_count'] = result.page_count
-
-                metadata = {
-                    'engine_used': result.engine_used,
-                    'has_tables': result.has_tables,
-                    'table_count': len(result.tables),
-                    'tables': result.tables,  # Store actual table data as raw JSON
-                    'cpv_codes': result.cpv_codes,
-                    'company_names': result.company_names,
-                    'emails': result.emails,
-                    'phones': result.phones,
-                }
-                adapter['specifications_json'] = json.dumps(metadata, ensure_ascii=False)
-
-                logger.info(
-                    f"Extracted {len(result.text)} chars from {adapter.get('file_name')} "
-                    f"using {result.engine_used}. "
-                    f"CPV: {len(result.cpv_codes)}, Companies: {len(result.company_names)}, "
-                    f"Emails: {len(result.emails)}, Phones: {len(result.phones)}"
-                )
-
-            else:
-                logger.warning(f"Unsupported file type: {file_ext} for {adapter.get('file_name')}")
-                adapter['extraction_status'] = 'unsupported'
-                adapter['content_text'] = None
-
-            # Get file metadata BEFORE potential deletion
-            file_path_obj = Path(file_path)
-            if file_path_obj.exists():
-                file_stats = file_path_obj.stat()
-                adapter['file_size_bytes'] = file_stats.st_size
-
-            # Verify Cyrillic preservation
-            if adapter.get('content_text') and self._contains_cyrillic(adapter['content_text']):
-                logger.info(f"✓ Cyrillic text preserved in: {adapter.get('file_name')}")
-
-            # AUTO-CLEANUP: Delete file after extraction attempt to save disk space
-            # Delete regardless of success - we've either extracted content or marked as failed
-            # The content (if any) is stored in DB, no need to keep file on disk
-            try:
-                if file_path_obj.exists():
-                    file_path_obj.unlink()
-                    logger.info(f"🗑️ Deleted file after extraction: {adapter.get('file_name')} (status: {adapter.get('extraction_status')})")
-            except Exception as cleanup_error:
-                logger.warning(f"Could not delete file after extraction: {cleanup_error}")
-
-        except Exception as e:
-            logger.error(f"Document extraction failed for {file_path}: {e}")
-            adapter['extraction_status'] = 'failed'
+        if is_supported_document(file_path):
+            # Mark as pending - worker will extract later
+            adapter['extraction_status'] = 'pending'
             adapter['content_text'] = None
-            # Also cleanup on failure
-            try:
-                if file_path_obj.exists():
-                    file_path_obj.unlink()
-                    logger.info(f"🗑️ Deleted file after failed extraction: {adapter.get('file_name')}")
-            except:
-                pass
+            adapter['specifications_json'] = None
+            adapter['page_count'] = None
+
+            logger.info(f"Marked document as pending for extraction: {adapter.get('file_name')}")
+        else:
+            # Unsupported file types are marked immediately
+            logger.warning(f"Unsupported file type: {file_ext} for {adapter.get('file_name')}")
+            adapter['extraction_status'] = 'unsupported'
+            adapter['content_text'] = None
+            adapter['specifications_json'] = None
+
+        # Get file metadata
+        file_path_obj = Path(file_path)
+        if file_path_obj.exists():
+            file_stats = file_path_obj.stat()
+            adapter['file_size_bytes'] = file_stats.st_size
 
         return item
 
@@ -401,8 +374,9 @@ class DataValidationPipeline:
 
         # Validate required fields
         if not adapter.get('tender_id'):
-            logger.error("Validation failed: Missing tender_id")
-            raise ValueError("tender_id is required")
+            source_url = adapter.get('source_url', 'unknown')
+            logger.error(f"Validation failed: Missing tender_id for tender from {source_url}")
+            raise DropItem(f"Missing tender_id - skipping tender from {source_url}")
 
         # Title fallback logic: Use procuring_entity or tender_id if title is missing
         title = adapter.get('title')
@@ -1125,7 +1099,11 @@ class DatabasePipeline:
                         company_address, bid_amount_mkd, bid_amount_eur,
                         is_winner, rank, disqualified, disqualification_reason
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                    ON CONFLICT (bidder_id) DO NOTHING
+                    ON CONFLICT (tender_id, company_name) DO UPDATE SET
+                        bid_amount_mkd = COALESCE(EXCLUDED.bid_amount_mkd, tender_bidders.bid_amount_mkd),
+                        bid_amount_eur = COALESCE(EXCLUDED.bid_amount_eur, tender_bidders.bid_amount_eur),
+                        is_winner = COALESCE(EXCLUDED.is_winner, tender_bidders.is_winner),
+                        rank = COALESCE(EXCLUDED.rank, tender_bidders.rank)
                 ''',
                     tender_id,
                     bidder.get('lot_id'),  # UUID reference to tender_lots, may be NULL
@@ -1214,8 +1192,9 @@ class EPazarValidationPipeline:
         # Validate required fields
         tender_id = adapter.get('tender_id')
         if not tender_id:
-            logger.error("EPazar validation failed: Missing tender_id")
-            raise ValueError("tender_id is required")
+            source_url = adapter.get('source_url', 'unknown')
+            logger.error(f"EPazar validation failed: Missing tender_id from {source_url}")
+            raise DropItem(f"Missing tender_id - skipping EPazar tender from {source_url}")
 
         # Title fallback logic
         title = adapter.get('title')
