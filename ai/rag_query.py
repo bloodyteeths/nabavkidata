@@ -1907,7 +1907,7 @@ async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
             keywords = [keywords]
 
         # Build search patterns
-        patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 3]
+        patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 2]
         if not patterns:
             return "Премногу кратки клучни зборови."
 
@@ -1979,7 +1979,7 @@ async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
         if isinstance(keywords, str):
             keywords = [keywords]
 
-        patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 3]
+        patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 2]
         if not patterns:
             return "Премногу кратки клучни зборови."
 
@@ -2052,7 +2052,7 @@ async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
         if isinstance(keywords, str):
             keywords = [keywords]
 
-        patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 3]
+        patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 2]
         if not patterns:
             return "Премногу кратки клучни зборови."
 
@@ -2358,7 +2358,7 @@ CPV: [код]
         if isinstance(keywords, str):
             keywords = [keywords]
 
-        patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 3]
+        patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 2]
         if not patterns:
             return "Премногу кратки клучни зборови."
 
@@ -2792,7 +2792,7 @@ CPV: [код]
             if isinstance(keywords, str):
                 keywords = [keywords]
 
-            patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 3]
+            patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 2]
             if not patterns:
                 return "Премногу кратки клучни зборови."
 
@@ -2967,7 +2967,7 @@ async def parallel_multi_source_search(question: str, keywords: List[str], conn,
     }
 
     # Prepare search parameters
-    patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 3]
+    patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 2]
     if not patterns:
         patterns = [f"%{question[:50]}%"]
 
@@ -3693,15 +3693,12 @@ class LLMDrivenAgent:
             any("web_search" in call.get("tool", "") for call in tool_calls)
         )
 
-        # Low confidence threshold - trigger web search if confidence is too low
-        LOW_CONFIDENCE_THRESHOLD = 0.35
-
-        # Only trigger fallback if: parallel search didn't include web AND (low confidence OR many "not found")
-        should_search_web = (not_found_count >= 2 or result_confidence < LOW_CONFIDENCE_THRESHOLD) and not web_search_done
+        # Auto-trigger web search if multiple tools returned "not found" and web wasn't already searched
+        # Let LLM work with whatever data we have - don't use arbitrary confidence thresholds
+        should_search_web = not_found_count >= 2 and not web_search_done
 
         if should_search_web:
-            trigger_reason = f"low confidence ({result_confidence:.2f})" if result_confidence < LOW_CONFIDENCE_THRESHOLD else f"{not_found_count} 'not found' patterns"
-            logger.info(f"[AGENT] DB results insufficient ({trigger_reason}). Auto-calling web_search_procurement...")
+            logger.info(f"[AGENT] Multiple tools returned no results ({not_found_count}). Adding web search...")
 
             # Generate search query from original question
             search_query = question[:200]  # Use question as search query
@@ -3744,28 +3741,13 @@ class LLMDrivenAgent:
 
 ПРАШАЊЕ: {question}
 {tender_section}
-РЕЗУЛТАТИ ОД ПРЕБАРУВАЊЕ (дополнителни информации):
+РЕЗУЛТАТИ ОД ПРЕБАРУВАЊЕ:
 {combined_results}
 
-Врз основа на горните податоци, одговори на прашањето.
-
-ПРАВИЛА:
-- Дај КОНКРЕТНИ бројки (цени, количини, датуми)
-- Спомни ги изворите
-- За "рамковен договор" - провери дали има "рамковен" во документите горе
-- ДАДЕНИ СЕ СИТЕ ПОДАТОЦИ - работи со нив!
-- За препорака за цена → МОРА да дадеш конкретна бројка врз основа на историските цени
-
-ЗА ТРЕНДОВИ И ПРОГНОЗИ:
-- Ако имаш датум на тендер → процени следен: "Последен тендер беше на X. Болниците обично тендерираат годишно/полугодишно, па следен би можел да биде околу Y."
-- Ако немаш доволно историја → кажи: "Врз основа на еден тендер не можам точно да проценам, но типично болниците тендерираат за овој материјал на секои 6-12 месеци."
-- НИКОГАШ не кажувај "следете го сајтот" или "проверете сами" - ТИ дај проценка!
-
-ЗАБРАНЕТО:
-❌ "Ќе треба да ги следите трендовите на..."
-❌ "Проверете на e-nabavki.gov.mk"
-❌ "Не можам да дадам проценка"
-❌ "Ќе пребарам" или "потребно е да се пребара" """
+Одговори на прашањето користејќи ги горните податоци.
+- Биди конкретен (бројки, датуми, имиња)
+- Ако податоците се ограничени, дај најдобра можна проценка базирана на искуство
+- Одговорот нека биде корисен и практичен"""
 
         try:
             final_response = model.generate_content(
@@ -3779,23 +3761,16 @@ class LLMDrivenAgent:
             # ========================================================================
             # GROUNDING VERIFICATION
             # ========================================================================
-            # Verify that the answer is properly grounded in the retrieved data
-            # Only verify if we have medium-to-high confidence in the data
-            if result_confidence >= 0.3:
-                is_grounded, verified_answer = await verify_answer_grounding(
-                    answer=answer_text,
-                    tool_results=combined_results,
-                    question=question
-                )
+            # Always verify answers - let the LLM decide if correction is needed
+            is_grounded, verified_answer = await verify_answer_grounding(
+                answer=answer_text,
+                tool_results=combined_results,
+                question=question
+            )
 
-                if not is_grounded:
-                    logger.warning(f"[GROUNDING] Answer was corrected due to hallucination detection")
-                    answer_text = verified_answer
-            else:
-                # Low confidence - add disclaimer instead of full verification
-                logger.info(f"[GROUNDING] Skipping verification (low confidence: {result_confidence:.2f})")
-                if result_confidence < 0.2:
-                    answer_text += "\n\n*Забелешка: Ограничени податоци се достапни за ова прашање.*"
+            if not is_grounded:
+                logger.warning(f"[GROUNDING] Answer was corrected due to hallucination detection")
+                answer_text = verified_answer
 
             # ========================================================================
             # STORE QUERY CONTEXT FOR FUTURE FOLLOW-UPS
@@ -5769,7 +5744,7 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
 
         async with pool.acquire() as conn:
             # Build keyword patterns
-            keyword_patterns = [f'%{kw}%' for kw in search_keywords if len(kw) >= 3]
+            keyword_patterns = [f'%{kw}%' for kw in search_keywords if len(kw) >= 2]
             if not keyword_patterns:
                 return [], ""
 
