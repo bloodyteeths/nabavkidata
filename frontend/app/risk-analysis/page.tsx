@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Search,
   AlertTriangle,
   CheckCircle2,
   XCircle,
@@ -19,603 +20,896 @@ import {
   Building2,
   Brain,
   Shield,
-  Users,
   Newspaper,
   Clock,
+  Search,
+  Filter,
   TrendingUp,
-  ArrowRight,
-  Sparkles,
+  Activity,
   Eye,
-  UserCheck,
-  Banknote,
+  ExternalLink,
+  RefreshCw,
+  Zap,
   AlertCircle,
-  ChevronRight,
-  ExternalLink
+  Users,
+  Repeat,
+  DollarSign,
+  Timer,
+  FileWarning,
+  Link2,
+  Radar,
+  ListFilter,
+  Loader2
 } from "lucide-react";
-import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
+import { api } from "@/lib/api";
 import Link from "next/link";
 
-// Agent definitions
-const AGENTS = [
-  { id: "db", name: "База", icon: Database },
-  { id: "enabavki", name: "e-Набавки", icon: Globe },
-  { id: "web", name: "Веб", icon: Newspaper },
-  { id: "company", name: "Компании", icon: Building2 },
-  { id: "documents", name: "Документи", icon: FileText },
-  { id: "synthesis", name: "AI", icon: Brain }
-];
+// API URL
+const API_URL = typeof window !== 'undefined'
+  ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://api.nabavkidata.com')
+  : 'https://api.nabavkidata.com';
 
-const SEVERITY_CONFIG: Record<string, any> = {
-  critical: { bg: "bg-red-100", text: "text-red-700", border: "border-red-200", label: "Критичен" },
-  high: { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-200", label: "Висок" },
-  medium: { bg: "bg-yellow-100", text: "text-yellow-700", border: "border-yellow-200", label: "Среден" },
-  low: { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-200", label: "Низок" }
+// Risk level configs
+const RISK_LEVELS = {
+  critical: { bg: "bg-red-500", light: "bg-red-100", text: "text-red-700", border: "border-red-300", label: "Критичен" },
+  high: { bg: "bg-orange-500", light: "bg-orange-100", text: "text-orange-700", border: "border-orange-300", label: "Висок" },
+  medium: { bg: "bg-yellow-500", light: "bg-yellow-100", text: "text-yellow-700", border: "border-yellow-300", label: "Среден" },
+  low: { bg: "bg-blue-500", light: "bg-blue-100", text: "text-blue-700", border: "border-blue-300", label: "Низок" },
+  minimal: { bg: "bg-green-500", light: "bg-green-100", text: "text-green-700", border: "border-green-300", label: "Минимален" }
 };
 
-interface Finding {
-  source: string;
-  type: string;
+// Flag type configs
+const FLAG_TYPES: Record<string, { icon: any; label: string; description: string }> = {
+  single_bidder: { icon: Users, label: "1 понудувач", description: "Само една компанија поднела понуда" },
+  repeat_winner: { icon: Repeat, label: "Повторен победник", description: "Истата компанија често добива" },
+  price_anomaly: { icon: DollarSign, label: "Ценовна аномалија", description: "Невообичаена цена" },
+  bid_clustering: { icon: Link2, label: "Кластер понуди", description: "Сомнително координирани понуди" },
+  short_deadline: { icon: Timer, label: "Краток рок", description: "Невообичаено кус рок за понуди" },
+  high_amendments: { icon: FileWarning, label: "Многу измени", description: "Премногу амандмани на договорот" },
+  spec_rigging: { icon: FileText, label: "Наместени спецификации", description: "Спецификации кои фаворизираат" },
+  related_companies: { icon: Building2, label: "Поврзани компании", description: "Понудувачи со заедничко власништво" }
+};
+
+interface RiskFlag {
+  flag_id: string;
+  flag_type: string;
+  severity: string;
+  score: number;
   description: string;
-  severity: "low" | "medium" | "high" | "critical";
-  evidence: string[];
-  confidence?: number;
-  corroborated?: boolean;
+  evidence: any;
 }
 
-interface InvestigationResult {
-  risk_score: number;
-  risk_level: "minimal" | "low" | "medium" | "high" | "critical";
-  confidence: number;
-  findings: Finding[];
-  sources_checked: { database: boolean; enabavki: boolean; web_search: boolean; company: boolean; documents: boolean };
-  recommendations: string[];
-  summary_mk: string;
-  data_quality: { missing_info: string[] };
-  investigated_at: string;
-  cached: boolean;
-}
-
-interface TenderSuggestion {
+interface RiskyTender {
   tender_id: string;
   title: string;
-  estimated_value_mkd?: number;
-  procuring_entity?: string;
-  status?: string;
-  winner?: string;
-  num_bidders?: number;
+  procuring_entity: string;
+  estimated_value_mkd: number;
+  winner: string;
+  risk_score: number;
+  risk_level: string;
+  flag_count: number;
+  flags: RiskFlag[];
+  last_analyzed: string;
+}
+
+interface RiskStats {
+  total: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  last_scan: string;
 }
 
 export default function RiskAnalysisPage() {
-  // Data states
-  const [singleBidderTenders, setSingleBidderTenders] = useState<TenderSuggestion[]>([]);
-  const [highValueTenders, setHighValueTenders] = useState<TenderSuggestion[]>([]);
-  const [recentTenders, setRecentTenders] = useState<TenderSuggestion[]>([]);
+  // Mode: "flagged" shows pre-analyzed, "search" shows all tenders for on-demand analysis
+  const [mode, setMode] = useState<"flagged" | "search">("flagged");
+
+  // Flagged tenders data
+  const [riskyTenders, setRiskyTenders] = useState<RiskyTender[]>([]);
+  const [stats, setStats] = useState<RiskStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  // Investigation states
-  const [selectedTender, setSelectedTender] = useState<TenderSuggestion | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<InvestigationResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [expandedFindings, setExpandedFindings] = useState<Set<number>>(new Set());
-  const [agentStatuses, setAgentStatuses] = useState<{ id: string; status: "pending" | "running" | "completed" | "error"; findingsCount: number }[]>(
-    AGENTS.map(a => ({ id: a.id, status: "pending", findingsCount: 0 }))
-  );
+  // Search mode data
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchTotal, setSearchTotal] = useState(0);
 
-  // Load data on mount
+  // Analysis states
+  const [analyzingTender, setAnalyzingTender] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<any | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  // Filter states
+  const [riskLevelFilter, setRiskLevelFilter] = useState<string>("all");
+  const [flagTypeFilter, setFlagTypeFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+
+  // UI states
+  const [expandedTender, setExpandedTender] = useState<string | null>(null);
+
+  // Load initial data
   useEffect(() => {
-    loadTenderSuggestions();
-  }, []);
-
-  async function loadTenderSuggestions() {
-    setLoading(true);
-    try {
-      // Fetch different categories in parallel
-      const [singleBidder, highValue, recent] = await Promise.all([
-        // Single bidder tenders (high risk pattern)
-        api.searchTenders({ status: 'awarded', page: 1, page_size: 8, sort_by: 'estimated_value_mkd', sort_order: 'desc' })
-          .then(r => (r.items || []).filter((t: any) => t.num_bidders === 1)),
-        // High value tenders
-        api.searchTenders({ status: 'awarded', page: 1, page_size: 8, sort_by: 'estimated_value_mkd', sort_order: 'desc' }),
-        // Recent tenders
-        api.searchTenders({ status: 'awarded', page: 1, page_size: 8, sort_by: 'created_at', sort_order: 'desc' })
-      ]);
-
-      setSingleBidderTenders(singleBidder.slice(0, 6));
-      setHighValueTenders((highValue.items || []).slice(0, 6));
-      setRecentTenders((recent.items || []).slice(0, 6));
-    } catch (err) {
-      console.error('Failed to load suggestions:', err);
-    } finally {
-      setLoading(false);
+    if (mode === "flagged") {
+      loadRiskData();
     }
-  }
+  }, [riskLevelFilter, flagTypeFilter, mode]);
 
-  const handleInvestigate = async (tender: TenderSuggestion) => {
-    setSelectedTender(tender);
-    setIsAnalyzing(true);
-    setResult(null);
-    setError(null);
-    setExpandedFindings(new Set());
-    setAgentStatuses(AGENTS.map(a => ({ id: a.id, status: "pending", findingsCount: 0 })));
-
-    // Simulate agent progress
-    const agentOrder = ["db", "enabavki", "web", "company", "documents", "synthesis"];
-    let currentAgentIndex = 0;
-    const progressInterval = setInterval(() => {
-      if (currentAgentIndex < agentOrder.length) {
-        setAgentStatuses(prev => prev.map(a => ({
-          ...a,
-          status: a.id === agentOrder[currentAgentIndex] ? "running" :
-                  a.id === agentOrder[currentAgentIndex - 1] ? "completed" : a.status
-        })));
-        currentAgentIndex++;
-      }
-    }, 1200);
+  const loadRiskData = useCallback(async (loadMore = false) => {
+    if (loadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setPage(1);
+    }
 
     try {
-      const response = await fetch('/api/risk/investigate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'tender', query: tender.tender_id })
+      const currentPage = loadMore ? page + 1 : 1;
+      const skip = (currentPage - 1) * 20;
+
+      // Build query params for backend API
+      const params = new URLSearchParams({
+        skip: skip.toString(),
+        limit: "20",
+        min_score: "1"
       });
 
-      clearInterval(progressInterval);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail?.message || errorData.detail || 'Анализата не успеа');
+      if (riskLevelFilter !== "all") {
+        params.append("severity", riskLevelFilter);
+      }
+      if (flagTypeFilter !== "all") {
+        params.append("flag_type", flagTypeFilter);
       }
 
-      const data: InvestigationResult = await response.json();
+      const response = await fetch(`${API_URL}/api/corruption/flagged-tenders?${params}`);
 
-      // Update agent statuses
-      const findingsBySource: Record<string, number> = {};
-      data.findings.forEach(f => { findingsBySource[f.source] = (findingsBySource[f.source] || 0) + 1; });
+      if (!response.ok) {
+        throw new Error("Failed to fetch risk data");
+      }
 
-      setAgentStatuses([
-        { id: "db", status: "completed", findingsCount: findingsBySource["db"] || findingsBySource["database"] || 0 },
-        { id: "enabavki", status: "completed", findingsCount: findingsBySource["enabavki"] || findingsBySource["verification"] || 0 },
-        { id: "web", status: "completed", findingsCount: findingsBySource["web"] || 0 },
-        { id: "company", status: "completed", findingsCount: findingsBySource["company"] || 0 },
-        { id: "documents", status: "completed", findingsCount: findingsBySource["document"] || findingsBySource["documents"] || 0 },
-        { id: "synthesis", status: "completed", findingsCount: findingsBySource["synthesis"] || findingsBySource["llm"] || 0 }
-      ]);
+      const data = await response.json();
 
-      setResult(data);
+      // Map API response (uses 'tenders' not 'items')
+      const mappedTenders: RiskyTender[] = (data.tenders || []).map((t: any) => ({
+        tender_id: t.tender_id,
+        title: t.title || "",
+        procuring_entity: t.procuring_entity || "",
+        estimated_value_mkd: parseFloat(t.estimated_value_mkd) || 0,
+        winner: t.winner || "",
+        risk_score: t.risk_score || 0,
+        risk_level: t.risk_level || "medium",
+        flag_count: t.total_flags || 0,
+        flags: (t.flag_types || []).map((type: string, idx: number) => ({
+          flag_id: `${t.tender_id}-${idx}`,
+          flag_type: type,
+          severity: t.max_severity || "medium",
+          score: Math.round((t.risk_score || 0) / (t.total_flags || 1)),
+          description: "",
+          evidence: {}
+        })),
+        last_analyzed: new Date().toISOString()
+      }));
+
+      if (loadMore) {
+        setRiskyTenders(prev => [...prev, ...mappedTenders]);
+        setPage(currentPage);
+      } else {
+        setRiskyTenders(mappedTenders);
+        // Fetch stats separately or calculate from total
+        setStats({
+          total: data.total || mappedTenders.length,
+          critical: mappedTenders.filter(t => t.risk_level === "critical").length,
+          high: mappedTenders.filter(t => t.risk_level === "high").length,
+          medium: mappedTenders.filter(t => t.risk_level === "medium").length,
+          low: mappedTenders.filter(t => t.risk_level === "low").length,
+          last_scan: new Date().toISOString()
+        });
+      }
+
+      setHasMore(mappedTenders.length === 20);
     } catch (err) {
-      clearInterval(progressInterval);
-      setError(err instanceof Error ? err.message : 'Непозната грешка');
-      setAgentStatuses(prev => prev.map(a => ({ ...a, status: "error" })));
+      console.error("Failed to load risk data:", err);
+      await loadRiskDataFallback(loadMore);
     } finally {
-      setIsAnalyzing(false);
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [page, riskLevelFilter, flagTypeFilter]);
+
+  // Fallback: get tenders with single bidder as "risky"
+  const loadRiskDataFallback = async (loadMore = false) => {
+    try {
+      const response = await fetch(`${API_URL}/api/tenders?status=awarded&page=1&page_size=100&sort_by=estimated_value_mkd&sort_order=desc`);
+      const data = await response.json();
+
+      const simulatedRisks: RiskyTender[] = (data.items || [])
+        .filter((t: any) => t.num_bidders === 1 || (t.estimated_value_mkd && parseFloat(t.estimated_value_mkd) > 10000000))
+        .slice(0, 50)
+        .map((t: any) => ({
+          tender_id: t.tender_id,
+          title: t.title,
+          procuring_entity: t.procuring_entity || "Непозната институција",
+          estimated_value_mkd: parseFloat(t.estimated_value_mkd) || 0,
+          winner: t.winner || "",
+          risk_score: t.num_bidders === 1 ? 65 : 35,
+          risk_level: t.num_bidders === 1 ? "high" : "medium",
+          flag_count: t.num_bidders === 1 ? 1 : 0,
+          flags: t.num_bidders === 1 ? [{
+            flag_id: `sim-${t.tender_id}`,
+            flag_type: "single_bidder",
+            severity: "high",
+            score: 65,
+            description: "Само еден понудувач поднел понуда",
+            evidence: { num_bidders: 1 }
+          }] : [],
+          last_analyzed: new Date().toISOString()
+        }));
+
+      setRiskyTenders(simulatedRisks);
+      setStats({
+        total: simulatedRisks.length,
+        critical: 0,
+        high: simulatedRisks.filter(t => t.risk_level === "high").length,
+        medium: simulatedRisks.filter(t => t.risk_level === "medium").length,
+        low: simulatedRisks.filter(t => t.risk_level === "low").length,
+        last_scan: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error("Fallback failed:", err);
     }
   };
 
-  const getRiskColor = (level: string) => {
-    const colors: Record<string, any> = {
-      minimal: { bg: "bg-green-500", text: "text-green-700", light: "bg-green-100" },
-      low: { bg: "bg-blue-500", text: "text-blue-700", light: "bg-blue-100" },
-      medium: { bg: "bg-yellow-500", text: "text-yellow-700", light: "bg-yellow-100" },
-      high: { bg: "bg-orange-500", text: "text-orange-700", light: "bg-orange-100" },
-      critical: { bg: "bg-red-500", text: "text-red-700", light: "bg-red-100" }
+  // Search all tenders (not just flagged)
+  const searchAllTenders = async (query: string) => {
+    setSearchLoading(true);
+    try {
+      const data = await api.searchTenders({
+        query: query.trim() || undefined,
+        status: "awarded",
+        page: 1,
+        page_size: 50,
+        sort_by: "estimated_value_mkd",
+        sort_order: "desc"
+      });
+
+      setSearchResults(data.items || []);
+      setSearchTotal(data.total || 0);
+    } catch (err) {
+      console.error("Search failed:", err);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Analyze a specific tender on-demand
+  const analyzeTender = async (tenderId: string) => {
+    setAnalyzingTender(tenderId);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/risk/investigate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "tender", query: tenderId })
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.detail?.message || err.detail || "Анализата не успеа");
+      }
+
+      const result = await response.json();
+      setAnalysisResult({ tenderId, ...result });
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : "Грешка при анализа");
+    } finally {
+      setAnalyzingTender(null);
+    }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    loadRiskData();
+  };
+
+  const getRiskConfig = (level: string) => RISK_LEVELS[level as keyof typeof RISK_LEVELS] || RISK_LEVELS.medium;
+  const getFlagConfig = (type: string) => FLAG_TYPES[type] || { icon: AlertTriangle, label: type, description: "" };
+
+  // Risk score gauge component
+  const RiskGauge = ({ score, size = "md" }: { score: number; size?: "sm" | "md" | "lg" }) => {
+    const sizes = { sm: 40, md: 56, lg: 72 };
+    const s = sizes[size];
+    const strokeWidth = size === "sm" ? 4 : 5;
+    const radius = (s - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (score / 100) * circumference;
+
+    const getColor = () => {
+      if (score >= 70) return "text-red-500";
+      if (score >= 50) return "text-orange-500";
+      if (score >= 30) return "text-yellow-500";
+      return "text-blue-500";
     };
-    return colors[level] || colors.medium;
-  };
 
-  const getRiskLabel = (level: string) => {
-    const labels: Record<string, string> = { minimal: "Минимален", low: "Низок", medium: "Среден", high: "Висок", critical: "Критичен" };
-    return labels[level] || "Непознат";
-  };
-
-  const getSourceName = (source: string) => {
-    const names: Record<string, string> = {
-      db: "База", database: "База", enabavki: "e-Набавки", verification: "Верификација",
-      web: "Веб", company: "Компании", document: "Документи", documents: "Документи", synthesis: "AI", llm: "AI"
-    };
-    return names[source] || source;
-  };
-
-  // Tender Card Component
-  const TenderCard = ({ tender, highlight }: { tender: TenderSuggestion; highlight?: string }) => (
-    <div className="p-4 rounded-lg border hover:border-primary/50 hover:bg-primary/5 transition-all group">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm line-clamp-2 group-hover:text-primary">{tender.title}</p>
-          {tender.procuring_entity && (
-            <p className="text-xs text-muted-foreground mt-1 truncate">{tender.procuring_entity}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 flex-wrap mb-3">
-        <Badge variant="outline" className="text-[10px]">{tender.tender_id}</Badge>
-        {tender.num_bidders === 1 && (
-          <Badge variant="destructive" className="text-[10px]">1 понудувач</Badge>
-        )}
-        {highlight && (
-          <Badge variant="secondary" className="text-[10px]">{highlight}</Badge>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between">
-        {tender.estimated_value_mkd ? (
-          <span className="text-sm font-semibold text-primary">{formatCurrency(tender.estimated_value_mkd)}</span>
-        ) : (
-          <span className="text-xs text-muted-foreground">Без вредност</span>
-        )}
-        <Button
-          size="sm"
-          onClick={() => handleInvestigate(tender)}
-          disabled={isAnalyzing}
-          className="h-8"
-        >
-          <Shield className="h-3 w-3 mr-1" />
-          Истражи
-        </Button>
-      </div>
-    </div>
-  );
-
-  // If investigating, show analysis view
-  if (selectedTender && (isAnalyzing || result)) {
     return (
-      <div className="p-4 md:p-6 space-y-4">
-        {/* Back button and header */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => { setSelectedTender(null); setResult(null); }}>
-            <ChevronRight className="h-4 w-4 rotate-180 mr-1" />
-            Назад
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              Анализа на ризик
-            </h1>
-          </div>
+      <div className="relative" style={{ width: s, height: s }}>
+        <svg className="transform -rotate-90" width={s} height={s}>
+          <circle
+            cx={s / 2}
+            cy={s / 2}
+            r={radius}
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            fill="none"
+            className="text-muted"
+          />
+          <circle
+            cx={s / 2}
+            cy={s / 2}
+            r={radius}
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            className={getColor()}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className={`font-bold ${size === "sm" ? "text-xs" : size === "md" ? "text-sm" : "text-lg"}`}>
+            {score}
+          </span>
         </div>
+      </div>
+    );
+  };
 
-        {/* Tender being analyzed */}
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="font-medium">{selectedTender.title}</p>
-                <p className="text-sm text-muted-foreground">{selectedTender.procuring_entity}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge variant="outline">{selectedTender.tender_id}</Badge>
-                  {selectedTender.estimated_value_mkd && (
-                    <span className="text-sm font-medium text-primary">{formatCurrency(selectedTender.estimated_value_mkd)}</span>
-                  )}
+  // Tender risk card
+  const TenderRiskCard = ({ tender }: { tender: RiskyTender }) => {
+    const isExpanded = expandedTender === tender.tender_id;
+    const riskConfig = getRiskConfig(tender.risk_level);
+
+    return (
+      <Card className={`overflow-hidden transition-all ${isExpanded ? "ring-2 ring-primary" : ""}`}>
+        {/* Risk indicator bar */}
+        <div className={`h-1 ${riskConfig.bg}`} />
+
+        <CardContent className="p-4">
+          {/* Header row */}
+          <div className="flex items-start gap-3">
+            <RiskGauge score={tender.risk_score} size="md" />
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge className={`${riskConfig.light} ${riskConfig.text} border-0`}>
+                  {riskConfig.label}
+                </Badge>
+                {tender.flag_count > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {tender.flag_count} {tender.flag_count === 1 ? "знаме" : "знамиња"}
+                  </Badge>
+                )}
+              </div>
+
+              <h3 className="font-medium text-sm line-clamp-2 mb-1">
+                {tender.title}
+              </h3>
+
+              <p className="text-xs text-muted-foreground truncate">
+                {tender.procuring_entity}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick info */}
+          <div className="flex items-center justify-between mt-3 pt-3 border-t">
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="text-[10px] font-mono">
+                {tender.tender_id}
+              </Badge>
+              {tender.estimated_value_mkd > 0 && (
+                <span className="text-sm font-medium text-primary">
+                  {formatCurrency(tender.estimated_value_mkd)}
+                </span>
+              )}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpandedTender(isExpanded ? null : tender.tender_id)}
+              className="h-8"
+            >
+              {isExpanded ? (
+                <>Затвори <ChevronUp className="h-4 w-4 ml-1" /></>
+              ) : (
+                <>Детали <ChevronDown className="h-4 w-4 ml-1" /></>
+              )}
+            </Button>
+          </div>
+
+          {/* Expanded details */}
+          {isExpanded && (
+            <div className="mt-4 pt-4 border-t space-y-4">
+              {/* Winner */}
+              {tender.winner && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Победник:</p>
+                  <p className="text-sm font-medium">{tender.winner}</p>
                 </div>
-              </div>
-              <Link href={`/tenders/${selectedTender.tender_id}`} target="_blank">
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Детали
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+              )}
 
-        {/* Agent Progress */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              {isAnalyzing && <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />}
-              {isAnalyzing ? "Агентите истражуваат..." : "Анализа завршена"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {AGENTS.map(agent => {
-                const status = agentStatuses.find(s => s.id === agent.id);
-                const Icon = agent.icon;
-                return (
-                  <div
-                    key={agent.id}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all ${
-                      status?.status === "running" ? "bg-primary/10 text-primary ring-2 ring-primary/30" :
-                      status?.status === "completed" ? "bg-green-100 text-green-700" :
-                      status?.status === "error" ? "bg-red-100 text-red-700" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {status?.status === "running" ? (
-                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    ) : status?.status === "completed" ? (
-                      <CheckCircle2 className="h-3 w-3" />
-                    ) : status?.status === "error" ? (
-                      <XCircle className="h-3 w-3" />
-                    ) : (
-                      <Icon className="h-3 w-3" />
-                    )}
-                    <span>{agent.name}</span>
-                    {status?.status === "completed" && status.findingsCount > 0 && (
-                      <Badge variant="secondary" className="h-4 px-1 text-[10px] ml-1">{status.findingsCount}</Badge>
-                    )}
+              {/* Flags */}
+              {tender.flags.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Детектирани ризици:</p>
+                  <div className="space-y-2">
+                    {tender.flags.map((flag, idx) => {
+                      const flagConfig = getFlagConfig(flag.flag_type);
+                      const FlagIcon = flagConfig.icon;
+                      const severityConfig = RISK_LEVELS[flag.severity as keyof typeof RISK_LEVELS] || RISK_LEVELS.medium;
+
+                      return (
+                        <div key={idx} className={`p-3 rounded-lg ${severityConfig.light} ${severityConfig.border} border`}>
+                          <div className="flex items-start gap-2">
+                            <FlagIcon className={`h-4 w-4 mt-0.5 ${severityConfig.text}`} />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-sm font-medium ${severityConfig.text}`}>
+                                  {flagConfig.label}
+                                </span>
+                                <Badge variant="outline" className={`text-[10px] ${severityConfig.text} border-0 ${severityConfig.light}`}>
+                                  {flag.score} поени
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {flag.description || flagConfig.description}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              )}
 
-        {/* Error */}
-        {error && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2 text-red-700">
-                <XCircle className="h-5 w-5" />
-                <span>{error}</span>
+              {/* Actions */}
+              <div className="flex items-center gap-2 pt-2">
+                <Link href={`/tenders/${tender.tender_id}`} className="flex-1">
+                  <Button variant="outline" className="w-full" size="sm">
+                    <Eye className="h-4 w-4 mr-2" />
+                    Погледни тендер
+                  </Button>
+                </Link>
+                <Link href={`/suppliers/${encodeURIComponent(tender.winner || "")}`} className="flex-1">
+                  <Button variant="outline" className="w-full" size="sm" disabled={!tender.winner}>
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Профил на победник
+                  </Button>
+                </Link>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
-        {/* Results */}
-        {result && (
-          <div className="space-y-4">
-            {/* Score Card */}
-            <Card>
-              <div className={`h-1.5 ${getRiskColor(result.risk_level).bg}`} />
-              <CardContent className="pt-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="relative w-20 h-20">
-                      <svg className="w-full h-full transform -rotate-90">
-                        <circle cx="40" cy="40" r="36" stroke="currentColor" strokeWidth="6" fill="none" className="text-muted" />
-                        <circle cx="40" cy="40" r="36" stroke="currentColor" strokeWidth="6" fill="none"
-                          strokeDasharray={`${(result.risk_score / 100) * 226} 226`}
-                          strokeLinecap="round"
-                          className={getRiskColor(result.risk_level).bg.replace('bg-', 'text-')}
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-2xl font-bold">{result.risk_score}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <Badge className={`${getRiskColor(result.risk_level).light} ${getRiskColor(result.risk_level).text}`}>
-                        {getRiskLabel(result.risk_level)} ризик
-                      </Badge>
-                      <p className="text-sm text-muted-foreground mt-1">{Math.round(result.confidence * 100)}% сигурност</p>
-                    </div>
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Shield className="h-6 w-6 text-primary" />
+            AI Детекција на Ризици
+          </h1>
+          <p className="text-muted-foreground">
+            Автоматска анализа на тендери за корупциски индикатори
+          </p>
+        </div>
+      </div>
+
+      {/* Mode Tabs */}
+      <Tabs value={mode} onValueChange={(v) => setMode(v as "flagged" | "search")} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="flagged" className="flex items-center gap-2">
+            <Radar className="h-4 w-4" />
+            Детектирани ризици
+          </TabsTrigger>
+          <TabsTrigger value="search" className="flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Пребарај сите тендери
+          </TabsTrigger>
+        </TabsList>
+
+        {/* FLAGGED MODE */}
+        <TabsContent value="flagged" className="space-y-6 mt-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <Card className="col-span-2 md:col-span-1">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Activity className="h-5 w-5 text-primary" />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm">{result.summary_mk || "Анализата е завршена."}</p>
-                    {result.cached && (
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> Кеширан резултат
-                      </p>
-                    )}
+                  <div>
+                    <p className="text-2xl font-bold">{stats?.total || 0}</p>
+                    <p className="text-xs text-muted-foreground">Детектирани</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Findings */}
-            {result.findings.length > 0 && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Наоди ({result.findings.length})</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {result.findings.map((finding, idx) => {
-                    const config = SEVERITY_CONFIG[finding.severity] || SEVERITY_CONFIG.low;
-                    const isExpanded = expandedFindings.has(idx);
-
-                    return (
-                      <div key={idx} className={`rounded-lg border ${config.border} overflow-hidden`}>
-                        <button
-                          onClick={() => setExpandedFindings(prev => {
-                            const s = new Set(prev);
-                            s.has(idx) ? s.delete(idx) : s.add(idx);
-                            return s;
-                          })}
-                          className={`w-full p-3 flex items-start gap-2 text-left ${config.bg}`}
-                        >
-                          <AlertTriangle className={`h-4 w-4 mt-0.5 ${config.text}`} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <Badge variant="outline" className={`text-[10px] ${config.bg} ${config.text} border-0`}>{config.label}</Badge>
-                              <Badge variant="outline" className="text-[10px]">{getSourceName(finding.source)}</Badge>
-                            </div>
-                            <p className="text-sm">{finding.description}</p>
-                          </div>
-                          {finding.evidence.length > 0 && (
-                            isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
-                          )}
-                        </button>
-                        {isExpanded && finding.evidence.length > 0 && (
-                          <div className="p-3 border-t bg-background text-sm">
-                            <p className="font-medium text-muted-foreground mb-2">Докази:</p>
-                            <ul className="space-y-1">
-                              {finding.evidence.map((ev, i) => (
-                                <li key={i} className="flex gap-2 text-muted-foreground">
-                                  <span>•</span><span>{ev}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+            {[
+              { level: "critical", count: stats?.critical || 0 },
+              { level: "high", count: stats?.high || 0 },
+              { level: "medium", count: stats?.medium || 0 },
+              { level: "low", count: stats?.low || 0 }
+            ].map(({ level, count }) => {
+              const config = RISK_LEVELS[level as keyof typeof RISK_LEVELS];
+              return (
+                <Card
+                  key={level}
+                  className={`cursor-pointer transition-all hover:ring-2 hover:ring-primary/30 ${riskLevelFilter === level ? "ring-2 ring-primary" : ""}`}
+                  onClick={() => setRiskLevelFilter(riskLevelFilter === level ? "all" : level)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`h-10 w-10 rounded-lg ${config.light} flex items-center justify-center`}>
+                        <AlertTriangle className={`h-5 w-5 ${config.text}`} />
                       </div>
+                      <div>
+                        <p className="text-2xl font-bold">{count}</p>
+                        <p className={`text-xs ${config.text}`}>{config.label}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Info banner */}
+          <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+            <CardContent className="p-4">
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Zap className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">AI Автоматски Детектира Ризици</p>
+                    <p className="text-sm text-muted-foreground">
+                      Овие тендери се веќе анализирани и означени како ризични
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 md:ml-auto">
+                  {Object.entries(FLAG_TYPES).slice(0, 4).map(([type, config]) => {
+                    const Icon = config.icon;
+                    return (
+                      <Badge
+                        key={type}
+                        variant="secondary"
+                        className={`cursor-pointer ${flagTypeFilter === type ? "ring-2 ring-primary" : ""}`}
+                        onClick={() => setFlagTypeFilter(flagTypeFilter === type ? "all" : type)}
+                      >
+                        <Icon className="h-3 w-3 mr-1" />
+                        {config.label}
+                      </Badge>
                     );
                   })}
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* No findings */}
-            {result.findings.length === 0 && (
-              <Card className="border-green-200 bg-green-50">
-                <CardContent className="pt-4">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="h-6 w-6 text-green-600" />
-                    <div>
-                      <p className="font-medium text-green-700">Нема детектирани ризици</p>
-                      <p className="text-sm text-green-600">Агентите не пронајдоа сомнителни индикатори</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2">
+            <Select value={riskLevelFilter} onValueChange={setRiskLevelFilter}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Ризик" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Сите ризици</SelectItem>
+                <SelectItem value="critical">Критичен</SelectItem>
+                <SelectItem value="high">Висок</SelectItem>
+                <SelectItem value="medium">Среден</SelectItem>
+                <SelectItem value="low">Низок</SelectItem>
+              </SelectContent>
+            </Select>
 
-            {/* Recommendations */}
-            {result.recommendations.length > 0 && (
-              <Card className="border-blue-200 bg-blue-50/50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base text-blue-700">Препораки</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {result.recommendations.map((rec, i) => (
-                      <li key={i} className="flex gap-2 text-sm">
-                        <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs flex-shrink-0">{i + 1}</span>
-                        <span>{rec}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
+            <Select value={flagTypeFilter} onValueChange={setFlagTypeFilter}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Тип на ризик" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Сите типови</SelectItem>
+                {Object.entries(FLAG_TYPES).map(([type, config]) => (
+                  <SelectItem key={type} value={type}>{config.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" size="sm" onClick={() => loadRiskData()} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Освежи
+            </Button>
           </div>
-        )}
-      </div>
-    );
-  }
 
-  // Main discovery view
-  return (
-    <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Shield className="h-6 w-6 text-primary" />
-          Анализа на ризик
-        </h1>
-        <p className="text-muted-foreground">6 AI агенти истражуваат тендери за корупциски ризици</p>
-      </div>
-
-      {/* How it works */}
-      <Card className="bg-primary/5 border-primary/20">
-        <CardContent className="pt-4">
-          <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium mb-1">Како работи?</p>
-              <p className="text-sm text-muted-foreground">
-                Изберете тендер за истражување. Нашите 6 AI агенти ќе анализираат податоци од база,
-                е-набавки, веб, компании и документи за да детектираат потенцијални ризици.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
+          {/* Risk Feed */}
       {loading ? (
-        <div className="space-y-6">
-          {[1, 2, 3].map(i => (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map(i => (
             <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-6 w-48" />
-                <Skeleton className="h-4 w-72" />
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {[1, 2, 3].map(j => <Skeleton key={j} className="h-32 rounded-lg" />)}
+              <div className="h-1 bg-muted" />
+              <CardContent className="p-4">
+                <div className="flex gap-3">
+                  <Skeleton className="h-14 w-14 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-3 w-3/4" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
+      ) : riskyTenders.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center">
+            <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-4" />
+            <h3 className="font-medium text-lg mb-2">Нема детектирани ризици</h3>
+            <p className="text-muted-foreground">
+              {searchQuery || riskLevelFilter !== "all" || flagTypeFilter !== "all"
+                ? "Пробајте да ги промените филтрите"
+                : "AI агентите не пронајдоа сомнителни индикатори"}
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="space-y-6">
-          {/* Single Bidder Tenders - High Risk */}
-          {singleBidderTenders.length > 0 && (
-            <Card className="border-orange-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-orange-500" />
-                  Тендери со 1 понудувач
-                  <Badge variant="destructive" className="ml-2">Висок ризик</Badge>
-                </CardTitle>
-                <CardDescription>
-                  Тендери каде само една компанија поднела понуда - потенцијален индикатор за проблеми
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {singleBidderTenders.map(tender => (
-                    <TenderCard key={tender.tender_id} tender={tender} />
-                  ))}
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {riskyTenders.map(tender => (
+              <TenderRiskCard key={tender.tender_id} tender={tender} />
+            ))}
+          </div>
+
+          {/* Load more */}
+          {hasMore && (
+            <div className="flex justify-center pt-4">
+              <Button
+                variant="outline"
+                onClick={() => loadRiskData(true)}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Вчитување...</>
+                ) : (
+                  <>Прикажи повеќе</>
+                )}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+        </TabsContent>
+
+        {/* SEARCH MODE */}
+        <TabsContent value="search" className="space-y-6 mt-6">
+          {/* Search info */}
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                  <Search className="h-6 w-6 text-blue-600" />
                 </div>
+                <div>
+                  <p className="font-medium">Пребарај било кој тендер</p>
+                  <p className="text-sm text-muted-foreground">
+                    Пребарајте низ 100,000+ тендери од e-nabavki. Кликнете "Анализирај" за детална AI анализа на било кој тендер.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Search form */}
+          <form onSubmit={(e) => { e.preventDefault(); searchAllTenders(searchQuery); }} className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Пребарај по назив, институција, CPV код..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button type="submit" disabled={searchLoading}>
+              {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              <span className="ml-2 hidden sm:inline">Пребарај</span>
+            </Button>
+          </form>
+
+          {/* Search results */}
+          {searchLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <Card key={i}>
+                  <CardContent className="p-4">
+                    <Skeleton className="h-4 w-full mb-2" />
+                    <Skeleton className="h-4 w-3/4 mb-2" />
+                    <Skeleton className="h-8 w-24" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : searchResults.length > 0 ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {searchTotal.toLocaleString()} резултати
+              </p>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {searchResults.map((tender: any) => (
+                  <Card key={tender.tender_id} className={`transition-all ${analyzingTender === tender.tender_id ? "ring-2 ring-primary animate-pulse" : ""}`}>
+                    <CardContent className="p-4">
+                      <h3 className="font-medium text-sm line-clamp-2 mb-2">{tender.title}</h3>
+                      <p className="text-xs text-muted-foreground truncate mb-2">{tender.procuring_entity}</p>
+
+                      <div className="flex items-center gap-2 flex-wrap mb-3">
+                        <Badge variant="outline" className="text-[10px] font-mono">{tender.tender_id}</Badge>
+                        {tender.num_bidders === 1 && (
+                          <Badge variant="destructive" className="text-[10px]">1 понудувач</Badge>
+                        )}
+                        {tender.estimated_value_mkd && (
+                          <span className="text-xs font-medium text-primary">
+                            {formatCurrency(tender.estimated_value_mkd)}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => analyzeTender(tender.tender_id)}
+                          disabled={analyzingTender !== null}
+                          className="flex-1"
+                        >
+                          {analyzingTender === tender.tender_id ? (
+                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Анализирам...</>
+                          ) : (
+                            <><Shield className="h-3 w-3 mr-1" /> Анализирај</>
+                          )}
+                        </Button>
+                        <Link href={`/tenders/${tender.tender_id}`}>
+                          <Button variant="outline" size="sm">
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
+          ) : searchQuery ? (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center">
+                <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="font-medium text-lg mb-2">Нема резултати</h3>
+                <p className="text-muted-foreground">Пробајте со друг термин за пребарување</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center">
+                <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="font-medium text-lg mb-2">Започнете со пребарување</h3>
+                <p className="text-muted-foreground">Внесете термин за да пребарате низ сите тендери</p>
               </CardContent>
             </Card>
           )}
 
-          {/* High Value Tenders */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Banknote className="h-5 w-5 text-green-500" />
-                Високо-вредни тендери
-              </CardTitle>
-              <CardDescription>
-                Неодамна доделени тендери со највисока вредност
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {highValueTenders.map(tender => (
-                  <TenderCard key={tender.tender_id} tender={tender} />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recent Tenders */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="h-5 w-5 text-blue-500" />
-                Неодамнешни тендери
-              </CardTitle>
-              <CardDescription>
-                Последно доделени тендери
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recentTenders.map(tender => (
-                  <TenderCard key={tender.tender_id} tender={tender} />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Browse all */}
-          <Card className="bg-muted/50">
-            <CardContent className="pt-6">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div>
-                  <p className="font-medium">Барате конкретен тендер?</p>
-                  <p className="text-sm text-muted-foreground">Пребарајте ги сите тендери и кликнете "Истражи" на детали страница</p>
+          {/* Analysis result modal/card */}
+          {analysisResult && (
+            <Card className="border-2 border-primary">
+              <div className={`h-1.5 ${getRiskConfig(analysisResult.risk_level).bg}`} />
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Резултат од анализа
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setAnalysisResult(null)}>
+                    <XCircle className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Link href="/tenders?status=awarded">
-                  <Button>
-                    <Search className="h-4 w-4 mr-2" />
-                    Пребарај тендери
+                <CardDescription>{analysisResult.tenderId}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <RiskGauge score={analysisResult.risk_score} size="lg" />
+                  <div>
+                    <Badge className={`${getRiskConfig(analysisResult.risk_level).light} ${getRiskConfig(analysisResult.risk_level).text}`}>
+                      {getRiskConfig(analysisResult.risk_level).label} ризик
+                    </Badge>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {Math.round((analysisResult.confidence || 0) * 100)}% сигурност
+                    </p>
+                  </div>
+                </div>
+
+                {analysisResult.summary_mk && (
+                  <p className="text-sm">{analysisResult.summary_mk}</p>
+                )}
+
+                {analysisResult.findings?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Наоди ({analysisResult.findings.length}):</p>
+                    <div className="space-y-2">
+                      {analysisResult.findings.slice(0, 3).map((f: any, i: number) => (
+                        <div key={i} className={`p-2 rounded text-sm ${RISK_LEVELS[f.severity as keyof typeof RISK_LEVELS]?.light || "bg-muted"}`}>
+                          {f.description}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <Link href={`/tenders/${analysisResult.tenderId}`}>
+                  <Button variant="outline" className="w-full">
+                    <Eye className="h-4 w-4 mr-2" />
+                    Погледни детали за тендерот
                   </Button>
                 </Link>
+              </CardContent>
+            </Card>
+          )}
+
+          {analysisError && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="py-4">
+                <div className="flex items-center gap-2 text-red-700">
+                  <XCircle className="h-5 w-5" />
+                  <span>{analysisError}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* AI Chat prompt */}
+      <Card className="bg-muted/50 border-dashed">
+        <CardContent className="py-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Brain className="h-5 w-5 text-primary" />
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+              <div>
+                <p className="font-medium">Прашај го AI асистентот</p>
+                <p className="text-sm text-muted-foreground">
+                  "Покажи ми најризични тендери за градежништво" или "Кои компании често добиваат?"
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Користете го чат-от долу десно →
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
