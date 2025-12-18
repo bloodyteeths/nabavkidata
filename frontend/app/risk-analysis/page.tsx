@@ -413,10 +413,10 @@ export default function RiskAnalysisPage() {
                                 const flagCfg = FLAG_TYPES[flag.flag_type] || { icon: AlertTriangle, label: flag.flag_type };
                                 const FlagIcon = flagCfg.icon;
                                 return (
-                                  <div key={i} className={`p-2 rounded mb-1 ${RISK_LEVELS[flag.severity]?.light || "bg-muted"}`}>
+                                  <div key={i} className="p-2 rounded mb-1 bg-muted/50 border">
                                     <div className="flex items-center gap-2">
-                                      <FlagIcon className="h-4 w-4" />
-                                      <span className="text-sm font-medium">{flagCfg.label}</span>
+                                      <FlagIcon className="h-4 w-4 text-muted-foreground" />
+                                      <span className="text-sm">{flagCfg.label}</span>
                                     </div>
                                   </div>
                                 );
@@ -424,13 +424,13 @@ export default function RiskAnalysisPage() {
                             </div>
                           )}
                           <div className="flex gap-2">
-                            <Link href={`/tenders/${tender.tender_id}`} className="flex-1">
+                            <Link href={`/tenders/${encodeURIComponent(tender.tender_id)}`} className="flex-1">
                               <Button variant="outline" size="sm" className="w-full">
                                 <Eye className="h-4 w-4 mr-1" /> Тендер
                               </Button>
                             </Link>
                             {tender.winner && (
-                              <Link href={`/suppliers/${encodeURIComponent(tender.winner)}`} className="flex-1">
+                              <Link href={`/suppliers?search=${encodeURIComponent(tender.winner)}`} className="flex-1">
                                 <Button variant="outline" size="sm" className="w-full">
                                   <Building2 className="h-4 w-4 mr-1" /> Победник
                                 </Button>
@@ -493,7 +493,7 @@ export default function RiskAnalysisPage() {
                         {analyzingId === t.tender_id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
                         Анализирај
                       </Button>
-                      <Link href={`/tenders/${t.tender_id}`}>
+                      <Link href={`/tenders/${encodeURIComponent(t.tender_id)}`}>
                         <Button variant="outline" size="sm"><Eye className="h-3 w-3" /></Button>
                       </Link>
                     </div>
@@ -529,7 +529,7 @@ export default function RiskAnalysisPage() {
                   </Badge>
                 </div>
                 {analysisResult.summary_mk && <p className="text-sm mb-4">{analysisResult.summary_mk}</p>}
-                <Link href={`/tenders/${analysisResult.tenderId}`}>
+                <Link href={`/tenders/${encodeURIComponent(analysisResult.tenderId)}`}>
                   <Button variant="outline" className="w-full"><Eye className="h-4 w-4 mr-2" /> Погледни тендер</Button>
                 </Link>
               </CardContent>
