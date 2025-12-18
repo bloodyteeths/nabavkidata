@@ -146,7 +146,7 @@ investigation_rate_limiter = InvestigationRateLimiter()
 
 class InvestigateRequest(BaseModel):
     """Request to investigate an entity"""
-    type: str = Field(..., regex="^(tender|company|institution)$", description="Entity type to investigate")
+    type: str = Field(..., pattern="^(tender|company|institution)$", description="Entity type to investigate")
     query: str = Field(..., min_length=1, max_length=500, description="Tender ID, company name, or institution name")
 
 
@@ -164,7 +164,7 @@ class Finding(BaseModel):
     source: str = Field(..., description="Source: db|web|enabavki|company|document")
     type: str = Field(..., description="Type: red_flag|info|connection|anomaly|discrepancy")
     description: str = Field(..., description="Finding description")
-    severity: str = Field(..., regex="^(low|medium|high|critical)$")
+    severity: str = Field(..., pattern="^(low|medium|high|critical)$")
     evidence: List[str] = Field(default_factory=list, description="Supporting evidence")
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence in this finding")
     corroborated: Optional[bool] = Field(None, description="Whether finding is corroborated by multiple sources")
@@ -181,7 +181,7 @@ class DataQuality(BaseModel):
 class InvestigateResponse(BaseModel):
     """Response from investigation"""
     risk_score: int = Field(..., ge=0, le=100, description="Risk score 0-100")
-    risk_level: str = Field(..., regex="^(minimal|low|medium|high|critical)$")
+    risk_level: str = Field(..., pattern="^(minimal|low|medium|high|critical)$")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Overall confidence in assessment")
     findings: List[Finding] = Field(default_factory=list)
     sources_checked: SourceCheck
