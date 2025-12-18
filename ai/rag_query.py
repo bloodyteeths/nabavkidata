@@ -3475,12 +3475,12 @@ class LLMDrivenAgent:
                 )
                 answer = response.text if response.text else "Не можам да генерирам одговор за овој тендер."
                 # Store context for follow-ups
-                self.query_context[session_id] = {
+                self.query_context.store(session_id, {
                     'question': question,
                     'tool_calls': [],
                     'answer': answer,
                     'tender_id': tender_id
-                }
+                })
                 return answer
             except Exception as e:
                 logger.error(f"[AGENT] Tender-specific answer generation failed: {e}")
