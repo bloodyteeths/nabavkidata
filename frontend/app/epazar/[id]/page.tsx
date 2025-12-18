@@ -750,6 +750,10 @@ export default function EPazarDetailPage() {
                 <p className="font-medium">{formatDate(tender.publication_date)}</p>
               </div>
               <div>
+                <p className="text-gray-500">Closing Date</p>
+                <p className="font-medium">{formatDate(tender.closing_date)}</p>
+              </div>
+              <div>
                 <p className="text-gray-500">Award Date</p>
                 <p className="font-medium">{formatDate(tender.award_date)}</p>
               </div>
@@ -768,6 +772,10 @@ export default function EPazarDetailPage() {
               <div>
                 <p className="text-gray-500">Category</p>
                 <p className="font-medium">{tender.category || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Procedure Type</p>
+                <p className="font-medium">{tender.procedure_type || 'N/A'}</p>
               </div>
             </div>
           </CardContent>
