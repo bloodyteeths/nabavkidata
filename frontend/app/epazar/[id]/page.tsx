@@ -33,6 +33,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { ChatMessage } from '@/components/chat/ChatMessage';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { PriceHistoryChart } from '@/components/charts/PriceHistoryChart';
+import { QuickActions } from '@/components/ai/QuickActions';
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -680,6 +681,13 @@ export default function EPazarDetailPage() {
                   <CardDescription>
                     Постави прашања за овој тендер - за артикли, цени, понудувачи и повеќе
                   </CardDescription>
+
+                  {/* Quick Actions */}
+                  <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
+                    <CardContent className="pt-6">
+                      <QuickActions tenderId={tenderId} />
+                    </CardContent>
+                  </Card>
 
                   {/* Chat Messages */}
                   <div className="space-y-4 min-h-[300px] max-h-[400px] overflow-y-auto border rounded-lg p-4 bg-gray-50">
