@@ -590,6 +590,13 @@ export default function EPazarDetailPage() {
           </CardContent>
         </Card>
 
+        {/* Quick Actions for AI Chat */}
+        <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
+          <CardContent className="pt-6">
+            <QuickActions tenderId={tenderId} />
+          </CardContent>
+        </Card>
+
         {/* Description */}
         {tender.description && (
           <Card>
@@ -681,13 +688,6 @@ export default function EPazarDetailPage() {
                   <CardDescription>
                     Постави прашања за овој тендер - за артикли, цени, понудувачи и повеќе
                   </CardDescription>
-
-                  {/* Quick Actions */}
-                  <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
-                    <CardContent className="pt-6">
-                      <QuickActions tenderId={tenderId} />
-                    </CardContent>
-                  </Card>
 
                   {/* Chat Messages */}
                   <div className="space-y-4 min-h-[300px] max-h-[400px] overflow-y-auto border rounded-lg p-4 bg-gray-50">
