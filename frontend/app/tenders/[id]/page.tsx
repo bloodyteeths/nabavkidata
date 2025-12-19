@@ -1195,27 +1195,60 @@ export default function TenderDetailPage() {
                                       <span>{doc.page_count} страници</span>
                                     </>
                                   )}
-                                  {doc.content_text && (
+                                  {doc.extraction_status === 'success' && doc.content_text ? (
                                     <>
                                       <span>•</span>
-                                      <Badge variant="outline" className="text-xs">
+                                      <Badge variant="outline" className="text-xs text-green-600 border-green-300">
                                         <Sparkles className="h-3 w-3 mr-1" />
                                         Извлечено
                                       </Badge>
                                     </>
-                                  )}
+                                  ) : doc.extraction_status === 'pending' ? (
+                                    <>
+                                      <span>•</span>
+                                      <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-300">
+                                        Чека обработка
+                                      </Badge>
+                                    </>
+                                  ) : doc.extraction_status === 'auth_required' ? (
+                                    <>
+                                      <span>•</span>
+                                      <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                                        Потребна авторизација
+                                      </Badge>
+                                    </>
+                                  ) : doc.extraction_status && doc.extraction_status !== 'success' ? (
+                                    <>
+                                      <span>•</span>
+                                      <Badge variant="outline" className="text-xs text-red-600 border-red-300">
+                                        Недостапен
+                                      </Badge>
+                                    </>
+                                  ) : null}
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => setSelectedDocument(doc)}
-                              >
-                                <FileText className="h-4 w-4 mr-1" />
-                                Прегледај
-                              </Button>
+                              {doc.extraction_status === 'success' && doc.content_text ? (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => setSelectedDocument(doc)}
+                                >
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  Прегледај
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled
+                                  className="text-muted-foreground"
+                                >
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  Недостапен
+                                </Button>
+                              )}
                               {doc.file_url ? (
                                 <Button
                                   variant="outline"
