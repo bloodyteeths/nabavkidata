@@ -613,6 +613,12 @@ class DatabasePipeline:
                             if not isinstance(doc, dict):
                                 logger.warning(f"Skipping non-dict document: {type(doc)}")
                                 continue
+                            # Map 'url' to 'file_url' if needed (documents_data uses 'url')
+                            if 'url' in doc and 'file_url' not in doc:
+                                doc['file_url'] = doc['url']
+                            # Ensure tender_id is set
+                            if 'tender_id' not in doc:
+                                doc['tender_id'] = tender_id
                             # Ensure required fields
                             doc.setdefault('doc_type', doc.get('doc_category') or 'document')
                             doc.setdefault('extraction_status', 'pending')
@@ -939,6 +945,7 @@ class DatabasePipeline:
         upload_date = self._parse_date_string(item.get('upload_date'))
 
         # Insert new document with categorization fields and extracted metadata
+        # Use ON CONFLICT DO NOTHING for both doc_id and tender_id+file_url unique constraints
         await conn.execute("""
             INSERT INTO documents (
                 tender_id, doc_type, file_name, file_path, file_url,
@@ -947,17 +954,7 @@ class DatabasePipeline:
                 doc_category, doc_version, upload_date, file_hash,
                 specifications_json
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-            ON CONFLICT (doc_id) DO UPDATE SET
-                content_text = EXCLUDED.content_text,
-                extraction_status = EXCLUDED.extraction_status,
-                file_size_bytes = EXCLUDED.file_size_bytes,
-                page_count = EXCLUDED.page_count,
-                mime_type = EXCLUDED.mime_type,
-                doc_category = EXCLUDED.doc_category,
-                doc_version = EXCLUDED.doc_version,
-                upload_date = EXCLUDED.upload_date,
-                file_hash = EXCLUDED.file_hash,
-                specifications_json = EXCLUDED.specifications_json
+            ON CONFLICT DO NOTHING
         """,
             item.get('tender_id'),
             item.get('doc_type'),
