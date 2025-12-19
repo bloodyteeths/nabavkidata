@@ -1,16 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, CheckCircle, XCircle, Clock } from "lucide-react";
+import { FileText, CheckCircle, XCircle, Clock, Ban } from "lucide-react";
 
 interface TenderStatsProps {
   total: number;
   open: number;
   closed: number;
   awarded: number;
+  cancelled?: number;
 }
 
-export function TenderStats({ total, open, closed, awarded }: TenderStatsProps) {
+export function TenderStats({ total, open, closed, awarded, cancelled = 0 }: TenderStatsProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -19,7 +20,7 @@ export function TenderStats({ total, open, closed, awarded }: TenderStatsProps) 
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{total}</div>
+          <div className="text-2xl font-bold">{total.toLocaleString()}</div>
           <p className="text-xs text-muted-foreground">Тендери</p>
         </CardContent>
       </Card>
@@ -32,7 +33,7 @@ export function TenderStats({ total, open, closed, awarded }: TenderStatsProps) 
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{open}</div>
+          <div className="text-2xl font-bold">{open.toLocaleString()}</div>
           <p className="text-xs text-muted-foreground">Активни</p>
         </CardContent>
       </Card>
@@ -45,8 +46,8 @@ export function TenderStats({ total, open, closed, awarded }: TenderStatsProps) 
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{closed}</div>
-          <p className="text-xs text-muted-foreground">Завршени</p>
+          <div className="text-2xl font-bold">{closed.toLocaleString()}</div>
+          <p className="text-xs text-muted-foreground">Истечени</p>
         </CardContent>
       </Card>
 
@@ -58,8 +59,21 @@ export function TenderStats({ total, open, closed, awarded }: TenderStatsProps) 
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{awarded}</div>
-          <p className="text-xs text-muted-foreground">Добиени</p>
+          <div className="text-2xl font-bold">{awarded.toLocaleString()}</div>
+          <p className="text-xs text-muted-foreground">Завршени</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Ban className="h-4 w-4 text-red-600" />
+            Откажани
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{cancelled.toLocaleString()}</div>
+          <p className="text-xs text-muted-foreground">Поништени</p>
         </CardContent>
       </Card>
     </div>

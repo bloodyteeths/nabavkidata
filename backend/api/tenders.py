@@ -108,6 +108,10 @@ async def get_tender_stats(
     awarded_query = select(func.count()).select_from(Tender).where(Tender.status == "awarded")
     awarded_tenders = await db.scalar(awarded_query)
 
+    # Cancelled tenders
+    cancelled_query = select(func.count()).select_from(Tender).where(Tender.status == "cancelled")
+    cancelled_tenders = await db.scalar(cancelled_query)
+
     # UNKNOWN status (open but no closing_date - can't verify)
     unknown_query = select(func.count()).select_from(Tender).where(
         and_(
@@ -159,6 +163,7 @@ async def get_tender_stats(
         "closing_soon_tenders": closing_soon_tenders,  # Closing within 7 days
         "closed_tenders": closed_tenders,
         "awarded_tenders": awarded_tenders,
+        "cancelled_tenders": cancelled_tenders,
         "unknown_status_tenders": unknown_tenders,  # No closing_date, can't verify
         "total_value_mkd": float(total_value),
         "avg_value_mkd": float(avg_value),

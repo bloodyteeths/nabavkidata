@@ -63,7 +63,7 @@ function TendersPageContent() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({});
-  const [stats, setStats] = useState({ total: 0, open: 0, closed: 0, awarded: 0 });
+  const [stats, setStats] = useState({ total: 0, open: 0, closed: 0, awarded: 0, cancelled: 0 });
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   // Track if we should trigger a load (for manual apply button)
@@ -128,15 +128,22 @@ function TendersPageContent() {
       const params: Record<string, any> = {
         page: page,
         page_size: limit,
+        // Default sort: closing date ascending (soonest closing first)
+        sort_by: 'closing_date',
+        sort_order: 'asc',
       };
 
       // Apply text search
       if (filters.search) params.search = filters.search;
 
-      // Status filter
-      if (filters.status) {
+      // Status filter - default to "open" (active tenders) if not specified
+      // "all" means user explicitly wants all statuses (no filter)
+      if (filters.status && filters.status !== 'all') {
         params.status = filters.status;
+      } else if (!filters.status) {
+        params.status = 'open';  // Show only active tenders by default
       }
+      // If filters.status === 'all', don't add status param (shows all)
 
       // Category filter - pass exactly as selected
       if (filters.category) params.category = filters.category;
@@ -179,6 +186,7 @@ function TendersPageContent() {
         open: result.open_tenders || 0,
         closed: result.closed_tenders || 0,
         awarded: result.awarded_tenders || 0,
+        cancelled: result.cancelled_tenders || 0,
       });
     } catch (error) {
       console.error("Failed to load stats:", error);
@@ -233,6 +241,7 @@ function TendersPageContent() {
         open={stats.open}
         closed={stats.closed}
         awarded={stats.awarded}
+        cancelled={stats.cancelled}
       />
 
       {/* Mobile Filter Toggle */}

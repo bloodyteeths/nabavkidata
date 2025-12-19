@@ -155,8 +155,8 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
         <div>
           <label className="text-sm font-medium mb-2 block">Статус</label>
           <Select
-            value={pendingFilters.status || "all"}
-            onValueChange={(value) => updatePendingFilter("status", value === "all" ? undefined : value)}
+            value={pendingFilters.status || ""}
+            onValueChange={(value) => updatePendingFilter("status", value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Сите" />
@@ -166,6 +166,7 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
               <SelectItem value="open">Отворени</SelectItem>
               <SelectItem value="closed">Затворени</SelectItem>
               <SelectItem value="awarded">Доделени</SelectItem>
+              <SelectItem value="cancelled">Откажани</SelectItem>
             </SelectContent>
           </Select>
         </div>
