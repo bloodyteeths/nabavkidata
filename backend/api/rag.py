@@ -26,7 +26,9 @@ from schemas import (
     SemanticSearchResponse,
     SemanticSearchResult,
     EmbeddingResponse,
-    BatchEmbeddingResponse
+    BatchEmbeddingResponse,
+    ChatFeedbackRequest,
+    ChatFeedbackResponse
 )
 from api.auth import get_current_user
 
@@ -596,6 +598,70 @@ async def embed_documents_batch(
         raise HTTPException(
             status_code=500,
             detail=f"Batch embedding failed: {str(e)}"
+        )
+
+
+# ============================================================================
+# FEEDBACK ENDPOINT
+# ============================================================================
+
+@router.post("/feedback", response_model=ChatFeedbackResponse)
+async def submit_feedback(
+    request: ChatFeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Submit feedback for an AI chat response
+
+    Request body:
+    - session_id: Optional chat session ID
+    - message_id: ID of the message being rated
+    - question: The user's original question
+    - answer: The AI's response
+    - helpful: Boolean indicating if the response was helpful
+    - comment: Optional additional feedback
+
+    Returns:
+    - success: Whether feedback was saved
+    - feedback_id: ID of the saved feedback
+    - message: Confirmation message
+    """
+    from sqlalchemy import text
+
+    try:
+        # Insert feedback into database
+        result = await db.execute(
+            text("""
+                INSERT INTO chat_feedback (user_id, session_id, message_id, question, answer, helpful, comment)
+                VALUES (:user_id, :session_id, :message_id, :question, :answer, :helpful, :comment)
+                RETURNING id
+            """),
+            {
+                "user_id": str(current_user.user_id),
+                "session_id": request.session_id,
+                "message_id": request.message_id,
+                "question": request.question[:2000],  # Limit question length
+                "answer": request.answer[:10000],  # Limit answer length
+                "helpful": request.helpful,
+                "comment": request.comment
+            }
+        )
+        feedback_id = result.scalar()
+        await db.commit()
+
+        return ChatFeedbackResponse(
+            success=True,
+            feedback_id=feedback_id,
+            message="Благодариме за вашиот feedback!" if request.helpful else "Благодариме, ќе работиме на подобрување."
+        )
+
+    except Exception as e:
+        print(f"Error saving feedback: {e}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save feedback: {str(e)}"
         )
 
 

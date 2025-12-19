@@ -277,6 +277,23 @@ class BatchEmbeddingResponse(BaseModel):
     results: Dict[str, Any]
 
 
+class ChatFeedbackRequest(BaseModel):
+    """Request schema for chat feedback"""
+    session_id: Optional[str] = Field(None, description="Chat session ID")
+    message_id: str = Field(..., description="Message ID being rated")
+    question: str = Field(..., description="User's question")
+    answer: str = Field(..., description="AI's answer")
+    helpful: bool = Field(..., description="Whether the answer was helpful")
+    comment: Optional[str] = Field(None, max_length=1000, description="Optional user comment")
+
+
+class ChatFeedbackResponse(BaseModel):
+    """Response schema for chat feedback"""
+    success: bool
+    feedback_id: int
+    message: str
+
+
 # ============================================================================
 # USER & AUTH SCHEMAS
 # ============================================================================

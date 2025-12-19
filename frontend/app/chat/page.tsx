@@ -340,9 +340,32 @@ export default function ChatPage() {
                     confidence={message.confidence}
                     timestamp={message.timestamp}
                     messageId={message.id}
-                    onFeedback={(msgId, helpful) => {
-                      // TODO: Send feedback to API
-                      console.log(`Feedback for ${msgId}: ${helpful ? 'helpful' : 'not helpful'}`);
+                    onFeedback={async (msgId, helpful) => {
+                      // Find the previous user message to get the question
+                      const msgIndex = messages.findIndex(m => m.id === msgId);
+                      if (msgIndex <= 0) return;
+
+                      // Find the user question that preceded this answer
+                      let questionMsg: Message | undefined;
+                      for (let i = msgIndex - 1; i >= 0; i--) {
+                        if (messages[i].role === 'user') {
+                          questionMsg = messages[i];
+                          break;
+                        }
+                      }
+
+                      if (!questionMsg) return;
+
+                      try {
+                        await api.submitChatFeedback({
+                          message_id: msgId,
+                          question: questionMsg.content,
+                          answer: message.content,
+                          helpful,
+                        });
+                      } catch (error) {
+                        console.error('Failed to submit feedback:', error);
+                      }
                     }}
                   />
                 </div>

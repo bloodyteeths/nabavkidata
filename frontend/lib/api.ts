@@ -1042,6 +1042,20 @@ class APIClient {
     });
   }
 
+  async submitChatFeedback(data: {
+    session_id?: string;
+    message_id: string;
+    question: string;
+    answer: string;
+    helpful: boolean;
+    comment?: string;
+  }) {
+    return this.request<{ success: boolean; feedback_id: number; message: string }>('/api/rag/feedback', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Authentication
   async authRegister(email: string, password: string, fullName?: string) {
     return this.request<AuthTokens>('/api/auth/register', {
@@ -1493,6 +1507,29 @@ class APIClient {
       summary?: string;
       source_documents: number;
     }>(`/api/tenders/by-id/${encodeURIComponent(tenderId)}/ai-products`);
+  }
+
+  async getPriceBenchmarks(category?: string, cpvCode?: string) {
+    const params: Record<string, string> = {};
+    if (category) params.category = category;
+    if (cpvCode) params.cpv_code = cpvCode;
+    const query = new URLSearchParams(params).toString();
+    return this.request<{
+      by_category: Array<{
+        category: string;
+        avg_value: number;
+        median_value: number;
+        min_value: number;
+        max_value: number;
+        count: number;
+      }>;
+      by_cpv_division: Array<{
+        cpv_division: string;
+        cpv_name: string;
+        avg_value: number;
+        count: number;
+      }>;
+    }>(`/api/insights/price-benchmarks${query ? `?${query}` : ''}`);
   }
 
   // ============================================================================
@@ -1948,6 +1985,84 @@ class APIClient {
     return this.request<{ message: string }>(`/api/notifications/${notificationId}`, {
       method: 'DELETE',
     });
+  }
+
+  // ============================================================================
+  // INSIGHTS API
+  // ============================================================================
+
+  async getUpcomingOpportunities(cpvCode?: string) {
+    const params = cpvCode ? new URLSearchParams({ cpv_code: cpvCode }) : '';
+    return this.request<{
+      urgent: Array<{
+        tender_id: string;
+        title: string;
+        estimated_value_mkd: number;
+        closing_date: string;
+        days_left: number;
+        category: string;
+        procuring_entity: string;
+      }>;
+      soon: Array<{
+        tender_id: string;
+        title: string;
+        estimated_value_mkd: number;
+        closing_date: string;
+        days_left: number;
+        category: string;
+        procuring_entity: string;
+      }>;
+      this_month: Array<{
+        tender_id: string;
+        title: string;
+        estimated_value_mkd: number;
+        closing_date: string;
+        days_left: number;
+        category: string;
+        procuring_entity: string;
+      }>;
+      total_count: number;
+    }>(`/api/insights/upcoming-opportunities${params ? `?${params}` : ''}`);
+  }
+
+  async getActiveBuyers(category?: string) {
+    const params = category ? `?category=${encodeURIComponent(category)}` : '';
+    return this.request<{
+      buyers: Array<{
+        entity_name: string;
+        tender_count: number;
+        total_value: number;
+        categories: Record<string, number>; // e.g., {"Стоки": 5, "Услуги": 3}
+        trend?: number; // percentage change from previous period
+      }>;
+    }>(`/api/insights/active-buyers${params}`);
+  }
+
+  async getTopWinners(cpvCode?: string) {
+    const params = cpvCode ? new URLSearchParams({ cpv_code: cpvCode }) : new URLSearchParams();
+    return this.request<{
+      winners: Array<{
+        name: string;
+        win_count: number;
+        total_value_won: number;
+        categories: string[];
+        avg_contract_value: number;
+      }>;
+      total_awarded: number;
+    }>(`/api/insights/top-winners?${params.toString()}`);
+  }
+
+  async getSeasonalPatterns() {
+    return this.request<{
+      monthly_data: Array<{
+        month: string; // "2024-01", "2024-02", etc.
+        month_name: string; // "Јануари", "Февруари", etc.
+        total_count: number;
+        total_value: number;
+        by_category: Record<string, number>;
+      }>;
+      best_months: Record<string, string[]>; // {"Стоки": ["Март", "Април"]}
+    }>('/api/insights/seasonal-patterns');
   }
 }
 
