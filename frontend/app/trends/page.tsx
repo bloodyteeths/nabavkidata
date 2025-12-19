@@ -1,222 +1,198 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { RefreshCcw, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  LineChart,
-  Line,
-} from "recharts";
+  Clock,
+  Trophy,
+  DollarSign,
+  Building,
+  Calendar,
+  Search,
+  TrendingUp,
+  Target,
+  Lightbulb
+} from "lucide-react";
+import {
+  UpcomingOpportunities,
+  ActiveBuyers,
+  TopWinners,
+  PriceBenchmarks,
+  SeasonalPatterns,
+} from "@/components/insights";
 
-export default function TrendsPage() {
-  const [cpv, setCpv] = useState("");
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default function InsightsPage() {
+  const [cpvFilter, setCpvFilter] = useState("");
+  const [appliedCpv, setAppliedCpv] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await api.getCategoryTrends(cpv ? { cpv_code: cpv } : undefined);
-      setData(result);
-    } catch (err) {
-      console.error("Failed to load category trends:", err);
-      setError("Трендовите по категории не се достапни.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Format large numbers
-  const formatValue = (val: number) => {
-    if (val >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(1)}B`;
-    if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
-    if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K`;
-    return val?.toFixed ? val.toFixed(0) : String(val);
+  const handleApplyFilter = () => {
+    setAppliedCpv(cpvFilter.trim() || undefined);
   };
 
-  // Prepare chart data - group by month with categories as separate bars
-  const monthlyData: Record<string, any> = {};
-  data?.categories?.forEach((cat: any) => {
-    cat.monthly_trend?.forEach((t: any) => {
-      if (!monthlyData[t.month]) {
-        monthlyData[t.month] = { month: t.month };
-      }
-      monthlyData[t.month][cat.category] = t.value || 0;
-      monthlyData[t.month][`${cat.category}_count`] = t.count || 0;
-    });
-  });
-  const chartData = Object.values(monthlyData).sort((a: any, b: any) =>
-    a.month.localeCompare(b.month)
-  );
-
-  // Category colors
-  const categoryColors: Record<string, string> = {
-    "Стоки": "#3b82f6",
-    "Услуги": "#10b981",
-    "Работи": "#f59e0b",
+  const handleClearFilter = () => {
+    setCpvFilter("");
+    setAppliedCpv(undefined);
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold">Трендови по категории</h1>
-          <p className="text-sm text-muted-foreground">
-            Преглед на тендери по категорија (Стоки, Услуги, Работи)
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="CPV код (опционално)"
-            value={cpv}
-            onChange={(e) => setCpv(e.target.value)}
-            className="w-48"
-          />
-          <Button size="sm" onClick={load} disabled={loading}>
-            <RefreshCcw className="h-4 w-4 mr-2" />
-            Освежи
-          </Button>
-        </div>
+    <div className="p-3 md:p-6 lg:p-8 space-y-6">
+      {/* Header */}
+      <div className="space-y-2">
+        <h1 className="text-xl md:text-3xl font-bold flex items-center gap-2">
+          <TrendingUp className="h-6 w-6 md:h-8 md:w-8 text-primary" />
+          Бизнис Анализа
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground">
+          Корисни информации за да ги добиете тендерите - следете ги можностите, конкуренцијата и цените
+        </p>
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground">Се вчитуваат трендовите...</p>}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {!loading && !error && data && (
-        <>
-          {/* Category Summary Cards */}
-          {data.categories && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {data.categories.map((cat: any) => {
-                // Calculate trend from monthly data
-                const trend = cat.monthly_trend || [];
-                const lastTwo = trend.slice(-2);
-                let trendDirection = 0;
-                if (lastTwo.length === 2 && lastTwo[0].count && lastTwo[1].count) {
-                  trendDirection = lastTwo[1].count > lastTwo[0].count ? 1 :
-                                   lastTwo[1].count < lastTwo[0].count ? -1 : 0;
-                }
-
-                return (
-                  <Card key={cat.category} className="relative overflow-hidden">
-                    <div
-                      className="absolute top-0 left-0 w-1 h-full"
-                      style={{ backgroundColor: categoryColors[cat.category] || "#888" }}
-                    />
-                    <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center justify-between">
-                        <span>{cat.category}</span>
-                        {trendDirection === 1 && <TrendingUp className="h-4 w-4 text-green-500" />}
-                        {trendDirection === -1 && <TrendingDown className="h-4 w-4 text-red-500" />}
-                        {trendDirection === 0 && <Minus className="h-4 w-4 text-gray-400" />}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <p className="text-3xl font-bold">{cat.tender_count?.toLocaleString() || 0}</p>
-                        <p className="text-xs text-muted-foreground">тендери</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <p className="font-medium">{formatValue(cat.total_value_mkd || 0)} МКД</p>
-                          <p className="text-xs text-muted-foreground">вкупно</p>
-                        </div>
-                        <div>
-                          <p className="font-medium">{formatValue(cat.avg_value_mkd || 0)} МКД</p>
-                          <p className="text-xs text-muted-foreground">просечно</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+      {/* Quick Tips Card */}
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-start gap-3">
+            <Lightbulb className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-blue-900 dark:text-blue-100">Совет за успех</p>
+              <p className="text-blue-700 dark:text-blue-300">
+                Следете ги <span className="font-semibold">итните можности</span> за тендери што се затвораат наскоро,
+                анализирајте ја <span className="font-semibold">конкуренцијата</span> за да ја разберете пазарната позиција,
+                и користете ги <span className="font-semibold">цените</span> за подобри понуди.
+              </p>
             </div>
-          )}
+          </div>
+        </CardContent>
+      </Card>
 
-          {/* Value Chart */}
-          {chartData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Вредност по месеци (МКД)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={chartData}>
-                    <XAxis dataKey="month" />
-                    <YAxis tickFormatter={formatValue} />
-                    <Tooltip
-                      formatter={(val: number) => `${formatValue(val)} МКД`}
-                      labelFormatter={(label) => `Месец: ${label}`}
-                    />
-                    <Legend />
-                    {data.categories?.map((cat: any) => (
-                      <Bar
-                        key={cat.category}
-                        dataKey={cat.category}
-                        name={cat.category}
-                        fill={categoryColors[cat.category] || "#888"}
-                      />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+      {/* CPV Filter */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Филтрирај по индустрија (CPV код)
+          </CardTitle>
+          <CardDescription>
+            Внесете CPV код за да ги видите податоците за вашата специфична индустрија
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="пр. 33 (медицина), 45 (градежништво), 30 (канцелариска опрема)"
+                value={cpvFilter}
+                onChange={(e) => setCpvFilter(e.target.value)}
+                className="pl-9"
+                onKeyDown={(e) => e.key === 'Enter' && handleApplyFilter()}
+              />
+            </div>
+            <Button onClick={handleApplyFilter} disabled={!cpvFilter.trim()}>
+              Примени
+            </Button>
+            {appliedCpv && (
+              <Button variant="outline" onClick={handleClearFilter}>
+                Ресетирај
+              </Button>
+            )}
+          </div>
+          {appliedCpv && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Филтрирано по CPV: <span className="font-mono font-medium">{appliedCpv}</span>
+            </p>
           )}
+        </CardContent>
+      </Card>
 
-          {/* Count Chart */}
-          {chartData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Број на тендери по месеци</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData}>
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip
-                      formatter={(val: number) => `${val} тендери`}
-                      labelFormatter={(label) => `Месец: ${label}`}
-                    />
-                    <Legend />
-                    {data.categories?.map((cat: any) => (
-                      <Line
-                        key={cat.category}
-                        type="monotone"
-                        dataKey={`${cat.category}_count`}
-                        name={cat.category}
-                        stroke={categoryColors[cat.category] || "#888"}
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
+      {/* Main Tabs */}
+      <Tabs defaultValue="opportunities" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto gap-1">
+          <TabsTrigger value="opportunities" className="flex items-center gap-1.5 py-2 px-2 text-xs sm:text-sm">
+            <Clock className="h-4 w-4" />
+            <span className="hidden sm:inline">Можности</span>
+            <span className="sm:hidden">Итни</span>
+          </TabsTrigger>
+          <TabsTrigger value="competition" className="flex items-center gap-1.5 py-2 px-2 text-xs sm:text-sm">
+            <Trophy className="h-4 w-4" />
+            <span className="hidden sm:inline">Конкуренција</span>
+            <span className="sm:hidden">Топ</span>
+          </TabsTrigger>
+          <TabsTrigger value="pricing" className="flex items-center gap-1.5 py-2 px-2 text-xs sm:text-sm">
+            <DollarSign className="h-4 w-4" />
+            <span>Цени</span>
+          </TabsTrigger>
+          <TabsTrigger value="buyers" className="flex items-center gap-1.5 py-2 px-2 text-xs sm:text-sm">
+            <Building className="h-4 w-4" />
+            <span className="hidden sm:inline">Купувачи</span>
+            <span className="sm:hidden">Инст.</span>
+          </TabsTrigger>
+          <TabsTrigger value="seasonal" className="flex items-center gap-1.5 py-2 px-2 text-xs sm:text-sm">
+            <Calendar className="h-4 w-4" />
+            <span className="hidden sm:inline">Сезонски</span>
+            <span className="sm:hidden">Кога</span>
+          </TabsTrigger>
+        </TabsList>
 
-          {chartData.length === 0 && (
-            <p className="text-sm text-muted-foreground">Нема податоци за трендови.</p>
-          )}
-        </>
-      )}
+        {/* Upcoming Opportunities */}
+        <TabsContent value="opportunities" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Следни можности</h2>
+              <p className="text-sm text-muted-foreground">
+                Тендери што се затвораат наскоро - не пропуштајте ги роковите
+              </p>
+            </div>
+          </div>
+          <UpcomingOpportunities cpvCode={appliedCpv} />
+        </TabsContent>
+
+        {/* Competition Analysis */}
+        <TabsContent value="competition" className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Топ победници</h2>
+            <p className="text-sm text-muted-foreground">
+              Кои компании најчесто добиваат тендери - запознајте ја конкуренцијата
+            </p>
+          </div>
+          <TopWinners />
+        </TabsContent>
+
+        {/* Price Benchmarks */}
+        <TabsContent value="pricing" className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Анализа на цени</h2>
+            <p className="text-sm text-muted-foreground">
+              Просечни вредности по категории и сектори - понудете конкурентно
+            </p>
+          </div>
+          <PriceBenchmarks />
+        </TabsContent>
+
+        {/* Active Buyers */}
+        <TabsContent value="buyers" className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Најактивни купувачи</h2>
+            <p className="text-sm text-muted-foreground">
+              Институции кои објавуваат најмногу тендери - фокусирајте се на вистинските клиенти
+            </p>
+          </div>
+          <ActiveBuyers />
+        </TabsContent>
+
+        {/* Seasonal Patterns */}
+        <TabsContent value="seasonal" className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Сезонски шеми</h2>
+            <p className="text-sm text-muted-foreground">
+              Кога се објавуваат најмногу тендери - планирајте ги вашите ресурси
+            </p>
+          </div>
+          <SeasonalPatterns />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

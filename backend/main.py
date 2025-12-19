@@ -15,7 +15,7 @@ import os
 from database import init_db, close_db, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights
 from middleware.fraud import FraudPreventionMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 
@@ -81,6 +81,7 @@ app.include_router(pricing.router, prefix="/api")  # Pricing analytics (historic
 app.include_router(scraper.router, prefix="/api")  # Scraper API
 app.include_router(entities.router, prefix="/api")  # Entity profiles
 app.include_router(analytics.router, prefix="/api")  # Analytics & trends
+app.include_router(insights.router, prefix="/api")  # Business intelligence insights
 app.include_router(suppliers.router, prefix="/api")  # Supplier profiles
 app.include_router(competitors.router, prefix="/api")  # Competitor activity tracking and bidding pattern analysis
 app.include_router(competitor_tracking.router, prefix="/api")  # Competitor tracking (Phase 5.1)

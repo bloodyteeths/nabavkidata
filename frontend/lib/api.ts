@@ -1992,36 +1992,39 @@ class APIClient {
   // ============================================================================
 
   async getUpcomingOpportunities(cpvCode?: string) {
-    const params = cpvCode ? new URLSearchParams({ cpv_code: cpvCode }) : '';
+    const params = cpvCode ? new URLSearchParams({ cpv_prefix: cpvCode }) : '';
     return this.request<{
-      urgent: Array<{
+      closing_soon: Array<{
         tender_id: string;
         title: string;
-        estimated_value_mkd: number;
+        estimated_value_mkd: number | null;
         closing_date: string;
         days_left: number;
-        category: string;
-        procuring_entity: string;
+        category: string | null;
+        procuring_entity: string | null;
+        cpv_code: string | null;
       }>;
-      soon: Array<{
+      closing_this_month: Array<{
         tender_id: string;
         title: string;
-        estimated_value_mkd: number;
+        estimated_value_mkd: number | null;
         closing_date: string;
         days_left: number;
-        category: string;
-        procuring_entity: string;
+        category: string | null;
+        procuring_entity: string | null;
+        cpv_code: string | null;
       }>;
-      this_month: Array<{
+      upcoming: Array<{
         tender_id: string;
         title: string;
-        estimated_value_mkd: number;
+        estimated_value_mkd: number | null;
         closing_date: string;
         days_left: number;
-        category: string;
-        procuring_entity: string;
+        category: string | null;
+        procuring_entity: string | null;
+        cpv_code: string | null;
       }>;
-      total_count: number;
+      total: number;
     }>(`/api/insights/upcoming-opportunities${params ? `?${params}` : ''}`);
   }
 
@@ -2054,14 +2057,15 @@ class APIClient {
 
   async getSeasonalPatterns() {
     return this.request<{
-      monthly_data: Array<{
+      patterns: Array<{
         month: string; // "2024-01", "2024-02", etc.
-        month_name: string; // "Јануари", "Февруари", etc.
-        total_count: number;
-        total_value: number;
-        by_category: Record<string, number>;
+        month_name: string; // "January 2025", etc.
+        tender_count: number;
+        total_value: number | null;
+        avg_value: number | null;
+        category_breakdown: Record<string, number>;
       }>;
-      best_months: Record<string, string[]>; // {"Стоки": ["Март", "Април"]}
+      total_months: number;
     }>('/api/insights/seasonal-patterns');
   }
 }
