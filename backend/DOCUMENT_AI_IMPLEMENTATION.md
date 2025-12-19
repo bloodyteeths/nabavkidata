@@ -229,7 +229,7 @@ except ImportError:
 | `GEMINI_MODEL` | No | `gemini-2.0-flash` | Model to use |
 
 **Current Configuration:**
-- API Key: `AIzaSyBz-Q2SG_ayM4fWilHSPaLnwr13NlwmiaI` (provided in task)
+- API Key: `YOUR_GEMINI_API_KEY` (provided in task)
 - Model: `gemini-2.0-flash` (configurable)
 
 ---

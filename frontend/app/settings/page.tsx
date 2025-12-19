@@ -1016,7 +1016,7 @@ export default function SettingsPage() {
           daily_queries: 20,
           trial_days: 14,
           allow_vpn: true,
-          features: ['20 AI пребарувања дневно', '14-дневен пробен период', 'Аналитика', 'Интеграции', 'Дедицирана поддршка']
+          features: ['20 AI пребарувања дневно', '14-дневен пробен период', 'Аналитика', 'CSV/PDF експорт', 'Приоритетна поддршка']
         },
         {
           tier: 'enterprise',
@@ -1028,7 +1028,7 @@ export default function SettingsPage() {
           daily_queries: -1,
           trial_days: 14,
           allow_vpn: true,
-          features: ['Неограничени AI пребарувања', '14-дневен пробен период', 'White-label', 'API пристап', '24/7 поддршка']
+          features: ['Неограничени AI пребарувања', '14-дневен пробен период', 'API пристап', 'CSV/PDF експорт', 'Приоритетна поддршка']
         }
       ];
       setPlans(hardcodedPlans);

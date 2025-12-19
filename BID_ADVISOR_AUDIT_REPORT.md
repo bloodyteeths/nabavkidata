@@ -523,7 +523,7 @@ app.include_router(pricing.router, prefix="/api")
 ### Environment Variables Required
 ```bash
 DATABASE_URL=postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata
-GEMINI_API_KEY=AIzaSyBz-Q2SG_ayM4fWilHSPaLnwr13NlwmiaI
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 GEMINI_MODEL=gemini-1.5-flash  # Optional
 ```
 

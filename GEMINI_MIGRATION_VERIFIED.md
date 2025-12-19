@@ -229,7 +229,7 @@ Current health endpoint shows `"rag": "disabled"`
 ```bash
 ssh -i ~/.ssh/nabavki-key.pem ubuntu@3.120.26.153 \
   "cd /home/ubuntu/nabavkidata && source venv/bin/activate && \
-   export GEMINI_API_KEY=AIzaSyA3bC0aMIdStQcrYg-UYfnmcp6GxTQUcpQ && \
+   export GEMINI_API_KEY=YOUR_GEMINI_API_KEY && \
    export GEMINI_MODEL=gemini-2.5-flash && \
    export DATABASE_URL=postgresql+asyncpg://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata && \
    python3 scripts/test_gemini_integration.py"

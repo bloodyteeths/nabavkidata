@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 # Set environment variables
 os.environ['DATABASE_URL'] = 'postgresql+asyncpg://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata'
-os.environ['GEMINI_API_KEY'] = 'AIzaSyBz-Q2SG_ayM4fWilHSPaLnwr13NlwmiaI'
+os.environ['GEMINI_API_KEY'] = 'YOUR_GEMINI_API_KEY'
 os.environ['GEMINI_MODEL'] = 'gemini-2.0-flash'
 
 from models import Tender, TenderBidder, Document

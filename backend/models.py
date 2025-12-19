@@ -385,3 +385,22 @@ class CronExecution(Base):
     error_message = Column(Text, nullable=True)
     details = Column(JSONB, nullable=True)  # Additional metadata
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class APIKey(Base):
+    """API keys for Enterprise tier users"""
+    __tablename__ = "api_keys"
+
+    key_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    key_hash = Column(String(255), nullable=False, unique=True, index=True)  # SHA-256 hash of the key
+    key_prefix = Column(String(12), nullable=False)  # First 8 chars for identification (e.g., "nb_live_ab")
+    name = Column(String(100), nullable=False)  # User-provided name for the key
+    scopes = Column(JSONB, default=["read"])  # Permissions: read, write, admin
+    is_active = Column(Boolean, default=True)
+    last_used_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)  # Optional expiration
+    request_count = Column(Integer, default=0)  # Total requests made
+    rate_limit_per_minute = Column(Integer, default=60)  # Rate limit
+    created_at = Column(DateTime, default=datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)

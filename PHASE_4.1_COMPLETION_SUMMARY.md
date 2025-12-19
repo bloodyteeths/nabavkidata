@@ -276,7 +276,7 @@ GET /api/ai/pricing-health
 ### Environment Variables
 ```bash
 DATABASE_URL=postgresql://...
-GEMINI_API_KEY=AIzaSyBz-Q2SG_ayM4fWilHSPaLnwr13NlwmiaI
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 GEMINI_MODEL=gemini-1.5-flash  # Optional
 ```
 

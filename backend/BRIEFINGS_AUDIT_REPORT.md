@@ -130,7 +130,7 @@ CREATE INDEX IF NOT EXISTS idx_briefings_user_date ON daily_briefings(user_id, b
 
 ```python
 GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')  # AIzaSyBz-Q2SG_ayM4fWilHSPaLnwr13NlwmiaI
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')  # YOUR_GEMINI_API_KEY
 ```
 
 ### AI Summary Generation
@@ -445,7 +445,7 @@ curl -X GET "http://localhost:8000/api/briefings/today" \
 
 ```bash
 # Required
-GEMINI_API_KEY=AIzaSyBz-Q2SG_ayM4fWilHSPaLnwr13NlwmiaI
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 
 # Optional (defaults shown)
 GEMINI_MODEL=gemini-2.0-flash

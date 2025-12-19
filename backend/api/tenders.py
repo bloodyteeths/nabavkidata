@@ -576,6 +576,166 @@ async def search_tenders(
 
 
 # ============================================================================
+# EXPORT ENDPOINTS (Starter+ tiers only)
+# ============================================================================
+
+@router.post("/export")
+async def export_tenders(
+    search: TenderSearchRequest,
+    format: str = Query("csv", regex="^(csv|json)$", description="Export format: csv or json"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Export tender search results to CSV or JSON format.
+
+    Requires Starter tier or higher.
+    Maximum 1000 results per export.
+
+    Args:
+        search: Same search criteria as /search endpoint
+        format: Export format (csv or json)
+
+    Returns:
+        CSV or JSON file as download
+    """
+    from fastapi.responses import StreamingResponse
+    import csv
+    import io
+
+    # Check tier - must be starter or higher
+    user_tier = getattr(current_user, 'subscription_tier', 'free').lower()
+    if user_tier == 'free':
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": "Export feature requires Starter tier or higher",
+                "upgrade_url": "/pricing"
+            }
+        )
+
+    # Build query (same as search)
+    query = select(Tender)
+    filters = []
+
+    if search.query:
+        text_filter = or_(
+            Tender.title.ilike(f"%{search.query}%"),
+            Tender.description.ilike(f"%{search.query}%"),
+            Tender.procuring_entity.ilike(f"%{search.query}%")
+        )
+        filters.append(text_filter)
+
+    if search.category:
+        filters.append(Tender.category == search.category)
+    if search.status:
+        filters.append(Tender.status == search.status)
+    if search.procuring_entity:
+        filters.append(Tender.procuring_entity.ilike(f"%{search.procuring_entity}%"))
+    if search.cpv_code:
+        filters.append(Tender.cpv_code.startswith(search.cpv_code))
+    if search.min_value_mkd:
+        filters.append(Tender.estimated_value_mkd >= search.min_value_mkd)
+    if search.max_value_mkd:
+        filters.append(Tender.estimated_value_mkd <= search.max_value_mkd)
+    if search.min_value_eur:
+        filters.append(Tender.estimated_value_eur >= search.min_value_eur)
+    if search.max_value_eur:
+        filters.append(Tender.estimated_value_eur <= search.max_value_eur)
+    if search.opening_date_from:
+        filters.append(Tender.opening_date >= search.opening_date_from)
+    if search.opening_date_to:
+        filters.append(Tender.opening_date <= search.opening_date_to)
+    if search.closing_date_from:
+        filters.append(Tender.closing_date >= search.closing_date_from)
+    if search.closing_date_to:
+        filters.append(Tender.closing_date <= search.closing_date_to)
+    if search.procedure_type:
+        filters.append(Tender.procedure_type == search.procedure_type)
+    if hasattr(search, 'source_category') and search.source_category:
+        filters.append(Tender.source_category == search.source_category)
+
+    if filters:
+        query = query.where(and_(*filters))
+
+    # Sort and limit to 1000 results
+    sort_column = getattr(Tender, search.sort_by, Tender.created_at)
+    if search.sort_order.lower() == "desc":
+        query = query.order_by(sort_column.desc())
+    else:
+        query = query.order_by(sort_column.asc())
+
+    query = query.limit(1000)
+
+    result = await db.execute(query)
+    tenders = result.scalars().all()
+
+    if format == "json":
+        # JSON export
+        export_data = []
+        for t in tenders:
+            export_data.append({
+                "tender_id": t.tender_id,
+                "title": t.title,
+                "procuring_entity": t.procuring_entity,
+                "category": t.category,
+                "status": t.status,
+                "cpv_code": t.cpv_code,
+                "estimated_value_mkd": float(t.estimated_value_mkd) if t.estimated_value_mkd else None,
+                "estimated_value_eur": float(t.estimated_value_eur) if t.estimated_value_eur else None,
+                "opening_date": t.opening_date.isoformat() if t.opening_date else None,
+                "closing_date": t.closing_date.isoformat() if t.closing_date else None,
+                "source_url": t.source_url,
+                "procedure_type": t.procedure_type,
+            })
+
+        return {
+            "total": len(export_data),
+            "format": "json",
+            "data": export_data
+        }
+
+    else:
+        # CSV export
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Header row
+        writer.writerow([
+            "Tender ID", "Title", "Procuring Entity", "Category", "Status",
+            "CPV Code", "Estimated Value (MKD)", "Estimated Value (EUR)",
+            "Opening Date", "Closing Date", "Procedure Type", "Source URL"
+        ])
+
+        # Data rows
+        for t in tenders:
+            writer.writerow([
+                t.tender_id,
+                t.title,
+                t.procuring_entity,
+                t.category,
+                t.status,
+                t.cpv_code,
+                float(t.estimated_value_mkd) if t.estimated_value_mkd else "",
+                float(t.estimated_value_eur) if t.estimated_value_eur else "",
+                t.opening_date.isoformat() if t.opening_date else "",
+                t.closing_date.isoformat() if t.closing_date else "",
+                t.procedure_type or "",
+                t.source_url or ""
+            ])
+
+        output.seek(0)
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename=tenders_export_{date.today().isoformat()}.csv"
+            }
+        )
+
+
+# ============================================================================
 # METADATA ENDPOINTS (categories, CPV codes)
 # ============================================================================
 

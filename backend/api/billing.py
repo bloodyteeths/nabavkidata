@@ -91,8 +91,8 @@ SUBSCRIPTION_PLANS = {
             "20 AI queries per day",
             "14-day free trial",
             "Analytics",
-            "Integrations",
-            "Dedicated support"
+            "CSV/PDF export",
+            "Priority support"
         ],
         "limits": {
             "rag_queries_per_day": 20,
@@ -109,9 +109,9 @@ SUBSCRIPTION_PLANS = {
         "features": [
             "Unlimited AI queries",
             "14-day free trial",
-            "White-label",
             "API access",
-            "24/7 support"
+            "CSV/PDF export",
+            "Priority support"
         ],
         "limits": {
             "rag_queries_per_day": -1,  # unlimited

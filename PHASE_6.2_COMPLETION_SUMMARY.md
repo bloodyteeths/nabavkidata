@@ -144,7 +144,7 @@ ON daily_briefings(user_id, briefing_date DESC);
 
 ### Required
 ```bash
-GEMINI_API_KEY=AIzaSyBz-Q2SG_ayM4fWilHSPaLnwr13NlwmiaI
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 ```
 
 ### Optional

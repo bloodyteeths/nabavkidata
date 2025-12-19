@@ -84,7 +84,7 @@ is_viewed           BOOLEAN
 ## Environment Variables
 
 ```bash
-GEMINI_API_KEY=AIzaSyBz-Q2SG_ayM4fWilHSPaLnwr13NlwmiaI
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
 GEMINI_MODEL=gemini-2.0-flash  # optional
 ```
 
