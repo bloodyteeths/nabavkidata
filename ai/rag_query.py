@@ -1628,6 +1628,39 @@ DATA_SOURCE_TOOLS = [
             },
             "required": ["stat_type"]
         }
+    },
+    {
+        "name": "analyze_corruption_risk",
+        "description": "Analyze corruption risk indicators for tenders, companies, or institutions. Use for questions about: suspicious patterns, risk flags, fraud indicators, bid rigging, single bidder tenders, repeat winners, 'сомнителни тендери', 'корупција', 'ризик', 'наместени тендери'. IMPORTANT: Our database has limited coverage (2-20%), so this tool also searches online sources for more complete data.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "analysis_type": {
+                    "type": "string",
+                    "enum": ["flagged_tenders", "company_risk", "institution_risk", "tender_risk", "web_research"],
+                    "description": "Type of analysis: flagged_tenders (list flagged tenders), company_risk (analyze specific company), institution_risk (analyze institution), tender_risk (analyze specific tender), web_research (search online for corruption news/data)"
+                },
+                "entity_name": {
+                    "type": "string",
+                    "description": "Name of company, institution, or tender ID to analyze. Required for company_risk, institution_risk, tender_risk."
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": ["critical", "high", "medium", "low", "all"],
+                    "description": "Filter by severity level. Default: all"
+                },
+                "flag_type": {
+                    "type": "string",
+                    "enum": ["single_bidder", "repeat_winner", "bid_clustering", "price_anomaly", "short_deadline", "all"],
+                    "description": "Filter by flag type. Default: all"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of results to return. Default: 10"
+                }
+            },
+            "required": ["analysis_type"]
+        }
     }
 ]
 
@@ -2341,22 +2374,40 @@ async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
         """
         rows = await conn.fetch(query, *params)
 
-        if not rows:
+        # ALWAYS run web search for comprehensive results
+        web_result = None
+        search_query = f"тендери {' '.join(keywords)} Македонија e-nabavki"
+        try:
+            print(f"[TENDER SEARCH] Running web search for: {search_query[:50]}...")
+            web_result = await execute_tool("web_search_procurement", {"query": search_query}, conn)
+        except Exception as e:
+            print(f"[TENDER SEARCH] Web search failed: {e}")
+
+        # Combine DB + Web results
+        if not rows and not web_result:
             return f"Не најдов тендери за: {', '.join(keywords)}"
 
-        result = f"Најдов {len(rows)} тендери:\n\n"
-        for r in rows:
-            result += f"**{r['title']}**\n"
-            result += f"  Набавувач: {r['procuring_entity']}\n"
-            if r['winner']:
-                result += f"  Победник: {r['winner']}\n"
-            if r['estimated_value_mkd']:
-                result += f"  Проценета вредност: {r['estimated_value_mkd']:,.0f} МКД\n"
-            if r['actual_value_mkd']:
-                result += f"  Договорена вредност: {r['actual_value_mkd']:,.0f} МКД\n"
-            result += f"  Датум: {r['publication_date']}\n\n"
+        result = ""
 
-        return result
+        # Add DB results
+        if rows:
+            result += f"## 📊 Од база ({len(rows)} тендери):\n\n"
+            for r in rows:
+                result += f"**{r['title']}**\n"
+                result += f"  Набавувач: {r['procuring_entity']}\n"
+                if r['winner']:
+                    result += f"  Победник: {r['winner']}\n"
+                if r['estimated_value_mkd']:
+                    result += f"  Проценета вредност: {r['estimated_value_mkd']:,.0f} МКД\n"
+                if r['actual_value_mkd']:
+                    result += f"  Договорена вредност: {r['actual_value_mkd']:,.0f} МКД\n"
+                result += f"  Датум: {r['publication_date']}\n\n"
+
+        # Add web search results
+        if web_result and len(web_result) > 100 and "грешка" not in web_result.lower():
+            result += f"\n## 🌐 Од веб пребарување:\n\n{web_result}\n"
+
+        return result if result else f"Не најдов тендери за: {', '.join(keywords)}"
 
     elif tool_name == "search_product_items":
         keywords = tool_args.get("keywords", [])
@@ -2420,25 +2471,43 @@ async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
         """
         rows = await conn.fetch(query, *params)
 
-        if not rows:
+        # ALWAYS run web search in parallel for comprehensive results
+        web_result = None
+        search_query = f"цени {' '.join(keywords)} тендери Македонија e-nabavki"
+        try:
+            print(f"[PRODUCT SEARCH] Running web search for: {search_query[:50]}...")
+            web_result = await execute_tool("web_search_procurement", {"query": search_query}, conn)
+        except Exception as e:
+            print(f"[PRODUCT SEARCH] Web search failed: {e}")
+
+        # Combine DB + Web results
+        if not rows and not web_result:
             return f"Не најдов цени за производи: {', '.join(keywords)}"
 
-        result = f"Најдов {len(rows)} записи со цени:\n\n"
-        for r in rows:
-            result += f"**{r['name']}**\n"
-            if r['unit_price']:
-                result += f"  Единечна цена: {r['unit_price']:,.2f} МКД\n"
-            if r['quantity']:
-                result += f"  Количина: {r['quantity']} {r['unit'] or 'парчиња'}\n"
-            if r['total_price']:
-                result += f"  Вкупно: {r['total_price']:,.2f} МКД\n"
-            if r.get('supplier_name'):
-                result += f"  Добавувач: {r['supplier_name']}\n"
-            result += f"  Набавувач: {r['procuring_entity']}\n"
-            result += f"  Датум: {r['publication_date']}\n"
-            result += f"  Тендер: {r['tender_title'][:60]}...\n\n"
+        result = ""
 
-        return result
+        # Add DB results if any
+        if rows:
+            result += f"## 📊 Од база ({len(rows)} записи):\n\n"
+            for r in rows:
+                result += f"**{r['name']}**\n"
+                if r['unit_price']:
+                    result += f"  Единечна цена: {r['unit_price']:,.2f} МКД\n"
+                if r['quantity']:
+                    result += f"  Количина: {r['quantity']} {r['unit'] or 'парчиња'}\n"
+                if r['total_price']:
+                    result += f"  Вкупно: {r['total_price']:,.2f} МКД\n"
+                if r.get('supplier_name'):
+                    result += f"  Добавувач: {r['supplier_name']}\n"
+                result += f"  Набавувач: {r['procuring_entity']}\n"
+                result += f"  Датум: {r['publication_date']}\n"
+                result += f"  Тендер: {r['tender_title'][:60]}...\n\n"
+
+        # Add web search results
+        if web_result and len(web_result) > 100 and "грешка" not in web_result.lower():
+            result += f"\n## 🌐 Од веб пребарување:\n\n{web_result}\n"
+
+        return result if result else f"Не најдов цени за производи: {', '.join(keywords)}"
 
     elif tool_name == "search_bid_documents":
         keywords = tool_args.get("keywords", [])
@@ -2995,7 +3064,15 @@ CPV: [код]
         if isinstance(keywords, str):
             keywords = [keywords]
 
-        patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 2]
+        # Split multi-word keywords and flatten - "хартија А4" becomes ["хартија", "А4"]
+        all_keywords = []
+        for kw in keywords:
+            if ' ' in kw:
+                all_keywords.extend(kw.split())
+            else:
+                all_keywords.append(kw)
+
+        patterns = [f"%{kw}%" for kw in all_keywords if len(kw) >= 2]
         if not patterns:
             return "Премногу кратки клучни зборови."
 
@@ -3162,15 +3239,27 @@ CPV: [код]
             """
             rows = await conn.fetch(query, f"%{company_name}%")
 
-            if not rows:
-                return f"Не најдов податоци за компанија: {company_name}"
+            # ALWAYS run web search for company intelligence
+            web_result = None
+            try:
+                search_query = f"{company_name} тендери победи Македонија e-nabavki"
+                web_result = await execute_tool("web_search_procurement", {"query": search_query}, conn)
+            except Exception as e:
+                print(f"[COMPETITOR] Web search failed: {e}")
 
-            result = f"Статистика на победи за {rows[0]['company_name']}:\n\n"
-            result += f"Вкупно понуди: {rows[0]['total_bids']}\n"
-            result += f"Победи: {rows[0]['wins']}\n"
-            result += f"Процент на победи: {rows[0]['win_rate']}%\n"
+            result = ""
 
-            return result
+            if rows:
+                result += f"## 📊 Од база:\n\n"
+                result += f"Статистика на победи за {rows[0]['company_name']}:\n"
+                result += f"Вкупно понуди: {rows[0]['total_bids']}\n"
+                result += f"Победи: {rows[0]['wins']}\n"
+                result += f"Процент на победи: {rows[0]['win_rate']}%\n"
+
+            if web_result and len(web_result) > 100 and "грешка" not in web_result.lower():
+                result += f"\n## 🌐 Од веб пребарување:\n\n{web_result}\n"
+
+            return result if result else f"Не најдов податоци за компанија: {company_name}"
 
         elif analysis_type == "head_to_head":
             if not company_name:
@@ -3583,9 +3672,22 @@ CPV: [код]
         result = ""
         found_entity = False
 
+        # Split entity name into words for flexible matching
+        # "ЈЗУ Градска болница" matches "ЈЗУ Градска општа болница..."
+        entity_words = [w for w in entity_name.split() if len(w) >= 2]
+
+        # Build flexible search condition - match ALL words in any order
+        if len(entity_words) > 1:
+            # Multiple words - each must appear
+            word_conditions = " AND ".join([f"entity_name ILIKE '%{w}%'" for w in entity_words])
+            search_sql = f"WHERE {word_conditions}"
+        else:
+            # Single word - simple ILIKE
+            search_sql = f"WHERE entity_name ILIKE '%{entity_name}%'"
+
         # Search procuring entities (buyers)
         if entity_type in ["buyer", "auto"]:
-            buyer_query = """
+            buyer_query = f"""
                 SELECT
                     entity_name,
                     entity_type,
@@ -3598,10 +3700,11 @@ CPV: [код]
                     contact_phone,
                     website
                 FROM procuring_entities
-                WHERE entity_name ILIKE $1
+                {search_sql}
+                ORDER BY total_tenders DESC
                 LIMIT 1
             """
-            buyer_row = await conn.fetchrow(buyer_query, f"%{entity_name}%")
+            buyer_row = await conn.fetchrow(buyer_query)
 
             if buyer_row:
                 found_entity = True
@@ -3843,10 +3946,22 @@ CPV: [код]
                     result += f"**Процент на победи:** {fallback_supplier['win_rate']}%\n"
                     found_entity = True
 
-        if not found_entity:
+        # ALWAYS run web search for additional entity intelligence
+        web_result = None
+        try:
+            search_query = f"{entity_name} тендери набавки Македонија e-nabavki"
+            web_result = await execute_tool("web_search_procurement", {"query": search_query}, conn)
+        except Exception as e:
+            print(f"[ENTITY PROFILE] Web search failed: {e}")
+
+        if not found_entity and not web_result:
             return f"Не најдов податоци за: {entity_name}\n\nПробајте со различно име или проверете дали име е точно."
 
-        return result
+        # Add web results
+        if web_result and len(web_result) > 100 and "грешка" not in web_result.lower():
+            result += f"\n## 🌐 Од веб пребарување:\n\n{web_result}\n"
+
+        return result if result else f"Не најдов податоци за: {entity_name}"
 
     elif tool_name == "get_top_tenders":
         # Analytical query tool - get top tenders by value, date, or status
@@ -4174,6 +4289,207 @@ CPV: [код]
 
         else:
             return f"Непознат тип на статистика: {stat_type}"
+
+    elif tool_name == "analyze_corruption_risk":
+        analysis_type = tool_args.get("analysis_type", "flagged_tenders")
+        entity_name = tool_args.get("entity_name", "")
+        severity = tool_args.get("severity", "all")
+        flag_type = tool_args.get("flag_type", "all")
+        limit = min(tool_args.get("limit", 10), 50)
+
+        # Legal disclaimer
+        disclaimer = "⚠️ НАПОМЕНА: Оваа анализа е за информативни цели. Означувањето како 'ризичен' НЕ претставува доказ за корупција.\n\n"
+
+        if analysis_type == "flagged_tenders":
+            # Get flagged tenders from our database
+            conditions = ["cf.false_positive = FALSE"]
+            params = []
+            param_idx = 0
+
+            if severity != "all":
+                param_idx += 1
+                conditions.append(f"cf.severity = ${param_idx}")
+                params.append(severity)
+
+            if flag_type != "all":
+                param_idx += 1
+                conditions.append(f"cf.flag_type = ${param_idx}")
+                params.append(flag_type)
+
+            where_clause = " AND ".join(conditions)
+            query = f"""
+                WITH tender_flags AS (
+                    SELECT cf.tender_id, SUM(cf.score) as total_score,
+                           MAX(cf.severity) as max_severity,
+                           ARRAY_AGG(DISTINCT cf.flag_type) as flag_types,
+                           COUNT(*) as flag_count
+                    FROM corruption_flags cf
+                    WHERE {where_clause}
+                    GROUP BY cf.tender_id
+                )
+                SELECT t.tender_id, t.title, t.procuring_entity, t.winner,
+                       t.estimated_value_mkd, tf.total_score, tf.max_severity,
+                       tf.flag_types, tf.flag_count
+                FROM tender_flags tf
+                JOIN tenders t ON t.tender_id = tf.tender_id
+                ORDER BY tf.total_score DESC
+                LIMIT {limit}
+            """
+            rows = await conn.fetch(query, *params)
+
+            if not rows:
+                return disclaimer + "Не најдов означени ризични тендери со овие критериуми.\n\n⚠️ ВАЖНО: Нашата база има ограничена покриеност (2-20% од сите тендери). За посеопфатна анализа, користете web_research."
+
+            result = disclaimer + f"🔴 ДЕТЕКТИРАНИ РИЗИЧНИ ТЕНДЕРИ ({len(rows)} резултати):\n\n"
+            for i, r in enumerate(rows, 1):
+                severity_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(r['max_severity'], "⚪")
+                result += f"**{i}. {r['title'][:60]}...**\n"
+                result += f"   ID: {r['tender_id']}\n"
+                result += f"   {severity_emoji} Ризик скор: {r['total_score']}/100 ({r['max_severity']})\n"
+                result += f"   Институција: {r['procuring_entity'][:40]}...\n" if r['procuring_entity'] else ""
+                if r['winner']:
+                    result += f"   Победник: {r['winner'][:40]}...\n"
+                if r['estimated_value_mkd']:
+                    result += f"   Вредност: {format_mkd(r['estimated_value_mkd'])}\n"
+                result += f"   Знамиња: {', '.join(r['flag_types'])}\n\n"
+
+            return result
+
+        elif analysis_type == "company_risk":
+            if not entity_name:
+                return disclaimer + "Потребно е име на компанија за анализа."
+
+            # Search for company flags
+            query = """
+                SELECT t.tender_id, t.title, cf.flag_type, cf.severity, cf.score, cf.description
+                FROM corruption_flags cf
+                JOIN tenders t ON t.tender_id = cf.tender_id
+                WHERE t.winner ILIKE '%' || $1 || '%' AND cf.false_positive = FALSE
+                ORDER BY cf.score DESC
+                LIMIT $2
+            """
+            rows = await conn.fetch(query, entity_name, limit)
+
+            if not rows:
+                return disclaimer + f"Не најдов ризик знамиња за компанија '{entity_name}' во нашата база.\n\n⚠️ Нашата база има ограничена покриеност. Препорачуваме web_research за посеопфатна анализа."
+
+            result = disclaimer + f"🔍 АНАЛИЗА НА РИЗИК ЗА: {entity_name}\n\n"
+            result += f"Најдени {len(rows)} ризик знамиња:\n\n"
+            for r in rows:
+                severity_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(r['severity'], "⚪")
+                result += f"{severity_emoji} **{r['flag_type']}** (Score: {r['score']})\n"
+                result += f"   Тендер: {r['tender_id']}\n"
+                if r['description']:
+                    result += f"   Опис: {r['description'][:100]}...\n"
+                result += "\n"
+
+            return result
+
+        elif analysis_type == "institution_risk":
+            if not entity_name:
+                return disclaimer + "Потребно е име на институција за анализа."
+
+            query = """
+                SELECT t.tender_id, t.title, t.winner, cf.flag_type, cf.severity, cf.score
+                FROM corruption_flags cf
+                JOIN tenders t ON t.tender_id = cf.tender_id
+                WHERE t.procuring_entity ILIKE '%' || $1 || '%' AND cf.false_positive = FALSE
+                ORDER BY cf.score DESC
+                LIMIT $2
+            """
+            rows = await conn.fetch(query, entity_name, limit)
+
+            if not rows:
+                return disclaimer + f"Не најдов ризик знамиња за институција '{entity_name}' во нашата база.\n\n⚠️ Нашата база има ограничена покриеност. Препорачуваме web_research за посеопфатна анализа."
+
+            result = disclaimer + f"🏛️ ИНСТИТУЦИОНАЛНА АНАЛИЗА: {entity_name}\n\n"
+            result += f"Најдени {len(rows)} ризик знамиња:\n\n"
+            for r in rows:
+                severity_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(r['severity'], "⚪")
+                result += f"{severity_emoji} **{r['flag_type']}** (Score: {r['score']})\n"
+                result += f"   Тендер: {r['tender_id']} - {r['title'][:40]}...\n"
+                if r['winner']:
+                    result += f"   Победник: {r['winner'][:40]}...\n"
+                result += "\n"
+
+            return result
+
+        elif analysis_type == "tender_risk":
+            if not entity_name:
+                return disclaimer + "Потребно е tender ID за анализа."
+
+            # Get tender details with all flags
+            tender = await conn.fetchrow("""
+                SELECT tender_id, title, procuring_entity, winner, estimated_value_mkd, status
+                FROM tenders WHERE tender_id = $1
+            """, entity_name)
+
+            if not tender:
+                return disclaimer + f"Не најдов тендер со ID: {entity_name}"
+
+            flags = await conn.fetch("""
+                SELECT flag_type, severity, score, description, evidence
+                FROM corruption_flags
+                WHERE tender_id = $1 AND false_positive = FALSE
+                ORDER BY score DESC
+            """, entity_name)
+
+            result = disclaimer + f"🔍 ДЕТАЛНА АНАЛИЗА НА ТЕНДЕР\n\n"
+            result += f"**{tender['title']}**\n"
+            result += f"ID: {tender['tender_id']}\n"
+            result += f"Институција: {tender['procuring_entity']}\n"
+            if tender['winner']:
+                result += f"Победник: {tender['winner']}\n"
+            if tender['estimated_value_mkd']:
+                result += f"Вредност: {format_mkd(tender['estimated_value_mkd'])}\n"
+            result += f"Статус: {tender['status']}\n\n"
+
+            if flags:
+                total_score = sum(f['score'] for f in flags)
+                result += f"⚠️ ВКУПЕН РИЗИК СКОР: {min(total_score, 100)}/100\n\n"
+                result += "ДЕТЕКТИРАНИ ЗНАМИЊА:\n"
+                for f in flags:
+                    severity_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(f['severity'], "⚪")
+                    result += f"\n{severity_emoji} **{f['flag_type']}** ({f['severity'].upper()}, Score: {f['score']})\n"
+                    if f['description']:
+                        result += f"   {f['description']}\n"
+                    if f['evidence']:
+                        try:
+                            import json
+                            evidence = f['evidence'] if isinstance(f['evidence'], dict) else json.loads(f['evidence'])
+                            if evidence.get('company_a'):
+                                result += f"   Компанија А: {evidence['company_a']}\n"
+                            if evidence.get('company_b'):
+                                result += f"   Компанија Б: {evidence['company_b']}\n"
+                            if evidence.get('overlap_percentage'):
+                                result += f"   Совпаѓање: {evidence['overlap_percentage']}%\n"
+                        except:
+                            pass
+            else:
+                result += "✅ Не се детектирани ризик знамиња за овој тендер.\n"
+
+            return result
+
+        elif analysis_type == "web_research":
+            # Use web search for corruption research
+            search_query = entity_name if entity_name else "корупција јавни набавки Македонија"
+
+            result = disclaimer + "🌐 ОНЛАЈН ИСТРАЖУВАЊЕ ЗА КОРУПЦИЈА\n\n"
+            result += f"Пребарување: {search_query}\n\n"
+            result += "⚠️ ВАЖНО: Нашата база има ограничена покриеност (2-20% од тендери).\n"
+            result += "За сеопфатна анализа, препорачуваме:\n"
+            result += "1. Директно пребарување на e-nabavki.gov.mk\n"
+            result += "2. Проверка на bjn.gov.mk (Биро за јавни набавки)\n"
+            result += "3. Медиумски извештаи за корупција\n\n"
+
+            # Trigger web search
+            web_result = await execute_tool("web_search_procurement", {"query": f"корупција {search_query}"}, conn)
+            result += web_result
+
+            return result
+
+        else:
+            return f"Непознат тип на анализа: {analysis_type}"
 
 
     return f"Непознат tool: {tool_name}"
@@ -6965,6 +7281,15 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
             (items_data, formatted_context)
         """
         pool = await get_pool()
+
+        # Split multi-word keywords - "хируршки ракавици" becomes ["хируршки", "ракавици"]
+        expanded_keywords = []
+        for kw in search_keywords:
+            if ' ' in kw:
+                expanded_keywords.extend(kw.split())
+            else:
+                expanded_keywords.append(kw)
+        search_keywords = expanded_keywords
 
         # Filter out generic/institution keywords that would match too many items
         # These are for tender filtering, not item filtering

@@ -38,8 +38,13 @@ import {
   Radar,
   Loader2,
   Info,
-  Scale
+  Scale,
+  ClipboardCheck,
+  MessageSquare,
+  Download,
+  Printer
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
 import { api } from "@/lib/api";
 import Link from "next/link";
@@ -96,6 +101,12 @@ export default function RiskAnalysisPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailedAnalysis, setDetailedAnalysis] = useState<Record<string, any>>({});
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
+
+  // Investigation workflow
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewNotes, setReviewNotes] = useState<string>("");
+  const [reviewStatus, setReviewStatus] = useState<Record<string, { status: string; notes: string }>>({});
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   // Search mode
   const [searchQuery, setSearchQuery] = useState("");
@@ -244,6 +255,110 @@ export default function RiskAnalysisPage() {
     }
   }
 
+  // Investigation workflow: submit review
+  async function submitReview(tenderId: string, flagId: string, isFalsePositive: boolean) {
+    if (!reviewNotes.trim()) {
+      alert("Потребни се белешки за ревизијата");
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      const res = await fetch(`${API_URL}/api/corruption/flags/${flagId}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          false_positive: isFalsePositive,
+          review_notes: reviewNotes
+        })
+      });
+
+      if (res.ok) {
+        setReviewStatus(prev => ({
+          ...prev,
+          [tenderId]: {
+            status: isFalsePositive ? "dismissed" : "confirmed",
+            notes: reviewNotes
+          }
+        }));
+        setReviewingId(null);
+        setReviewNotes("");
+        // Refresh the list
+        loadFlaggedTenders();
+      } else {
+        alert("Грешка при зачувување на ревизијата");
+      }
+    } catch (err) {
+      console.error("Review submission failed:", err);
+      alert("Грешка при зачувување на ревизијата");
+    } finally {
+      setSubmittingReview(false);
+    }
+  }
+
+  // Export functionality
+  function exportToPrint() {
+    const printContent = riskyTenders.map(t => {
+      const cfg = getRiskConfig(t.risk_level);
+      return `
+═══════════════════════════════════════════════════════════
+ТЕНДЕР: ${t.tender_id}
+Наслов: ${t.title}
+Институција: ${t.procuring_entity}
+Победник: ${t.winner || "Н/А"}
+Вредност: ${t.estimated_value_mkd ? formatCurrency(t.estimated_value_mkd) : "Н/А"}
+РИЗИК СКОР: ${t.risk_score}/100 (${cfg.label})
+Знамиња: ${t.flags.map(f => FLAG_TYPES[f.flag_type]?.label || f.flag_type).join(", ")}
+═══════════════════════════════════════════════════════════
+      `;
+    }).join("\n");
+
+    const header = `
+╔═══════════════════════════════════════════════════════════╗
+║          ИЗВЕШТАЈ ЗА РИЗИЧНИ ТЕНДЕРИ                      ║
+║          Генерирано: ${new Date().toLocaleString("mk-MK")}               ║
+║          Вкупно тендери: ${riskyTenders.length}                               ║
+╚═══════════════════════════════════════════════════════════╝
+
+⚠️ ПРАВНА НАПОМЕНА: Оваа анализа е генерирана автоматски од AI
+алгоритми и служи исклучиво за информативни цели. Означувањето
+на тендер како „ризичен" не претставува доказ за незаконски
+дејствија.
+
+${printContent}
+    `;
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(`<pre style="font-family: monospace; white-space: pre-wrap;">${header}</pre>`);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  }
+
+  function exportToCSV() {
+    const headers = ["tender_id", "title", "procuring_entity", "winner", "estimated_value_mkd", "risk_score", "risk_level", "flags"];
+    const rows = riskyTenders.map(t => [
+      t.tender_id,
+      `"${t.title.replace(/"/g, '""')}"`,
+      `"${(t.procuring_entity || "").replace(/"/g, '""')}"`,
+      `"${(t.winner || "").replace(/"/g, '""')}"`,
+      t.estimated_value_mkd || "",
+      t.risk_score,
+      t.risk_level,
+      `"${t.flags.map(f => f.flag_type).join("; ")}"`
+    ]);
+
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `risky_tenders_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
@@ -370,6 +485,18 @@ export default function RiskAnalysisPage() {
             <Button variant="outline" onClick={() => loadFlaggedTenders()} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
               Освежи
+            </Button>
+
+            <div className="flex-1" />
+
+            <Button variant="outline" onClick={exportToCSV} disabled={riskyTenders.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
+              CSV
+            </Button>
+
+            <Button variant="outline" onClick={exportToPrint} disabled={riskyTenders.length === 0}>
+              <Printer className="h-4 w-4 mr-2" />
+              Печати
             </Button>
           </div>
 
@@ -582,6 +709,80 @@ export default function RiskAnalysisPage() {
                                   <Building2 className="h-4 w-4 mr-1" /> Победник
                                 </Button>
                               </Link>
+                            )}
+                          </div>
+
+                          {/* Investigation Workflow */}
+                          <div className="mt-4 pt-4 border-t">
+                            {reviewStatus[tender.tender_id] ? (
+                              <div className={`p-3 rounded ${reviewStatus[tender.tender_id].status === "confirmed" ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`}>
+                                <div className="flex items-center gap-2 mb-1">
+                                  {reviewStatus[tender.tender_id].status === "confirmed" ? (
+                                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                                  ) : (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  )}
+                                  <span className="font-medium text-sm">
+                                    {reviewStatus[tender.tender_id].status === "confirmed" ? "Потврдено како ризично" : "Означено како лажно позитивно"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">{reviewStatus[tender.tender_id].notes}</p>
+                              </div>
+                            ) : reviewingId === tender.tender_id ? (
+                              <div className="space-y-3">
+                                <p className="text-sm font-medium flex items-center gap-2">
+                                  <ClipboardCheck className="h-4 w-4" />
+                                  Ревизија на ризик
+                                </p>
+                                <Textarea
+                                  placeholder="Внесете белешки за ревизијата..."
+                                  value={reviewNotes}
+                                  onChange={(e) => setReviewNotes(e.target.value)}
+                                  className="text-sm"
+                                  rows={3}
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => {
+                                      const flagId = detailedAnalysis[tender.tender_id]?.flags?.[0]?.flag_id;
+                                      if (flagId) submitReview(tender.tender_id, flagId, false);
+                                    }}
+                                    disabled={submittingReview || !reviewNotes.trim()}
+                                    className="flex-1"
+                                  >
+                                    {submittingReview ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <AlertTriangle className="h-3 w-3 mr-1" />}
+                                    Потврди ризик
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      const flagId = detailedAnalysis[tender.tender_id]?.flags?.[0]?.flag_id;
+                                      if (flagId) submitReview(tender.tender_id, flagId, true);
+                                    }}
+                                    disabled={submittingReview || !reviewNotes.trim()}
+                                    className="flex-1"
+                                  >
+                                    {submittingReview ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                                    Лажно позитивно
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => { setReviewingId(null); setReviewNotes(""); }}>
+                                    Откажи
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setReviewingId(tender.tender_id)}
+                                className="w-full"
+                              >
+                                <ClipboardCheck className="h-4 w-4 mr-2" />
+                                Започни ревизија
+                              </Button>
                             )}
                           </div>
                         </div>
