@@ -992,7 +992,7 @@ export default function SettingsPage() {
           daily_queries: 3,
           trial_days: 14,
           allow_vpn: false,
-          features: ['3 AI пребарувања дневно', '14-дневен пробен период', 'Основно пребарување', 'Email поддршка']
+          features: ['Основно пребарување', 'Email поддршка']
         },
         {
           tier: 'starter',
@@ -1002,9 +1002,9 @@ export default function SettingsPage() {
           price_monthly_id: 'price_1SYdj7HkVI5icjTla0nOYXpg',
           price_yearly_id: 'price_1SYdj7HkVI5icjTlpqVwQbQT',
           daily_queries: 10,
-          trial_days: 14,
+          trial_days: 0,
           allow_vpn: true,
-          features: ['10 AI пребарувања дневно', '14-дневен пробен период', 'Напредни филтри', 'CSV/PDF експорт', 'Приоритетна поддршка']
+          features: ['Напредни филтри', 'CSV/PDF експорт', 'Приоритетна поддршка']
         },
         {
           tier: 'professional',
@@ -1014,9 +1014,9 @@ export default function SettingsPage() {
           price_monthly_id: 'price_1SYdj8HkVI5icjTlqUWXb8QJ',
           price_yearly_id: 'price_1SYdj8HkVI5icjTl7A9x3Glo',
           daily_queries: 20,
-          trial_days: 14,
+          trial_days: 0,
           allow_vpn: true,
-          features: ['20 AI пребарувања дневно', '14-дневен пробен период', 'Аналитика', 'CSV/PDF експорт', 'Приоритетна поддршка']
+          features: ['Аналитика', 'CSV/PDF експорт', 'Приоритетна поддршка']
         },
         {
           tier: 'enterprise',
@@ -1026,9 +1026,9 @@ export default function SettingsPage() {
           price_monthly_id: 'price_1SYdj8HkVI5icjTlop9VVjAd',
           price_yearly_id: 'price_1SYdj9HkVI5icjTl1Bq2xtGw',
           daily_queries: -1,
-          trial_days: 14,
+          trial_days: 0,
           allow_vpn: true,
-          features: ['Неограничени AI пребарувања', '14-дневен пробен период', 'API пристап', 'CSV/PDF експорт', 'Приоритетна поддршка']
+          features: ['API пристап', 'CSV/PDF експорт', 'Приоритетна поддршка']
         }
       ];
       setPlans(hardcodedPlans);
