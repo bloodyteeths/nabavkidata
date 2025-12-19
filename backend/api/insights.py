@@ -199,7 +199,11 @@ async def get_top_winners(
     Returns winner name, win count, total value won, and categories.
     """
     # Query top winners from tender_bidders table
-    query = text("""
+    cpv_filter = ""
+    if cpv_prefix:
+        cpv_filter = "AND t.cpv_code LIKE :cpv_pattern"
+
+    query = text(f"""
         WITH winner_stats AS (
             SELECT
                 tb.company_name,
@@ -211,7 +215,7 @@ async def get_top_winners(
             JOIN tenders t ON tb.tender_id = t.tender_id
             WHERE tb.is_winner = true
                 AND t.status IN ('awarded', 'Доделен', 'contracted', 'Склучен договор')
-                AND (:cpv_prefix IS NULL OR t.cpv_code LIKE :cpv_pattern)
+                {cpv_filter}
             GROUP BY tb.company_name
             HAVING COUNT(DISTINCT tb.tender_id) > 0
         )
@@ -226,11 +230,9 @@ async def get_top_winners(
         LIMIT :limit
     """)
 
-    params = {
-        "cpv_prefix": cpv_prefix,
-        "cpv_pattern": f"{cpv_prefix}%" if cpv_prefix else None,
-        "limit": limit
-    }
+    params: dict = {"limit": limit}
+    if cpv_prefix:
+        params["cpv_pattern"] = f"{cpv_prefix}%"
 
     result = await db.execute(query, params)
     rows = result.fetchall()
@@ -267,7 +269,11 @@ async def get_price_benchmarks(
     (first 2 digits of CPV code).
     """
     # Query price statistics by CPV division
-    query = text("""
+    cpv_filter = ""
+    if cpv_prefix:
+        cpv_filter = "AND cpv_code LIKE :cpv_pattern"
+
+    query = text(f"""
         WITH cpv_stats AS (
             SELECT
                 SUBSTRING(cpv_code FROM 1 FOR 2) as cpv_division,
@@ -277,7 +283,7 @@ async def get_price_benchmarks(
                 AND cpv_code IS NOT NULL
                 AND estimated_value_mkd IS NOT NULL
                 AND estimated_value_mkd > 0
-                AND (:cpv_prefix IS NULL OR cpv_code LIKE :cpv_pattern)
+                {cpv_filter}
         )
         SELECT
             cpv_division,
@@ -287,19 +293,16 @@ async def get_price_benchmarks(
             MIN(estimated_value_mkd) as min_value,
             MAX(estimated_value_mkd) as max_value
         FROM cpv_stats
-        WHERE cpv_division ~ '^[0-9]{2}$'
+        WHERE cpv_division ~ '^[0-9]{{2}}$'
         GROUP BY cpv_division
         HAVING COUNT(*) >= 3
         ORDER BY tender_count DESC
         LIMIT :limit
     """)
 
-    params = {
-        "category": category,
-        "cpv_prefix": cpv_prefix,
-        "cpv_pattern": f"{cpv_prefix}%" if cpv_prefix else None,
-        "limit": limit
-    }
+    params: dict = {"category": category, "limit": limit}
+    if cpv_prefix:
+        params["cpv_pattern"] = f"{cpv_prefix}%"
 
     result = await db.execute(query, params)
     rows = result.fetchall()
@@ -387,7 +390,11 @@ async def get_active_buyers(
     cutoff_date = date.today() - timedelta(days=days)
 
     # Query active buyers
-    query = text("""
+    category_filter = ""
+    if category:
+        category_filter = "AND category = :category"
+
+    query = text(f"""
         SELECT
             procuring_entity,
             COUNT(*) as tender_count,
@@ -405,7 +412,7 @@ async def get_active_buyers(
             FROM tenders
             WHERE procuring_entity IS NOT NULL
                 AND opening_date >= :cutoff_date
-                AND (:category IS NULL OR category = :category)
+                {category_filter}
         ) t
         GROUP BY procuring_entity
         HAVING COUNT(*) > 0
@@ -413,11 +420,9 @@ async def get_active_buyers(
         LIMIT :limit
     """)
 
-    params = {
-        "cutoff_date": cutoff_date,
-        "category": category,
-        "limit": limit
-    }
+    params: dict = {"cutoff_date": cutoff_date, "limit": limit}
+    if category:
+        params["category"] = category
 
     result = await db.execute(query, params)
     rows = result.fetchall()
@@ -451,8 +456,12 @@ async def get_seasonal_patterns(
     Uses closing_date or opening_date (NOT created_at) for accurate seasonality.
     Returns last N months of data.
     """
-    # Query seasonal patterns
-    query = text("""
+    # Build query dynamically to avoid NULL type inference issues
+    category_filter = ""
+    if category:
+        category_filter = "AND category = :category"
+
+    query = text(f"""
         WITH monthly_data AS (
             SELECT
                 DATE_TRUNC('month', COALESCE(closing_date, opening_date)) as month,
@@ -461,7 +470,7 @@ async def get_seasonal_patterns(
             FROM tenders
             WHERE COALESCE(closing_date, opening_date) IS NOT NULL
                 AND COALESCE(closing_date, opening_date) >= NOW() - INTERVAL '1 month' * :months
-                AND (:category IS NULL OR category = :category)
+                {category_filter}
         )
         SELECT
             TO_CHAR(month, 'YYYY-MM') as month_key,
@@ -485,10 +494,9 @@ async def get_seasonal_patterns(
         ORDER BY month DESC
     """)
 
-    params = {
-        "months": months,
-        "category": category
-    }
+    params: dict = {"months": months}
+    if category:
+        params["category"] = category
 
     result = await db.execute(query, params)
     rows = result.fetchall()
