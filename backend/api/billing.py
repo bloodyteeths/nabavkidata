@@ -69,17 +69,17 @@ SUBSCRIPTION_PLANS = {
         "price_eur": 14.99,
         "stripe_price_id": PRICE_IDS.get("starter", {}).get("monthly"),
         "features": [
-            "5 AI queries per day",
+            "10 AI queries per day",
             "14-day free trial",
             "Advanced filters",
             "CSV/PDF export",
             "Priority support"
         ],
         "limits": {
-            "rag_queries_per_day": 5,
-            "saved_alerts": 5,
+            "rag_queries_per_day": 10,
+            "saved_alerts": 10,
             "export_results": True,
-            "alerts_per_day": 5
+            "alerts_per_day": 10
         }
     },
     "professional": {

@@ -37,8 +37,8 @@ TIER_LIMITS = {
         "max_trial_queries": 3  # 3 queries per day for 14 days
     },
     "starter": {
-        "daily_queries": 5,
-        "monthly_queries": 150,
+        "daily_queries": 10,
+        "monthly_queries": 300,
         "trial_days": 0,
         "allow_vpn": True,
         "max_trial_queries": None

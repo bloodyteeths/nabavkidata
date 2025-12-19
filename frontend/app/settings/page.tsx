@@ -1001,10 +1001,10 @@ export default function SettingsPage() {
           price_yearly_mkd: 8990,
           price_monthly_id: 'price_1SYdj7HkVI5icjTla0nOYXpg',
           price_yearly_id: 'price_1SYdj7HkVI5icjTlpqVwQbQT',
-          daily_queries: 5,
+          daily_queries: 10,
           trial_days: 14,
           allow_vpn: true,
-          features: ['5 AI пребарувања дневно', '14-дневен пробен период', 'Напредни филтри', 'CSV/PDF експорт', 'Приоритетна поддршка']
+          features: ['10 AI пребарувања дневно', '14-дневен пробен период', 'Напредни филтри', 'CSV/PDF експорт', 'Приоритетна поддршка']
         },
         {
           tier: 'professional',
