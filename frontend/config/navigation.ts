@@ -42,7 +42,7 @@ export const navigation = [
     icon: Users,
   },
   {
-    name: 'Трендови',
+    name: 'Бизнис Анализа',
     href: '/trends',
     icon: LineChart,
   },
