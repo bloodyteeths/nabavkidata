@@ -215,9 +215,185 @@ def validate_response(response: str, question: str) -> str:
     return response
 
 
+
+def validate_response_quality(response: str, question: str) -> tuple[bool, str]:
+    """
+    Validate that response is acceptable - not empty, not redirecting user elsewhere.
+
+    This ensures we NEVER return bad responses that:
+    - Tell users to visit other websites
+    - Claim we don't have data when we should
+    - Are too short or empty
+    - Don't contain expected data for data queries
+
+    Args:
+        response: The generated response text
+        question: The original user question
+
+    Returns:
+        Tuple of (is_valid, reason):
+        - (True, "Valid response") if response passes all checks
+        - (False, "reason") if response fails validation with explanation
+    """
+    if not response or len(response.strip()) < 50:
+        return False, "Response too short (less than 50 characters)"
+
+    # Bad patterns that should NEVER appear in responses
+    bad_patterns = [
+        'немам директен пристап',
+        'немам податоци',
+        'не можам да',
+        'не можам',
+        'препорачувам да отидете',
+        'препорачувам да посетите',
+        'пребарај на e-nabavki',
+        'користи го пребарувачот',
+        'провери на веб',
+        'одете на',
+        'посетете ја страницата',
+        'посети ја страната',
+        'e-nabavki.gov.mk',  # Never tell user to go to another site
+        'не е достапно',
+        'нема информации за',
+        'немам информации за',
+        'немам пристап до',
+        'не располагам со',
+        'систем не содржи',
+        'база не содржи',
+        'јас не можам',
+    ]
+
+    response_lower = response.lower()
+    for pattern in bad_patterns:
+        if pattern.lower() in response_lower:
+            return False, f"Contains forbidden pattern: '{pattern}'"
+
+    # Check if response actually has data (numbers, names, entities)
+    has_numbers = bool(re.search(r'\d+', response))
+    has_proper_nouns = bool(re.search(r'[А-Я][а-я]+', response))  # Macedonian capital letters
+
+    # For data queries, response must have concrete numbers or names
+    data_keywords = [
+        'колку', 'која', 'кој', 'кои', 'најмногу', 'најмалку',
+        'топ', 'цена', 'вредност', 'договор', 'понуда', 'тендер',
+        'победник', 'набавувач', 'износ', 'буџет', 'датум'
+    ]
+    is_data_query = any(kw in question.lower() for kw in data_keywords)
+
+    if is_data_query and not has_numbers and not has_proper_nouns:
+        return False, "Data query but no concrete data (numbers/names) in response"
+
+    # Check for generic unhelpful responses
+    unhelpful_indicators = [
+        'немам конкретни',
+        'немам специфични',
+        'не можам да најдам конкретни',
+        'не постојат податоци',
+    ]
+
+    unhelpful_count = sum(1 for indicator in unhelpful_indicators if indicator in response_lower)
+    if unhelpful_count >= 2:
+        return False, "Response contains multiple unhelpful indicators"
+
+    # Response must have some substance (more than just disclaimers)
+    if response_lower.count('напомена') > 2 or response_lower.count('⚠️') > 2:
+        return False, "Too many warnings/disclaimers, not enough actual content"
+
+    return True, "Valid response"
+
+
 # ============================================================================
 # GROUNDING VERIFICATION - Ensure answers are based on retrieved data
 # ============================================================================
+
+def format_award_criteria(award_criteria) -> str:
+    """
+    Format award_criteria JSONB into readable Macedonian text.
+
+    Expected JSON structure:
+    {
+        "criteria": [
+            {"name": "Цена", "weight": 60},
+            {"name": "Квалитет", "weight": 30},
+            {"name": "Рок на испорака", "weight": 10}
+        ]
+    }
+
+    Or simpler format:
+    {
+        "price": 60,
+        "quality": 30,
+        "delivery": 10
+    }
+
+    Args:
+        award_criteria: JSONB/dict object containing award criteria
+
+    Returns:
+        Formatted string in Macedonian or empty string if no data
+    """
+    if not award_criteria:
+        return ""
+
+    import json
+
+    # Handle if it's a string (shouldn't happen with JSONB but just in case)
+    if isinstance(award_criteria, str):
+        try:
+            award_criteria = json.loads(award_criteria)
+        except:
+            return ""
+
+    if not isinstance(award_criteria, dict):
+        return ""
+
+    criteria_lines = []
+
+    # Check for array format
+    if 'criteria' in award_criteria and isinstance(award_criteria['criteria'], list):
+        for criterion in award_criteria['criteria']:
+            name = criterion.get('name', criterion.get('criterion_name', 'N/A'))
+            weight = criterion.get('weight', criterion.get('percentage', 0))
+            if name and weight:
+                criteria_lines.append(f"  - {name}: {weight}%")
+
+    # Check for flat dictionary format (key: weight)
+    elif award_criteria:
+        # Common field mappings
+        field_names = {
+            'price': 'Цена',
+            'цена': 'Цена',
+            'quality': 'Квалитет',
+            'квалитет': 'Квалитет',
+            'delivery': 'Рок на испорака',
+            'delivery_time': 'Рок на испорака',
+            'рок': 'Рок на испорака',
+            'technical': 'Технички услови',
+            'technical_capability': 'Технички услови',
+            'experience': 'Искуство',
+            'искуство': 'Искуство',
+            'warranty': 'Гаранција',
+            'гаранција': 'Гаранција',
+        }
+
+        for key, value in award_criteria.items():
+            if key.lower() in ['criteria', 'method', 'type']:
+                continue  # Skip meta fields
+
+            # Try to get a readable name
+            readable_name = field_names.get(key.lower(), key.capitalize())
+
+            # Check if value is numeric (weight)
+            if isinstance(value, (int, float)):
+                criteria_lines.append(f"  - {readable_name}: {value}%")
+            elif isinstance(value, dict) and 'weight' in value:
+                criteria_lines.append(f"  - {readable_name}: {value['weight']}%")
+
+    if criteria_lines:
+        return "Критериуми за оценување:\n" + "\n".join(criteria_lines)
+
+    return ""
+
 
 def calculate_result_confidence(tool_results: dict) -> float:
     """
@@ -1096,6 +1272,16 @@ def format_drilled_tender_results(drill_results: dict) -> str:
                 desc_preview += "..."
             output_parts.append(f"\nОпис: {desc_preview}")
 
+        # Award criteria (if available)
+        if tender.get('award_criteria'):
+            criteria_text = format_award_criteria(tender['award_criteria'])
+            if criteria_text:
+                output_parts.append(f"\n{criteria_text}")
+
+        # Evaluation method (if available)
+        if tender.get('evaluation_method'):
+            output_parts.append(f"Метод на евалуација: {tender['evaluation_method']}")
+
         # Bidders section
         bidders = tender.get('bidders', [])
         if bidders:
@@ -1234,6 +1420,30 @@ DATA_SOURCE_TOOLS = [
         }
     },
     {
+        "name": "semantic_search_documents",
+        "description": "Semantic vector search using AI embeddings (pgvector). Finds documents by MEANING, not just keywords. Perfect for: complex specifications, technical requirements, conceptual searches like 'medical equipment for surgery' even if exact words don't match. More powerful than keyword search.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Natural language query describing what you're looking for. Can be a question or description. Examples: 'медицинска опрема за хируршки интервенции', 'спецификации за IT опрема', 'equipment for hospital operations'"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of results to return (default: 5, max: 20)",
+                    "default": 5
+                },
+                "min_similarity": {
+                    "type": "number",
+                    "description": "Minimum similarity threshold 0.0-1.0 (default: 0.5). Higher = more strict matching.",
+                    "default": 0.5
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
         "name": "web_search_procurement",
         "description": "Search the web for fresh procurement data from e-nabavki.gov.mk and other sources. Use this to find latest tenders, announcements, or data not yet in our database.",
         "parameters": {
@@ -1331,6 +1541,93 @@ DATA_SOURCE_TOOLS = [
             },
             "required": ["keywords"]
         }
+    },
+    {
+        "name": "get_entity_profile",
+        "description": "Get detailed profile for a procuring entity (buyer/institution) or supplier (company). Returns statistics, win rates, common categories, and recent tender history. Use when user asks about a specific organization or company.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entity_name": {
+                    "type": "string",
+                    "description": "Name of the procuring entity or supplier to look up (e.g., 'Municipality of Skopje', 'Alkaloid AD')"
+                },
+                "entity_type": {
+                    "type": "string",
+                    "enum": ["buyer", "supplier", "auto"],
+                    "description": "Type of entity to search for. Use 'auto' to search both tables automatically. Default: 'auto'"
+                }
+            },
+            "required": ["entity_name"]
+        }
+    },
+    {
+        "name": "get_top_tenders",
+        "description": "Get top tenders by value (largest/smallest), most recent, or by status. Use for analytical queries: 'најголеми тендери', 'најскапи набавки', 'top 10 by value', 'recent tenders', 'активни тендери'. Does NOT require keywords.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sort_by": {
+                    "type": "string",
+                    "enum": ["value_desc", "value_asc", "date_desc", "date_asc"],
+                    "description": "Sorting: value_desc (largest first), value_asc (smallest), date_desc (newest), date_asc (oldest). Default: value_desc"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of tenders to return (1-50). Default: 10"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["active", "awarded", "cancelled", "all"],
+                    "description": "Filter by status. Default: all"
+                },
+                "year": {
+                    "type": "integer",
+                    "description": "Filter by year (e.g., 2024, 2023). Optional."
+                },
+                "min_value": {
+                    "type": "number",
+                    "description": "Minimum value in MKD. Optional."
+                },
+                "institution_type": {
+                    "type": "string",
+                    "description": "Filter by institution type keyword (e.g., 'општина', 'министерство', 'болница'). Optional."
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "get_statistics",
+        "description": "Get comprehensive statistics and aggregations across tenders. Use for: 'која институција објавува најмногу', 'кој победува најчесто', 'колку тендери има по години', 'статистика по категорија', 'market overview', 'колку тендери по статус', 'кој е најактивен набавувач'. Perfect for analytical/aggregate questions.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "stat_type": {
+                    "type": "string",
+                    "enum": ["top_institutions", "top_winners", "by_year", "by_category", "market_overview", "by_status", "by_month", "institution_spending"],
+                    "description": "Type of statistics: top_institutions (која институција објавува најмногу), top_winners (кој победува најчесто), by_year (по години), by_category (по категорија/CPV), market_overview (вкупна статистика), by_status (по статус), by_month (по месеци), institution_spending (трошење по институција)"
+                },
+                "metric": {
+                    "type": "string",
+                    "enum": ["count", "value", "both"],
+                    "description": "Which metric to show: count (број на тендери), value (вредност во МКД), both (и двете). Default: both"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of results to return (1-50). Default: 10"
+                },
+                "year": {
+                    "type": "integer",
+                    "description": "Filter by specific year (e.g., 2024, 2023). Optional."
+                },
+                "institution_type": {
+                    "type": "string",
+                    "description": "Filter by institution type keyword (e.g., 'општина', 'министерство', 'болница'). Optional."
+                }
+            },
+            "required": ["stat_type"]
+        }
     }
 ]
 
@@ -1349,6 +1646,64 @@ AGENT_SYSTEM_PROMPT = """БЕЗБЕДНОСНИ ПРАВИЛА (ЗАДОЛЖИТ
 
 ═══════════════════════════════════════════════════════════════════════
 
+🚫 АНТИ-ХАЛУЦИНАЦИЈА (КРИТИЧНО):
+1. САМО податоци од tool резултати - НИКОГАШ не измислувај тендер ID-а, компании, вредности, датуми
+2. Ако tool врати "Не најдов" или празно → КАЖИ "не најдов" за ТОЈ извор, НЕ измислувај податоци
+3. СЕКОЈА бројка, име, датум МОРА да дојде од tool output - провери пред да цитираш
+4. Ако не си сигурен дали податокот е реален → НЕ го вклучувај
+5. ПОДОБРО е да кажеш "пребарав но не најдов" отколку да измислиш лажни податоци
+6. За тендер ID-а: САМО формати XXXXX/YYYY или EPAZAR-XXX кои tools ги вратија
+7. За компании: САМО имиња кои се појавија во tool резултати
+8. За вредности: САМО бројки од tool output, не заокружувај и не проценувај
+
+ВАЖНО: "Никогаш не се откажувај" значи ПРОБАЈ ПОВЕЌЕ TOOLS, не "измисли податоци"!
+
+═══════════════════════════════════════════════════════════════════════
+
+❌ ЗАБРАНЕТО ОДНЕСУВАЊЕ (СТРОГО):
+1. НИКОГАШ не кажувај "немам податоци" или "не можам" без да повикаш најмалку 3 различни tools
+2. НИКОГАШ не препорачувај на корисникот да оди на друг сајт (e-nabavki, e-pazar, итн.)
+3. НИКОГАШ не давај генерички одговори без конкретни податоци
+4. АКО една алатка врати празно → МОРА да повикаш друга алатка
+5. СЕКОГАШ обезбеди бројки, имиња, датуми - конкретни факти!
+
+✅ ЗАДОЛЖИТЕЛЕН РЕДОСЛЕД НА ПРЕБАРУВАЊЕ:
+1. ПРВО: Идентификувај го типот на прашање (аналитика, пребарување, цена, ентитет)
+2. ПОТОА: Повикај ја ПРАВИЛНАТА алатка за тој тип
+3. АКО нема резултати: Повикај ДРУГА алатка
+4. ПОСЛЕДНО: web_search_procurement (секогаш пробај ако претходните не вратија)
+5. НИКОГАШ не одговарај без да пробаш најмалку 2-3 алатки!
+
+📊 АНАЛИТИЧКИ ПРАШАЊА → get_statistics
+   Примери: "која институција", "кој победува", "колку тендери", "по години", "најголем буџет"
+
+🔍 ПРЕБАРУВАЊЕ → search_tenders, search_product_items
+   Примери: "тендери за лекови", "набавки на компјутери"
+
+💰 ЦЕНИ → get_price_statistics, search_product_items
+   Примери: "колку чини", "просечна цена", "цена на"
+
+🏛️ ЕНТИТЕТИ → get_entity_profile
+   Примери: "кажи ми за", "профил на", "историја на"
+
+📈 ТОП ЛИСТИ → get_top_tenders
+   Примери: "најголеми тендери", "најскапи набавки", "top 10"
+
+🌐 ТЕКОВНИ → web_search_procurement ПРВО
+   Примери: "активни тендери", "денес", "оваа недела"
+
+⚠️ АКО СИТЕ TOOLS ВРАТАТ ПРАЗНО:
+1. МОРА да повикаш web_search_procurement
+2. Ако и тоа е празно, одговори со:
+   "Пребарав во базата и на веб, но не најдов резултати за [темата].
+   Можете да пробате со:
+   - Поинакви клучни зборови: [сугестии]
+   - Поширок временски период
+   - Поврзани теми: [сугестии]"
+3. НИКОГАШ не кажувај "одете на e-nabavki.gov.mk"!
+
+═══════════════════════════════════════════════════════════════════════
+
 Ти си ЕКСПЕРТСКИ КОНСУЛТАНТ за јавни набавки во Македонија.
 
 ТИ ИМАШ ПРИСТАП ДО СЛЕДНИВЕ ИЗВОРИ НА ПОДАТОЦИ:
@@ -1362,7 +1717,13 @@ AGENT_SYSTEM_PROMPT = """БЕЗБЕДНОСНИ ПРАВИЛА (ЗАДОЛЖИТ
 3. **search_bid_documents** - Содржина на PDF документи (финансиски понуди, договори, огласи)
    Користи за: Детални цени, спецификации, РАМКОВЕН ДОГОВОР инфо, услови за учество
 
-4. **web_search_procurement** - ПРЕБАРУВАЊЕ НА ЖИВО на e-nabavki.gov.mk и веб (РЕАЛНО ПРЕБАРУВА!)
+4. **semantic_search_documents** - 🤖 AI СЕМАНТИЧКО ПРЕБАРУВАЊЕ со вектори (pgvector + Gemini embeddings)
+   Користи за: Концептуални пребарувања, комплексни спецификации, технички барања каде точните зборови не мора да се совпаѓаат
+   МОЌНО: Пребарува по ЗНАЧЕЊЕ користејќи AI embeddings - не треба точно совпаѓање на зборови!
+   Примери: "медицинска опрема за операции" → наоѓа: хируршки инструменти, стерилизатори, анестезија, дури и ако не се споменати точно тие зборови
+   Идеално за: Технички спецификации, комплексни барања, концептуални пребарувања
+
+5. **web_search_procurement** - ПРЕБАРУВАЊЕ НА ЖИВО на e-nabavki.gov.mk и веб (РЕАЛНО ПРЕБАРУВА!)
    Користи за: АКТИВНИ тендери, тековни огласи, најнови податоци, секогаш кога корисникот бара "сега", "денес", "активни"
    ВАЖНО: Овој tool НАВИСТИНА пребарува на интернет (не е база), користи го слободно!
 
@@ -1380,7 +1741,40 @@ AGENT_SYSTEM_PROMPT = """БЕЗБЕДНОСНИ ПРАВИЛА (ЗАДОЛЖИТ
 8. **get_price_statistics** - Статистички агрегации на цени (просек, мин, макс, опсег)
    Користи за: "Просечна цена за X?", "Типична цена на Y?", "Колку обично чини Z?", "Price range за W?"
    Може да групира по: година (year), добавувач (supplier), институција (institution)
-   ВАЖНО: Користи го за агрегатни прашања, не за индивидуални цени!
+   VAŽNO: Користи го за агрегатни прашања, не за индивидуални цени!
+
+9. **get_entity_profile** - Детален профил на набавувач (институција) или добавувач (компанија)
+   Користи за: "Кажи ми за Општина Скопје", "Профил на компанија XYZ", "Што работи фирма ABC?", "Која е историјата на институција X?"
+   Враќа: статистики, процент на победи, чести категории (CPV кодови), историја на тендери
+   Типови: buyer (набавувач), supplier (добавувач), auto (автоматски пребарува и двете)
+
+10. **get_top_tenders** - 📊 АНАЛИТИЧКИ ПРАШАЊА за топ/најголеми/најскапи тендери (НЕ БАРА КЛУЧНИ ЗБОРОВИ!)
+   Користи за: "најголеми тендери", "најскапи набавки", "top 10 по вредност", "скорешни тендери", "активни тендери"
+   ВАЖНО: Овој tool НЕ бара keywords - само сортира и филтрира!
+   Параметри:
+   - sort_by: "value_desc" (најголеми), "value_asc" (најмали), "date_desc" (најнови), "date_asc" (најстари)
+   - limit: број на резултати (1-50)
+   - status: "active", "awarded", "cancelled", "all"
+   - year: филтер по година (2024, 2023, итн.)
+   - institution_type: филтер по тип институција ("општина", "болница", "министерство")
+
+11. **get_statistics** - 📊 СТАТИСТИЧКИ АГРЕГАЦИИ и аналитика низ тендери
+   Користи за: "која институција објавува најмногу", "кој победува најчесто", "колку тендери по години", "статистика по категорија", "вкупна статистика на пазарот"
+   КРИТИЧНО: Користи го кога треба да пребројуваш, групираш, или агрегираш тендери!
+   Типови на статистики:
+   - top_institutions: "која институција објавува најмногу", "кој е најактивен набавувач"
+   - top_winners: "кој победува најчесто", "топ добавувачи", "кој освојува најмногу тендери"
+   - by_year: "тендери по години", "статистика по години", "трендови низ години"
+   - by_category: "по CPV категорија", "по тип на набавка"
+   - market_overview: "вкупна статистика", "market overview", "општо состојба"
+   - by_status: "колку активни тендери", "статус на тендери"
+   - by_month: "по месеци", "месечна статистика"
+   - institution_spending: "колку трошат институциите"
+   Параметри:
+   - metric: "count" (број), "value" (вредност), "both" (и двете)
+   - limit: број на резултати (1-50, default: 10)
+   - year: филтер по година
+   - institution_type: филтер по тип институција
 
 ДЕТЕКЦИЈА НА TENDER ID:
 - Ако корисникот спомене ID на тендер (број, код), користи get_tender_by_id
@@ -1432,7 +1826,10 @@ AGENT_SYSTEM_PROMPT = """БЕЗБЕДНОСНИ ПРАВИЛА (ЗАДОЛЖИТ
 ❌ "Проверете на e-nabavki.gov.mk" - ТИ пребарај со web_search!
 ❌ "Не можам да препорачам цена" - МОЖЕШ врз основа на историја!
 ❌ Генерички одговори без бројки
-❌ Кажување "недостасува" без прво да пребараш на веб"""
+❌ Кажување "недостасува" без прво да пребараш на веб
+❌ "Одете на e-pazar.gov.mk" или било кој друг сајт - ТИ ја имаш моќта да пребараш!
+❌ "Не можам да најдам" или "немам податоци" БЕЗ да повикаш 3+ tools
+❌ Предавање на корисникот - ТИ СИ ЕКСПЕРТОТ, ТИ пребарувај!"""
 
 
 # ============================================================================
@@ -2107,6 +2504,122 @@ async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
 
         return result
 
+
+    elif tool_name == "semantic_search_documents":
+        # Vector similarity search using pgvector and Gemini embeddings
+        query_text = tool_args.get("query", "")
+        if not query_text:
+            return "Не е даден текст за пребарување."
+
+        limit = tool_args.get("limit", 5)
+        min_similarity = tool_args.get("min_similarity", 0.5)
+
+        # Validate parameters
+        if limit > 20:
+            limit = 20
+        if min_similarity < 0 or min_similarity > 1:
+            min_similarity = 0.5
+
+        try:
+            # 1. Generate query embedding using Gemini
+            logger.info(f"Generating embedding for query: {query_text[:100]}...")
+            embedder = EmbeddingGenerator(api_key=os.getenv('GEMINI_API_KEY'))
+            query_vector = await embedder.generate_embedding(query_text)
+
+            # 2. Perform vector similarity search using pgvector
+            # Use cosine distance operator <=> (1 - cosine similarity)
+            vector_str = '[' + ','.join(map(str, query_vector)) + ']'
+
+            # Search embeddings table with similarity threshold
+            search_query = """
+                SELECT
+                    e.embed_id,
+                    e.chunk_text,
+                    e.chunk_index,
+                    e.tender_id,
+                    e.doc_id,
+                    e.metadata,
+                    1 - (e.embedding <=> $1::vector) as similarity,
+                    t.title as tender_title,
+                    t.procuring_entity,
+                    t.winner,
+                    t.publication_date,
+                    t.actual_value_mkd,
+                    d.file_name,
+                    d.doc_category
+                FROM embeddings e
+                LEFT JOIN tenders t ON e.tender_id = t.tender_id
+                LEFT JOIN documents d ON e.doc_id = d.doc_id
+                WHERE 1 - (e.embedding <=> $1::vector) >= $2
+                ORDER BY e.embedding <=> $1::vector
+                LIMIT $3
+            """
+
+            rows = await conn.fetch(search_query, vector_str, min_similarity, limit)
+
+            if not rows:
+                return f"Не најдов семантички слични документи за: {query_text}\n(Можеби пробајте со помал min_similarity или користете keyword search)"
+
+            # 3. Format results with context
+            result_parts = [
+                f"🔍 Семантичко пребарување: {query_text}",
+                f"Најдов {len(rows)} релевантни документи (сличност >= {min_similarity:.0%}):\n"
+            ]
+
+            for i, row in enumerate(rows, 1):
+                similarity_pct = row['similarity'] * 100
+                chunk_text = row['chunk_text'][:1500] if row['chunk_text'] else "Нема содржина"
+
+                result_parts.append(f"\n{'='*60}")
+                result_parts.append(f"Резултат #{i} (Сличност: {similarity_pct:.1f}%)")
+                result_parts.append(f"{'='*60}")
+
+                # Tender info (if available)
+                if row['tender_title']:
+                    result_parts.append(f"**Тендер:** {row['tender_title']}")
+                if row['procuring_entity']:
+                    result_parts.append(f"**Набавувач:** {row['procuring_entity']}")
+                if row['winner']:
+                    result_parts.append(f"**Победник:** {row['winner']}")
+                if row['publication_date']:
+                    result_parts.append(f"**Датум:** {row['publication_date']}")
+                if row['actual_value_mkd']:
+                    result_parts.append(f"**Вредност:** {row['actual_value_mkd']:,.0f} МКД")
+
+                # Document info
+                if row['file_name']:
+                    result_parts.append(f"**Документ:** {row['file_name']} ({row['doc_category'] or 'N/A'})")
+
+                # Metadata
+                if row['metadata']:
+                    metadata = row['metadata']
+                    if isinstance(metadata, str):
+                        import json
+                        try:
+                            metadata = json.loads(metadata)
+                        except:
+                            pass
+                    if isinstance(metadata, dict) and metadata:
+                        meta_str = ", ".join(f"{k}: {v}" for k, v in metadata.items() if v)
+                        if meta_str:
+                            result_parts.append(f"**Метаподатоци:** {meta_str}")
+
+                # Chunk content
+                result_parts.append(f"\n**Содржина:**")
+                result_parts.append(chunk_text)
+
+            # Summary statistics
+            avg_similarity = sum(r['similarity'] for r in rows) / len(rows)
+            result_parts.append(f"\n{'='*60}")
+            result_parts.append(f"📊 Просечна сличност: {avg_similarity*100:.1f}%")
+            result_parts.append(f"💡 Совет: За подобри резултати, користи специфични термини и опиши што бараш.")
+
+            return "\n".join(result_parts)
+
+        except Exception as e:
+            logger.error(f"Semantic search failed: {e}")
+            return f"Грешка при семантичко пребарување: {str(e)}\nПробајте со keyword search (search_bid_documents) како алтернатива."
+
     elif tool_name == "web_search_procurement":
         # Accept both 'query' and 'keywords' parameters
         search_query = tool_args.get("query", "")
@@ -2120,11 +2633,16 @@ async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
         # Sanitize query (prevent injection)
         search_query = search_query.replace("\n", " ").strip()[:500]
 
-        # Use Gemini 2.0 with ACTUAL web search grounding via REST API
-        try:
-            import requests
+        # Strategy: Try Gemini with retries -> SERPER fallback -> Direct scraping fallback
+        import requests
 
-            api_key = os.getenv('GEMINI_API_KEY')
+        gemini_success = False
+        result_text = None
+
+        # TRY 1: Gemini 2.0 with Google Search grounding (with retry logic)
+        api_key = os.getenv('GEMINI_API_KEY')
+
+        if api_key:
             url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
 
             # IMPROVED: Structured prompt for better data extraction
@@ -2176,26 +2694,143 @@ CPV: [код]
                 }
             }
 
-            response = requests.post(url, json=payload, timeout=60)
-            data = response.json()
+            # Retry logic for Gemini (up to 3 attempts)
+            for attempt in range(3):
+                try:
+                    logger.info(f"[WEB SEARCH] Gemini attempt {attempt + 1}/3 for query: {search_query[:50]}")
+                    response = requests.post(url, json=payload, timeout=60)
+                    data = response.json()
 
-            if 'error' in data:
-                logger.warning(f"Gemini API error in web search: {data['error'].get('message', 'Unknown')}")
-                return f"Веб пребарувањето не успеа: {data['error'].get('message', 'Unknown error')}"
+                    if 'error' in data:
+                        error_msg = data['error'].get('message', 'Unknown')
+                        logger.warning(f"Gemini API error on attempt {attempt + 1}: {error_msg}")
 
-            # Check for grounding metadata (indicates real web search was used)
-            grounding = data.get('candidates', [{}])[0].get('groundingMetadata', {})
-            if grounding:
-                grounding_chunks = grounding.get('groundingChunks', [])
-                search_suggestions = grounding.get('webSearchQueries', [])
-                logger.info(f"[WEB SEARCH] Google Search grounding active - {len(grounding_chunks)} chunks, queries: {search_suggestions}")
+                        # Check for specific error types
+                        if 'API key not valid' in error_msg or 'INVALID_ARGUMENT' in error_msg:
+                            logger.error(f"Invalid/missing API key on attempt {attempt + 1}")
+                            if attempt < 2:
+                                await asyncio.sleep(1)  # Wait before retry
+                                continue
+                            # After 3 failures, break and try SERPER
+                            break
+                        elif 'RESOURCE_EXHAUSTED' in error_msg or 'quota' in error_msg.lower():
+                            logger.error(f"Gemini API quota exhausted")
+                            break  # No point retrying quota errors
+                        else:
+                            # Other errors - retry if we have attempts left
+                            if attempt < 2:
+                                await asyncio.sleep(1)
+                                continue
+                            break
 
-            # Extract text from REST API response
-            result_text = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-            if not result_text:
-                result_text = "Веб пребарувањето не врати резултати."
+                    # Success! Extract results
+                    # Check for grounding metadata (indicates real web search was used)
+                    grounding = data.get('candidates', [{}])[0].get('groundingMetadata', {})
+                    if grounding:
+                        grounding_chunks = grounding.get('groundingChunks', [])
+                        search_suggestions = grounding.get('webSearchQueries', [])
+                        logger.info(f"[WEB SEARCH] Google Search grounding active - {len(grounding_chunks)} chunks, queries: {search_suggestions}")
 
-            # POST-PROCESS: Extract tender IDs and drill for DB details
+                    # Extract text from REST API response
+                    result_text = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                    if result_text:
+                        gemini_success = True
+                        logger.info(f"[WEB SEARCH] Gemini succeeded on attempt {attempt + 1}")
+                        break
+                    else:
+                        logger.warning(f"Gemini returned empty result on attempt {attempt + 1}")
+                        if attempt < 2:
+                            await asyncio.sleep(1)
+                            continue
+
+                except requests.Timeout:
+                    logger.warning(f"Gemini timeout on attempt {attempt + 1}")
+                    if attempt < 2:
+                        await asyncio.sleep(2)  # Longer wait for timeouts
+                        continue
+
+                except Exception as e:
+                    logger.error(f"Gemini error on attempt {attempt + 1}: {e}")
+                    if attempt < 2:
+                        await asyncio.sleep(1)
+                        continue
+        else:
+            logger.warning("[WEB SEARCH] GEMINI_API_KEY not set, skipping Gemini")
+
+        # TRY 2: SERPER API fallback (if Gemini failed)
+        if not gemini_success:
+            logger.info("[WEB SEARCH] Gemini failed, trying SERPER API fallback")
+            serper_key = os.getenv('SERPER_API_KEY')
+
+            if serper_key:
+                try:
+                    serper_url = "https://google.serper.dev/search"
+
+                    # Search e-nabavki.gov.mk
+                    serper_payload = {
+                        "q": f"site:e-nabavki.gov.mk {search_query}",
+                        "gl": "mk",
+                        "hl": "mk",
+                        "num": 10
+                    }
+
+                    logger.info(f"[WEB SEARCH] Trying SERPER for e-nabavki.gov.mk")
+                    serper_response = requests.post(
+                        serper_url,
+                        json=serper_payload,
+                        headers={"X-API-KEY": serper_key},
+                        timeout=30
+                    )
+
+                    if serper_response.status_code == 200:
+                        serper_data = serper_response.json()
+                        organic = serper_data.get('organic', [])
+
+                        if organic:
+                            result_text = f"**СЕРПЕР РЕЗУЛТАТИ ЗА: {search_query}**\n\n"
+                            result_text += f"Пронајдени {len(organic)} резултати на e-nabavki.gov.mk:\n\n"
+
+                            for idx, item in enumerate(organic[:5], 1):
+                                title = item.get('title', 'N/A')
+                                snippet = item.get('snippet', '')
+                                link = item.get('link', '')
+
+                                result_text += f"{idx}. **{title}**\n"
+                                result_text += f"   {snippet}\n"
+                                result_text += f"   {link}\n\n"
+
+                            logger.info(f"[WEB SEARCH] SERPER found {len(organic)} results")
+                            gemini_success = True  # Mark as success to skip further fallbacks
+                        else:
+                            logger.warning("[WEB SEARCH] SERPER returned no results")
+                    else:
+                        logger.warning(f"[WEB SEARCH] SERPER failed with status {serper_response.status_code}")
+
+                except Exception as serper_err:
+                    logger.error(f"[WEB SEARCH] SERPER error: {serper_err}")
+            else:
+                logger.warning("[WEB SEARCH] SERPER_API_KEY not set, skipping SERPER fallback")
+
+        # TRY 3: Direct e-nabavki scraping fallback (if both Gemini and SERPER failed)
+        if not gemini_success or not result_text:
+            logger.info("[WEB SEARCH] Both Gemini and SERPER failed, trying direct scraping fallback")
+            try:
+                scraped = await _scrape_enabavki_direct(search_query)
+                if scraped:
+                    result_text = scraped
+                    logger.info("[WEB SEARCH] Direct scraping succeeded")
+                else:
+                    logger.warning("[WEB SEARCH] Direct scraping returned no results")
+            except Exception as scrape_err:
+                logger.error(f"[WEB SEARCH] Direct scraping error: {scrape_err}")
+
+        # Final check - if we still have no results, return helpful message
+        if not result_text:
+            logger.error("[WEB SEARCH] All methods failed")
+            return f"Веб пребарувањето моментално не е достапно. Ве молиме пребарајте директно на:\n- https://e-nabavki.gov.mk/ за: {search_query}\n- https://e-pazar.mk/ за електронски пазар"
+
+        # POST-PROCESS: Extract tender IDs and drill for DB details
+        try:
             extracted_tenders = await _process_web_search_results(result_text, conn)
 
             # Combine web results with any DB enrichment
@@ -2220,19 +2855,11 @@ CPV: [код]
                 for tid in extracted_tenders['not_in_db'][:5]:
                     not_in_db_section += f"- {tid} (достапен на e-nabavki.gov.mk)\n"
                 result_text += not_in_db_section
+        except Exception as process_err:
+            logger.error(f"[WEB SEARCH] Error processing results: {process_err}")
+            # Continue anyway with raw results
 
-            return f"Веб резултати:\n{result_text}"
-
-        except Exception as e:
-            logger.error(f"Web search failed: {e}")
-            # Fallback to direct e-nabavki scraping
-            try:
-                scraped = await _scrape_enabavki_direct(search_query)
-                if scraped:
-                    return f"Веб резултати (директно од e-nabavki):\n{scraped}"
-            except Exception as scrape_err:
-                logger.error(f"Fallback scraping also failed: {scrape_err}")
-            return f"Веб пребарувањето не успеа."
+        return f"Веб резултати:\n{result_text}"
 
 
     elif tool_name == "get_tender_by_id":
@@ -2323,6 +2950,16 @@ CPV: [код]
             result += f"Процедура: {tender['procedure_type']}\n"
         if tender.get('cpv_code'):
             result += f"CPV код: {tender['cpv_code']}\n"
+
+        # Add award criteria if available (only for regular tenders, not e-pazar)
+        if not is_epazar and tender.get('award_criteria'):
+            criteria_text = format_award_criteria(tender['award_criteria'])
+            if criteria_text:
+                result += f"\n{criteria_text}\n"
+
+        # Add evaluation method if available
+        if tender.get('evaluation_method'):
+            result += f"Метод на евалуација: {tender['evaluation_method']}\n"
 
         # Add bidders
         if offers:
@@ -2936,6 +3573,609 @@ CPV: [код]
 
         return "Непознат тип на препорака. Достапни: bidding_strategy, pricing, timing, competition"
 
+    elif tool_name == "get_entity_profile":
+        entity_name = tool_args.get("entity_name", "").strip()
+        entity_type = tool_args.get("entity_type", "auto").strip()
+
+        if not entity_name:
+            return "Не е наведено име на ентитет."
+
+        result = ""
+        found_entity = False
+
+        # Search procuring entities (buyers)
+        if entity_type in ["buyer", "auto"]:
+            buyer_query = """
+                SELECT
+                    entity_name,
+                    entity_type,
+                    category,
+                    city,
+                    total_tenders,
+                    total_value_mkd,
+                    contact_person,
+                    contact_email,
+                    contact_phone,
+                    website
+                FROM procuring_entities
+                WHERE entity_name ILIKE $1
+                LIMIT 1
+            """
+            buyer_row = await conn.fetchrow(buyer_query, f"%{entity_name}%")
+
+            if buyer_row:
+                found_entity = True
+                result += f"# 🏛️ Профил на набавувач: {buyer_row['entity_name']}\n\n"
+                result += "## 📊 Основни информации\n"
+                if buyer_row['entity_type']:
+                    result += f"**Тип:** {buyer_row['entity_type']}\n"
+                if buyer_row['category']:
+                    result += f"**Категорија:** {buyer_row['category']}\n"
+                if buyer_row['city']:
+                    result += f"**Град:** {buyer_row['city']}\n"
+                if buyer_row['website']:
+                    result += f"**Веб-страна:** {buyer_row['website']}\n"
+                if buyer_row['contact_person']:
+                    result += f"**Контакт лице:** {buyer_row['contact_person']}\n"
+                if buyer_row['contact_email']:
+                    result += f"**Email:** {buyer_row['contact_email']}\n"
+                if buyer_row['contact_phone']:
+                    result += f"**Телефон:** {buyer_row['contact_phone']}\n"
+
+                result += f"\n## 📈 Статистики на набавки\n"
+                result += f"**Вкупно објавени тендери:** {buyer_row['total_tenders'] or 0}\n"
+                if buyer_row['total_value_mkd']:
+                    result += f"**Вкупна вредност:** {buyer_row['total_value_mkd']:,.2f} МКД ({buyer_row['total_value_mkd']/1000000:.1f}M МКД)\n"
+                if buyer_row['total_tenders'] and buyer_row['total_value_mkd']:
+                    avg_value = buyer_row['total_value_mkd'] / buyer_row['total_tenders']
+                    result += f"**Просечна вредност по тендер:** {avg_value:,.2f} МКД\n"
+
+                # Get common CPV codes for this buyer
+                cpv_query = """
+                    SELECT cpv_code, category, COUNT(*) as count
+                    FROM tenders
+                    WHERE procuring_entity ILIKE $1
+                      AND cpv_code IS NOT NULL
+                    GROUP BY cpv_code, category
+                    ORDER BY count DESC
+                    LIMIT 5
+                """
+                cpv_rows = await conn.fetch(cpv_query, f"%{buyer_row['entity_name']}%")
+
+                if cpv_rows:
+                    result += f"\n## 🏷️ Најчести категории на набавки (CPV)\n"
+                    for cpv in cpv_rows:
+                        result += f"- **{cpv['cpv_code']}** - {cpv['category'] or 'N/A'} ({cpv['count']} тендери)\n"
+
+                # Get recent tenders
+                recent_query = """
+                    SELECT tender_id, title, estimated_value_mkd, winner, publication_date, status
+                    FROM tenders
+                    WHERE procuring_entity ILIKE $1
+                    ORDER BY publication_date DESC
+                    LIMIT 5
+                """
+                recent_rows = await conn.fetch(recent_query, f"%{buyer_row['entity_name']}%")
+
+                if recent_rows:
+                    result += f"\n## 📋 Скорешни тендери\n"
+                    for t in recent_rows:
+                        pub_date = t['publication_date'].strftime('%Y-%m-%d') if t['publication_date'] else 'N/A'
+                        result += f"\n**{t['title'][:80]}...**\n"
+                        result += f"  - ID: {t['tender_id']}\n"
+                        result += f"  - Објавен: {pub_date}\n"
+                        if t['estimated_value_mkd']:
+                            result += f"  - Проценета вредност: {t['estimated_value_mkd']:,.2f} МКД\n"
+                        if t['winner']:
+                            result += f"  - Победник: {t['winner']}\n"
+                        if t['status']:
+                            result += f"  - Статус: {t['status']}\n"
+
+                # Get top suppliers for this buyer
+                top_suppliers_query = """
+                    SELECT winner, COUNT(*) as wins, SUM(actual_value_mkd) as total_value
+                    FROM tenders
+                    WHERE procuring_entity ILIKE $1
+                      AND winner IS NOT NULL
+                      AND winner != ''
+                    GROUP BY winner
+                    ORDER BY wins DESC
+                    LIMIT 5
+                """
+                supplier_rows = await conn.fetch(top_suppliers_query, f"%{buyer_row['entity_name']}%")
+
+                if supplier_rows:
+                    result += f"\n## 🏆 Топ добавувачи (најчести победници)\n"
+                    for idx, s in enumerate(supplier_rows, 1):
+                        result += f"{idx}. **{s['winner']}** - {s['wins']} победи"
+                        if s['total_value']:
+                            result += f" ({s['total_value']:,.2f} МКД)"
+                        result += "\n"
+
+        # Search suppliers (companies)
+        if entity_type in ["supplier", "auto"] and not found_entity:
+            supplier_query = """
+                SELECT
+                    company_name,
+                    tax_id,
+                    company_type,
+                    city,
+                    total_wins,
+                    total_bids,
+                    win_rate,
+                    total_contract_value_mkd,
+                    industries,
+                    contact_person,
+                    contact_email,
+                    contact_phone,
+                    website
+                FROM suppliers
+                WHERE company_name ILIKE $1
+                LIMIT 1
+            """
+            supplier_row = await conn.fetchrow(supplier_query, f"%{entity_name}%")
+
+            if supplier_row:
+                found_entity = True
+                result += f"# 🏢 Профил на добавувач: {supplier_row['company_name']}\n\n"
+                result += "## 📊 Основни информации\n"
+                if supplier_row['tax_id']:
+                    result += f"**Даночен број:** {supplier_row['tax_id']}\n"
+                if supplier_row['company_type']:
+                    result += f"**Тип на компанија:** {supplier_row['company_type']}\n"
+                if supplier_row['city']:
+                    result += f"**Град:** {supplier_row['city']}\n"
+                if supplier_row['website']:
+                    result += f"**Веб-страна:** {supplier_row['website']}\n"
+                if supplier_row['contact_person']:
+                    result += f"**Контакт лице:** {supplier_row['contact_person']}\n"
+                if supplier_row['contact_email']:
+                    result += f"**Email:** {supplier_row['contact_email']}\n"
+                if supplier_row['contact_phone']:
+                    result += f"**Телефон:** {supplier_row['contact_phone']}\n"
+
+                result += f"\n## 📈 Статистики на успешност\n"
+                result += f"**Вкупно понуди:** {supplier_row['total_bids'] or 0}\n"
+                result += f"**Вкупно победи:** {supplier_row['total_wins'] or 0}\n"
+                if supplier_row['win_rate']:
+                    result += f"**Процент на победи:** {supplier_row['win_rate']:.1f}%\n"
+                if supplier_row['total_contract_value_mkd']:
+                    result += f"**Вкупна вредност на договори:** {supplier_row['total_contract_value_mkd']:,.2f} МКД ({supplier_row['total_contract_value_mkd']/1000000:.1f}M МКД)\n"
+                if supplier_row['total_wins'] and supplier_row['total_contract_value_mkd']:
+                    avg_contract = supplier_row['total_contract_value_mkd'] / supplier_row['total_wins']
+                    result += f"**Просечна вредност по договор:** {avg_contract:,.2f} МКД\n"
+
+                # Industries/CPV codes
+                if supplier_row['industries']:
+                    result += f"\n## 🏷️ Индустрии/CPV кодови\n"
+                    try:
+                        industries = supplier_row['industries']
+                        if isinstance(industries, str):
+                            import json
+                            industries = json.loads(industries)
+                        if isinstance(industries, list):
+                            for ind in industries[:10]:
+                                result += f"- {ind}\n"
+                    except:
+                        result += f"{supplier_row['industries']}\n"
+
+                # Get recent wins from tender_bidders
+                wins_query = """
+                    SELECT t.tender_id, t.title, t.procuring_entity, t.actual_value_mkd, t.publication_date
+                    FROM tender_bidders tb
+                    JOIN tenders t ON tb.tender_id = t.tender_id
+                    WHERE tb.company_name ILIKE $1
+                      AND tb.is_winner = true
+                    ORDER BY t.publication_date DESC
+                    LIMIT 5
+                """
+                wins_rows = await conn.fetch(wins_query, f"%{supplier_row['company_name']}%")
+
+                if wins_rows:
+                    result += f"\n## 🏆 Скорешни победи\n"
+                    for w in wins_rows:
+                        pub_date = w['publication_date'].strftime('%Y-%m-%d') if w['publication_date'] else 'N/A'
+                        result += f"\n**{w['title'][:80]}...**\n"
+                        result += f"  - ID: {w['tender_id']}\n"
+                        result += f"  - Набавувач: {w['procuring_entity']}\n"
+                        result += f"  - Датум: {pub_date}\n"
+                        if w['actual_value_mkd']:
+                            result += f"  - Вредност: {w['actual_value_mkd']:,.2f} МКД\n"
+
+                # Get main competitors (companies they compete against most)
+                competitors_query = """
+                    SELECT tb2.company_name, COUNT(*) as times_competed,
+                           SUM(CASE WHEN tb2.is_winner THEN 1 ELSE 0 END) as their_wins
+                    FROM tender_bidders tb1
+                    JOIN tender_bidders tb2 ON tb1.tender_id = tb2.tender_id
+                    WHERE tb1.company_name ILIKE $1
+                      AND tb2.company_name NOT ILIKE $1
+                    GROUP BY tb2.company_name
+                    ORDER BY times_competed DESC
+                    LIMIT 5
+                """
+                comp_rows = await conn.fetch(competitors_query, f"%{supplier_row['company_name']}%")
+
+                if comp_rows:
+                    result += f"\n## ⚔️ Главни конкуренти\n"
+                    for idx, c in enumerate(comp_rows, 1):
+                        result += f"{idx}. **{c['company_name']}** - {c['times_competed']} заеднички тендери ({c['their_wins']} победи)\n"
+
+        if not found_entity:
+            # Try fallback search in tenders table for procuring entities
+            fallback_buyer_query = """
+                SELECT procuring_entity, COUNT(*) as tender_count, SUM(estimated_value_mkd) as total_value
+                FROM tenders
+                WHERE procuring_entity ILIKE $1
+                GROUP BY procuring_entity
+                ORDER BY tender_count DESC
+                LIMIT 1
+            """
+            fallback_buyer = await conn.fetchrow(fallback_buyer_query, f"%{entity_name}%")
+
+            if fallback_buyer:
+                result += f"# 🏛️ Профил на набавувач: {fallback_buyer['procuring_entity']}\n\n"
+                result += "⚠️ *Ентитетот не е целосно профилиран во базата, но најдовме тендерски податоци.*\n\n"
+                result += f"**Вкупно тендери:** {fallback_buyer['tender_count']}\n"
+                if fallback_buyer['total_value']:
+                    result += f"**Вкупна проценета вредност:** {fallback_buyer['total_value']:,.2f} МКД\n"
+                found_entity = True
+
+            # Try fallback search in tender_bidders for suppliers
+            if not found_entity:
+                fallback_supplier_query = """
+                    SELECT company_name, COUNT(*) as total_bids,
+                           SUM(CASE WHEN is_winner THEN 1 ELSE 0 END) as wins,
+                           ROUND(100.0 * SUM(CASE WHEN is_winner THEN 1 ELSE 0 END) / COUNT(*), 1) as win_rate
+                    FROM tender_bidders
+                    WHERE company_name ILIKE $1
+                    GROUP BY company_name
+                    ORDER BY total_bids DESC
+                    LIMIT 1
+                """
+                fallback_supplier = await conn.fetchrow(fallback_supplier_query, f"%{entity_name}%")
+
+                if fallback_supplier:
+                    result += f"# 🏢 Профил на добавувач: {fallback_supplier['company_name']}\n\n"
+                    result += "⚠️ *Компанијата не е целосно профилирана во базата, но најдовме тендерски податоци.*\n\n"
+                    result += f"**Вкупно понуди:** {fallback_supplier['total_bids']}\n"
+                    result += f"**Победи:** {fallback_supplier['wins']}\n"
+                    result += f"**Процент на победи:** {fallback_supplier['win_rate']}%\n"
+                    found_entity = True
+
+        if not found_entity:
+            return f"Не најдов податоци за: {entity_name}\n\nПробајте со различно име или проверете дали име е точно."
+
+        return result
+
+    elif tool_name == "get_top_tenders":
+        # Analytical query tool - get top tenders by value, date, or status
+        sort_by = tool_args.get("sort_by", "value_desc")
+        limit = min(max(tool_args.get("limit", 10), 1), 50)  # Clamp 1-50
+        status = tool_args.get("status", "all")
+        year = tool_args.get("year")
+        min_value = tool_args.get("min_value")
+        institution_type = tool_args.get("institution_type")
+
+        # Build ORDER BY clause
+        order_map = {
+            "value_desc": "estimated_value_mkd DESC NULLS LAST",
+            "value_asc": "estimated_value_mkd ASC NULLS LAST",
+            "date_desc": "publication_date DESC NULLS LAST",
+            "date_asc": "publication_date ASC NULLS LAST"
+        }
+        order_clause = order_map.get(sort_by, "estimated_value_mkd DESC NULLS LAST")
+
+        # Build WHERE conditions
+        conditions = []
+        params = []
+        param_idx = 1
+
+        # Must have a value for value-based sorting
+        if sort_by in ["value_desc", "value_asc"]:
+            conditions.append("estimated_value_mkd IS NOT NULL")
+
+        # Status filter - matches actual DB values: open, awarded, cancelled, closed, published
+        status_map = {
+            "active": ["open", "published", "објава", "отворен", "активен", "active"],
+            "awarded": ["awarded", "closed", "завршен", "доделен", "completed"],
+            "cancelled": ["cancelled", "откажан", "поништен"]
+        }
+        if status != "all" and status in status_map:
+            conditions.append(f"LOWER(status) = ANY(${param_idx})")
+            params.append(status_map[status])
+            param_idx += 1
+
+        # Year filter
+        if year:
+            conditions.append(f"EXTRACT(YEAR FROM publication_date) = ${param_idx}")
+            params.append(year)
+            param_idx += 1
+
+        # Min value filter
+        if min_value:
+            conditions.append(f"estimated_value_mkd >= ${param_idx}")
+            params.append(min_value)
+            param_idx += 1
+
+        # Institution type filter
+        if institution_type:
+            conditions.append(f"procuring_entity ILIKE ${param_idx}")
+            params.append(f"%{institution_type}%")
+            param_idx += 1
+
+        where_clause = " AND ".join(conditions) if conditions else "TRUE"
+
+        # Query tenders table
+        query = f"""
+            SELECT tender_id, title, procuring_entity, estimated_value_mkd,
+                   actual_value_mkd, winner, publication_date, closing_date, status, cpv_code
+            FROM tenders
+            WHERE {where_clause}
+            ORDER BY {order_clause}
+            LIMIT {limit}
+        """
+        rows = await conn.fetch(query, *params)
+
+        if not rows:
+            return "Не најдов тендери со бараните критериуми."
+
+        # Format results
+        sort_labels = {
+            "value_desc": "најголема вредност",
+            "value_asc": "најмала вредност",
+            "date_desc": "најнови",
+            "date_asc": "најстари"
+        }
+        result = f"Топ {len(rows)} тендери (сортирано по {sort_labels.get(sort_by, sort_by)}):\n\n"
+
+        for i, r in enumerate(rows, 1):
+            result += f"**{i}. {r['title'][:100]}**\n"
+            result += f"  ID: {r['tender_id']}\n"
+            result += f"  Набавувач: {r['procuring_entity']}\n"
+            if r['estimated_value_mkd']:
+                # Format large numbers nicely
+                val = r['estimated_value_mkd']
+                if val >= 1_000_000_000:
+                    result += f"  Проценета вредност: {val/1_000_000_000:.2f} милијарди МКД\n"
+                elif val >= 1_000_000:
+                    result += f"  Проценета вредност: {val/1_000_000:.2f} милиони МКД\n"
+                else:
+                    result += f"  Проценета вредност: {val:,.0f} МКД\n"
+            if r['actual_value_mkd']:
+                result += f"  Договорена вредност: {r['actual_value_mkd']:,.0f} МКД\n"
+            if r['winner']:
+                result += f"  Победник: {r['winner']}\n"
+            if r['publication_date']:
+                result += f"  Датум: {r['publication_date'].strftime('%Y-%m-%d')}\n"
+            if r['status']:
+                result += f"  Статус: {r['status']}\n"
+            result += "\n"
+
+        return result
+
+    elif tool_name == "get_statistics":
+        # Comprehensive statistics and aggregation tool
+        stat_type = tool_args.get("stat_type")
+        metric = tool_args.get("metric", "both")
+        limit = min(max(tool_args.get("limit", 10), 1), 50)
+        year = tool_args.get("year")
+        institution_type = tool_args.get("institution_type")
+
+        def format_mkd(value):
+            if value is None:
+                return "N/A"
+            if value >= 1_000_000_000:
+                return f"{value/1_000_000_000:.2f} милијарди МКД"
+            elif value >= 1_000_000:
+                return f"{value/1_000_000:.2f} милиони МКД"
+            else:
+                return f"{value:,.0f} МКД"
+
+        def build_where_conditions():
+            conditions = []
+            params = []
+            param_idx = 1
+            if year:
+                conditions.append(f"EXTRACT(YEAR FROM publication_date) = ${param_idx}")
+                params.append(year)
+                param_idx += 1
+            if institution_type:
+                conditions.append(f"procuring_entity ILIKE ${param_idx}")
+                params.append(f"%{institution_type}%")
+                param_idx += 1
+            return conditions, params, param_idx
+
+        if stat_type == "top_institutions":
+            conditions, params, _ = build_where_conditions()
+            where_clause = " AND ".join(conditions) if conditions else "TRUE"
+            query = f"""
+                SELECT procuring_entity, COUNT(*) as tender_count, SUM(estimated_value_mkd) as total_value
+                FROM tenders WHERE procuring_entity IS NOT NULL AND {where_clause}
+                GROUP BY procuring_entity ORDER BY tender_count DESC LIMIT {limit}
+            """
+            rows = await conn.fetch(query, *params)
+            if not rows:
+                return "Не најдов статистики за институции."
+            result = "Топ " + str(len(rows)) + " институции по број на тендери:\\n\\n"
+            for i, r in enumerate(rows, 1):
+                result += f"**{i}. {r['procuring_entity']}**\\n"
+                if metric in ["count", "both"]:
+                    result += f"   Број на тендери: {r['tender_count']:,}\\n"
+                if metric in ["value", "both"] and r['total_value']:
+                    result += f"   Вкупна вредност: {format_mkd(r['total_value'])}\\n"
+                result += "\\n"
+            return result
+
+        elif stat_type == "top_winners":
+            conditions, params, _ = build_where_conditions()
+            conditions.append("winner IS NOT NULL")
+            conditions.append("winner != ''")
+            where_clause = " AND ".join(conditions)
+            query = f"""
+                SELECT winner, COUNT(*) as wins, SUM(actual_value_mkd) as total_value
+                FROM tenders WHERE {where_clause}
+                GROUP BY winner ORDER BY wins DESC LIMIT {limit}
+            """
+            rows = await conn.fetch(query, *params)
+            if not rows:
+                return "Не најдов статистики за победници."
+            result = "Топ " + str(len(rows)) + " победници по број на победи:\\n\\n"
+            for i, r in enumerate(rows, 1):
+                result += f"**{i}. {r['winner']}**\\n"
+                if metric in ["count", "both"]:
+                    result += f"   Победи: {r['wins']:,}\\n"
+                if metric in ["value", "both"] and r['total_value']:
+                    result += f"   Вкупна вредност: {format_mkd(r['total_value'])}\\n"
+                result += "\\n"
+            return result
+
+        elif stat_type == "by_year":
+            conditions, params, _ = build_where_conditions()
+            conditions.append("publication_date IS NOT NULL")
+            where_clause = " AND ".join(conditions)
+            query = f"""
+                SELECT EXTRACT(YEAR FROM publication_date)::integer as year,
+                       COUNT(*) as count, SUM(estimated_value_mkd) as value
+                FROM tenders WHERE {where_clause}
+                GROUP BY year ORDER BY year DESC
+            """
+            rows = await conn.fetch(query, *params)
+            if not rows:
+                return "Не најдов статистики по години."
+            result = "Статистика по години:\\n\\n"
+            for r in rows:
+                result += f"**{r['year']}**\\n"
+                if metric in ["count", "both"]:
+                    result += f"   Тендери: {r['count']:,}\\n"
+                if metric in ["value", "both"] and r['value']:
+                    result += f"   Вредност: {format_mkd(r['value'])}\\n"
+                result += "\\n"
+            return result
+
+        elif stat_type == "by_category":
+            conditions, params, _ = build_where_conditions()
+            conditions.append("cpv_code IS NOT NULL")
+            where_clause = " AND ".join(conditions)
+            query = f"""
+                SELECT cpv_code, category, COUNT(*) as count, SUM(estimated_value_mkd) as value
+                FROM tenders WHERE {where_clause}
+                GROUP BY cpv_code, category ORDER BY count DESC LIMIT {limit}
+            """
+            rows = await conn.fetch(query, *params)
+            if not rows:
+                return "Не најдов статистики по категорија."
+            result = "Топ " + str(len(rows)) + " категории (CPV):\\n\\n"
+            for i, r in enumerate(rows, 1):
+                cat_name = r['category'] or "Некатегоризирано"
+                result += f"**{i}. {cat_name}**\\n"
+                result += f"   CPV код: {r['cpv_code']}\\n"
+                if metric in ["count", "both"]:
+                    result += f"   Тендери: {r['count']:,}\\n"
+                if metric in ["value", "both"] and r['value']:
+                    result += f"   Вредност: {format_mkd(r['value'])}\\n"
+                result += "\\n"
+            return result
+
+        elif stat_type == "market_overview":
+            conditions, params, _ = build_where_conditions()
+            where_clause = " AND ".join(conditions) if conditions else "TRUE"
+            query = f"""
+                SELECT COUNT(*) as total_tenders, SUM(estimated_value_mkd) as total_value,
+                       AVG(estimated_value_mkd) as avg_value, COUNT(DISTINCT procuring_entity) as unique_buyers,
+                       COUNT(DISTINCT winner) FILTER (WHERE winner IS NOT NULL AND winner != '') as unique_winners
+                FROM tenders WHERE {where_clause}
+            """
+            row = await conn.fetchrow(query, *params)
+            if not row or not row['total_tenders']:
+                return "Не најдов податоци за market overview."
+            result = "Преглед на пазарот на јавни набавки:\\n\\n"
+            result += f"**Вкупно тендери:** {row['total_tenders']:,}\\n"
+            if row['total_value']:
+                result += f"**Вкупна вредност:** {format_mkd(row['total_value'])}\\n"
+            if row['avg_value']:
+                result += f"**Просечна вредност:** {format_mkd(row['avg_value'])}\\n"
+            result += f"**Уникатни набавувачи:** {row['unique_buyers']:,}\\n"
+            if row['unique_winners']:
+                result += f"**Уникатни победници:** {row['unique_winners']:,}\\n"
+            return result
+
+        elif stat_type == "by_status":
+            conditions, params, _ = build_where_conditions()
+            where_clause = " AND ".join(conditions) if conditions else "TRUE"
+            query = f"""
+                SELECT status, COUNT(*) as count
+                FROM tenders WHERE {where_clause}
+                GROUP BY status ORDER BY count DESC
+            """
+            rows = await conn.fetch(query, *params)
+            if not rows:
+                return "Не најдов статистики по статус."
+            result = "Статистика по статус на тендери:\\n\\n"
+            for r in rows:
+                status_label = r['status'] or "Непознат статус"
+                result += f"**{status_label}:** {r['count']:,} тендери\\n"
+            return result
+
+        elif stat_type == "by_month":
+            conditions, params, _ = build_where_conditions()
+            conditions.append("publication_date IS NOT NULL")
+            where_clause = " AND ".join(conditions)
+            query = f"""
+                SELECT EXTRACT(YEAR FROM publication_date)::integer as year,
+                       EXTRACT(MONTH FROM publication_date)::integer as month,
+                       COUNT(*) as count, SUM(estimated_value_mkd) as value
+                FROM tenders WHERE {where_clause}
+                GROUP BY year, month ORDER BY year DESC, month DESC LIMIT {limit}
+            """
+            rows = await conn.fetch(query, *params)
+            if not rows:
+                return "Не најдов статистики по месеци."
+            month_names = {
+                1: "јануари", 2: "февруари", 3: "март", 4: "април",
+                5: "мај", 6: "јуни", 7: "јули", 8: "август",
+                9: "септември", 10: "октомври", 11: "ноември", 12: "декември"
+            }
+            result = "Статистика по месеци:\\n\\n"
+            for r in rows:
+                month_name = month_names.get(r['month'], str(r['month']))
+                result += f"**{month_name} {r['year']}**\\n"
+                if metric in ["count", "both"]:
+                    result += f"   Тендери: {r['count']:,}\\n"
+                if metric in ["value", "both"] and r['value']:
+                    result += f"   Вредност: {format_mkd(r['value'])}\\n"
+                result += "\\n"
+            return result
+
+        elif stat_type == "institution_spending":
+            conditions, params, _ = build_where_conditions()
+            conditions.append("procuring_entity IS NOT NULL")
+            conditions.append("estimated_value_mkd IS NOT NULL")
+            where_clause = " AND ".join(conditions)
+            query = f"""
+                SELECT procuring_entity, SUM(estimated_value_mkd) as total_spending,
+                       COUNT(*) as tender_count, AVG(estimated_value_mkd) as avg_spending
+                FROM tenders WHERE {where_clause}
+                GROUP BY procuring_entity ORDER BY total_spending DESC LIMIT {limit}
+            """
+            rows = await conn.fetch(query, *params)
+            if not rows:
+                return "Не најдов статистики за трошење."
+            result = "Топ " + str(len(rows)) + " институции по вкупно трошење:\\n\\n"
+            for i, r in enumerate(rows, 1):
+                result += f"**{i}. {r['procuring_entity']}**\\n"
+                result += f"   Вкупно трошење: {format_mkd(r['total_spending'])}\\n"
+                if metric in ["count", "both"]:
+                    result += f"   Број на тендери: {r['tender_count']:,}\\n"
+                if r['avg_spending']:
+                    result += f"   Просечно трошење: {format_mkd(r['avg_spending'])}\\n"
+                result += "\\n"
+            return result
+
+        else:
+            return f"Непознат тип на статистика: {stat_type}"
+
+
     return f"Непознат tool: {tool_name}"
 
 
@@ -3209,6 +4449,101 @@ async def parallel_multi_source_search(question: str, keywords: List[str], conn,
     return results
 
 
+def classify_query_type(question: str) -> dict:
+    """
+    Classify user question and recommend appropriate tools.
+    Returns dict with 'type', 'primary_tools', 'fallback_tools'
+    """
+    question_lower = question.lower()
+
+    # Analytical/aggregation queries
+    analytical_patterns = [
+        'која институција', 'кој победува', 'колку тендери', 'најмногу',
+        'по години', 'статистика', 'топ', 'top', 'најголем буџет',
+        'кој троши', 'кој добива', 'market share', 'пазарен удел'
+    ]
+
+    # Price queries
+    price_patterns = [
+        'колку чини', 'цена', 'price', 'просечна цена', 'најниска цена',
+        'што да понудам', 'препорака за цена', 'чинење'
+    ]
+
+    # Entity/profile queries
+    entity_patterns = [
+        'кажи ми за', 'профил на', 'историја на', 'информации за',
+        'за компанија', 'за институција', 'за општина'
+    ]
+
+    # Current/active queries
+    current_patterns = [
+        'активни', 'тековни', 'денес', 'оваа недела', 'овој месец',
+        'најнови', 'скорешни', 'отворени'
+    ]
+
+    # Top/ranking queries
+    top_patterns = [
+        'најголеми тендери', 'најскапи', 'top 10', 'топ', 'по вредност',
+        'рангирање', 'листа на'
+    ]
+
+    # Competition queries
+    competition_patterns = [
+        'конкурент', 'competitor', 'кој се натпреварува', 'win rate',
+        'процент на победи', 'head to head'
+    ]
+
+    # Check patterns and return classification
+    if any(p in question_lower for p in analytical_patterns):
+        return {
+            'type': 'analytical',
+            'primary_tools': ['get_statistics'],
+            'fallback_tools': ['search_tenders', 'web_search_procurement']
+        }
+
+    if any(p in question_lower for p in price_patterns):
+        return {
+            'type': 'price',
+            'primary_tools': ['get_price_statistics', 'search_product_items'],
+            'fallback_tools': ['search_bid_documents', 'web_search_procurement']
+        }
+
+    if any(p in question_lower for p in entity_patterns):
+        return {
+            'type': 'entity',
+            'primary_tools': ['get_entity_profile'],
+            'fallback_tools': ['search_tenders', 'web_search_procurement']
+        }
+
+    if any(p in question_lower for p in current_patterns):
+        return {
+            'type': 'current',
+            'primary_tools': ['web_search_procurement', 'get_top_tenders'],
+            'fallback_tools': ['search_tenders']
+        }
+
+    if any(p in question_lower for p in top_patterns):
+        return {
+            'type': 'top_list',
+            'primary_tools': ['get_top_tenders'],
+            'fallback_tools': ['get_statistics', 'search_tenders']
+        }
+
+    if any(p in question_lower for p in competition_patterns):
+        return {
+            'type': 'competition',
+            'primary_tools': ['analyze_competitors'],
+            'fallback_tools': ['get_entity_profile', 'search_tenders']
+        }
+
+    # Default: general search
+    return {
+        'type': 'search',
+        'primary_tools': ['search_tenders', 'search_product_items'],
+        'fallback_tools': ['web_search_procurement', 'search_bid_documents']
+    }
+
+
 class LLMDrivenAgent:
     """
     LLM-driven agent that decides which data sources to query.
@@ -3348,6 +4683,14 @@ class LLMDrivenAgent:
             time_context = f"\n\nВРЕМЕНСКИ ПЕРИОД ДЕТЕКТИРАН: од {time_period[0]} до {time_period[1]}\nКористи date_from='{time_period[0]}' и date_to='{time_period[1]}' во твоите tool повици!"
 
         # ========================================================================
+        # QUERY CLASSIFICATION: Classify question type and recommend tools
+        # ========================================================================
+        query_classification = classify_query_type(question)
+        logger.info(f"[CLASSIFICATION] Query type: {query_classification['type']}, "
+                   f"Primary tools: {query_classification['primary_tools']}, "
+                   f"Fallback tools: {query_classification['fallback_tools']}")
+
+        # ========================================================================
         # TENDER-SPECIFIC CONTEXT: When tender_id is provided, fetch that tender
         # ========================================================================
         tender_context = ""
@@ -3374,7 +4717,7 @@ class LLMDrivenAgent:
                             SELECT tender_id, title, description, procuring_entity,
                                    estimated_value_mkd, actual_value_mkd, status, winner,
                                    publication_date, closing_date, cpv_code, procedure_type,
-                                   num_bidders, evaluation_method
+                                   num_bidders, evaluation_method, award_criteria
                             FROM tenders
                             WHERE tender_id = $1
                         """, tender_id)
@@ -3406,6 +4749,16 @@ class LLMDrivenAgent:
                             tender_context += f"Краен рок за понуди: {tender_data['closing_date']}\n"
                         if tender_data.get('contract_number'):
                             tender_context += f"Број на договор: {tender_data['contract_number']}\n"
+
+                        # Add award criteria if available (only for regular tenders, not e-pazar)
+                        if not is_epazar and tender_data.get('award_criteria'):
+                            criteria_text = format_award_criteria(tender_data['award_criteria'])
+                            if criteria_text:
+                                tender_context += f"\n{criteria_text}\n"
+
+                        # Add evaluation method if available
+                        if tender_data.get('evaluation_method'):
+                            tender_context += f"Метод на евалуација: {tender_data['evaluation_method']}\n"
 
                         # Fetch bidders/offers for this tender
                         if is_epazar:
@@ -3469,20 +4822,99 @@ class LLMDrivenAgent:
 
                         # Fetch corruption flags for this tender
                         flags = await conn.fetch("""
-                            SELECT flag_type, severity, score, description
+                            SELECT flag_type, severity, score, description, evidence
                             FROM corruption_flags
                             WHERE tender_id = $1 AND false_positive = false
+                            ORDER BY
+                                CASE severity
+                                    WHEN 'critical' THEN 1
+                                    WHEN 'high' THEN 2
+                                    WHEN 'medium' THEN 3
+                                    WHEN 'low' THEN 4
+                                END,
+                                score DESC
                         """, tender_id)
 
                         if flags:
                             tender_context += f"\nДетектирани ризици ({len(flags)}):\n"
                             for f in flags:
-                                tender_context += f"  - [{f['severity'].upper()}] {f['flag_type']}: {f['description']}\n"
+                                severity_emoji = {
+                                    'critical': '🚨',
+                                    'high': '⚠️',
+                                    'medium': '⚡',
+                                    'low': 'ℹ️'
+                                }.get(f['severity'], '•')
+
+                                tender_context += f"  {severity_emoji} [{f['severity'].upper()}] {f['flag_type']} (Score: {f['score']}/100)\n"
+                                tender_context += f"    {f['description']}\n"
+
+                                # Add evidence if available and relevant
+                                if f.get('evidence'):
+                                    try:
+                                        import json
+                                        evidence = f['evidence']
+                                        if isinstance(evidence, str):
+                                            evidence = json.loads(evidence)
+
+                                        # Extract key evidence details for context
+                                        if isinstance(evidence, dict):
+                                            if 'comparison' in evidence:
+                                                comp = evidence['comparison']
+                                                if 'winner_bid' in comp and 'estimated' in comp:
+                                                    tender_context += f"    Доказ: Победничка понуда {comp['winner_bid']:,.0f} vs проценка {comp['estimated']:,.0f}\n"
+                                            elif 'deadline_hours' in evidence:
+                                                tender_context += f"    Доказ: Рок за поднесување: {evidence['deadline_hours']} часа\n"
+                                            elif 'win_rate' in evidence:
+                                                tender_context += f"    Доказ: Стапка на победи: {evidence['win_rate']*100:.1f}%\n"
+                                    except Exception as e:
+                                        logger.warning(f"Failed to parse corruption flag evidence: {e}")
+
+                        # Fetch amendments for this tender
+                        amendments = await conn.fetch("""
+                            SELECT amendment_number, amendment_date, amendment_type, description, changes_summary
+                            FROM tender_amendments
+                            WHERE tender_id = $1
+                            ORDER BY amendment_date, amendment_number
+                        """, tender_id)
+
+                        if amendments:
+                            tender_context += f"\nАменадмани/Измени ({len(amendments)}):\n"
+                            for a in amendments:
+                                date_str = a['amendment_date'].strftime('%d.%m.%Y') if a['amendment_date'] else 'N/A'
+                                tender_context += f"  - Аменадман #{a['amendment_number']} ({date_str})"
+                                if a['amendment_type']:
+                                    tender_context += f" - Тип: {a['amendment_type']}"
+                                tender_context += "\n"
+                                if a['description']:
+                                    tender_context += f"    Опис: {a['description']}\n"
+                                if a['changes_summary']:
+                                    tender_context += f"    Измени: {a['changes_summary']}\n"
+
+                        # Fetch clarifications for this tender
+                        clarifications = await conn.fetch("""
+                            SELECT question_number, question_date, question_text, answer_text, answer_date
+                            FROM tender_clarifications
+                            WHERE tender_id = $1
+                            ORDER BY question_date, question_number
+                        """, tender_id)
+
+                        if clarifications:
+                            tender_context += f"\nПрашања и одговори ({len(clarifications)}):\n"
+                            for c in clarifications:
+                                q_date = c['question_date'].strftime('%d.%m.%Y') if c['question_date'] else 'N/A'
+                                a_date = c['answer_date'].strftime('%d.%m.%Y') if c['answer_date'] else 'N/A'
+                                tender_context += f"  - Прашање #{c['question_number']} ({q_date}):\n"
+                                if c['question_text']:
+                                    tender_context += f"    П: {c['question_text']}\n"
+                                if c['answer_text']:
+                                    tender_context += f"    О: {c['answer_text']} (Одговорено: {a_date})\n"
+                                else:
+                                    tender_context += f"    О: (Се уште нема одговор)\n"
 
                         tender_context += "\n=== КРАЈ НА ПОДАТОЦИ ЗА ТЕНДЕРОТ ===\n"
                         tender_context += "\nВАЖНО: Одговори САМО за овој конкретен тендер! Не давај информации за други тендери!\n"
 
-                        logger.info(f"[AGENT] Loaded tender context: {len(tender_context)} chars, {len(bidders) if bidders else 0} bidders, {len(flags) if flags else 0} risk flags")
+                        logger.info(f"[AGENT] Loaded tender context: {len(tender_context)} chars, {len(bidders) if bidders else 0} bidders, {len(flags) if flags else 0} risk flags, {len(amendments) if amendments else 0} amendments, {len(clarifications) if clarifications else 0} clarifications")
                     else:
                         logger.warning(f"[AGENT] Tender {tender_id} not found in database")
 
@@ -3519,6 +4951,16 @@ class LLMDrivenAgent:
                     safety_settings=SAFETY_SETTINGS
                 )
                 answer = response.text if response.text else "Не можам да генерирам одговор за овој тендер."
+
+                # Validate response quality for tender-specific answers
+                answer = validate_response(answer, question)
+                is_valid, validation_reason = validate_response_quality(answer, question)
+
+                if not is_valid:
+                    logger.warning(f"[VALIDATION] Tender-specific answer failed quality check: {validation_reason}")
+                    # For tender-specific queries, we have all the data, so just note the issue
+                    # but still return the answer as it's based on concrete tender data
+
                 # Store context for follow-ups
                 self.query_context.store(session_id, {
                     'question': question,
@@ -3540,6 +4982,11 @@ class LLMDrivenAgent:
 ПРАШАЊЕ ОД КОРИСНИКОТ:
 {question}{time_context}
 
+КЛАСИФИКАЦИЈА НА ПРАШАЊЕТО:
+- Тип: {query_classification['type']}
+- Препорачани tools: {', '.join(query_classification['primary_tools'])}
+- Резервни tools: {', '.join(query_classification['fallback_tools'])}
+
 ТВОЈА ЗАДАЧА: Одлучи кои tools да ги повикаш за да одговориш на прашањето.
 
 Врати JSON со следниов формат:
@@ -3548,6 +4995,7 @@ class LLMDrivenAgent:
     "tool_calls": [
         {{"tool": "search_tenders", "args": {{"keywords": ["клучен збор 1", "клучен збор 2"]}}}},
         {{"tool": "search_product_items", "args": {{"keywords": ["производ 1"]}}}},
+        {{"tool": "get_statistics", "args": {{"stat_type": "top_institutions", "metric": "both", "limit": 10}}}},
         ...
     ]
 }}
@@ -3559,7 +5007,15 @@ class LLMDrivenAgent:
 - СЕКОГАШ повикај барем еден tool!
 - АКО ПРАШАЊЕТО ИМА ПОВЕЌЕ ДЕЛОВИ (цени, трендови, препорака) → ПОВИКАЈ СИТЕ РЕЛЕВАНТНИ TOOLS!
 - ЗА ТРЕНДОВИ И ПРОГНОЗИ → МОРА да повикаш web_search_procurement!
-- ВАЖНО: Подобро е да повикаш повеќе tools отколку помалку!"""
+- ВАЖНО: Подобро е да повикаш повеќе tools отколку помалку!
+- ПРЕПОРАКА: Користи ги препорачаните tools од класификацијата како водич!
+
+📊 АНАЛИТИЧКИ/СТАТИСТИЧКИ ПРАШАЊА → get_statistics
+- "која институција објавува најмногу" → {{"tool": "get_statistics", "args": {{"stat_type": "top_institutions"}}}}
+- "кој победува најчесто" → {{"tool": "get_statistics", "args": {{"stat_type": "top_winners"}}}}
+- "колку тендери по години" → {{"tool": "get_statistics", "args": {{"stat_type": "by_year"}}}}
+- "статистика по категорија" → {{"tool": "get_statistics", "args": {{"stat_type": "by_category"}}}}
+- "вкупна статистика" → {{"tool": "get_statistics", "args": {{"stat_type": "market_overview"}}}}"""
 
             try:
                 model = genai.GenerativeModel('gemini-2.0-flash')
@@ -3578,11 +5034,22 @@ class LLMDrivenAgent:
 
             except Exception as e:
                 logger.error(f"[AGENT] Tool decision failed: {e}")
-                # Fallback: call all relevant tools
-                tool_calls = [
-                    {"tool": "search_tenders", "args": {"keywords": question.split()[:5]}},
-                    {"tool": "search_product_items", "args": {"keywords": question.split()[:5]}}
-                ]
+                # Fallback: use query classification to pick appropriate tools
+                if query_classification['type'] == 'analytical':
+                    # For analytical questions, use get_statistics
+                    tool_calls = [
+                        {"tool": "get_statistics", "args": {"stat_type": "top_institutions", "metric": "both", "limit": 10}}
+                    ]
+                elif query_classification['type'] == 'price':
+                    tool_calls = [
+                        {"tool": "get_price_statistics", "args": {"keywords": question.split()[:3]}},
+                        {"tool": "search_product_items", "args": {"keywords": question.split()[:5]}}
+                    ]
+                else:
+                    tool_calls = [
+                        {"tool": "search_tenders", "args": {"keywords": question.split()[:5]}},
+                        {"tool": "search_product_items", "args": {"keywords": question.split()[:5]}}
+                    ]
 
         # Step 2: PARALLEL MULTI-SOURCE SEARCH
         # Instead of sequential tool execution, search ALL sources in parallel first
@@ -3782,6 +5249,67 @@ class LLMDrivenAgent:
             if not is_grounded:
                 logger.warning(f"[GROUNDING] Answer was corrected due to hallucination detection")
                 answer_text = verified_answer
+
+            # ========================================================================
+            # RESPONSE QUALITY VALIDATION
+            # ========================================================================
+            # Validate response quality - ensure we never return bad responses
+            is_valid, validation_reason = validate_response_quality(answer_text, question)
+
+            if not is_valid:
+                logger.warning(f"[VALIDATION] Response quality check failed: {validation_reason}")
+                logger.warning(f"[VALIDATION] Attempting web search fallback...")
+
+                # Force a web search fallback
+                pool = await get_pool()
+                async with pool.acquire() as conn:
+                    web_result = await execute_tool("web_search_procurement", {"query": question}, conn)
+
+                    if web_result and len(web_result) > 100:
+                        # Regenerate answer with web results
+                        logger.info(f"[VALIDATION] Got web search results, regenerating answer...")
+
+                        regeneration_prompt = f"""ПРАШАЊЕ: {question}
+
+ПОДАТОЦИ ОД ВЕБ ПРЕБАРУВАЊЕ:
+{web_result[:3000]}
+
+ПРЕТХОДНА БАЗА ПОДАТОЦИ:
+{combined_results[:2000]}
+
+ПРАВИЛА:
+1. Одговори со КОНКРЕТНИ податоци од web резултатите или базата
+2. Никогаш не кажувај "немам податоци" или "не можам"
+3. Ако немаш точен одговор, дај совет базиран на слични случаи
+4. Биди директен и корисен
+5. НИКОГАШ не упатувај корисник на други веб страни
+
+Дај одговор на македонски:"""
+
+                        try:
+                            regeneration_response = model.generate_content(
+                                regeneration_prompt,
+                                generation_config=genai.GenerationConfig(temperature=0.3),
+                                safety_settings=SAFETY_SETTINGS
+                            )
+                            regenerated_answer = validate_response(regeneration_response.text, question)
+
+                            # Validate regenerated answer
+                            is_regenerated_valid, regen_reason = validate_response_quality(regenerated_answer, question)
+
+                            if is_regenerated_valid:
+                                logger.info(f"[VALIDATION] Regenerated answer passed quality check")
+                                answer_text = regenerated_answer
+                            else:
+                                logger.warning(f"[VALIDATION] Regenerated answer still failed: {regen_reason}")
+                                # Use regenerated answer anyway, it's better than nothing
+                                answer_text = regenerated_answer
+                        except Exception as e:
+                            logger.error(f"[VALIDATION] Regeneration failed: {e}")
+                            # Keep original answer if regeneration fails
+                    else:
+                        logger.warning(f"[VALIDATION] Web search returned insufficient results")
+                        # Keep original answer if web search fails
 
             # ========================================================================
             # STORE QUERY CONTEXT FOR FUTURE FOLLOW-UPS
@@ -6374,6 +7902,13 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                 contact = row.get('contact_person') or 'N/A'
                 email = row.get('contact_email') or 'N/A'
 
+                # Format award criteria if available
+                criteria_section = ""
+                if row.get('award_criteria'):
+                    criteria_text = format_award_criteria(row['award_criteria'])
+                    if criteria_text:
+                        criteria_section = f"\n{criteria_text}\n"
+
                 tender_text = f"""
 Тендер: {row['title']}
 ID: {row['tender_id']}
@@ -6388,7 +7923,7 @@ CPV код: {cpv_code}
 Тип на постапка: {row['procedure_type'] or 'N/A'}
 Победник: {row['winner'] or 'Не е избран'}
 Број на понудувачи: {num_bidders}
-Метод на евалуација: {evaluation}
+Метод на евалуација: {evaluation}{criteria_section}
 Контакт: {contact} ({email})
 Опис: {row['description'] or 'Нема опис'}
 """.strip()
