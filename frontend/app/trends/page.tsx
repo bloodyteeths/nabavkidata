@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Clock,
-  Trophy,
   DollarSign,
   Building,
   Calendar,
@@ -20,7 +19,6 @@ import {
 import {
   UpcomingOpportunities,
   ActiveBuyers,
-  TopWinners,
   PriceBenchmarks,
   SeasonalPatterns,
 } from "@/components/insights";
@@ -174,16 +172,11 @@ export default function InsightsPage() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="opportunities" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto gap-1">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto gap-1">
           <TabsTrigger value="opportunities" className="flex items-center gap-1.5 py-2 px-2 text-xs sm:text-sm">
             <Clock className="h-4 w-4" />
             <span className="hidden sm:inline">Можности</span>
             <span className="sm:hidden">Итни</span>
-          </TabsTrigger>
-          <TabsTrigger value="competition" className="flex items-center gap-1.5 py-2 px-2 text-xs sm:text-sm">
-            <Trophy className="h-4 w-4" />
-            <span className="hidden sm:inline">Конкуренција</span>
-            <span className="sm:hidden">Топ</span>
           </TabsTrigger>
           <TabsTrigger value="pricing" className="flex items-center gap-1.5 py-2 px-2 text-xs sm:text-sm">
             <DollarSign className="h-4 w-4" />
@@ -212,17 +205,6 @@ export default function InsightsPage() {
             </div>
           </div>
           <UpcomingOpportunities cpvCode={appliedCpv} />
-        </TabsContent>
-
-        {/* Competition Analysis */}
-        <TabsContent value="competition" className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Топ победници</h2>
-            <p className="text-sm text-muted-foreground">
-              Кои компании најчесто добиваат тендери - запознајте ја конкуренцијата
-            </p>
-          </div>
-          <TopWinners />
         </TabsContent>
 
         {/* Price Benchmarks */}
