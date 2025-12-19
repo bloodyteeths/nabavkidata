@@ -36,7 +36,9 @@ import {
   FileText,
   Link2,
   Radar,
-  Loader2
+  Loader2,
+  Info,
+  Scale
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -70,6 +72,7 @@ interface RiskFlag {
   severity: string;
   score: number;
   description: string;
+  evidence?: Record<string, any>;
 }
 
 interface RiskyTender {
@@ -91,6 +94,8 @@ export default function RiskAnalysisPage() {
   const [riskFilter, setRiskFilter] = useState<string>("all");
   const [flagFilter, setFlagFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailedAnalysis, setDetailedAnalysis] = useState<Record<string, any>>({});
+  const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
 
   // Search mode
   const [searchQuery, setSearchQuery] = useState("");
@@ -215,8 +220,28 @@ export default function RiskAnalysisPage() {
     return RISK_LEVELS[level] || RISK_LEVELS.medium;
   }
 
-  function handleExpand(id: string) {
-    setExpandedId(expandedId === id ? null : id);
+  async function handleExpand(id: string) {
+    if (expandedId === id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(id);
+
+    // Fetch detailed analysis if not already cached
+    if (!detailedAnalysis[id]) {
+      setLoadingDetail(id);
+      try {
+        const res = await fetch(`${API_URL}/api/corruption/tender/${encodeURIComponent(id)}/analysis`);
+        if (res.ok) {
+          const data = await res.json();
+          setDetailedAnalysis(prev => ({ ...prev, [id]: data }));
+        }
+      } catch (err) {
+        console.error("Failed to load detailed analysis:", err);
+      } finally {
+        setLoadingDetail(null);
+      }
+    }
   }
 
   return (
@@ -231,6 +256,25 @@ export default function RiskAnalysisPage() {
           Автоматска анализа на тендери за корупциски индикатори
         </p>
       </div>
+
+      {/* Legal Disclaimer */}
+      <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <Scale className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-amber-800 dark:text-amber-200 mb-1">
+                Правна напомена
+              </p>
+              <p className="text-amber-700 dark:text-amber-300 leading-relaxed">
+                Оваа анализа е генерирана автоматски од AI алгоритми и служи <strong>исклучиво за информативни цели</strong>.
+                Означувањето на тендер како „ризичен" <strong>не претставува доказ</strong> за незаконски дејствија.
+                Сите наоди бараат детална верификација и официјална истрага од надлежни органи пред донесување заклучоци.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabs */}
       <Tabs value={mode} onValueChange={setMode}>
@@ -406,7 +450,110 @@ export default function RiskAnalysisPage() {
                               <p className="text-sm font-medium">{tender.winner}</p>
                             </div>
                           )}
-                          {tender.flags.length > 0 && (
+
+                          {/* Detailed flags with evidence */}
+                          {loadingDetail === tender.tender_id ? (
+                            <div className="flex items-center gap-2 py-4 justify-center">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span className="text-sm text-muted-foreground">Вчитување детали...</span>
+                            </div>
+                          ) : detailedAnalysis[tender.tender_id]?.flags?.length > 0 ? (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-2">Детални ризици:</p>
+                              {detailedAnalysis[tender.tender_id].flags.map((flag: any, i: number) => {
+                                const flagCfg = FLAG_TYPES[flag.flag_type] || { icon: AlertTriangle, label: flag.flag_type };
+                                const FlagIcon = flagCfg.icon;
+                                const severityCfg = RISK_LEVELS[flag.severity] || RISK_LEVELS.medium;
+
+                                return (
+                                  <div key={i} className={`p-3 rounded mb-2 ${severityCfg.light} border ${severityCfg.text.replace('text-', 'border-')}/30`}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <FlagIcon className={`h-4 w-4 ${severityCfg.text}`} />
+                                      <span className="text-sm font-medium">{flagCfg.label}</span>
+                                      <Badge className={`${severityCfg.light} ${severityCfg.text} border-0 text-[10px]`}>
+                                        {severityCfg.label}
+                                      </Badge>
+                                      <span className="ml-auto text-xs font-mono">{flag.score} pts</span>
+                                    </div>
+                                    {flag.description && (
+                                      <p className="text-xs mb-2">{flag.description}</p>
+                                    )}
+                                    {flag.evidence && Object.keys(flag.evidence).length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-current/10">
+                                        <p className="text-[10px] font-medium mb-1 flex items-center gap-1">
+                                          <Info className="h-3 w-3" /> Докази:
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
+                                          {flag.evidence.company_a && (
+                                            <div className="col-span-2">
+                                              <span className="text-muted-foreground">Компанија А:</span>{" "}
+                                              <span className="font-medium">{flag.evidence.company_a}</span>
+                                            </div>
+                                          )}
+                                          {flag.evidence.company_b && (
+                                            <div className="col-span-2">
+                                              <span className="text-muted-foreground">Компанија Б:</span>{" "}
+                                              <span className="font-medium">{flag.evidence.company_b}</span>
+                                            </div>
+                                          )}
+                                          {flag.evidence.overlap_percentage !== undefined && (
+                                            <div>
+                                              <span className="text-muted-foreground">Совпаѓање:</span>{" "}
+                                              <span className="font-medium">{flag.evidence.overlap_percentage}%</span>
+                                            </div>
+                                          )}
+                                          {flag.evidence.co_occurrences !== undefined && (
+                                            <div>
+                                              <span className="text-muted-foreground">Заеднички тендери:</span>{" "}
+                                              <span className="font-medium">{flag.evidence.co_occurrences}</span>
+                                            </div>
+                                          )}
+                                          {flag.evidence.dominant_win_rate !== undefined && (
+                                            <div>
+                                              <span className="text-muted-foreground">Стапка на победи:</span>{" "}
+                                              <span className="font-medium">{flag.evidence.dominant_win_rate}%</span>
+                                            </div>
+                                          )}
+                                          {flag.evidence.bidders_count !== undefined && (
+                                            <div>
+                                              <span className="text-muted-foreground">Понудувачи:</span>{" "}
+                                              <span className="font-medium">{flag.evidence.bidders_count}</span>
+                                            </div>
+                                          )}
+                                          {flag.evidence.deadline_days !== undefined && (
+                                            <div>
+                                              <span className="text-muted-foreground">Рок (денови):</span>{" "}
+                                              <span className="font-medium">{flag.evidence.deadline_days}</span>
+                                            </div>
+                                          )}
+                                          {flag.evidence.win_rate !== undefined && (
+                                            <div>
+                                              <span className="text-muted-foreground">Стапка победи:</span>{" "}
+                                              <span className="font-medium">{flag.evidence.win_rate}%</span>
+                                            </div>
+                                          )}
+                                          {flag.evidence.wins_at_entity !== undefined && (
+                                            <div>
+                                              <span className="text-muted-foreground">Победи кај истата:</span>{" "}
+                                              <span className="font-medium">{flag.evidence.wins_at_entity}</span>
+                                            </div>
+                                          )}
+                                          {flag.evidence.sample_tenders?.length > 0 && (
+                                            <div className="col-span-2 mt-1">
+                                              <span className="text-muted-foreground">Поврзани тендери:</span>{" "}
+                                              <span className="font-mono text-[9px]">
+                                                {flag.evidence.sample_tenders.slice(0, 3).join(", ")}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : tender.flags.length > 0 && (
                             <div>
                               <p className="text-xs text-muted-foreground mb-2">Ризици:</p>
                               {tender.flags.map((flag, i) => {
