@@ -20,6 +20,7 @@ interface Message {
     similarity: number;
   }>;
   confidence?: string;
+  timestamp?: Date;
 }
 
 interface UsageStatus {
@@ -120,6 +121,7 @@ export default function ChatPage() {
       id: Date.now().toString(),
       role: "user",
       content,
+      timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -141,6 +143,7 @@ export default function ChatPage() {
         content: response.answer,
         sources: response.sources,
         confidence: response.confidence,
+        timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -334,6 +337,13 @@ export default function ChatPage() {
                     role={message.role}
                     content={message.content}
                     sources={message.sources}
+                    confidence={message.confidence}
+                    timestamp={message.timestamp}
+                    messageId={message.id}
+                    onFeedback={(msgId, helpful) => {
+                      // TODO: Send feedback to API
+                      console.log(`Feedback for ${msgId}: ${helpful ? 'helpful' : 'not helpful'}`);
+                    }}
                   />
                 </div>
               ))}
