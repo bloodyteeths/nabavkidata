@@ -1512,23 +1512,20 @@ class APIClient {
   async getPriceBenchmarks(category?: string, cpvCode?: string) {
     const params: Record<string, string> = {};
     if (category) params.category = category;
-    if (cpvCode) params.cpv_code = cpvCode;
+    if (cpvCode) params.cpv_prefix = cpvCode;
     const query = new URLSearchParams(params).toString();
     return this.request<{
-      by_category: Array<{
-        category: string;
-        avg_value: number;
-        median_value: number;
-        min_value: number;
-        max_value: number;
-        count: number;
-      }>;
-      by_cpv_division: Array<{
+      category: string;
+      benchmarks: Array<{
         cpv_division: string;
-        cpv_name: string;
-        avg_value: number;
-        count: number;
+        cpv_division_name: string | null;
+        avg_value: number | null;
+        median_value: number | null;
+        min_value: number | null;
+        max_value: number | null;
+        tender_count: number;
       }>;
+      total_divisions: number;
     }>(`/api/insights/price-benchmarks${query ? `?${query}` : ''}`);
   }
 
@@ -2034,24 +2031,25 @@ class APIClient {
       buyers: Array<{
         entity_name: string;
         tender_count: number;
-        total_value: number;
-        categories: Record<string, number>; // e.g., {"Стоки": 5, "Услуги": 3}
+        total_value: number | null;
+        categories_breakdown: Record<string, number>; // e.g., {"Стоки": 5, "Услуги": 3}
         trend?: number; // percentage change from previous period
       }>;
+      total: number;
     }>(`/api/insights/active-buyers${params}`);
   }
 
   async getTopWinners(cpvCode?: string) {
-    const params = cpvCode ? new URLSearchParams({ cpv_code: cpvCode }) : new URLSearchParams();
+    const params = cpvCode ? new URLSearchParams({ cpv_prefix: cpvCode }) : new URLSearchParams();
     return this.request<{
       winners: Array<{
         name: string;
         win_count: number;
-        total_value_won: number;
+        total_value_won: number | null;
         categories: string[];
-        avg_contract_value: number;
+        avg_contract_value: number | null;
       }>;
-      total_awarded: number;
+      total: number;
     }>(`/api/insights/top-winners?${params.toString()}`);
   }
 

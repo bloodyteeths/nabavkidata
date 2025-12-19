@@ -11,14 +11,14 @@ import { api } from "@/lib/api";
 interface Winner {
   name: string;
   win_count: number;
-  total_value_won: number;
+  total_value_won: number | null;
   categories: string[];
-  avg_contract_value: number;
+  avg_contract_value: number | null;
 }
 
 interface TopWinnersData {
   winners: Winner[];
-  total_awarded: number;
+  total: number;
 }
 
 export function TopWinners() {
@@ -46,7 +46,8 @@ export function TopWinners() {
     }
   };
 
-  const formatCurrency = (value: number): string => {
+  const formatCurrency = (value: number | null | undefined): string => {
+    if (value == null) return "Н/Д";
     if (value >= 1_000_000_000) {
       return `${(value / 1_000_000_000).toFixed(2)} млрд`;
     } else if (value >= 1_000_000) {
@@ -103,8 +104,8 @@ export function TopWinners() {
           </div>
           {data && (
             <div className="text-right">
-              <p className="text-sm text-muted-foreground">Вкупно доделени</p>
-              <p className="text-2xl font-bold">{data.total_awarded.toLocaleString()}</p>
+              <p className="text-sm text-muted-foreground">Вкупно победници</p>
+              <p className="text-2xl font-bold">{data.total?.toLocaleString() || 0}</p>
             </div>
           )}
         </div>
@@ -194,7 +195,7 @@ export function TopWinners() {
                           <div className="flex items-center justify-center gap-2">
                             <TrendingUp className="h-4 w-4 text-green-600" />
                             <span className="font-bold text-green-600">
-                              {winner.win_count.toLocaleString()}
+                              {winner.win_count?.toLocaleString() || 0}
                             </span>
                           </div>
                           {/* Progress bar showing relative win count */}

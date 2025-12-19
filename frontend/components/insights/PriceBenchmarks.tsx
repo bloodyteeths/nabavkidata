@@ -27,25 +27,20 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 
-interface CategoryBenchmark {
-  category: string;
-  avg_value: number;
-  median_value: number;
-  min_value: number;
-  max_value: number;
-  count: number;
-}
-
-interface CPVBenchmark {
+interface PriceBenchmarkItem {
   cpv_division: string;
-  cpv_name: string;
-  avg_value: number;
-  count: number;
+  cpv_division_name: string | null;
+  avg_value: number | null;
+  median_value: number | null;
+  min_value: number | null;
+  max_value: number | null;
+  tender_count: number;
 }
 
 interface PriceBenchmarksData {
-  by_category: CategoryBenchmark[];
-  by_cpv_division: CPVBenchmark[];
+  category: string;
+  benchmarks: PriceBenchmarkItem[];
+  total_divisions: number;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -85,7 +80,8 @@ export function PriceBenchmarks() {
     }
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value == null) return "Н/Д";
     if (value >= 1_000_000) {
       return `${(value / 1_000_000).toFixed(1)}M МКД`;
     }
@@ -95,7 +91,8 @@ export function PriceBenchmarks() {
     return `${value.toFixed(0)} МКД`;
   };
 
-  const formatCurrencyShort = (value: number) => {
+  const formatCurrencyShort = (value: number | null | undefined) => {
+    if (value == null) return "0";
     if (value >= 1_000_000) {
       return `${(value / 1_000_000).toFixed(1)}M`;
     }
@@ -144,12 +141,8 @@ export function PriceBenchmarks() {
     );
   }
 
-  const maxCategoryValue = Math.max(
-    ...data.by_category.map((c) => c.avg_value),
-    1
-  );
-  const maxCPVValue = Math.max(
-    ...data.by_cpv_division.map((c) => c.avg_value),
+  const maxBenchmarkValue = Math.max(
+    ...data.benchmarks.map((b) => b.avg_value || 0),
     1
   );
 
@@ -175,83 +168,25 @@ export function PriceBenchmarks() {
             </TabsList>
 
             <TabsContent value={selectedCategory} className="space-y-6 mt-6">
-              {/* Category Statistics */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <BarChart2 className="h-5 w-5" />
-                  Статистика по категории
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {data.by_category.map((category) => (
-                    <Card key={category.category}>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base">
-                          {CATEGORY_LABELS[category.category] || category.category}
-                        </CardTitle>
-                        <CardDescription>
-                          {category.count.toLocaleString()} тендери
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">Просек</span>
-                            <span className="font-medium">
-                              {formatCurrency(category.avg_value)}
-                            </span>
-                          </div>
-                          <Progress
-                            value={(category.avg_value / maxCategoryValue) * 100}
-                            className="h-2"
-                          />
-                        </div>
-                        <div>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">Медиана</span>
-                            <span className="font-medium">
-                              {formatCurrency(category.median_value)}
-                            </span>
-                          </div>
-                          <Progress
-                            value={(category.median_value / maxCategoryValue) * 100}
-                            className="h-2"
-                          />
-                        </div>
-                        <div className="pt-2 border-t">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-muted-foreground">Мин</span>
-                            <span>{formatCurrency(category.min_value)}</span>
-                          </div>
-                          <div className="flex justify-between text-xs mt-1">
-                            <span className="text-muted-foreground">Макс</span>
-                            <span>{formatCurrency(category.max_value)}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-
               {/* CPV Division Rankings */}
               <div>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
                   Топ CPV сектори (по просечна вредност)
                 </h3>
-                {data.by_cpv_division.length > 0 ? (
+                {data.benchmarks.length > 0 ? (
                   <>
                     {/* Bar Chart */}
                     <div className="mb-6">
                       <ResponsiveContainer width="100%" height={400}>
                         <BarChart
-                          data={data.by_cpv_division.slice(0, 15)}
+                          data={data.benchmarks.slice(0, 15)}
                           layout="vertical"
                           margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
                         >
                           <XAxis
                             type="number"
-                            tickFormatter={formatCurrencyShort}
+                            tickFormatter={(v) => formatCurrencyShort(v)}
                           />
                           <YAxis
                             type="category"
@@ -262,14 +197,14 @@ export function PriceBenchmarks() {
                           <Tooltip
                             formatter={(value: number) => formatCurrency(value)}
                             labelFormatter={(label) => {
-                              const item = data.by_cpv_division.find(
+                              const item = data.benchmarks.find(
                                 (d) => d.cpv_division === label
                               );
-                              return item?.cpv_name || label;
+                              return item?.cpv_division_name || label;
                             }}
                           />
                           <Bar dataKey="avg_value" name="Просечна вредност">
-                            {data.by_cpv_division.slice(0, 15).map((_, index) => (
+                            {data.benchmarks.slice(0, 15).map((_, index) => (
                               <Cell
                                 key={`cell-${index}`}
                                 fill={COLORS[index % COLORS.length]}
@@ -282,7 +217,7 @@ export function PriceBenchmarks() {
 
                     {/* Detailed List */}
                     <div className="space-y-2">
-                      {data.by_cpv_division.slice(0, 20).map((cpv, index) => (
+                      {data.benchmarks.slice(0, 20).map((cpv, index) => (
                         <div
                           key={cpv.cpv_division}
                           className="flex items-center gap-4 p-3 rounded-lg border bg-card/50 hover:bg-accent/50 transition-colors"
@@ -296,15 +231,15 @@ export function PriceBenchmarks() {
                                 {cpv.cpv_division}
                               </span>
                               <span className="text-sm truncate">
-                                {cpv.cpv_name}
+                                {cpv.cpv_division_name || `Division ${cpv.cpv_division}`}
                               </span>
                             </div>
                             <div className="flex items-center gap-4 mt-1">
                               <span className="text-xs text-muted-foreground">
-                                {cpv.count.toLocaleString()} тендери
+                                {cpv.tender_count?.toLocaleString() || 0} тендери
                               </span>
                               <Progress
-                                value={(cpv.avg_value / maxCPVValue) * 100}
+                                value={((cpv.avg_value || 0) / maxBenchmarkValue) * 100}
                                 className="h-1.5 flex-1 max-w-xs"
                               />
                             </div>

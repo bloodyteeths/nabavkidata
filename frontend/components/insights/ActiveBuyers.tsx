@@ -12,8 +12,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
 interface ActiveBuyer {
   entity_name: string
   tender_count: number
-  total_value: number
-  categories: Record<string, number> // e.g., {"Стоки": 5, "Услуги": 3}
+  total_value: number | null
+  categories_breakdown: Record<string, number> // e.g., {"Стоки": 5, "Услуги": 3}
   trend?: number // percentage change from previous period
 }
 
@@ -245,7 +245,7 @@ export default function ActiveBuyers({ category }: ActiveBuyersProps) {
               {/* Total Value */}
               <div>
                 <div className="text-sm font-semibold text-foreground">
-                  {formatMKD(buyer.total_value)}
+                  {buyer.total_value ? formatMKD(buyer.total_value) : "Н/Д"}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   вкупна проценета вредност
@@ -253,7 +253,7 @@ export default function ActiveBuyers({ category }: ActiveBuyersProps) {
               </div>
 
               {/* Category Breakdown */}
-              {renderCategoryBreakdown(buyer.categories)}
+              {renderCategoryBreakdown(buyer.categories_breakdown || {})}
 
               {/* Click indicator */}
               <div className="pt-2 border-t">
