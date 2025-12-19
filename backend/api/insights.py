@@ -256,7 +256,7 @@ async def get_top_winners(
 
 @router.get("/price-benchmarks", response_model=PriceBenchmarksResponse)
 async def get_price_benchmarks(
-    category: str = Query(..., description="Category: Стоки, Услуги, or Работи"),
+    category: Optional[str] = Query(None, description="Category: Стоки, Услуги, or Работи"),
     cpv_prefix: Optional[str] = Query(None, description="Filter by CPV code prefix"),
     limit: int = Query(10, ge=1, le=50, description="Number of top CPV divisions"),
     db: AsyncSession = Depends(get_db)
@@ -269,6 +269,10 @@ async def get_price_benchmarks(
     (first 2 digits of CPV code).
     """
     # Query price statistics by CPV division
+    category_filter = ""
+    if category:
+        category_filter = "AND category = :category"
+
     cpv_filter = ""
     if cpv_prefix:
         cpv_filter = "AND cpv_code LIKE :cpv_pattern"
@@ -279,10 +283,10 @@ async def get_price_benchmarks(
                 SUBSTRING(cpv_code FROM 1 FOR 2) as cpv_division,
                 estimated_value_mkd
             FROM tenders
-            WHERE category = :category
-                AND cpv_code IS NOT NULL
+            WHERE cpv_code IS NOT NULL
                 AND estimated_value_mkd IS NOT NULL
                 AND estimated_value_mkd > 0
+                {category_filter}
                 {cpv_filter}
         )
         SELECT
@@ -300,7 +304,9 @@ async def get_price_benchmarks(
         LIMIT :limit
     """)
 
-    params: dict = {"category": category, "limit": limit}
+    params: dict = {"limit": limit}
+    if category:
+        params["category"] = category
     if cpv_prefix:
         params["cpv_pattern"] = f"{cpv_prefix}%"
 
@@ -368,7 +374,7 @@ async def get_price_benchmarks(
     ]
 
     return PriceBenchmarksResponse(
-        category=category,
+        category=category or "All",
         benchmarks=benchmarks,
         total_divisions=len(benchmarks)
     )
@@ -385,6 +391,7 @@ async def get_active_buyers(
     Get most active procuring entities
 
     Returns top institutions by tender count in the specified period.
+    Uses opening_date, closing_date, or publication_date (NOT created_at).
     Includes tender count, total value, and category breakdown.
     """
     cutoff_date = date.today() - timedelta(days=days)
@@ -411,7 +418,8 @@ async def get_active_buyers(
                 COUNT(*) OVER (PARTITION BY procuring_entity, category) as category_count
             FROM tenders
             WHERE procuring_entity IS NOT NULL
-                AND opening_date >= :cutoff_date
+                AND COALESCE(opening_date, closing_date, publication_date) >= :cutoff_date
+                AND COALESCE(opening_date, closing_date, publication_date) IS NOT NULL
                 {category_filter}
         ) t
         GROUP BY procuring_entity
@@ -453,7 +461,8 @@ async def get_seasonal_patterns(
     Get seasonal patterns by month
 
     Shows which months have the most tender activity by category.
-    Uses closing_date or opening_date (NOT created_at) for accurate seasonality.
+    Uses closing_date, opening_date, or publication_date (NOT created_at) for accurate seasonality.
+    Filters out tenders with no valid dates to avoid showing recent scraping activity.
     Returns last N months of data.
     """
     # Build query dynamically to avoid NULL type inference issues
@@ -464,12 +473,13 @@ async def get_seasonal_patterns(
     query = text(f"""
         WITH monthly_data AS (
             SELECT
-                DATE_TRUNC('month', COALESCE(closing_date, opening_date)) as month,
+                DATE_TRUNC('month', COALESCE(closing_date, opening_date, publication_date)) as month,
                 category,
                 estimated_value_mkd
             FROM tenders
-            WHERE COALESCE(closing_date, opening_date) IS NOT NULL
-                AND COALESCE(closing_date, opening_date) >= NOW() - INTERVAL '1 month' * :months
+            WHERE COALESCE(closing_date, opening_date, publication_date) IS NOT NULL
+                AND COALESCE(closing_date, opening_date, publication_date) >= NOW() - INTERVAL '1 month' * :months
+                AND COALESCE(closing_date, opening_date, publication_date) <= NOW()
                 {category_filter}
         )
         SELECT

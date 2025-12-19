@@ -372,6 +372,13 @@ export default function SeasonalPatterns() {
           </TabsContent>
         </Tabs>
 
+        {/* Data Quality Note */}
+        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200">
+          <strong>Забелешка:</strong> Графиконот прикажува тендери врз основа на нивните официјални датуми
+          (датум на затворање, отворање или објавување). Тендери без валидни датуми се исклучени од анализата.
+          Иднини датуми исто така се филтрирани.
+        </div>
+
         {/* Business Planning Insight */}
         <div className="p-4 rounded-lg bg-muted/50 border-l-4 border-blue-600">
           <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
