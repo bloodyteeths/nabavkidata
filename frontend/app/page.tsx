@@ -1,13 +1,36 @@
 import { Metadata } from "next";
+import dynamic from "next/dynamic";
 import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
-import ValuePropositionSection from "@/components/landing/ValuePropositionSection";
-import HowItWorksSection from "@/components/landing/HowItWorksSection";
-import FeaturesSection from "@/components/landing/FeaturesSection";
-import TrustSection from "@/components/landing/TrustSection";
-import ComparisonSection from "@/components/landing/ComparisonSection";
-import PricingSection from "@/components/landing/PricingSection";
-import SocialProofNotifications from "@/components/landing/SocialProofNotifications";
+
+// Lazy load below-the-fold sections for better performance
+const ValuePropositionSection = dynamic(() => import("@/components/landing/ValuePropositionSection"), {
+    loading: () => <div className="min-h-[400px]" />
+});
+const HowItWorksSection = dynamic(() => import("@/components/landing/HowItWorksSection"), {
+    loading: () => <div className="min-h-[600px]" />
+});
+const FeaturesSection = dynamic(() => import("@/components/landing/FeaturesSection"), {
+    loading: () => <div className="min-h-[800px]" />
+});
+const TrustSection = dynamic(() => import("@/components/landing/TrustSection"), {
+    loading: () => <div className="min-h-[500px]" />
+});
+const ComparisonSection = dynamic(() => import("@/components/landing/ComparisonSection"), {
+    loading: () => <div className="min-h-[600px]" />
+});
+const PricingSection = dynamic(() => import("@/components/landing/PricingSection"), {
+    loading: () => <div className="min-h-[700px]" />
+});
+const SocialProofNotifications = dynamic(() => import("@/components/landing/SocialProofNotifications"), {
+    ssr: false
+});
+const FAQSection = dynamic(() => import("@/components/landing/FAQSection"), {
+    loading: () => <div className="min-h-[600px]" />
+});
+const TestimonialsSection = dynamic(() => import("@/components/landing/TestimonialsSection"), {
+    loading: () => <div className="min-h-[600px]" />
+});
 
 export const metadata: Metadata = {
     title: "Почетна",
@@ -25,6 +48,8 @@ export default function LandingPage() {
             <TrustSection />
             <ComparisonSection />
             <PricingSection />
+            <TestimonialsSection />
+            <FAQSection />
             <SocialProofNotifications />
 
             {/* Footer */}

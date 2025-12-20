@@ -16,6 +16,7 @@ import { DocumentSearch } from "@/components/documents/DocumentSearch";
 import { QuickActions } from "@/components/ai/QuickActions";
 import { TenderChatWidget } from "@/components/ai/TenderChatWidget";
 import { BidRecommendation } from "@/components/pricing/BidRecommendation";
+import { RelatedTenders } from "@/components/RelatedTenders";
 import {
   ArrowLeft,
   Building2,
@@ -46,6 +47,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -511,6 +513,14 @@ export default function TenderDetailPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-6">
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: "Тендери", href: "/tenders" }
+        ]}
+        currentPage={tender.title || "Без наслов"}
+      />
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
@@ -1670,6 +1680,14 @@ export default function TenderDetailPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Related Tenders */}
+          <RelatedTenders
+            currentTenderId={tenderId}
+            cpvCode={tender.cpv_code}
+            category={tender.category}
+            limit={5}
+          />
         </div>
       </div>
 

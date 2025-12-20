@@ -109,11 +109,15 @@ export default function TrustSection() {
                                 className="flex flex-col items-center gap-2 md:gap-3 p-4 md:p-6 rounded-xl hover:bg-white/5 transition-colors group"
                             >
                                 <div className="relative w-20 h-12 md:w-24 md:h-14 flex items-center justify-center opacity-70 group-hover:opacity-100 transition-opacity">
-                                    <img
+                                    <Image
                                         src={partner.logo}
                                         alt={partner.name}
+                                        width={96}
+                                        height={56}
                                         className="max-w-full max-h-full object-contain"
                                         style={{ filter: 'brightness(0) invert(1)' }}
+                                        loading="lazy"
+                                        unoptimized={partner.logo.startsWith('data:')}
                                     />
                                 </div>
                                 <p className="text-xs text-gray-500 text-center">{partner.description}</p>

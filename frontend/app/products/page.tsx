@@ -331,10 +331,10 @@ export default function ProductsPage() {
       <div>
         <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
           <Package className="h-8 w-8" />
-          Product Research
+          Истражување на Производи
         </h1>
         <p className="text-sm md:text-base text-muted-foreground mt-1">
-          Search and analyze products, medicines, equipment, and services across all tenders
+          Пребарувајте и анализирајте производи, лекови, опрема и услуги низ сите тендери
         </p>
       </div>
 
@@ -345,19 +345,19 @@ export default function ProductsPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-2xl font-bold">{stats.total_products.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Total Products</p>
+                <p className="text-xs text-muted-foreground">Вкупно Производи</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="text-2xl font-bold">{stats.unique_products.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Unique Products</p>
+                <p className="text-xs text-muted-foreground">Уникатни Производи</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="text-2xl font-bold">{stats.tenders_with_products.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Tenders with Products</p>
+                <p className="text-xs text-muted-foreground">Тендери со Производи</p>
               </CardContent>
             </Card>
       </div>
@@ -390,7 +390,7 @@ export default function ProductsPage() {
       {/* Search Form */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Search Products</CardTitle>
+          <CardTitle className="text-lg">Пребарување на Производи</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleSearch} className="relative">
@@ -398,7 +398,7 @@ export default function ProductsPage() {
               <div className="flex-1 relative">
                 <Input
                   ref={searchInputRef}
-                  placeholder="Search for products (e.g., paracetamol, intraocular lens, medical equipment...)"
+                  placeholder="Пребарувајте производи (на пр., парацетамол, интраокуларна леќа, медицинска опрема...)"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -438,7 +438,7 @@ export default function ProductsPage() {
               </div>
               <Button type="submit" disabled={loading || !query.trim()}>
                 <Search className="h-4 w-4 mr-2" />
-                Search
+                Пребарај
               </Button>
               <Button
                 type="button"
@@ -447,7 +447,7 @@ export default function ProductsPage() {
                 className={hasActiveFilters ? "border-primary" : ""}
               >
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Filters
+                Филтри
                 {hasActiveFilters && (
                   <Badge variant="default" className="ml-2 h-5 px-1.5">
                     {Object.values(filters).filter(v => v !== undefined && v !== "").length}
@@ -459,8 +459,8 @@ export default function ProductsPage() {
 
           {/* Quick examples */}
           <div className="flex flex-wrap gap-2">
-            <span className="text-xs text-muted-foreground">Examples:</span>
-            {["paracetamol", "intraocular lens", "medical equipment", "IT services"].map((example) => (
+            <span className="text-xs text-muted-foreground">Примери:</span>
+            {["парацетамол", "интраокуларна леќа", "медицинска опрема", "ИТ услуги"].map((example) => (
               <button
                 key={example}
                 type="button"
@@ -481,7 +481,7 @@ export default function ProductsPage() {
               <div className="flex items-center justify-between">
                 <h3 className="font-medium flex items-center gap-2">
                   <Filter className="h-4 w-4" />
-                  Advanced Filters
+                  Напредни Филтри
                 </h3>
                 {hasActiveFilters && (
                   <Button
@@ -491,7 +491,7 @@ export default function ProductsPage() {
                     className="text-xs"
                   >
                     <X className="h-3 w-3 mr-1" />
-                    Clear all
+                    Избриши ги сите
                   </Button>
                 )}
               </div>
@@ -499,7 +499,7 @@ export default function ProductsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Year filter */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Year</label>
+                  <label className="text-sm font-medium">Година</label>
                   <Select
                     value={filters.year?.toString() || "all"}
                     onValueChange={(value) =>
@@ -507,10 +507,10 @@ export default function ProductsPage() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="All years" />
+                      <SelectValue placeholder="Сите години" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All years</SelectItem>
+                      <SelectItem value="all">Сите години</SelectItem>
                       {availableYears.map(year => (
                         <SelectItem key={year} value={year.toString()}>
                           {year}
@@ -522,9 +522,9 @@ export default function ProductsPage() {
 
                 {/* CPV Code filter */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">CPV Code</label>
+                  <label className="text-sm font-medium">CPV Код</label>
                   <Input
-                    placeholder="e.g., 33600000"
+                    placeholder="на пр., 33600000"
                     value={filters.cpv_code || ""}
                     onChange={(e) =>
                       setFilters(prev => ({ ...prev, cpv_code: e.target.value || undefined }))
@@ -534,9 +534,9 @@ export default function ProductsPage() {
 
                 {/* Procuring Entity filter */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Procuring Entity</label>
+                  <label className="text-sm font-medium">Договорен Орган</label>
                   <Input
-                    placeholder="e.g., Hospital name"
+                    placeholder="на пр., Име на болница"
                     value={filters.procuring_entity || ""}
                     onChange={(e) =>
                       setFilters(prev => ({ ...prev, procuring_entity: e.target.value || undefined }))
@@ -546,7 +546,7 @@ export default function ProductsPage() {
 
                 {/* Min Price filter */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Min Price (MKD)</label>
+                  <label className="text-sm font-medium">Мин. Цена (МКД)</label>
                   <Input
                     type="number"
                     placeholder="0"
@@ -562,10 +562,10 @@ export default function ProductsPage() {
 
                 {/* Max Price filter */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Max Price (MKD)</label>
+                  <label className="text-sm font-medium">Макс. Цена (МКД)</label>
                   <Input
                     type="number"
-                    placeholder="No limit"
+                    placeholder="Без лимит"
                     value={filters.max_price || ""}
                     onChange={(e) =>
                       setFilters(prev => ({
@@ -578,7 +578,7 @@ export default function ProductsPage() {
 
                 {/* Sort by */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Sort By</label>
+                  <label className="text-sm font-medium">Сортирај По</label>
                   <Select
                     value={sortBy}
                     onValueChange={(value) => setSortBy(value as SortOption)}
@@ -587,11 +587,11 @@ export default function ProductsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="date_desc">Date (Newest first)</SelectItem>
-                      <SelectItem value="date_asc">Date (Oldest first)</SelectItem>
-                      <SelectItem value="price_asc">Price (Low to High)</SelectItem>
-                      <SelectItem value="price_desc">Price (High to Low)</SelectItem>
-                      <SelectItem value="quantity_desc">Quantity (High to Low)</SelectItem>
+                      <SelectItem value="date_desc">Датум (најнови прво)</SelectItem>
+                      <SelectItem value="date_asc">Датум (најстари прво)</SelectItem>
+                      <SelectItem value="price_asc">Цена (од ниска кон висока)</SelectItem>
+                      <SelectItem value="price_desc">Цена (од висока кон ниска)</SelectItem>
+                      <SelectItem value="quantity_desc">Количина (од висока кон ниска)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -610,25 +610,25 @@ export default function ProductsPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-lg font-bold text-green-600">{formatPrice(priceStats.min)}</div>
-                  <p className="text-xs text-muted-foreground">Lowest Price</p>
+                  <p className="text-xs text-muted-foreground">Најниска Цена</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-lg font-bold">{formatPrice(priceStats.avg)}</div>
-                  <p className="text-xs text-muted-foreground">Average Price</p>
+                  <p className="text-xs text-muted-foreground">Просечна Цена</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-lg font-bold text-red-600">{formatPrice(priceStats.max)}</div>
-                  <p className="text-xs text-muted-foreground">Highest Price</p>
+                  <p className="text-xs text-muted-foreground">Највисока Цена</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-lg font-bold">{aggregations.length}</div>
-                  <p className="text-xs text-muted-foreground">Product Variants</p>
+                  <p className="text-xs text-muted-foreground">Варијанти</p>
                 </CardContent>
               </Card>
             </div>
@@ -640,7 +640,7 @@ export default function ProductsPage() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
-                  Price Analysis by Product
+                  Анализа на Цени по Производ
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -648,12 +648,12 @@ export default function ProductsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left p-2">Product</th>
-                        <th className="text-right p-2">Avg. Price</th>
-                        <th className="text-right p-2">Min Price</th>
-                        <th className="text-right p-2">Max Price</th>
-                        <th className="text-right p-2">Total Qty</th>
-                        <th className="text-right p-2">Tenders</th>
+                        <th className="text-left p-2">Производ</th>
+                        <th className="text-right p-2">Просечна Цена</th>
+                        <th className="text-right p-2">Мин. Цена</th>
+                        <th className="text-right p-2">Макс. Цена</th>
+                        <th className="text-right p-2">Вкупна Кол.</th>
+                        <th className="text-right p-2">Тендери</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -672,7 +672,7 @@ export default function ProductsPage() {
                 </div>
                 {aggregations.length > 10 && (
                   <p className="text-xs text-muted-foreground mt-2 text-center">
-                    Showing top 10 of {aggregations.length} variants
+                    Прикажани првите 10 од {aggregations.length} варијанти
                   </p>
                 )}
               </CardContent>
@@ -683,11 +683,11 @@ export default function ProductsPage() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <p className="text-sm text-muted-foreground">
-                {total.toLocaleString()} results for "{query}"
+                {total.toLocaleString()} резултати за "{query}"
               </p>
               {hasActiveFilters && (
                 <p className="text-xs text-muted-foreground">
-                  Filtered by: {Object.entries(filters)
+                  Филтрирано по: {Object.entries(filters)
                     .filter(([_, v]) => v !== undefined && v !== "")
                     .map(([k, v]) => `${k}=${v}`)
                     .join(", ")}
@@ -697,7 +697,7 @@ export default function ProductsPage() {
             <div className="flex items-center gap-2">
               {totalPages > 1 && (
                 <p className="text-sm text-muted-foreground">
-                  Page {page} of {totalPages}
+                  Страна {page} од {totalPages}
                 </p>
               )}
               {products.length > 0 && (
@@ -705,15 +705,15 @@ export default function ProductsPage() {
                   data={products}
                   filename={`products-${query.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`}
                   columns={[
-                    { key: 'name', label: 'Product Name' },
-                    { key: 'quantity', label: 'Quantity' },
-                    { key: 'unit', label: 'Unit' },
-                    { key: 'unit_price', label: 'Unit Price (MKD)' },
-                    { key: 'total_price', label: 'Total Price (MKD)' },
-                    { key: 'cpv_code', label: 'CPV Code' },
-                    { key: 'tender_title', label: 'Tender' },
-                    { key: 'procuring_entity', label: 'Entity' },
-                    { key: 'opening_date', label: 'Date' },
+                    { key: 'name', label: 'Име на Производ' },
+                    { key: 'quantity', label: 'Количина' },
+                    { key: 'unit', label: 'Единица' },
+                    { key: 'unit_price', label: 'Единечна Цена (МКД)' },
+                    { key: 'total_price', label: 'Вкупна Цена (МКД)' },
+                    { key: 'cpv_code', label: 'CPV Код' },
+                    { key: 'tender_title', label: 'Тендер' },
+                    { key: 'procuring_entity', label: 'Орган' },
+                    { key: 'opening_date', label: 'Датум' },
                   ]}
                 />
               )}
@@ -725,15 +725,15 @@ export default function ProductsPage() {
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-                <p className="text-muted-foreground">Searching products...</p>
+                <p className="text-muted-foreground">Пребарување на производи...</p>
               </div>
             </div>
           ) : products.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Package className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No products found for "{query}"</p>
+              <p className="text-muted-foreground">Не се пронајдени производи за "{query}"</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Try different search terms, adjust filters, or check spelling
+                Обидете се со различни термини, прилагодете ги филтрите или проверете го пишувањето
               </p>
             </div>
           ) : (
@@ -821,7 +821,7 @@ export default function ProductsPage() {
                         <Link href={`/tenders/${encodeURIComponent(product.tender_id)}`}>
                           <Button variant="outline" size="sm">
                             <ExternalLink className="h-4 w-4 mr-1" />
-                            View Tender
+                            Погледни Тендер
                           </Button>
                         </Link>
                       </div>
@@ -842,7 +842,7 @@ export default function ProductsPage() {
                 disabled={page === 1 || loading}
               >
                 <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
+                Претходна
               </Button>
               <span className="text-sm text-muted-foreground">
                 {page} / {totalPages}
@@ -853,7 +853,7 @@ export default function ProductsPage() {
                 onClick={() => handlePageChange(page + 1)}
                 disabled={page === totalPages || loading}
               >
-                Next
+                Следна
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /auth
+Disallow: /billing
+Disallow: /chat
+Disallow: /notifications
+Disallow: /alerts/create
+
+Sitemap: https://www.nabavkidata.com/sitemap.xml

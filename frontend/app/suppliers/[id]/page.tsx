@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { Breadcrumb } from '@/components/Breadcrumb';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -99,6 +100,14 @@ export default function SupplierDetailPage() {
 
   return (
     <div className="container mx-auto py-8 px-4">
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: "Добавувачи", href: "/suppliers" }
+        ]}
+        currentPage={supplier.company_name}
+      />
+
       {/* Back Button */}
       <Button variant="ghost" onClick={() => router.push('/suppliers')} className="mb-4">
         <ArrowLeft className="h-4 w-4 mr-2" />
