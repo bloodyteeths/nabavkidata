@@ -137,7 +137,7 @@ export default function ComparisonSection() {
                         <ul className="space-y-3">
                             <li className="flex items-start gap-3 text-white text-sm">
                                 <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                                31,592 документи скрепирани и индексирани
+                                40,000+ документи скрепирани и индексирани
                             </li>
                             <li className="flex items-start gap-3 text-white text-sm">
                                 <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
