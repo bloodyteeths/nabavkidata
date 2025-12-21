@@ -175,6 +175,40 @@ async def list_suppliers(
 
 
 # ============================================================================
+# SUPPLIER AGGREGATE STATS
+# ============================================================================
+
+class SupplierStatsResponse(BaseModel):
+    """Aggregate supplier statistics"""
+    total_suppliers: int
+    suppliers_with_wins: int
+    total_bids: int
+    average_win_rate: Optional[float]
+
+
+@router.get("/stats", response_model=SupplierStatsResponse)
+async def get_supplier_stats(db: AsyncSession = Depends(get_db)):
+    """Get aggregate statistics for all suppliers"""
+    query = text("""
+        SELECT
+            COUNT(*) as total_suppliers,
+            COUNT(*) FILTER (WHERE total_wins > 0) as suppliers_with_wins,
+            COALESCE(SUM(total_bids), 0) as total_bids,
+            ROUND(AVG(win_rate) FILTER (WHERE win_rate IS NOT NULL), 1) as average_win_rate
+        FROM suppliers
+    """)
+    result = await db.execute(query)
+    row = result.fetchone()
+
+    return SupplierStatsResponse(
+        total_suppliers=row.total_suppliers,
+        suppliers_with_wins=row.suppliers_with_wins,
+        total_bids=row.total_bids,
+        average_win_rate=float(row.average_win_rate) if row.average_win_rate else None
+    )
+
+
+# ============================================================================
 # GET ALL KNOWN WINNERS (for competitor selection)
 # IMPORTANT: Must be defined BEFORE /{supplier_id} to avoid route conflict
 # ============================================================================

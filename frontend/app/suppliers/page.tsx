@@ -36,10 +36,32 @@ export default function SuppliersPage() {
   const [searchInput, setSearchInput] = useState('');
   const [sortBy, setSortBy] = useState('total_wins');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [stats, setStats] = useState<{
+    total_suppliers: number;
+    suppliers_with_wins: number;
+    total_bids: number;
+    average_win_rate: number | null;
+  } | null>(null);
 
   useEffect(() => {
     fetchSuppliers();
   }, [page, search, sortBy, sortOrder]);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api.nabavkidata.com'}/api/suppliers/stats`);
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch supplier stats:', err);
+    }
+  };
 
   const fetchSuppliers = async () => {
     setLoading(true);
@@ -102,7 +124,7 @@ export default function SuppliersPage() {
               <Building2 className="h-8 w-8 text-blue-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Вкупно добавувачи</p>
-                <p className="text-2xl font-bold">{total}</p>
+                <p className="text-2xl font-bold">{stats?.total_suppliers ?? total}</p>
               </div>
             </div>
           </CardContent>
@@ -114,7 +136,7 @@ export default function SuppliersPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Со победи</p>
                 <p className="text-2xl font-bold">
-                  {suppliers.filter(s => s.total_wins > 0).length}
+                  {stats?.suppliers_with_wins ?? '-'}
                 </p>
               </div>
             </div>
@@ -127,7 +149,7 @@ export default function SuppliersPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Вкупно понуди</p>
                 <p className="text-2xl font-bold">
-                  {suppliers.reduce((sum, s) => sum + s.total_bids, 0)}
+                  {stats?.total_bids?.toLocaleString() ?? '-'}
                 </p>
               </div>
             </div>
@@ -140,11 +162,7 @@ export default function SuppliersPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Просек победи</p>
                 <p className="text-2xl font-bold">
-                  {suppliers.length > 0
-                    ? formatPercent(
-                      suppliers.reduce((sum, s) => sum + (s.win_rate || 0), 0) / suppliers.length
-                    )
-                    : '-'}
+                  {stats?.average_win_rate != null ? `${stats.average_win_rate}%` : '-'}
                 </p>
               </div>
             </div>
