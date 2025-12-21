@@ -112,6 +112,9 @@ export default function CompetitorsPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  // Period filter state
+  const [period, setPeriod] = useState<"all" | "1y">("1y");
+
   // Tracked competitors state
   const [trackedCompetitors, setTrackedCompetitors] = useState<string[]>([]);
   const [trackingLoading, setTrackingLoading] = useState<string | null>(null);
@@ -160,11 +163,14 @@ export default function CompetitorsPage() {
     }
   }
 
-  async function load() {
+  async function load(selectedPeriod?: string) {
     try {
       setLoading(true);
       setError(null);
-      const result = await api.getCompetitorAnalysis({ limit: 20 });
+      const result = await api.getCompetitorAnalysis({
+        limit: 20,
+        period: selectedPeriod ?? period
+      });
       setData(result);
     } catch (err: any) {
       console.error("Failed to load competitor analysis:", err);
@@ -177,6 +183,13 @@ export default function CompetitorsPage() {
       setLoading(false);
     }
   }
+
+  // Reload when period changes
+  useEffect(() => {
+    if (isLoggedIn && tier !== "free") {
+      load(period);
+    }
+  }, [period]);
 
   async function loadTrackedCompetitors() {
     try {
@@ -426,10 +439,35 @@ export default function CompetitorsPage() {
             Следете ги топ компаниите и нивната активност
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={load} disabled={loading} className="w-full sm:w-auto h-8 md:h-10 text-xs md:text-sm">
-          <RefreshCcw className="h-3 w-3 md:h-4 md:w-4 mr-2" />
-          Освежи
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Period selector */}
+          <div className="flex bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => setPeriod("all")}
+              className={`px-3 py-1.5 text-xs md:text-sm rounded-md transition-colors ${
+                period === "all"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Сите години
+            </button>
+            <button
+              onClick={() => setPeriod("1y")}
+              className={`px-3 py-1.5 text-xs md:text-sm rounded-md transition-colors ${
+                period === "1y"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Последна година
+            </button>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => load()} disabled={loading} className="h-8 md:h-10 text-xs md:text-sm">
+            <RefreshCcw className="h-3 w-3 md:h-4 md:w-4 mr-2" />
+            Освежи
+          </Button>
+        </div>
       </div>
 
       {/* Search Bar - Using new component */}
@@ -617,7 +655,7 @@ export default function CompetitorsPage() {
                         </span>
                       </div>
                       <div className="text-[10px] md:text-xs text-muted-foreground pt-1 md:pt-2">
-                        Период: {data.summary.period === "1y" ? "Последна година" : data.summary.period}
+                        Период: {data.summary.period === "all" ? "Сите години (2008-2025)" : data.summary.period === "1y" ? "Последна година" : data.summary.period}
                       </div>
                     </>
                   ) : (
