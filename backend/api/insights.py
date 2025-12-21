@@ -469,12 +469,11 @@ async def get_seasonal_patterns(
     if category:
         category_filter = "AND category = :category"
 
-    # Aggregate by calendar month across ALL years for true seasonal analysis
+    # Aggregate by calendar month across ALL years - show TOTAL historical counts
     query = text(f"""
         WITH monthly_data AS (
             SELECT
                 EXTRACT(MONTH FROM COALESCE(closing_date, opening_date, publication_date))::int as month_num,
-                EXTRACT(YEAR FROM COALESCE(closing_date, opening_date, publication_date))::int as year,
                 category,
                 estimated_value_mkd
             FROM tenders
@@ -482,38 +481,27 @@ async def get_seasonal_patterns(
                 AND EXTRACT(YEAR FROM COALESCE(closing_date, opening_date, publication_date)) >= 2008
                 AND EXTRACT(YEAR FROM COALESCE(closing_date, opening_date, publication_date)) <= EXTRACT(YEAR FROM NOW())
                 {category_filter}
-        ),
-        yearly_counts AS (
-            SELECT
-                month_num,
-                year,
-                COUNT(*) as tender_count,
-                SUM(estimated_value_mkd) as total_value
-            FROM monthly_data
-            GROUP BY month_num, year
-        ),
-        category_counts AS (
-            SELECT
-                month_num,
-                COALESCE(category, 'Друго') as category,
-                COUNT(*) as cat_count
-            FROM monthly_data
-            GROUP BY month_num, category
         )
         SELECT
-            LPAD(yc.month_num::text, 2, '0') as month_key,
-            TO_CHAR(TO_DATE(yc.month_num::text, 'MM'), 'Month') as month_name,
-            ROUND(AVG(yc.tender_count))::int as tender_count,
-            ROUND(AVG(yc.total_value)) as total_value,
-            ROUND(AVG(yc.total_value / NULLIF(yc.tender_count, 0))) as avg_value,
-            (
-                SELECT JSONB_OBJECT_AGG(cc.category, cc.cat_count)
-                FROM category_counts cc
-                WHERE cc.month_num = yc.month_num
+            LPAD(month_num::text, 2, '0') as month_key,
+            TO_CHAR(TO_DATE(month_num::text, 'MM'), 'Month') as month_name,
+            COUNT(*) as tender_count,
+            SUM(estimated_value_mkd) as total_value,
+            AVG(estimated_value_mkd) as avg_value,
+            JSONB_OBJECT_AGG(
+                COALESCE(category, 'Друго'),
+                cat_count
             ) as category_breakdown
-        FROM yearly_counts yc
-        GROUP BY yc.month_num
-        ORDER BY yc.month_num ASC
+        FROM (
+            SELECT
+                month_num,
+                estimated_value_mkd,
+                category,
+                COUNT(*) OVER (PARTITION BY month_num, category) as cat_count
+            FROM monthly_data
+        ) t
+        GROUP BY month_num
+        ORDER BY month_num ASC
     """)
 
     params: dict = {"months": months}

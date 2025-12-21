@@ -183,7 +183,7 @@ export default function SeasonalPatterns() {
               Сезонски модели / Кога да се јавите
             </CardTitle>
             <CardDescription>
-              Просечна месечна активност базирана на историски податоци (2008-2025)
+              Вкупна историска активност по месец (2008-2025) - 221,000+ тендери
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -223,7 +223,7 @@ export default function SeasonalPatterns() {
             </div>
             <div className="text-2xl font-bold">{busiestMonth.month_name.trim()}</div>
             <div className="text-sm text-muted-foreground">
-              ~{busiestMonth.tender_count.toLocaleString()} тендери просечно
+              {busiestMonth.tender_count.toLocaleString()} тендери вкупно
             </div>
           </div>
 
@@ -236,7 +236,7 @@ export default function SeasonalPatterns() {
             </div>
             <div className="text-2xl font-bold">{quietestMonth.month_name.trim()}</div>
             <div className="text-sm text-muted-foreground">
-              ~{quietestMonth.tender_count.toLocaleString()} тендери просечно
+              {quietestMonth.tender_count.toLocaleString()} тендери вкупно
             </div>
           </div>
 
@@ -244,14 +244,14 @@ export default function SeasonalPatterns() {
             <div className="flex items-center gap-2 mb-2">
               <Calendar className="h-4 w-4 text-blue-600" />
               <span className="text-sm font-medium text-muted-foreground">
-                Просечен годишен број
+                Вкупно историски
               </span>
             </div>
             <div className="text-2xl font-bold">
               {patterns.reduce((sum, item) => sum + item.tender_count, 0).toLocaleString()}
             </div>
             <div className="text-sm text-muted-foreground">
-              Тендери годишно (просек)
+              Тендери (2008-2025)
             </div>
           </div>
         </div>
@@ -374,8 +374,8 @@ export default function SeasonalPatterns() {
 
         {/* Data Quality Note */}
         <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200">
-          <strong>Забелешка:</strong> Податоците се агрегирани од сите историски тендери (2008-2025) и прикажуваат
-          просечни месечни вредности. Ова ви овозможува да ги видите вистинските сезонски модели низ годините.
+          <strong>Забелешка:</strong> Графиконот прикажува вкупен број на тендери по месец од сите години (2008-2025).
+          Декември историски има најмногу тендери, а Јануари најмалку.
         </div>
 
         {/* Business Planning Insight */}
