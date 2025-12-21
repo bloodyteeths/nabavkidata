@@ -12,12 +12,26 @@ export interface FilterState {
   search?: string;
   status?: string;
   category?: string;
+  procedureType?: string;
   minBudget?: number;
   maxBudget?: number;
   cpvCode?: string;
   entity?: string;
   dateFrom?: string;
   dateTo?: string;
+  closingDateFrom?: string;
+  closingDateTo?: string;
+}
+
+// Helper to get default closing date range (today to +30 days)
+function getDefaultClosingDates() {
+  const today = new Date();
+  const future = new Date();
+  future.setDate(today.getDate() + 30);
+  return {
+    closingDateFrom: today.toISOString().split('T')[0],
+    closingDateTo: future.toISOString().split('T')[0]
+  };
 }
 
 interface TenderFiltersProps {
@@ -28,8 +42,28 @@ interface TenderFiltersProps {
 }
 
 export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onReset }: TenderFiltersProps) {
+  // Get default closing dates
+  const defaults = getDefaultClosingDates();
+
   // Local state for pending filter changes (not applied yet)
-  const [pendingFilters, setPendingFilters] = useState<FilterState>(filters);
+  const [pendingFilters, setPendingFilters] = useState<FilterState>({
+    ...filters,
+    closingDateFrom: filters.closingDateFrom || defaults.closingDateFrom,
+    closingDateTo: filters.closingDateTo || defaults.closingDateTo
+  });
+
+  // Check if there are unapplied changes
+  const hasUnappliedChanges = () => {
+    const keys: (keyof FilterState)[] = ['search', 'status', 'category', 'procedureType', 'minBudget', 'maxBudget', 'cpvCode', 'entity', 'dateFrom', 'dateTo', 'closingDateFrom', 'closingDateTo'];
+    return keys.some(key => {
+      const pending = pendingFilters[key];
+      const applied = filters[key];
+      // Treat undefined and empty string as equivalent
+      const pendingVal = pending === undefined || pending === '' ? null : pending;
+      const appliedVal = applied === undefined || applied === '' ? null : applied;
+      return pendingVal !== appliedVal;
+    });
+  };
 
   // CPV autocomplete state
   const [cpvSearch, setCpvSearch] = useState("");
@@ -48,16 +82,24 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
 
   useEffect(() => {
     if (!initialized) {
-      // Don't auto-apply date filters - they exclude awarded tenders which have no opening_date
-      setPendingFilters(filters);
+      // Initialize with filters and default closing dates
+      setPendingFilters({
+        ...filters,
+        closingDateFrom: filters.closingDateFrom || defaults.closingDateFrom,
+        closingDateTo: filters.closingDateTo || defaults.closingDateTo
+      });
       setInitialized(true);
     }
-  }, [initialized]);
+  }, [initialized, filters, defaults.closingDateFrom, defaults.closingDateTo]);
 
   // Sync pending filters with parent filters (but skip on mount)
   useEffect(() => {
     if (initialized) {
-      setPendingFilters(filters);
+      setPendingFilters({
+        ...filters,
+        closingDateFrom: filters.closingDateFrom || pendingFilters.closingDateFrom,
+        closingDateTo: filters.closingDateTo || pendingFilters.closingDateTo
+      });
     }
   }, [filters, initialized]);
 
@@ -73,7 +115,7 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
 
   // Reset all filters
   const handleReset = () => {
-    setPendingFilters({});
+    setPendingFilters({ status: 'open' });
     setCpvSearch("");
     setEntitySearch("");
     onReset();
@@ -155,11 +197,11 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
         <div>
           <label className="text-sm font-medium mb-2 block">Статус</label>
           <Select
-            value={pendingFilters.status || ""}
+            value={pendingFilters.status || "open"}
             onValueChange={(value) => updatePendingFilter("status", value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Сите" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Сите</SelectItem>
@@ -186,6 +228,28 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
               <SelectItem value="Стоки">Стоки</SelectItem>
               <SelectItem value="Услуги">Услуги</SelectItem>
               <SelectItem value="Работи">Работи</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Procedure Type */}
+        <div>
+          <label className="text-sm font-medium mb-2 block">Тип на постапка</label>
+          <Select
+            value={pendingFilters.procedureType || "all"}
+            onValueChange={(value) => updatePendingFilter("procedureType", value === "all" ? undefined : value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Сите" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Сите</SelectItem>
+              <SelectItem value="Отворена постапка">Отворена постапка</SelectItem>
+              <SelectItem value="Ограничена постапка">Ограничена постапка</SelectItem>
+              <SelectItem value="Постапка со преговарање">Постапка со преговарање</SelectItem>
+              <SelectItem value="Директно договарање">Директно договарање</SelectItem>
+              <SelectItem value="Поедноставена постапка">Поедноставена постапка</SelectItem>
+              <SelectItem value="Рамковна спогодба">Рамковна спогодба</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -331,29 +395,58 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
           )}
         </div>
 
-        {/* Date Range */}
+        {/* Closing Date Range - with defaults */}
         <div>
-          <label className="text-sm font-medium mb-2 block">Период</label>
+          <label className="text-sm font-medium mb-2 block">Краен рок</label>
+          <p className="text-xs text-muted-foreground mb-1">
+            Филтрирај по рок за поднесување
+          </p>
           <div className="space-y-2">
             <Input
               type="date"
-              placeholder="Од"
+              value={pendingFilters.closingDateFrom || ""}
+              onChange={(e) => updatePendingFilter("closingDateFrom", e.target.value)}
+            />
+            <Input
+              type="date"
+              value={pendingFilters.closingDateTo || ""}
+              onChange={(e) => updatePendingFilter("closingDateTo", e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Opening/Publication Date Range */}
+        <div>
+          <label className="text-sm font-medium mb-2 block">Датум на објава</label>
+          <p className="text-xs text-muted-foreground mb-1">
+            Опционално - филтрирај по датум на објава
+          </p>
+          <div className="space-y-2">
+            <Input
+              type="date"
               value={pendingFilters.dateFrom || ""}
               onChange={(e) => updatePendingFilter("dateFrom", e.target.value)}
             />
             <Input
               type="date"
-              placeholder="До"
               value={pendingFilters.dateTo || ""}
               onChange={(e) => updatePendingFilter("dateTo", e.target.value)}
             />
           </div>
         </div>
 
+        {/* Pending Changes Indicator */}
+        {hasUnappliedChanges() && (
+          <div className="flex items-center gap-2 text-amber-600 text-xs animate-pulse">
+            <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+            Имате неприменети промени
+          </div>
+        )}
+
         {/* Actions - Apply and Reset */}
         <div className="space-y-2 pt-2">
           <Button
-            className="w-full"
+            className={`w-full transition-all ${hasUnappliedChanges() ? 'shadow-lg ring-2 ring-primary/50 hover:shadow-xl' : ''}`}
             onClick={handleApply}
           >
             <Filter className="h-4 w-4 mr-2" />

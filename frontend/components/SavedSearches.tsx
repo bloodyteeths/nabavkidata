@@ -15,15 +15,15 @@ interface SavedSearch {
   id: string;
   name: string;
   filters: {
-    search?: string;
+    query?: string;
     category?: string;
     status?: string;
-    cpvCode?: string;
-    minBudget?: number;
-    maxBudget?: number;
-    entity?: string;
-    dateFrom?: string;
-    dateTo?: string;
+    cpv_code?: string;
+    min_value_mkd?: number;
+    max_value_mkd?: number;
+    procuring_entity?: string;
+    date_from?: string;
+    date_to?: string;
   };
   created_at: string;
 }
@@ -62,21 +62,46 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
   };
 
   const saveSearch = async () => {
-    if (!newSearchName.trim()) return;
+    if (!newSearchName.trim()) {
+      toast.error("Внесете име за пребарувањето");
+      return;
+    }
 
     try {
       setSaving(true);
+
+      // Map frontend filter names to backend expected format
+      const mappedFilters: Record<string, any> = {};
+
+      if (currentFilters.search) mappedFilters.query = currentFilters.search;
+      if (currentFilters.category) mappedFilters.category = currentFilters.category;
+      if (currentFilters.status) mappedFilters.status = currentFilters.status;
+      if (currentFilters.cpvCode) mappedFilters.cpv_code = currentFilters.cpvCode;
+      if (currentFilters.minBudget) mappedFilters.min_value_mkd = currentFilters.minBudget;
+      if (currentFilters.maxBudget) mappedFilters.max_value_mkd = currentFilters.maxBudget;
+      if (currentFilters.entity) mappedFilters.procuring_entity = currentFilters.entity;
+      if (currentFilters.dateFrom) mappedFilters.date_from = currentFilters.dateFrom;
+      if (currentFilters.dateTo) mappedFilters.date_to = currentFilters.dateTo;
+
+      console.log("Saving search with filters:", mappedFilters);
+
       const result = await api.createSavedSearch({
         name: newSearchName,
-        filters: currentFilters
+        filters: mappedFilters
       });
-      setSearches(prev => [...prev, result]);
+
+      console.log("Search saved successfully:", result);
+
+      // Refresh the list to get the latest data
+      await loadSearches();
+
       setNewSearchName("");
       setIsDialogOpen(false);
       toast.success("Пребарувањето е зачувано");
     } catch (error: any) {
       console.error("Failed to save search:", error);
-      toast.error(error.message || "Не успеавме да зачуваме пребарување");
+      const errorMessage = error.message || "Не успеавме да зачуваме пребарување";
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -94,7 +119,20 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
   };
 
   const runSearch = (search: SavedSearch) => {
-    onLoadSearch(search.filters);
+    // Map backend filter names back to frontend format
+    const frontendFilters: Record<string, any> = {};
+
+    if (search.filters.query) frontendFilters.search = search.filters.query;
+    if (search.filters.category) frontendFilters.category = search.filters.category;
+    if (search.filters.status) frontendFilters.status = search.filters.status;
+    if (search.filters.cpv_code) frontendFilters.cpvCode = search.filters.cpv_code;
+    if (search.filters.min_value_mkd) frontendFilters.minBudget = search.filters.min_value_mkd;
+    if (search.filters.max_value_mkd) frontendFilters.maxBudget = search.filters.max_value_mkd;
+    if (search.filters.procuring_entity) frontendFilters.entity = search.filters.procuring_entity;
+    if (search.filters.date_from) frontendFilters.dateFrom = search.filters.date_from;
+    if (search.filters.date_to) frontendFilters.dateTo = search.filters.date_to;
+
+    onLoadSearch(frontendFilters);
   };
 
   const hasActiveFilters = Object.values(currentFilters).some(v => v && v !== "");
@@ -102,6 +140,7 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
   // Helper to format filter labels in Macedonian
   const formatFilterLabel = (key: string): string => {
     const labels: Record<string, string> = {
+      // Frontend format
       search: "Пребарување",
       category: "Категорија",
       status: "Статус",
@@ -111,6 +150,14 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
       entity: "Наручилац",
       dateFrom: "Од датум",
       dateTo: "До датум",
+      // Backend format
+      query: "Пребарување",
+      cpv_code: "CPV код",
+      min_value_mkd: "Мин. буџет",
+      max_value_mkd: "Макс. буџет",
+      procuring_entity: "Наручилац",
+      date_from: "Од датум",
+      date_to: "До датум",
     };
     return labels[key] || key;
   };

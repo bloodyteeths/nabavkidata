@@ -618,7 +618,12 @@ class APIClient {
   async createSavedSearch(payload: { name: string; filters: Record<string, any> }) {
     return this.request<{ id: string; name: string; filters: Record<string, any>; created_at: string }>(`/api/search/saved`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        name: payload.name,
+        filters: payload.filters,
+        notify_on_match: false,
+        notification_frequency: "daily"
+      }),
     });
   }
 
