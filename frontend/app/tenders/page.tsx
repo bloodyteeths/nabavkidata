@@ -63,7 +63,8 @@ function TendersPageContent() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({});
-  const [stats, setStats] = useState({ total: 0, open: 0, closed: 0, awarded: 0, cancelled: 0 });
+  // Initialize with cached approximate values to avoid showing zeros while loading
+  const [stats, setStats] = useState({ total: 273772, open: 833, closed: 545, awarded: 268491, cancelled: 2083 });
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   // Track if we should trigger a load (for manual apply button)
