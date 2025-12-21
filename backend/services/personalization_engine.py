@@ -82,8 +82,8 @@ class HybridSearchEngine:
             for kw in prefs.exclude_keywords:
                 query = query.where(~Tender.title.ilike(f"%{kw}%"))
 
-        # Get recent open tenders
-        result = await self.db.execute(query.order_by(desc(Tender.created_at)).limit(200))
+        # Get recent open tenders - reduced from 200 to 50 for performance
+        result = await self.db.execute(query.order_by(desc(Tender.created_at)).limit(50))
         all_candidates = result.scalars().all()
 
         # Score each tender based on preferences (not filter!)
@@ -101,23 +101,23 @@ class HybridSearchEngine:
                             score += 0.25  # Sector match boost
                             break
 
-            # Boost score for CPV match
+            # Boost score for CPV match (optimized - skip AI inference for speed)
             if prefs.cpv_codes:
                 if tender.cpv_code and tender.cpv_code not in ["Услуги", "Стоки", "Работи"]:
                     for cpv in prefs.cpv_codes:
                         if tender.cpv_code.startswith(cpv[:2]):
                             score += 0.2  # CPV code match boost
                             break
-                else:
-                    # Use AI to infer CPV match
-                    is_match, _ = self.cpv_matcher.matches_user_preferences(
-                        tender_title=tender.title or "",
-                        tender_description=tender.description or "",
-                        tender_category=tender.category or "",
-                        user_cpv_codes=prefs.cpv_codes
-                    )
-                    if is_match:
-                        score += 0.15  # AI-inferred CPV match boost
+                # Skip slow AI inference - use keyword matching instead
+                elif tender.title:
+                    title_lower = tender.title.lower()
+                    for cpv in prefs.cpv_codes:
+                        cpv_div = cpv[:2]
+                        if cpv_div in self.SECTOR_KEYWORDS:
+                            keywords = self.SECTOR_KEYWORDS.get(cpv_div, [])
+                            if any(kw.lower() in title_lower for kw in keywords[:5]):
+                                score += 0.15
+                                break
 
             # Boost score for entity match
             if prefs.entities and tender.procuring_entity:
@@ -378,7 +378,7 @@ class CompetitorTracker:
         self.db = db
 
     async def get_competitor_activity(self, user_id: str, limit: int = 10) -> List[CompetitorActivity]:
-        """Get tenders where competitors are involved"""
+        """Get tenders where competitors are involved - optimized single query"""
 
         prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
         result = await self.db.execute(prefs_query)
@@ -387,24 +387,35 @@ class CompetitorTracker:
         if not prefs or not prefs.competitor_companies:
             return []
 
+        # Build single query with OR conditions for all competitors
+        competitor_conditions = [
+            Tender.winner.ilike(f"%{comp}%")
+            for comp in prefs.competitor_companies[:5]  # Limit to 5 competitors
+        ]
+
+        query = select(Tender).where(
+            or_(*competitor_conditions)
+        ).order_by(desc(Tender.updated_at)).limit(limit)
+
+        result = await self.db.execute(query)
+        tenders = result.scalars().all()
+
         activities = []
+        for tender in tenders:
+            # Find which competitor matched
+            matched_competitor = None
+            for comp in prefs.competitor_companies:
+                if tender.winner and comp.lower() in tender.winner.lower():
+                    matched_competitor = comp
+                    break
 
-        for competitor in prefs.competitor_companies:
-            query = select(Tender).where(
-                Tender.winner.ilike(f"%{competitor}%")
-            ).order_by(desc(Tender.updated_at)).limit(5)
+            activities.append(CompetitorActivity(
+                tender_id=tender.tender_id,
+                title=tender.title,
+                competitor_name=matched_competitor or "Конкурент",
+                status=tender.status,
+                estimated_value_mkd=tender.estimated_value_mkd,
+                closing_date=tender.closing_date
+            ))
 
-            result = await self.db.execute(query)
-            tenders = result.scalars().all()
-
-            for tender in tenders:
-                activities.append(CompetitorActivity(
-                    tender_id=tender.tender_id,
-                    title=tender.title,
-                    competitor_name=competitor,
-                    status=tender.status,
-                    estimated_value_mkd=tender.estimated_value_mkd,
-                    closing_date=tender.closing_date
-                ))
-
-        return activities[:limit]
+        return activities

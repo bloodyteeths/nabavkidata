@@ -7,6 +7,8 @@ from sqlalchemy import select, text
 from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel
+from cachetools import TTLCache
+import time
 
 from database import get_db
 from models import User
@@ -29,6 +31,9 @@ from services.personalization_engine import (
 )
 
 router = APIRouter(prefix="/api/personalization", tags=["personalization"])
+
+# Simple in-memory cache for dashboard data (5 minute TTL, max 100 users)
+_dashboard_cache = TTLCache(maxsize=100, ttl=300)
 
 
 # Search history schema
@@ -271,14 +276,20 @@ async def get_behavior_history(
 @router.get("/dashboard", response_model=DashboardResponse)
 async def get_personalized_dashboard(
     limit: int = 20,
+    refresh: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get personalized dashboard"""
-    user_id = current_user.user_id
+    """Get personalized dashboard with caching for performance"""
+    user_id = str(current_user.user_id)
+    cache_key = f"{user_id}:{limit}"
+
+    # Return cached response if available and not forcing refresh
+    if not refresh and cache_key in _dashboard_cache:
+        return _dashboard_cache[cache_key]
 
     # Get user preferences for match reasons
-    prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
+    prefs_query = select(UserPreferences).where(UserPreferences.user_id == current_user.user_id)
     prefs_result = await db.execute(prefs_query)
     user_prefs = prefs_result.scalar_one_or_none()
 
@@ -317,12 +328,17 @@ async def get_personalized_dashboard(
         "insights_count": len(insights)
     }
 
-    return DashboardResponse(
+    response = DashboardResponse(
         recommended_tenders=recommended,
         competitor_activity=competitor_activity,
         insights=insights,
         stats=stats
     )
+
+    # Cache the response
+    _dashboard_cache[cache_key] = response
+
+    return response
 
 
 @router.get("/insights")
