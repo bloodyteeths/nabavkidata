@@ -383,14 +383,14 @@ async def get_price_benchmarks(
 @router.get("/active-buyers", response_model=ActiveBuyersResponse)
 async def get_active_buyers(
     category: Optional[str] = Query(None, description="Filter by category"),
-    days: int = Query(90, ge=1, le=365, description="Number of days to look back"),
+    days: int = Query(6570, ge=1, le=7300, description="Number of days to look back (default: ~18 years for all historical data)"),
     limit: int = Query(20, ge=1, le=100, description="Number of top buyers"),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get most active procuring entities
+    Get most active procuring entities across all historical data.
 
-    Returns top institutions by tender count in the specified period.
+    Returns top institutions by tender count from 2008-present.
     Uses opening_date, closing_date, or publication_date (NOT created_at).
     Includes tender count, total value, and category breakdown.
     """
@@ -454,54 +454,66 @@ async def get_active_buyers(
 @router.get("/seasonal-patterns", response_model=SeasonalPatternsResponse)
 async def get_seasonal_patterns(
     category: Optional[str] = Query(None, description="Filter by category"),
-    months: int = Query(12, ge=1, le=24, description="Number of months to analyze"),
+    months: int = Query(12, ge=1, le=24, description="Number of months to analyze (ignored, uses all historical data)"),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get seasonal patterns by month
+    Get seasonal patterns aggregated by calendar month across ALL years.
 
-    Shows which months have the most tender activity by category.
-    Uses closing_date, opening_date, or publication_date (NOT created_at) for accurate seasonality.
-    Filters out tenders with no valid dates to avoid showing recent scraping activity.
-    Returns last N months of data.
+    Shows which months historically have the most tender activity.
+    Aggregates data from 2008-2025 to show true seasonal patterns.
+    Returns 12 rows (one per calendar month) with average counts across all years.
     """
     # Build query dynamically to avoid NULL type inference issues
     category_filter = ""
     if category:
         category_filter = "AND category = :category"
 
+    # Aggregate by calendar month across ALL years for true seasonal analysis
     query = text(f"""
         WITH monthly_data AS (
             SELECT
-                DATE_TRUNC('month', COALESCE(closing_date, opening_date, publication_date)) as month,
+                EXTRACT(MONTH FROM COALESCE(closing_date, opening_date, publication_date))::int as month_num,
+                EXTRACT(YEAR FROM COALESCE(closing_date, opening_date, publication_date))::int as year,
                 category,
                 estimated_value_mkd
             FROM tenders
             WHERE COALESCE(closing_date, opening_date, publication_date) IS NOT NULL
-                AND COALESCE(closing_date, opening_date, publication_date) >= NOW() - INTERVAL '1 month' * :months
-                AND COALESCE(closing_date, opening_date, publication_date) <= NOW()
+                AND EXTRACT(YEAR FROM COALESCE(closing_date, opening_date, publication_date)) >= 2008
+                AND EXTRACT(YEAR FROM COALESCE(closing_date, opening_date, publication_date)) <= EXTRACT(YEAR FROM NOW())
                 {category_filter}
+        ),
+        yearly_counts AS (
+            SELECT
+                month_num,
+                year,
+                COUNT(*) as tender_count,
+                SUM(estimated_value_mkd) as total_value
+            FROM monthly_data
+            GROUP BY month_num, year
+        ),
+        category_counts AS (
+            SELECT
+                month_num,
+                COALESCE(category, 'Друго') as category,
+                COUNT(*) as cat_count
+            FROM monthly_data
+            GROUP BY month_num, category
         )
         SELECT
-            TO_CHAR(month, 'YYYY-MM') as month_key,
-            TO_CHAR(month, 'Month YYYY') as month_name,
-            COUNT(*) as tender_count,
-            SUM(estimated_value_mkd) as total_value,
-            AVG(estimated_value_mkd) as avg_value,
-            JSONB_OBJECT_AGG(
-                COALESCE(category, 'unknown'),
-                category_count
+            LPAD(yc.month_num::text, 2, '0') as month_key,
+            TO_CHAR(TO_DATE(yc.month_num::text, 'MM'), 'Month') as month_name,
+            ROUND(AVG(yc.tender_count))::int as tender_count,
+            ROUND(AVG(yc.total_value)) as total_value,
+            ROUND(AVG(yc.total_value / NULLIF(yc.tender_count, 0))) as avg_value,
+            (
+                SELECT JSONB_OBJECT_AGG(cc.category, cc.cat_count)
+                FROM category_counts cc
+                WHERE cc.month_num = yc.month_num
             ) as category_breakdown
-        FROM (
-            SELECT
-                month,
-                estimated_value_mkd,
-                category,
-                COUNT(*) OVER (PARTITION BY month, category) as category_count
-            FROM monthly_data
-        ) t
-        GROUP BY month
-        ORDER BY month DESC
+        FROM yearly_counts yc
+        GROUP BY yc.month_num
+        ORDER BY yc.month_num ASC
     """)
 
     params: dict = {"months": months}

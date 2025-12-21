@@ -5,12 +5,30 @@ Advanced market intelligence and competitor analysis
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta
 from decimal import Decimal
+import time
 
 from database import get_db
+
+# Simple in-memory cache for expensive queries
+_cache: Dict[str, Any] = {}
+_cache_times: Dict[str, float] = {}
+CACHE_TTL = 300  # 5 minutes
+
+def get_cached(key: str):
+    """Get cached value if not expired"""
+    if key in _cache and time.time() - _cache_times.get(key, 0) < CACHE_TTL:
+        return _cache[key]
+    return None
+
+def set_cached(key: str, value: Any):
+    """Set cached value"""
+    _cache[key] = value
+    _cache_times[key] = time.time()
+
 from models import User
 from api.auth import get_current_user
 
@@ -117,7 +135,10 @@ def get_period_start(period: str) -> datetime:
         "90d": 90,
         "6m": 180,
         "1y": 365,
-        "all": 3650
+        "3y": 1095,
+        "5y": 1825,
+        "10y": 3650,
+        "all": 7300  # ~20 years to cover 2008-2025+
     }
     days = period_days.get(period, 365)
     return now - timedelta(days=days)
@@ -143,7 +164,13 @@ async def get_market_overview(
     - Monthly trend (last 12 months)
 
     Public endpoint - no authentication required.
+    Cached for 5 minutes to improve performance.
     """
+    # Check cache first
+    cached = get_cached("market_overview")
+    if cached:
+        return cached
+
     now = datetime.utcnow()
     week_from_now = now + timedelta(days=7)
     month_start = now.replace(day=1)
@@ -241,7 +268,7 @@ async def get_market_overview(
         for row in trend_result.fetchall()
     ]
 
-    return MarketOverviewResponse(
+    result = MarketOverviewResponse(
         total_tenders=totals.total_tenders or 0,
         total_value_mkd=float(totals.total_value) if totals.total_value else None,
         open_tenders=totals.open_tenders or 0,
@@ -254,6 +281,10 @@ async def get_market_overview(
         monthly_trend=monthly_trend,
         generated_at=datetime.utcnow()
     )
+
+    # Cache for 5 minutes
+    set_cached("market_overview", result)
+    return result
 
 
 # ============================================================================
