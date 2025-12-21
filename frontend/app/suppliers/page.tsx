@@ -72,9 +72,10 @@ export default function SuppliersPage() {
     }
   };
 
-  const formatPercent = (value?: number) => {
+  const formatPercent = (value?: number | null) => {
     if (value === null || value === undefined) return '-';
-    return `${(value * 100).toFixed(1)}%`;
+    // win_rate is already stored as percentage (0-100), not decimal
+    return `${value.toFixed(1)}%`;
   };
 
   const totalPages = Math.ceil(total / pageSize);
