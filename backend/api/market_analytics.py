@@ -182,7 +182,7 @@ async def get_market_overview(
             COALESCE(SUM(estimated_value_mkd), 0) as total_value,
             COUNT(*) FILTER (WHERE status = 'open' AND closing_date >= CURRENT_DATE) as open_tenders,
             COUNT(*) FILTER (WHERE status = 'open' AND closing_date >= CURRENT_DATE AND closing_date <= :week_from_now) as closing_soon,
-            COUNT(*) FILTER (WHERE status = 'awarded' AND opening_date >= :month_start) as awarded_this_month,
+            COUNT(*) FILTER (WHERE (status = 'awarded' OR (status = 'completed' AND winner IS NOT NULL)) AND opening_date >= :month_start) as awarded_this_month,
             AVG(num_bidders) FILTER (WHERE num_bidders > 0) as avg_competition
         FROM tenders
     """)
@@ -451,6 +451,9 @@ async def get_top_competitors(
     This endpoint automatically finds the most active bidders in the market
     without requiring specific competitor names.
 
+    For "all" period, uses suppliers table for complete historical data.
+    For recent periods, uses hybrid data from tender_bidders + tenders.winner.
+
     Requires Starter+ tier.
     """
     if not check_tier_access("competitor-analysis", current_user):
@@ -463,59 +466,113 @@ async def get_top_competitors(
             }
         )
 
+    # Check cache first (cache by period)
+    cache_key = f"top_competitors_{period}_{limit}"
+    cached = get_cached(cache_key)
+    if cached:
+        return cached
+
     start_date = get_period_start(period)
 
-    # Get top competitors by wins and bids
-    # Use COALESCE to handle tenders with NULL opening_date (awarded tenders)
-    query = text("""
-        SELECT
-            tb.company_name as name,
-            COUNT(*) as bids_count,
-            COUNT(*) FILTER (WHERE tb.is_winner) as wins,
-            SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner) as total_value_mkd,
-            ROUND(COUNT(*) FILTER (WHERE tb.is_winner)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as win_rate,
-            array_agg(DISTINCT t.category) FILTER (WHERE t.category IS NOT NULL) as categories
-        FROM tender_bidders tb
-        JOIN tenders t ON tb.tender_id = t.tender_id
-        WHERE COALESCE(t.opening_date, t.created_at::date) >= :start_date
-          AND tb.company_name IS NOT NULL AND tb.company_name != ''
-        GROUP BY tb.company_name
-        HAVING COUNT(*) >= 2
-        ORDER BY COUNT(*) FILTER (WHERE tb.is_winner) DESC, COUNT(*) DESC
-        LIMIT :limit
-    """)
+    # For "all" period, use suppliers table (complete historical data)
+    if period == "all":
+        query = text("""
+            SELECT
+                company_name as name,
+                total_bids as bids_count,
+                total_wins as wins,
+                total_contract_value_mkd as total_value_mkd,
+                win_rate,
+                city
+            FROM suppliers
+            WHERE total_wins > 0
+              AND company_name IS NOT NULL
+              AND company_name != ''
+              AND company_name != 'null'
+              AND LENGTH(company_name) > 2
+            ORDER BY total_wins DESC
+            LIMIT :limit
+        """)
+        result = await db.execute(query, {"limit": limit})
+        rows = result.fetchall()
 
-    result = await db.execute(query, {
-        "start_date": start_date.date(),
-        "limit": limit
-    })
-    rows = result.fetchall()
+        competitors = []
+        for row in rows:
+            competitors.append({
+                "name": row.name,
+                "bids_count": row.bids_count or 0,
+                "wins": row.wins,
+                "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else 0,
+                "win_rate": float(row.win_rate) if row.win_rate else 0,
+                "categories": [],
+                "city": row.city
+            })
 
-    competitors = []
-    for row in rows:
-        competitors.append({
-            "name": row.name,
-            "bids_count": row.bids_count,
-            "wins": row.wins,
-            "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else 0,
-            "win_rate": float(row.win_rate) if row.win_rate else 0,
-            "categories": row.categories[:5] if row.categories else []
+        # Summary from suppliers table
+        summary_query = text("""
+            SELECT
+                COUNT(*) as total_bidders,
+                SUM(total_bids) as total_bids,
+                SUM(total_wins) as total_awards,
+                SUM(total_contract_value_mkd) as total_awarded_value
+            FROM suppliers
+        """)
+        summary_result = await db.execute(summary_query)
+        summary_row = summary_result.fetchone()
+
+    else:
+        # For recent periods, use a simplified query from tender_bidders only
+        # This is much faster than the hybrid query with NOT EXISTS
+        query = text("""
+            SELECT
+                tb.company_name as name,
+                COUNT(*) as bids_count,
+                COUNT(*) FILTER (WHERE tb.is_winner) as wins,
+                SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner) as total_value_mkd,
+                ROUND(COUNT(*) FILTER (WHERE tb.is_winner)::numeric / NULLIF(COUNT(*), 0) * 100, 1) as win_rate
+            FROM tender_bidders tb
+            JOIN tenders t ON tb.tender_id = t.tender_id
+            WHERE COALESCE(t.opening_date, t.created_at::date) >= :start_date
+              AND tb.company_name IS NOT NULL
+              AND tb.company_name != ''
+              AND tb.company_name != 'null'
+              AND LENGTH(tb.company_name) > 2
+            GROUP BY tb.company_name
+            HAVING COUNT(*) FILTER (WHERE tb.is_winner) > 0
+            ORDER BY COUNT(*) FILTER (WHERE tb.is_winner) DESC, COUNT(*) DESC
+            LIMIT :limit
+        """)
+
+        result = await db.execute(query, {
+            "start_date": start_date.date(),
+            "limit": limit
         })
+        rows = result.fetchall()
 
-    # Get market summary
-    # Use COALESCE to handle tenders with NULL opening_date (awarded tenders)
-    summary_query = text("""
-        SELECT
-            COUNT(DISTINCT tb.company_name) as total_bidders,
-            COUNT(*) as total_bids,
-            COUNT(*) FILTER (WHERE tb.is_winner) as total_awards,
-            SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner) as total_awarded_value
-        FROM tender_bidders tb
-        JOIN tenders t ON tb.tender_id = t.tender_id
-        WHERE COALESCE(t.opening_date, t.created_at::date) >= :start_date
-    """)
-    summary_result = await db.execute(summary_query, {"start_date": start_date.date()})
-    summary_row = summary_result.fetchone()
+        competitors = []
+        for row in rows:
+            competitors.append({
+                "name": row.name,
+                "bids_count": row.bids_count or 0,
+                "wins": row.wins,
+                "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else 0,
+                "win_rate": float(row.win_rate) if row.win_rate else 0,
+                "categories": []
+            })
+
+        # Get market summary - simplified query
+        summary_query = text("""
+            SELECT
+                COUNT(DISTINCT tb.company_name) as total_bidders,
+                COUNT(*) as total_bids,
+                COUNT(*) FILTER (WHERE tb.is_winner) as total_awards,
+                SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner) as total_awarded_value
+            FROM tender_bidders tb
+            JOIN tenders t ON tb.tender_id = t.tender_id
+            WHERE COALESCE(t.opening_date, t.created_at::date) >= :start_date
+        """)
+        summary_result = await db.execute(summary_query, {"start_date": start_date.date()})
+        summary_row = summary_result.fetchone()
 
     summary = {
         "total_bidders": summary_row.total_bidders if summary_row else 0,
@@ -525,10 +582,104 @@ async def get_top_competitors(
         "period": period
     }
 
-    return {
+    result = {
         "competitors": competitors,
         "summary": summary,
         "generated_at": datetime.utcnow().isoformat()
+    }
+
+    # Cache result for 5 minutes
+    set_cached(cache_key, result)
+
+    return result
+
+
+# ============================================================================
+# COMPETITOR STATS (Single Company)
+# ============================================================================
+
+class CompetitorStatsRequest(BaseModel):
+    company_name: str
+
+
+@router.post("/competitor-stats")
+async def get_competitor_stats(
+    request: CompetitorStatsRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get stats for a single competitor by company name.
+    Used for comparison view when company is not in top competitors list.
+    """
+    company_name = request.company_name.strip()
+    if not company_name or len(company_name) < 2:
+        raise HTTPException(status_code=400, detail="Company name must be at least 2 characters")
+
+    # Try to find in suppliers table first (has pre-calculated stats)
+    supplier_query = text("""
+        SELECT
+            company_name as name,
+            total_bids as bids_count,
+            total_wins as wins,
+            total_contract_value_mkd as total_value_mkd,
+            win_rate
+        FROM suppliers
+        WHERE company_name ILIKE :search_pattern
+        ORDER BY total_wins DESC
+        LIMIT 1
+    """)
+
+    result = await db.execute(supplier_query, {"search_pattern": f"%{company_name}%"})
+    row = result.fetchone()
+
+    if row:
+        return {
+            "name": row.name,
+            "wins": row.wins or 0,
+            "bids_count": row.bids_count or 0,
+            "win_rate": float(row.win_rate) if row.win_rate else 0,
+            "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else 0,
+            "specialty_areas": []
+        }
+
+    # Fallback: Query from tender_bidders
+    bidder_query = text("""
+        SELECT
+            tb.company_name as name,
+            COUNT(*) as bids_count,
+            COUNT(*) FILTER (WHERE tb.is_winner) as wins,
+            SUM(tb.bid_amount_mkd) FILTER (WHERE tb.is_winner) as total_value_mkd
+        FROM tender_bidders tb
+        WHERE tb.company_name ILIKE :search_pattern
+        GROUP BY tb.company_name
+        LIMIT 1
+    """)
+
+    result = await db.execute(bidder_query, {"search_pattern": f"%{company_name}%"})
+    row = result.fetchone()
+
+    if row:
+        wins = row.wins or 0
+        bids = row.bids_count or 0
+        win_rate = round((wins / bids * 100), 1) if bids > 0 else 0
+        return {
+            "name": row.name,
+            "wins": wins,
+            "bids_count": bids,
+            "win_rate": win_rate,
+            "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else 0,
+            "specialty_areas": []
+        }
+
+    # Not found
+    return {
+        "name": company_name,
+        "wins": 0,
+        "bids_count": 0,
+        "win_rate": 0,
+        "total_value_mkd": 0,
+        "specialty_areas": []
     }
 
 

@@ -650,6 +650,23 @@ class CompanyAnalysisResponse(BaseModel):
     analysis_timestamp: str
 
 
+def normalize_category(category: str) -> str:
+    """Normalize category names to Macedonian"""
+    if not category:
+        return "Непознато"
+    cat_lower = category.lower().strip()
+    # Map English to Macedonian
+    if cat_lower in ('goods', 'стоки'):
+        return 'Стоки'
+    elif cat_lower in ('services', 'услуги'):
+        return 'Услуги'
+    elif cat_lower in ('works', 'работи'):
+        return 'Работи'
+    elif cat_lower in ('unknown', 'непознато', ''):
+        return 'Непознато'
+    return category  # Return as-is if not recognized
+
+
 @router.post("/company-analysis", response_model=CompanyAnalysisResponse)
 async def analyze_company(
     request: CompanyAnalysisRequest,
@@ -675,47 +692,61 @@ async def analyze_company(
             detail="Company name must be at least 3 characters"
         )
 
-    # 1. Get tender statistics
-    stats_query = text("""
-        WITH company_bids AS (
-            SELECT
-                tb.tender_id,
-                tb.bid_amount_mkd,
-                tb.is_winner,
-                tb.rank,
-                t.title,
-                t.procuring_entity,
-                t.category,
-                t.cpv_code,
-                t.estimated_value_mkd,
-                t.actual_value_mkd,
-                t.closing_date
-            FROM tender_bidders tb
-            JOIN tenders t ON tb.tender_id = t.tender_id
-            WHERE tb.company_name ILIKE :search_pattern
-        )
+    # 1. Get tender statistics - check suppliers table first for pre-calculated stats
+    supplier_stats_query = text("""
         SELECT
-            COUNT(*) as total_bids,
-            COUNT(*) FILTER (WHERE is_winner = TRUE) as total_wins,
-            ROUND(AVG(bid_amount_mkd)::numeric, 2) as avg_bid_value,
-            ROUND(SUM(CASE WHEN is_winner THEN actual_value_mkd ELSE 0 END)::numeric, 2) as total_won_value,
-            MIN(closing_date) as first_bid_date,
-            MAX(closing_date) as last_bid_date
-        FROM company_bids
+            company_name,
+            total_bids,
+            total_wins,
+            win_rate,
+            total_contract_value_mkd
+        FROM suppliers
+        WHERE company_name ILIKE :search_pattern
+        ORDER BY total_wins DESC
+        LIMIT 1
     """)
 
-    stats_result = await db.execute(stats_query, {"search_pattern": f"%{company_name}%"})
-    stats_row = stats_result.fetchone()
+    supplier_result = await db.execute(supplier_stats_query, {"search_pattern": f"%{company_name}%"})
+    supplier_row = supplier_result.fetchone()
 
-    tender_stats = {
-        "total_bids": stats_row[0] or 0,
-        "total_wins": stats_row[1] or 0,
-        "win_rate": round((stats_row[1] or 0) / max(stats_row[0] or 1, 1) * 100, 1),
-        "avg_bid_value_mkd": float(stats_row[2]) if stats_row[2] else None,
-        "total_won_value_mkd": float(stats_row[3]) if stats_row[3] else None,
-        "first_bid_date": str(stats_row[4]) if stats_row[4] else None,
-        "last_bid_date": str(stats_row[5]) if stats_row[5] else None
-    }
+    # Also get detailed stats from tender_bidders for date range
+    detail_stats_query = text("""
+        SELECT
+            COUNT(*) as total_bids,
+            COUNT(*) FILTER (WHERE tb.is_winner = TRUE) as total_wins,
+            ROUND(AVG(tb.bid_amount_mkd)::numeric, 2) as avg_bid_value,
+            ROUND(SUM(CASE WHEN tb.is_winner THEN t.actual_value_mkd ELSE 0 END)::numeric, 2) as total_won_value,
+            MIN(t.closing_date) as first_bid_date,
+            MAX(t.closing_date) as last_bid_date
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE tb.company_name ILIKE :search_pattern
+    """)
+
+    detail_result = await db.execute(detail_stats_query, {"search_pattern": f"%{company_name}%"})
+    detail_row = detail_result.fetchone()
+
+    # Use suppliers table stats if available (more complete), otherwise use tender_bidders
+    if supplier_row and supplier_row.total_wins and supplier_row.total_wins > 0:
+        tender_stats = {
+            "total_bids": supplier_row.total_bids or (detail_row[0] if detail_row else 0),
+            "total_wins": supplier_row.total_wins or 0,
+            "win_rate": float(supplier_row.win_rate) if supplier_row.win_rate else 0,
+            "avg_bid_value_mkd": float(detail_row[2]) if detail_row and detail_row[2] else None,
+            "total_won_value_mkd": float(supplier_row.total_contract_value_mkd) if supplier_row.total_contract_value_mkd else None,
+            "first_bid_date": str(detail_row[4]) if detail_row and detail_row[4] else None,
+            "last_bid_date": str(detail_row[5]) if detail_row and detail_row[5] else None
+        }
+    else:
+        tender_stats = {
+            "total_bids": detail_row[0] or 0 if detail_row else 0,
+            "total_wins": detail_row[1] or 0 if detail_row else 0,
+            "win_rate": round((detail_row[1] or 0) / max(detail_row[0] or 1, 1) * 100, 1) if detail_row else 0,
+            "avg_bid_value_mkd": float(detail_row[2]) if detail_row and detail_row[2] else None,
+            "total_won_value_mkd": float(detail_row[3]) if detail_row and detail_row[3] else None,
+            "first_bid_date": str(detail_row[4]) if detail_row and detail_row[4] else None,
+            "last_bid_date": str(detail_row[5]) if detail_row and detail_row[5] else None
+        }
 
     # 2. Get recent wins
     wins_query = text("""
@@ -767,15 +798,22 @@ async def analyze_company(
     """)
 
     cat_result = await db.execute(categories_query, {"search_pattern": f"%{company_name}%"})
-    common_categories = [
-        {
-            "category": row[0],
-            "bid_count": row[1],
-            "win_count": row[2],
-            "won_value_mkd": float(row[3]) if row[3] else 0
-        }
-        for row in cat_result.fetchall()
-    ]
+    # Normalize category names and aggregate duplicates
+    cat_map = {}
+    for row in cat_result.fetchall():
+        normalized_cat = normalize_category(row[0])
+        if normalized_cat in cat_map:
+            cat_map[normalized_cat]["bid_count"] += row[1]
+            cat_map[normalized_cat]["win_count"] += row[2]
+            cat_map[normalized_cat]["won_value_mkd"] += float(row[3]) if row[3] else 0
+        else:
+            cat_map[normalized_cat] = {
+                "category": normalized_cat,
+                "bid_count": row[1],
+                "win_count": row[2],
+                "won_value_mkd": float(row[3]) if row[3] else 0
+            }
+    common_categories = sorted(cat_map.values(), key=lambda x: x["bid_count"], reverse=True)
 
     # 4. Get frequent institutions
     institutions_query = text("""
