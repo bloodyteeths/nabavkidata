@@ -753,7 +753,7 @@ async def review_flag(
 @router.get("/stats", response_model=CorruptionStats)
 async def get_corruption_stats():
     """
-    Get corruption detection statistics
+    Get corruption detection statistics (uses materialized view for speed)
 
     Returns:
     - Total flags by severity and type
@@ -762,47 +762,32 @@ async def get_corruption_stats():
     """
     conn = await get_db_connection()
     try:
-        # Total flags by severity
-        severity_rows = await conn.fetch("""
-            SELECT severity, COUNT(*) as count
-            FROM corruption_flags
-            WHERE false_positive = false
-            GROUP BY severity
+        # Use materialized view for fast stats (single query instead of 4)
+        row = await conn.fetchrow("""
+            SELECT total_flags, total_tenders_flagged, total_value_at_risk_mkd,
+                   by_severity, by_type
+            FROM mv_corruption_stats
+            LIMIT 1
         """)
-        by_severity = {row['severity']: row['count'] for row in severity_rows}
 
-        # Total flags by type
-        type_rows = await conn.fetch("""
-            SELECT flag_type, COUNT(*) as count
-            FROM corruption_flags
-            WHERE false_positive = false
-            GROUP BY flag_type
-            ORDER BY count DESC
-        """)
-        by_type = {row['flag_type']: row['count'] for row in type_rows}
-
-        # Total tenders flagged
-        total_tenders_flagged = await conn.fetchval("""
-            SELECT COUNT(DISTINCT tender_id)
-            FROM corruption_flags
-            WHERE false_positive = false
-        """) or 0
-
-        # Total value at risk
-        total_value_at_risk = await conn.fetchval("""
-            SELECT COALESCE(SUM(DISTINCT t.estimated_value_mkd), 0)
-            FROM tenders t
-            INNER JOIN corruption_flags cf ON t.tender_id = cf.tender_id
-            WHERE cf.false_positive = false
-        """) or Decimal(0)
+        if row:
+            by_severity = dict(row['by_severity']) if row['by_severity'] else {}
+            by_type = dict(row['by_type']) if row['by_type'] else {}
+            total_flags = row['total_flags'] or 0
+            total_tenders_flagged = row['total_tenders_flagged'] or 0
+            total_value_at_risk = Decimal(str(row['total_value_at_risk_mkd'])) if row['total_value_at_risk_mkd'] else Decimal(0)
+        else:
+            by_severity = {}
+            by_type = {}
+            total_flags = 0
+            total_tenders_flagged = 0
+            total_value_at_risk = Decimal(0)
 
         # Last analysis run (from tender_risk_scores if exists)
         last_analysis_run = await conn.fetchval("""
             SELECT MAX(last_analyzed)
             FROM tender_risk_scores
         """)
-
-        total_flags = sum(by_severity.values())
 
         return CorruptionStats(
             total_flags=total_flags,
