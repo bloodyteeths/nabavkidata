@@ -62,14 +62,14 @@ export function CompetitorSearch({
   };
 
   return (
-    <Card>
+    <Card className="overflow-visible">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Search className="h-4 w-4" />
           Пребарај компании
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-visible">
         <div className="relative">
           {/* Search Input */}
           <div className="relative">
@@ -89,13 +89,17 @@ export function CompetitorSearch({
 
           {/* Search Results Dropdown */}
           {showResults && results.length > 0 && (
-            <div className="absolute z-[100] w-full mt-1 max-h-64 overflow-auto border rounded-md bg-background shadow-lg">
+            <div
+              className="absolute z-[100] w-full mt-1 max-h-64 overflow-auto border rounded-md bg-background shadow-xl"
+              onMouseDown={(e) => e.preventDefault()}
+            >
               {results.map((result) => {
                 const tracked = isTracked(result.company_name);
                 return (
                   <div
                     key={result.company_name}
-                    className="flex items-center justify-between px-3 py-2 hover:bg-accent border-b last:border-0"
+                    className="flex items-center justify-between px-3 py-2 hover:bg-accent border-b last:border-0 cursor-pointer"
+                    onClick={() => onAddCompetitor(result.company_name)}
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">
@@ -110,11 +114,7 @@ export function CompetitorSearch({
                     <Button
                       variant={tracked ? "secondary" : "default"}
                       size="sm"
-                      className="ml-2 flex-shrink-0"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        onAddCompetitor(result.company_name);
-                      }}
+                      className="ml-2 flex-shrink-0 pointer-events-none"
                       disabled={isTrackingLoading === result.company_name}
                     >
                       {isTrackingLoading === result.company_name ? (
