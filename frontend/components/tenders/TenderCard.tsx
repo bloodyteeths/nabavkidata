@@ -11,7 +11,33 @@ interface TenderCardProps {
   onViewDetails?: (tenderId: string) => void;
 }
 
+// Compute effective status based on closing_date
+// If status is 'open' but closing_date has passed, it's actually 'closed'
+function getEffectiveStatus(status?: string, closingDate?: string): string {
+  // If already awarded or cancelled, use as-is
+  if (status === 'awarded' || status === 'cancelled') {
+    return status;
+  }
+
+  // If status is 'open' but closing_date has passed, it's closed
+  if (status === 'open' && closingDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const closeDate = new Date(closingDate);
+    closeDate.setHours(0, 0, 0, 0);
+
+    if (closeDate < today) {
+      return 'closed';
+    }
+  }
+
+  return status || 'open';
+}
+
 export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
+  // Compute effective status based on closing_date
+  const effectiveStatus = getEffectiveStatus(tender.status, tender.closing_date);
+
   const getStatusVariant = (status?: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (status?.toLowerCase()) {
       case "open":
@@ -67,9 +93,9 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
                 {tender.title}
               </Link>
               <div className="flex items-center gap-2 flex-wrap">
-                {tender.status && (
-                  <Badge variant={getStatusVariant(tender.status)}>
-                    {getStatusLabel(tender.status)}
+                {effectiveStatus && (
+                  <Badge variant={getStatusVariant(effectiveStatus)}>
+                    {getStatusLabel(effectiveStatus)}
                   </Badge>
                 )}
                 {tender.procedure_type && (

@@ -421,8 +421,38 @@ async def list_tenders(
 
     if category:
         filters.append(Tender.category == category)
+
+    # Status filter with effective status logic
+    # - "open" means: status='open' AND (closing_date is NULL OR closing_date >= today)
+    # - "closed" means: status='closed' OR (status='open' AND closing_date < today)
+    # - "awarded"/"cancelled" are exact matches
     if status:
-        filters.append(Tender.status == status)
+        from datetime import date as date_type
+        today = date_type.today()
+
+        if status == 'open':
+            # Only show truly open tenders (closing date not passed)
+            filters.append(and_(
+                Tender.status == 'open',
+                or_(
+                    Tender.closing_date.is_(None),
+                    Tender.closing_date >= today
+                )
+            ))
+        elif status == 'closed':
+            # Show closed OR open with passed closing date
+            filters.append(or_(
+                Tender.status == 'closed',
+                and_(
+                    Tender.status == 'open',
+                    Tender.closing_date.isnot(None),
+                    Tender.closing_date < today
+                )
+            ))
+        else:
+            # awarded, cancelled - exact match
+            filters.append(Tender.status == status)
+
     if source_category:
         filters.append(Tender.source_category == source_category)
     if procuring_entity:

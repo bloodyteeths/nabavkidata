@@ -49,6 +49,34 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
+// Compute effective status based on closing_date
+// If status is 'open' but closing_date has passed, it's actually 'closed'
+function getEffectiveStatus(status?: string, closingDate?: string): string {
+  if (status === 'awarded' || status === 'cancelled') {
+    return status;
+  }
+  if (status === 'open' && closingDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const closeDate = new Date(closingDate);
+    closeDate.setHours(0, 0, 0, 0);
+    if (closeDate < today) {
+      return 'closed';
+    }
+  }
+  return status || 'open';
+}
+
+function getStatusLabel(status: string): string {
+  switch (status) {
+    case 'open': return 'Отворен';
+    case 'closed': return 'Затворен';
+    case 'awarded': return 'Доделен';
+    case 'cancelled': return 'Поништен';
+    default: return status;
+  }
+}
+
 interface ChatMsg {
   role: "user" | "assistant";
   content: string;
@@ -532,7 +560,9 @@ export default function TenderDetailPage() {
           </Button>
           <h1 className="text-xl md:text-3xl font-bold break-words">{tender.title || "Без наслов"}</h1>
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            {tender.status ? <Badge>{tender.status}</Badge> : <Badge variant="outline">активен</Badge>}
+            <Badge variant={getEffectiveStatus(tender.status, tender.closing_date) === 'open' ? 'default' : 'secondary'}>
+              {getStatusLabel(getEffectiveStatus(tender.status, tender.closing_date))}
+            </Badge>
             {tender.category && <Badge variant="outline">{tender.category}</Badge>}
           </div>
         </div>
