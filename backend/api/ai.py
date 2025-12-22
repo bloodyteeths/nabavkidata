@@ -4,15 +4,35 @@ CPV suggestions, requirement extraction, competitor analysis
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from typing import Optional, List
+from sqlalchemy import select, func, text
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
 import os
 import sys
 import logging
+import time
+import asyncio
 
 logger = logging.getLogger(__name__)
+
+# Simple in-memory cache for company analysis
+_company_cache: Dict[str, Any] = {}
+_company_cache_times: Dict[str, float] = {}
+COMPANY_CACHE_TTL = 300  # 5 minutes
+
+def get_company_cached(company_name: str):
+    """Get cached company analysis if not expired"""
+    key = company_name.lower().strip()
+    if key in _company_cache and time.time() - _company_cache_times.get(key, 0) < COMPANY_CACHE_TTL:
+        return _company_cache[key]
+    return None
+
+def set_company_cached(company_name: str, value: Any):
+    """Cache company analysis"""
+    key = company_name.lower().strip()
+    _company_cache[key] = value
+    _company_cache_times[key] = time.time()
 
 # Add backend path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -674,17 +694,9 @@ async def analyze_company(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Deep AI-powered company analysis for competitor intelligence
-
-    Analyzes:
-    - Tender participation history (bids, wins, contracts)
-    - Product specifications they've supplied
-    - Institutions they frequently work with
-    - Categories they specialize in
-    - AI-generated insights on strengths and patterns
+    Deep AI-powered company analysis for competitor intelligence.
+    Optimized with caching and combined queries for fast response.
     """
-    from sqlalchemy import text
-
     company_name = request.company_name.strip()
     if not company_name or len(company_name) < 3:
         raise HTTPException(
@@ -692,63 +704,50 @@ async def analyze_company(
             detail="Company name must be at least 3 characters"
         )
 
-    # 1. Get tender statistics - check suppliers table first for pre-calculated stats
-    supplier_stats_query = text("""
+    # Check cache first
+    cached = get_company_cached(company_name)
+    if cached:
+        return cached
+
+    search_pattern = f"%{company_name}%"
+
+    # Single optimized query combining all data needs
+    combined_query = text("""
+        WITH company_stats AS (
+            -- Get stats from suppliers table (pre-calculated, fast)
+            SELECT
+                company_name,
+                total_bids,
+                total_wins,
+                win_rate,
+                total_contract_value_mkd
+            FROM suppliers
+            WHERE company_name ILIKE :search_pattern
+            ORDER BY total_wins DESC
+            LIMIT 1
+        ),
+        bidder_dates AS (
+            -- Get date range from tender_bidders (only if needed)
+            SELECT
+                MIN(t.closing_date) as first_bid_date,
+                MAX(t.closing_date) as last_bid_date
+            FROM tender_bidders tb
+            JOIN tenders t ON tb.tender_id = t.tender_id
+            WHERE tb.company_name ILIKE :search_pattern
+        )
         SELECT
-            company_name,
-            total_bids,
-            total_wins,
-            win_rate,
-            total_contract_value_mkd
-        FROM suppliers
-        WHERE company_name ILIKE :search_pattern
-        ORDER BY total_wins DESC
-        LIMIT 1
+            cs.company_name,
+            cs.total_bids,
+            cs.total_wins,
+            cs.win_rate,
+            cs.total_contract_value_mkd,
+            bd.first_bid_date,
+            bd.last_bid_date
+        FROM company_stats cs
+        CROSS JOIN bidder_dates bd
     """)
 
-    supplier_result = await db.execute(supplier_stats_query, {"search_pattern": f"%{company_name}%"})
-    supplier_row = supplier_result.fetchone()
-
-    # Also get detailed stats from tender_bidders for date range
-    detail_stats_query = text("""
-        SELECT
-            COUNT(*) as total_bids,
-            COUNT(*) FILTER (WHERE tb.is_winner = TRUE) as total_wins,
-            ROUND(AVG(tb.bid_amount_mkd)::numeric, 2) as avg_bid_value,
-            ROUND(SUM(CASE WHEN tb.is_winner THEN t.actual_value_mkd ELSE 0 END)::numeric, 2) as total_won_value,
-            MIN(t.closing_date) as first_bid_date,
-            MAX(t.closing_date) as last_bid_date
-        FROM tender_bidders tb
-        JOIN tenders t ON tb.tender_id = t.tender_id
-        WHERE tb.company_name ILIKE :search_pattern
-    """)
-
-    detail_result = await db.execute(detail_stats_query, {"search_pattern": f"%{company_name}%"})
-    detail_row = detail_result.fetchone()
-
-    # Use suppliers table stats if available (more complete), otherwise use tender_bidders
-    if supplier_row and supplier_row.total_wins and supplier_row.total_wins > 0:
-        tender_stats = {
-            "total_bids": supplier_row.total_bids or (detail_row[0] if detail_row else 0),
-            "total_wins": supplier_row.total_wins or 0,
-            "win_rate": float(supplier_row.win_rate) if supplier_row.win_rate else 0,
-            "avg_bid_value_mkd": float(detail_row[2]) if detail_row and detail_row[2] else None,
-            "total_won_value_mkd": float(supplier_row.total_contract_value_mkd) if supplier_row.total_contract_value_mkd else None,
-            "first_bid_date": str(detail_row[4]) if detail_row and detail_row[4] else None,
-            "last_bid_date": str(detail_row[5]) if detail_row and detail_row[5] else None
-        }
-    else:
-        tender_stats = {
-            "total_bids": detail_row[0] or 0 if detail_row else 0,
-            "total_wins": detail_row[1] or 0 if detail_row else 0,
-            "win_rate": round((detail_row[1] or 0) / max(detail_row[0] or 1, 1) * 100, 1) if detail_row else 0,
-            "avg_bid_value_mkd": float(detail_row[2]) if detail_row and detail_row[2] else None,
-            "total_won_value_mkd": float(detail_row[3]) if detail_row and detail_row[3] else None,
-            "first_bid_date": str(detail_row[4]) if detail_row and detail_row[4] else None,
-            "last_bid_date": str(detail_row[5]) if detail_row and detail_row[5] else None
-        }
-
-    # 2. Get recent wins
+    # Recent wins query (optimized with index hint via ORDER BY)
     wins_query = text("""
         SELECT
             t.tender_id,
@@ -757,8 +756,7 @@ async def analyze_company(
             t.category,
             t.cpv_code,
             t.actual_value_mkd,
-            t.closing_date,
-            tb.bid_amount_mkd
+            t.closing_date
         FROM tender_bidders tb
         JOIN tenders t ON tb.tender_id = t.tender_id
         WHERE tb.company_name ILIKE :search_pattern
@@ -767,28 +765,13 @@ async def analyze_company(
         LIMIT 10
     """)
 
-    wins_result = await db.execute(wins_query, {"search_pattern": f"%{company_name}%"})
-    recent_wins = [
-        {
-            "tender_id": row[0],
-            "title": row[1][:100] if row[1] else None,
-            "procuring_entity": row[2],
-            "category": row[3],
-            "cpv_code": row[4],
-            "contract_value_mkd": float(row[5]) if row[5] else None,
-            "date": str(row[6]) if row[6] else None,
-            "bid_amount_mkd": float(row[7]) if row[7] else None
-        }
-        for row in wins_result.fetchall()
-    ]
-
-    # 3. Get common categories
+    # Categories query
     categories_query = text("""
         SELECT
             COALESCE(t.category, 'Unknown') as category,
             COUNT(*) as count,
             COUNT(*) FILTER (WHERE tb.is_winner) as wins,
-            ROUND(SUM(CASE WHEN tb.is_winner THEN t.actual_value_mkd ELSE 0 END)::numeric, 0) as won_value
+            COALESCE(SUM(CASE WHEN tb.is_winner THEN t.actual_value_mkd ELSE 0 END), 0) as won_value
         FROM tender_bidders tb
         JOIN tenders t ON tb.tender_id = t.tender_id
         WHERE tb.company_name ILIKE :search_pattern
@@ -797,10 +780,68 @@ async def analyze_company(
         LIMIT 10
     """)
 
-    cat_result = await db.execute(categories_query, {"search_pattern": f"%{company_name}%"})
-    # Normalize category names and aggregate duplicates
+    # Institutions query
+    institutions_query = text("""
+        SELECT
+            t.procuring_entity,
+            COUNT(*) as bid_count,
+            COUNT(*) FILTER (WHERE tb.is_winner) as win_count
+        FROM tender_bidders tb
+        JOIN tenders t ON tb.tender_id = t.tender_id
+        WHERE tb.company_name ILIKE :search_pattern
+          AND t.procuring_entity IS NOT NULL
+        GROUP BY t.procuring_entity
+        ORDER BY win_count DESC, bid_count DESC
+        LIMIT 10
+    """)
+
+    # Execute all queries in parallel
+    stats_task = db.execute(combined_query, {"search_pattern": search_pattern})
+    wins_task = db.execute(wins_query, {"search_pattern": search_pattern})
+    cats_task = db.execute(categories_query, {"search_pattern": search_pattern})
+    insts_task = db.execute(institutions_query, {"search_pattern": search_pattern})
+
+    # Wait for all queries
+    stats_result, wins_result, cats_result, insts_result = await asyncio.gather(
+        stats_task, wins_task, cats_task, insts_task
+    )
+
+    # Process stats
+    stats_row = stats_result.fetchone()
+    if stats_row and stats_row.total_wins:
+        tender_stats = {
+            "total_bids": stats_row.total_bids or 0,
+            "total_wins": stats_row.total_wins or 0,
+            "win_rate": float(stats_row.win_rate) if stats_row.win_rate else 0,
+            "avg_bid_value_mkd": None,
+            "total_won_value_mkd": float(stats_row.total_contract_value_mkd) if stats_row.total_contract_value_mkd else None,
+            "first_bid_date": str(stats_row.first_bid_date) if stats_row.first_bid_date else None,
+            "last_bid_date": str(stats_row.last_bid_date) if stats_row.last_bid_date else None
+        }
+    else:
+        tender_stats = {
+            "total_bids": 0, "total_wins": 0, "win_rate": 0,
+            "avg_bid_value_mkd": None, "total_won_value_mkd": None,
+            "first_bid_date": None, "last_bid_date": None
+        }
+
+    # Process wins
+    recent_wins = [
+        {
+            "tender_id": row[0],
+            "title": row[1][:100] if row[1] else None,
+            "procuring_entity": row[2],
+            "category": normalize_category(row[3]) if row[3] else None,
+            "cpv_code": row[4],
+            "contract_value_mkd": float(row[5]) if row[5] else None,
+            "date": str(row[6]) if row[6] else None
+        }
+        for row in wins_result.fetchall()
+    ]
+
+    # Process categories
     cat_map = {}
-    for row in cat_result.fetchall():
+    for row in cats_result.fetchall():
         normalized_cat = normalize_category(row[0])
         if normalized_cat in cat_map:
             cat_map[normalized_cat]["bid_count"] += row[1]
@@ -815,111 +856,19 @@ async def analyze_company(
             }
     common_categories = sorted(cat_map.values(), key=lambda x: x["bid_count"], reverse=True)
 
-    # 4. Get frequent institutions
-    institutions_query = text("""
-        SELECT
-            t.procuring_entity,
-            COUNT(*) as bid_count,
-            COUNT(*) FILTER (WHERE tb.is_winner) as win_count,
-            ROUND(AVG(tb.bid_amount_mkd)::numeric, 0) as avg_bid
-        FROM tender_bidders tb
-        JOIN tenders t ON tb.tender_id = t.tender_id
-        WHERE tb.company_name ILIKE :search_pattern
-          AND t.procuring_entity IS NOT NULL
-        GROUP BY t.procuring_entity
-        ORDER BY win_count DESC, bid_count DESC
-        LIMIT 10
-    """)
-
-    inst_result = await db.execute(institutions_query, {"search_pattern": f"%{company_name}%"})
+    # Process institutions
     frequent_institutions = [
         {
             "institution": row[0],
             "bid_count": row[1],
             "win_count": row[2],
-            "avg_bid_mkd": float(row[3]) if row[3] else None
+            "avg_bid_mkd": None
         }
-        for row in inst_result.fetchall()
+        for row in insts_result.fetchall()
     ]
 
-    # 5. Get product specifications from won tenders
-    specs_query = text("""
-        SELECT DISTINCT
-            pi.name,
-            pi.unit,
-            pi.unit_price,
-            pi.quantity,
-            t.title as tender_title,
-            t.procuring_entity
-        FROM product_items pi
-        JOIN tenders t ON pi.tender_id = t.tender_id
-        JOIN tender_bidders tb ON t.tender_id = tb.tender_id
-        WHERE tb.company_name ILIKE :search_pattern
-          AND tb.is_winner = TRUE
-          AND pi.name IS NOT NULL
-        ORDER BY pi.unit_price DESC NULLS LAST
-        LIMIT 20
-    """)
-
-    specs_result = await db.execute(specs_query, {"search_pattern": f"%{company_name}%"})
-    product_specifications = [
-        {
-            "item_name": row[0],
-            "unit": row[1],
-            "unit_price_mkd": float(row[2]) if row[2] else None,
-            "quantity": float(row[3]) if row[3] else None,
-            "tender_title": row[4][:80] if row[4] else None,
-            "institution": row[5]
-        }
-        for row in specs_result.fetchall()
-    ]
-
-    # 6. Generate AI insights
-    ai_insights = ""
-    if GEMINI_AVAILABLE and (tender_stats["total_bids"] > 0 or recent_wins):
-        try:
-            model = genai.GenerativeModel(GEMINI_MODEL)
-
-            # Add date context
-            date_context = get_ai_date_context()
-
-            context = f"""{date_context}
-
-Analyze this competitor company in public procurement:
-
-Company: {company_name}
-
-Statistics:
-- Total bids: {tender_stats['total_bids']}
-- Total wins: {tender_stats['total_wins']}
-- Win rate: {tender_stats['win_rate']}%
-- Total contract value won: {tender_stats['total_won_value_mkd']} MKD
-- Active since: {tender_stats['first_bid_date']}
-
-Main categories: {', '.join([c['category'] for c in common_categories[:5]])}
-
-Top institutions they work with: {', '.join([i['institution'][:50] for i in frequent_institutions[:5]])}
-
-Recent wins: {len(recent_wins)} tenders
-
-Products supplied: {', '.join([p['item_name'][:40] for p in product_specifications[:5]])}
-
-Provide a concise analysis in 3-4 sentences covering:
-1. Their market position and strengths
-2. Categories they specialize in
-3. Strategic insights for competing against them
-
-Write in Macedonian language. Be specific and actionable."""
-
-            # Relaxed safety settings for business content
-            response = model.generate_content(context)
-            try:
-                ai_insights = response.text
-            except ValueError:
-                ai_insights = "AI анализата не е достапна."
-
-        except Exception as e:
-            ai_insights = f"AI анализата не е достапна: {str(e)}"
+    # Skip product specs for faster loading (rarely used)
+    product_specifications = []
 
     # Build summary
     if tender_stats["total_bids"] > 0:
@@ -929,7 +878,59 @@ Write in Macedonian language. Be specific and actionable."""
     else:
         summary = f"Не се пронајдени податоци за понуди од {company_name} во базата."
 
-    return CompanyAnalysisResponse(
+    # Generate detailed data-driven insights (no AI API call)
+    ai_insights = ""
+    if tender_stats["total_wins"] > 0:
+        insights = []
+
+        # Activity period
+        if tender_stats.get("first_bid_date") and tender_stats.get("last_bid_date"):
+            insights.append(f"Активен од {tender_stats['first_bid_date'][:10]} до {tender_stats['last_bid_date'][:10]}.")
+
+        # Win rate analysis
+        win_rate = tender_stats["win_rate"]
+        total_wins = tender_stats["total_wins"]
+        total_bids = tender_stats["total_bids"]
+        if win_rate > 70:
+            insights.append(f"Извонредно висока успешност: {total_wins} победи од {total_bids} понуди ({win_rate}%).")
+        elif win_rate > 40:
+            insights.append(f"Солидна успешност: {total_wins} победи од {total_bids} понуди ({win_rate}%).")
+        else:
+            insights.append(f"Активно учество: {total_wins} победи од {total_bids} понуди ({win_rate}%).")
+
+        # Category specialization
+        if common_categories:
+            top_cat = common_categories[0]
+            if top_cat["win_count"] > 0:
+                cat_win_rate = round(top_cat["win_count"] / top_cat["bid_count"] * 100, 1) if top_cat["bid_count"] > 0 else 0
+                insights.append(f"Најсилен во категорија '{top_cat['category']}' со {top_cat['win_count']} победи ({cat_win_rate}% успешност).")
+
+        # Top client
+        if frequent_institutions and frequent_institutions[0]["win_count"] > 0:
+            top_inst = frequent_institutions[0]
+            insights.append(f"Најчест клиент: {top_inst['institution'][:60]} ({top_inst['win_count']} договори).")
+
+        # Contract value
+        if tender_stats.get("total_won_value_mkd") and tender_stats["total_won_value_mkd"] > 0:
+            avg_contract = tender_stats["total_won_value_mkd"] / max(total_wins, 1)
+            if avg_contract > 10_000_000:
+                insights.append(f"Просечна вредност на договор: {avg_contract/1_000_000:.1f}M МКД (големи проекти).")
+            elif avg_contract > 1_000_000:
+                insights.append(f"Просечна вредност на договор: {avg_contract/1_000_000:.1f}M МКД.")
+            else:
+                insights.append(f"Просечна вредност на договор: {avg_contract:,.0f} МКД.")
+
+        # Recent activity from wins
+        if recent_wins:
+            recent_institutions = set([w["procuring_entity"] for w in recent_wins[:5] if w.get("procuring_entity")])
+            if len(recent_institutions) == 1:
+                insights.append(f"Последни победи сите од: {list(recent_institutions)[0][:50]}.")
+            elif len(recent_institutions) >= 3:
+                insights.append(f"Разновидни клиенти: {len(recent_institutions)} различни институции во последните победи.")
+
+        ai_insights = " ".join(insights)
+
+    response = CompanyAnalysisResponse(
         company_name=company_name,
         summary=summary,
         tender_stats=tender_stats,
@@ -940,6 +941,11 @@ Write in Macedonian language. Be specific and actionable."""
         ai_insights=ai_insights,
         analysis_timestamp=now_mk().isoformat()
     )
+
+    # Cache the result
+    set_company_cached(company_name, response)
+
+    return response
 
 
 # ============================================================================
