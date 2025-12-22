@@ -485,6 +485,26 @@ export default function CompetitorsPage() {
         </div>
       </div>
 
+      {/* Quick Guide */}
+      <Card className="bg-muted/30 border-dashed">
+        <CardContent className="py-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+              <Eye className="h-5 w-5 text-primary" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium text-sm">Како да ја користите оваа страница?</p>
+              <p className="text-xs text-muted-foreground">
+                1. <strong>Пребарајте</strong> компанија подолу и кликнете „Следи" за да ја додадете во вашата листа.
+                2. Во <strong>Споредба</strong> ќе ги видите перформансите на следените компании.
+                3. <strong>Активност</strong> покажува нивни најнови понуди и победи.
+                4. <strong>AI Анализа</strong> дава детален профил за било која компанија.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Search Bar - Using new component */}
       <CompetitorSearch
         onSearch={async (query) => {
@@ -684,6 +704,12 @@ export default function CompetitorsPage() {
 
         {/* Comparison Tab */}
         <TabsContent value="comparison" className="space-y-4">
+          {trackedCompetitors.length > 0 && (
+            <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+              <strong>Што е ова?</strong> Визуелна споредба на перформансите на следените компании.
+              Споредете број на победи, понуди и вкупна вредност на договори.
+            </div>
+          )}
           {comparisonLoading ? (
             <Card>
               <CardContent className="py-12 text-center">
@@ -760,7 +786,25 @@ export default function CompetitorsPage() {
 
         {/* Activity Tab */}
         <TabsContent value="activity" className="space-y-4">
-          <ActivityFeed companyNames={trackedCompetitors} limit={50} />
+          {trackedCompetitors.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <Activity className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                <p className="font-medium">Следете компании за да видите активност</p>
+                <p className="text-sm mt-1">
+                  Пребарајте компанија погоре и кликнете „Следи" за да ја додадете
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+                <strong>Што е ова?</strong> Овде ги гледате најновите понуди и победи на компаниите што ги следите.
+                Корисно е за следење на конкуренцијата во реално време.
+              </div>
+              <ActivityFeed companyNames={trackedCompetitors} limit={50} />
+            </>
+          )}
         </TabsContent>
 
         {/* AI Analysis Tab */}
@@ -1042,6 +1086,10 @@ export default function CompetitorsPage() {
 
         {/* Head-to-Head Tab */}
         <TabsContent value="head-to-head" className="space-y-4">
+          <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+            <strong>Што е ова?</strong> Директна споредба меѓу две компании.
+            Внесете имиња на две компании за да видите кој има подобри перформанси во тендери.
+          </div>
           <HeadToHead />
         </TabsContent>
       </Tabs>
