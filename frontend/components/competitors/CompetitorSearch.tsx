@@ -62,7 +62,7 @@ export function CompetitorSearch({
   };
 
   return (
-    <Card className="overflow-visible">
+    <Card className="overflow-visible relative z-50">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Search className="h-4 w-4" />
