@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api, Supplier } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,15 +26,18 @@ import { Building2, Trophy, FileText, TrendingUp, Search, ChevronLeft, ChevronRi
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
 
-export default function SuppliersPage() {
+function SuppliersContent() {
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get('search') || '';
+
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  const [searchInput, setSearchInput] = useState(initialSearch);
   const [sortBy, setSortBy] = useState('total_wins');
   const [sortOrder, setSortOrder] = useState('desc');
   const [stats, setStats] = useState<{
@@ -320,5 +324,20 @@ export default function SuppliersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SuppliersPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto py-8 px-4">
+        <div className="flex items-center justify-center gap-2 py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span>Се вчитува...</span>
+        </div>
+      </div>
+    }>
+      <SuppliersContent />
+    </Suspense>
   );
 }
