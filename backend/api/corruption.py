@@ -209,6 +209,83 @@ def calculate_risk_level(score: int) -> str:
         return "minimal"
 
 
+def latin_to_cyrillic(text: str) -> str:
+    """
+    Convert Latin transliteration to Macedonian Cyrillic.
+    Used for searching Cyrillic names with Latin input.
+    """
+    # Multi-character mappings must be processed first
+    latin_to_macedonian = {
+        'dzh': 'џ', 'Dzh': 'Џ', 'DZH': 'Џ',
+        'gj': 'ѓ', 'Gj': 'Ѓ', 'GJ': 'Ѓ',
+        'kj': 'ќ', 'Kj': 'Ќ', 'KJ': 'Ќ',
+        'lj': 'љ', 'Lj': 'Љ', 'LJ': 'Љ',
+        'nj': 'њ', 'Nj': 'Њ', 'NJ': 'Њ',
+        'dz': 'ѕ', 'Dz': 'Ѕ', 'DZ': 'Ѕ',
+        'zh': 'ж', 'Zh': 'Ж', 'ZH': 'Ж',
+        'ch': 'ч', 'Ch': 'Ч', 'CH': 'Ч',
+        'sh': 'ш', 'Sh': 'Ш', 'SH': 'Ш',
+    }
+
+    # Single character mappings
+    single_char = {
+        'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е',
+        'z': 'з', 'i': 'и', 'j': 'ј', 'k': 'к', 'l': 'л', 'm': 'м',
+        'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р', 's': 'с', 't': 'т',
+        'u': 'у', 'f': 'ф', 'h': 'х', 'c': 'ц',
+        'A': 'А', 'B': 'Б', 'V': 'В', 'G': 'Г', 'D': 'Д', 'E': 'Е',
+        'Z': 'З', 'I': 'И', 'J': 'Ј', 'K': 'К', 'L': 'Л', 'M': 'М',
+        'N': 'Н', 'O': 'О', 'P': 'П', 'R': 'Р', 'S': 'С', 'T': 'Т',
+        'U': 'У', 'F': 'Ф', 'H': 'Х', 'C': 'Ц'
+    }
+
+    # Process multi-character combinations first
+    result = text
+    for latin, cyrillic in latin_to_macedonian.items():
+        result = result.replace(latin, cyrillic)
+
+    # Then process single characters
+    output = ''
+    for char in result:
+        output += single_char.get(char, char)
+
+    return output
+
+
+def build_bilingual_search_condition(field: str, search_term: str, param_num: int) -> tuple[str, list]:
+    """
+    Build SQL condition that searches both Cyrillic and Latin versions.
+
+    Supports bidirectional search:
+    - "Битола" finds institutions with "Битола" (exact Cyrillic match)
+    - "Bitola" finds institutions with "Битола" (Latin -> Cyrillic conversion)
+    - Also finds English names like "Municipality of Bitola"
+
+    Args:
+        field: Database field name (e.g., 't.procuring_entity')
+        search_term: User's search input
+        param_num: Current parameter number for SQL query
+
+    Returns:
+        Tuple of (SQL condition string, list of parameters)
+    """
+    # Check if search term contains Cyrillic characters
+    has_cyrillic = any('\u0400' <= c <= '\u04FF' for c in search_term)
+
+    if has_cyrillic:
+        # Search term is already Cyrillic - search directly
+        condition = f"{field} ILIKE '%' || ${param_num} || '%'"
+        params = [search_term]
+    else:
+        # Search term is Latin - search both Latin AND convert to Cyrillic
+        # This allows "Bitola" to find both "Municipality of Bitola" and "Општина Битола"
+        cyrillic_version = latin_to_cyrillic(search_term)
+        condition = f"({field} ILIKE '%' || ${param_num} || '%' OR {field} ILIKE '%' || ${param_num + 1} || '%')"
+        params = [search_term, cyrillic_version]
+
+    return condition, params
+
+
 # ============================================================================
 # FLAGGED TENDERS ENDPOINTS
 # ============================================================================
@@ -218,6 +295,7 @@ async def get_flagged_tenders(
     severity: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
     flag_type: Optional[str] = None,
     institution: Optional[str] = None,
+    winner: Optional[str] = None,
     min_score: int = Query(0, ge=0, le=100),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
@@ -229,6 +307,7 @@ async def get_flagged_tenders(
     - severity: Filter by severity level (critical/high/medium/low)
     - flag_type: Filter by specific flag type
     - institution: Filter by procuring entity
+    - winner: Filter by winner/company name
     - min_score: Minimum risk score (0-100, default 0)
     - skip: Pagination offset
     - limit: Results per page (max 100)
@@ -279,11 +358,20 @@ async def get_flagged_tenders(
             params.append(flag_type)
 
         if institution:
-            param_count += 1
-            query += f" AND t.procuring_entity ILIKE '%' || ${param_count} || '%'"
-            params.append(institution)
+            # Use bilingual search for institution names
+            condition, search_params = build_bilingual_search_condition('t.procuring_entity', institution, param_count + 1)
+            query += f" AND {condition}"
+            params.extend(search_params)
+            param_count += len(search_params)
 
-        # Count query
+        if winner:
+            # Use bilingual search for winner/company names
+            condition, search_params = build_bilingual_search_condition('t.winner', winner, param_count + 1)
+            query += f" AND {condition}"
+            params.extend(search_params)
+            param_count += len(search_params)
+
+        # Count query - must replicate filters exactly
         count_query = f"""
         WITH tender_flags AS (
             SELECT
@@ -301,14 +389,27 @@ async def get_flagged_tenders(
         JOIN tenders t ON t.tender_id = tf.tender_id
         WHERE tf.total_score >= $1
         """
+        count_params_used = 1
         if severity:
-            count_query += f" AND tf.max_severity = $2"
+            count_params_used += 1
+            count_query += f" AND tf.max_severity = ${count_params_used}"
         if flag_type:
-            count_query += f" AND ${2 if not severity else 3} = ANY(tf.flag_types)"
+            count_params_used += 1
+            count_query += f" AND ${count_params_used} = ANY(tf.flag_types)"
         if institution:
-            count_query += f" AND t.procuring_entity ILIKE '%' || ${len(params)} || '%'"
+            # Use bilingual search in count query too
+            condition, search_params = build_bilingual_search_condition('t.procuring_entity', institution, count_params_used + 1)
+            count_query += f" AND {condition}"
+            count_params_used += len(search_params)
+        if winner:
+            # Use bilingual search in count query too
+            condition, search_params = build_bilingual_search_condition('t.winner', winner, count_params_used + 1)
+            count_query += f" AND {condition}"
+            count_params_used += len(search_params)
 
-        total = await conn.fetchval(count_query, *params[:len(params)])
+        # Build count params in same order as main query params (excluding limit/offset)
+        count_params = params[:count_params_used]
+        total = await conn.fetchval(count_query, *count_params)
 
         # Add ordering and pagination
         query += f" ORDER BY tf.total_score DESC, tf.total_flags DESC LIMIT ${param_count + 1} OFFSET ${param_count + 2}"
@@ -562,7 +663,7 @@ async def get_suspicious_companies(
             LEFT JOIN corruption_flags cf ON t.tender_id = cf.tender_id
                 AND cf.false_positive = FALSE
             WHERE t.winner IS NOT NULL
-                AND t.status = 'awarded'
+                AND (t.status = 'awarded' OR t.status = 'completed')
             GROUP BY t.winner
             HAVING COUNT(DISTINCT t.tender_id) >= $1
                AND COUNT(DISTINCT cf.tender_id) > 0

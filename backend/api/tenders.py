@@ -104,8 +104,13 @@ async def get_tender_stats(
     )
     closed_tenders = await db.scalar(closed_query)
 
-    # Awarded tenders
-    awarded_query = select(func.count()).select_from(Tender).where(Tender.status == "awarded")
+    # Awarded tenders (includes 'completed' status with a winner)
+    awarded_query = select(func.count()).select_from(Tender).where(
+        or_(
+            Tender.status == "awarded",
+            and_(Tender.status == "completed", Tender.winner.isnot(None), Tender.winner != "")
+        )
+    )
     awarded_tenders = await db.scalar(awarded_query)
 
     # Cancelled tenders
@@ -494,12 +499,14 @@ async def search_tenders(
     query = select(Tender)
     filters = []
 
-    # Text search (search in title and description)
+    # Text search (search in title, description, procuring_entity, CPV code, and winner)
     if search.query:
         text_filter = or_(
             Tender.title.ilike(f"%{search.query}%"),
             Tender.description.ilike(f"%{search.query}%"),
-            Tender.procuring_entity.ilike(f"%{search.query}%")
+            Tender.procuring_entity.ilike(f"%{search.query}%"),
+            Tender.cpv_code.ilike(f"%{search.query}%"),
+            Tender.winner.ilike(f"%{search.query}%")
         )
         filters.append(text_filter)
 

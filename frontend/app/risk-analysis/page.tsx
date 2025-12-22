@@ -115,7 +115,9 @@ export default function RiskAnalysisPage() {
 
   // Search
   const [searchInput, setSearchInput] = useState("");
+  const [winnerInput, setWinnerInput] = useState("");
   const debouncedSearch = useDebounce(searchInput, 300);
+  const debouncedWinner = useDebounce(winnerInput, 300);
 
   // Stats (loaded separately)
   const [stats, setStats] = useState<{
@@ -137,6 +139,10 @@ export default function RiskAnalysisPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchResultsPerPage] = useState(18);
+  const [searchStatusFilter, setSearchStatusFilter] = useState<string>("all");
 
   // Load stats separately (cached)
   useEffect(() => {
@@ -165,12 +171,19 @@ export default function RiskAnalysisPage() {
     if (mode === "flagged") {
       loadFlaggedTenders();
     }
-  }, [mode, riskFilter, flagFilter, currentPage, debouncedSearch]);
+  }, [mode, riskFilter, flagFilter, currentPage, debouncedSearch, debouncedWinner]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [riskFilter, flagFilter, debouncedSearch]);
+  }, [riskFilter, flagFilter, debouncedSearch, debouncedWinner]);
+
+  // Trigger search when page or filter changes (for search tab)
+  useEffect(() => {
+    if (mode === "search" && searchQuery && searchResults.length > 0) {
+      searchTenders();
+    }
+  }, [searchPage, searchStatusFilter]);
 
   async function loadFlaggedTenders() {
     setLoading(true);
@@ -185,6 +198,7 @@ export default function RiskAnalysisPage() {
       if (riskFilter !== "all") params.append("severity", riskFilter);
       if (flagFilter !== "all") params.append("flag_type", flagFilter);
       if (debouncedSearch) params.append("institution", debouncedSearch);
+      if (debouncedWinner) params.append("winner", debouncedWinner);
 
       const res = await fetch(`${API_URL}/api/corruption/flagged-tenders?${params}`);
       if (!res.ok) throw new Error("API error");
@@ -223,15 +237,21 @@ export default function RiskAnalysisPage() {
     if (!searchQuery.trim()) return;
     setSearchLoading(true);
     try {
+      // Search tenders - backend searches title, description, procuring_entity, and CPV code
       const data = await api.searchTenders({
         query: searchQuery.trim(),
-        status: "awarded",
-        page: 1,
-        page_size: 50
+        status: searchStatusFilter === "all" ? undefined : searchStatusFilter,
+        page: searchPage,
+        page_size: searchResultsPerPage,
+        sort_by: "created_at",
+        sort_order: "desc"
       });
       setSearchResults(data.items || []);
+      setSearchTotal(data.total || 0);
     } catch (err) {
       console.error("Search failed:", err);
+      setSearchResults([]);
+      setSearchTotal(0);
     } finally {
       setSearchLoading(false);
     }
@@ -241,16 +261,43 @@ export default function RiskAnalysisPage() {
     setAnalyzingId(tenderId);
     setAnalysisResult(null);
     try {
+      // Get auth token from localStorage
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      if (!token) {
+        alert("Ве молиме најавете се за да користите AI анализа");
+        return;
+      }
+
       const res = await fetch(`${API_URL}/api/risk/investigate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ type: "tender", query: tenderId })
       });
-      if (!res.ok) throw new Error("Analysis failed");
+
+      if (res.status === 401) {
+        alert("Ве молиме најавете се за да користите AI анализа");
+        return;
+      }
+
+      if (res.status === 429) {
+        const error = await res.json();
+        alert(error.detail?.message || "Премногу барања. Ве молиме почекајте.");
+        return;
+      }
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || "Analysis failed");
+      }
+
       const result = await res.json();
       setAnalysisResult({ tenderId, ...result });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Analysis error:", err);
+      alert(`Грешка при анализа: ${err.message}`);
     } finally {
       setAnalyzingId(null);
     }
@@ -323,17 +370,32 @@ export default function RiskAnalysisPage() {
   }
 
   function exportToCSV() {
-    const headers = ["tender_id", "title", "procuring_entity", "winner", "estimated_value_mkd", "risk_score", "risk_level", "flags"];
-    const rows = riskyTenders.map(t => [
-      t.tender_id,
-      `"${t.title.replace(/"/g, '""')}"`,
-      `"${(t.procuring_entity || "").replace(/"/g, '""')}"`,
-      `"${(t.winner || "").replace(/"/g, '""')}"`,
-      t.estimated_value_mkd || "",
-      t.risk_score,
-      t.risk_level,
-      `"${t.flags.map(f => f.flag_type).join("; ")}"`
-    ]);
+    const headers = ["tender_id", "title", "procuring_entity", "winner", "estimated_value_mkd", "risk_score", "risk_level", "flag_types", "source_url"];
+    const rows = riskyTenders.map(t => {
+      // Translate risk level to Macedonian
+      const riskLevelMk = RISK_LEVELS[t.risk_level]?.label || t.risk_level;
+
+      // Translate flag types to Macedonian
+      const flagTypesMk = t.flags.map(f => FLAG_TYPES[f.flag_type]?.label || f.flag_type).join("; ");
+
+      // Format currency value
+      const formattedValue = t.estimated_value_mkd ? formatCurrency(t.estimated_value_mkd) : "";
+
+      // Generate source URL
+      const sourceUrl = `https://e-nabavki.gov.mk/PublicAccess/home.aspx#/dossie/${encodeURIComponent(t.tender_id)}`;
+
+      return [
+        t.tender_id,
+        `"${t.title.replace(/"/g, '""')}"`,
+        `"${(t.procuring_entity || "").replace(/"/g, '""')}"`,
+        `"${(t.winner || "").replace(/"/g, '""')}"`,
+        formattedValue,
+        t.risk_score,
+        riskLevelMk,
+        `"${flagTypesMk}"`,
+        sourceUrl
+      ];
+    });
 
     const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -440,15 +502,15 @@ export default function RiskAnalysisPage() {
       </div>
 
       {/* Legal Disclaimer */}
-      <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+      <Card className="border-blue-200 bg-blue-50 dark:bg-blue-900/10 dark:border-blue-700">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <Scale className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <Scale className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
             <div className="text-sm">
-              <p className="font-medium text-amber-800 dark:text-amber-200 mb-1">
+              <p className="font-medium text-blue-800 dark:text-blue-300 mb-1">
                 Правна напомена
               </p>
-              <p className="text-amber-700 dark:text-amber-300 leading-relaxed">
+              <p className="text-blue-700 dark:text-blue-300 leading-relaxed">
                 Оваа анализа е генерирана автоматски од AI алгоритми и служи <strong>исклучиво за информативни цели</strong>.
                 Означувањето на тендер како „ризичен" <strong>не претставува доказ</strong> за незаконски дејствија.
               </p>
@@ -521,9 +583,19 @@ export default function RiskAnalysisPage() {
             <div className="relative flex-1 min-w-[200px] max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Пребарај по институција..."
+                placeholder="Пребарај институција (кирилица или латиница)..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Пребарај по компанија..."
+                value={winnerInput}
+                onChange={(e) => setWinnerInput(e.target.value)}
                 className="pl-9"
               />
             </div>
@@ -567,7 +639,7 @@ export default function RiskAnalysisPage() {
           </div>
 
           {/* Current filter info */}
-          {(riskFilter !== "all" || flagFilter !== "all" || searchInput) && (
+          {(riskFilter !== "all" || flagFilter !== "all" || searchInput || winnerInput) && (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">Филтри:</span>
               {riskFilter !== "all" && (
@@ -584,11 +656,17 @@ export default function RiskAnalysisPage() {
               )}
               {searchInput && (
                 <Badge variant="secondary" className="gap-1">
-                  "{searchInput}"
+                  Институција: "{searchInput}"
                   <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setSearchInput("")} />
                 </Badge>
               )}
-              <Button variant="ghost" size="sm" onClick={() => { setRiskFilter("all"); setFlagFilter("all"); setSearchInput(""); }}>
+              {winnerInput && (
+                <Badge variant="secondary" className="gap-1">
+                  Компанија: "{winnerInput}"
+                  <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setWinnerInput("")} />
+                </Badge>
+              )}
+              <Button variant="ghost" size="sm" onClick={() => { setRiskFilter("all"); setFlagFilter("all"); setSearchInput(""); setWinnerInput(""); }}>
                 Исчисти
               </Button>
             </div>
@@ -613,7 +691,7 @@ export default function RiskAnalysisPage() {
                 <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-4" />
                 <h3 className="font-medium text-lg">Нема детектирани ризици</h3>
                 <p className="text-muted-foreground">
-                  {riskFilter !== "all" || flagFilter !== "all" || searchInput
+                  {riskFilter !== "all" || flagFilter !== "all" || searchInput || winnerInput
                     ? "Пробајте други филтри"
                     : "Нема ризични тендери"}
                 </p>
@@ -630,23 +708,29 @@ export default function RiskAnalysisPage() {
                     <Card key={tender.tender_id} className={`transition-all ${isOpen ? "ring-2 ring-primary md:col-span-2" : ""}`}>
                       <div className={`h-1 ${cfg.bg}`} />
                       <CardContent className="p-4">
-                        <div className="flex items-start gap-3 mb-3">
+                        <div
+                          className="flex items-start gap-3 mb-3 cursor-pointer hover:bg-muted/50 -m-1 p-1 rounded transition-colors"
+                          onClick={() => handleExpand(tender.tender_id)}
+                        >
                           <div className="relative w-12 h-12 flex-shrink-0">
                             <svg className="transform -rotate-90 w-12 h-12">
                               <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted" />
                               <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none"
-                                strokeDasharray={`${(tender.risk_score / 100) * 125} 125`}
+                                strokeDasharray={`${(Math.min(tender.risk_score, 100) / 100) * 125} 125`}
                                 className={cfg.bg.replace("bg-", "text-")}
                               />
                             </svg>
                             <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
-                              {tender.risk_score}
+                              {Math.min(tender.risk_score, 100)}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <Badge className={`${cfg.light} ${cfg.text} border-0 mb-1`}>{cfg.label}</Badge>
                             <h3 className="font-medium text-sm line-clamp-2">{tender.title}</h3>
                             <p className="text-xs text-muted-foreground truncate">{tender.procuring_entity}</p>
+                          </div>
+                          <div className="flex items-center flex-shrink-0">
+                            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </div>
                         </div>
 
@@ -659,9 +743,6 @@ export default function RiskAnalysisPage() {
                               </span>
                             )}
                           </div>
-                          <Button variant="ghost" size="sm" onClick={() => handleExpand(tender.tender_id)} className="shrink-0">
-                            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          </Button>
                         </div>
 
                         {isOpen && (
@@ -716,13 +797,13 @@ export default function RiskAnalysisPage() {
                             )}
 
                             <div className="flex gap-2">
-                              <Link href={`/tenders/${encodeURIComponent(tender.tender_id)}`} className="flex-1">
+                              <Link href={`/tenders/${encodeURIComponent(tender.tender_id)}`} className="flex-1" target="_blank" rel="noopener noreferrer">
                                 <Button variant="outline" size="sm" className="w-full">
                                   <Eye className="h-4 w-4 mr-1" /> Тендер
                                 </Button>
                               </Link>
                               {tender.winner && (
-                                <Link href={`/suppliers?search=${encodeURIComponent(tender.winner)}`} className="flex-1">
+                                <Link href={`/suppliers?search=${encodeURIComponent(tender.winner)}`} className="flex-1" target="_blank" rel="noopener noreferrer">
                                   <Button variant="outline" size="sm" className="w-full">
                                     <Building2 className="h-4 w-4 mr-1" /> Победник
                                   </Button>
@@ -756,50 +837,127 @@ export default function RiskAnalysisPage() {
             </CardContent>
           </Card>
 
-          <form onSubmit={(e) => { e.preventDefault(); searchTenders(); }} className="flex gap-2">
-            <Input
-              placeholder="Пребарај по назив, институција, CPV..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1"
-            />
-            <Button type="submit" disabled={searchLoading}>
-              {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            </Button>
-          </form>
+          <div className="space-y-3">
+            <form onSubmit={(e) => { e.preventDefault(); setSearchPage(1); searchTenders(); }} className="flex gap-2">
+              <Input
+                placeholder="Пребарај по назив, институција, CPV код, производ..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1"
+              />
+              <Select value={searchStatusFilter} onValueChange={(val) => { setSearchStatusFilter(val); setSearchPage(1); }}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Статус" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Сите</SelectItem>
+                  <SelectItem value="active">Активни</SelectItem>
+                  <SelectItem value="awarded">Доделени</SelectItem>
+                  <SelectItem value="cancelled">Откажани</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button type="submit" disabled={searchLoading}>
+                {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              </Button>
+            </form>
+
+            {searchTotal > 0 && !searchLoading && (
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Пронајдени {searchTotal.toLocaleString()} резултати</span>
+                {searchTotal > searchResultsPerPage && (
+                  <span>Страна {searchPage} од {Math.ceil(searchTotal / searchResultsPerPage)}</span>
+                )}
+              </div>
+            )}
+          </div>
 
           {searchLoading ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {[1,2,3].map(i => <Card key={i}><CardContent className="p-4"><Skeleton className="h-20" /></CardContent></Card>)}
+              {Array.from({ length: 6 }).map((_, i) => <Card key={i}><CardContent className="p-4"><Skeleton className="h-24" /></CardContent></Card>)}
             </div>
           ) : searchResults.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {searchResults.map((t: any) => (
-                <Card key={t.tender_id} className={analyzingId === t.tender_id ? "ring-2 ring-primary animate-pulse" : ""}>
-                  <CardContent className="p-4">
-                    <h3 className="font-medium text-sm line-clamp-2 mb-2">{t.title}</h3>
-                    <p className="text-xs text-muted-foreground truncate mb-2">{t.procuring_entity}</p>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Badge variant="outline" className="text-[10px]">{t.tender_id}</Badge>
-                      {t.num_bidders === 1 && <Badge variant="destructive" className="text-[10px]">1 понудувач</Badge>}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => analyzeTender(t.tender_id)} disabled={analyzingId !== null} className="flex-1">
-                        {analyzingId === t.tender_id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
-                        Анализирај
-                      </Button>
-                      <Link href={`/tenders/${encodeURIComponent(t.tender_id)}`}>
-                        <Button variant="outline" size="sm"><Eye className="h-3 w-3" /></Button>
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {searchResults.map((t: any) => (
+                  <Card key={t.tender_id} className={analyzingId === t.tender_id ? "ring-2 ring-primary animate-pulse" : ""}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-2 mb-2">
+                        <h3 className="font-medium text-sm line-clamp-2 flex-1">{t.title}</h3>
+                        {t.status && (
+                          <Badge variant={t.status === 'active' ? 'default' : t.status === 'awarded' ? 'secondary' : 'outline'} className="text-[9px] shrink-0">
+                            {t.status}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate mb-2">{t.procuring_entity}</p>
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
+                        <Badge variant="outline" className="text-[10px] font-mono">{t.tender_id}</Badge>
+                        {t.num_bidders === 1 && <Badge variant="destructive" className="text-[10px]">1 понудувач</Badge>}
+                        {t.cpv_code && <Badge variant="outline" className="text-[9px]">{t.cpv_code.substring(0, 8)}</Badge>}
+                      </div>
+                      {t.estimated_value_mkd && (
+                        <p className="text-xs font-medium text-primary mb-2">{formatCurrency(t.estimated_value_mkd)}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => analyzeTender(t.tender_id)} disabled={analyzingId !== null} className="flex-1">
+                          {analyzingId === t.tender_id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
+                          Анализирај
+                        </Button>
+                        <Link href={`/tenders/${encodeURIComponent(t.tender_id)}`} target="_blank" rel="noopener noreferrer">
+                          <Button variant="outline" size="sm"><Eye className="h-3 w-3" /></Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Search Pagination */}
+              {searchTotal > searchResultsPerPage && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setSearchPage(1); }}
+                    disabled={searchPage === 1}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setSearchPage(p => Math.max(1, p - 1)); }}
+                    disabled={searchPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="px-3 text-sm">
+                    {searchPage} / {Math.ceil(searchTotal / searchResultsPerPage)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setSearchPage(p => Math.min(Math.ceil(searchTotal / searchResultsPerPage), p + 1)); }}
+                    disabled={searchPage >= Math.ceil(searchTotal / searchResultsPerPage)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setSearchPage(Math.ceil(searchTotal / searchResultsPerPage)); }}
+                    disabled={searchPage >= Math.ceil(searchTotal / searchResultsPerPage)}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
           ) : searchQuery && !searchLoading ? (
             <Card className="border-dashed">
               <CardContent className="py-8 text-center">
                 <p className="text-muted-foreground">Нема резултати за "{searchQuery}"</p>
+                <p className="text-xs text-muted-foreground mt-2">Пробајте со друг термин за пребарување или статус филтер</p>
               </CardContent>
             </Card>
           ) : null}
@@ -818,13 +976,13 @@ export default function RiskAnalysisPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="text-3xl font-bold">{analysisResult.risk_score}</div>
+                  <div className="text-3xl font-bold">{Math.min(analysisResult.risk_score, 100)}<span className="text-lg text-muted-foreground">/100</span></div>
                   <Badge className={`${getRiskConfig(analysisResult.risk_level).light} ${getRiskConfig(analysisResult.risk_level).text}`}>
                     {getRiskConfig(analysisResult.risk_level).label} ризик
                   </Badge>
                 </div>
                 {analysisResult.summary_mk && <p className="text-sm mb-4">{analysisResult.summary_mk}</p>}
-                <Link href={`/tenders/${encodeURIComponent(analysisResult.tenderId)}`}>
+                <Link href={`/tenders/${encodeURIComponent(analysisResult.tenderId)}`} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" className="w-full"><Eye className="h-4 w-4 mr-2" /> Погледни тендер</Button>
                 </Link>
               </CardContent>
