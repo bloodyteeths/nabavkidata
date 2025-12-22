@@ -16,6 +16,7 @@ from database import get_db
 from models import Tender, TenderBidder, TenderLot, Supplier, Document, User, ProductItem
 from api.auth import get_current_user
 from utils.timezone import get_ai_date_context
+from utils.transliteration import get_search_variants
 from schemas import (
     TenderCreate,
     TenderUpdate,
@@ -530,15 +531,19 @@ async def search_tenders(
     filters = []
 
     # Text search (search in title, description, procuring_entity, CPV code, and winner)
+    # Supports both Latin and Cyrillic characters (bilingual search)
     if search.query:
-        text_filter = or_(
-            Tender.title.ilike(f"%{search.query}%"),
-            Tender.description.ilike(f"%{search.query}%"),
-            Tender.procuring_entity.ilike(f"%{search.query}%"),
-            Tender.cpv_code.ilike(f"%{search.query}%"),
-            Tender.winner.ilike(f"%{search.query}%")
-        )
-        filters.append(text_filter)
+        variants = get_search_variants(search.query)
+        text_filters = []
+        for variant in variants:
+            text_filters.append(or_(
+                Tender.title.ilike(f"%{variant}%"),
+                Tender.description.ilike(f"%{variant}%"),
+                Tender.procuring_entity.ilike(f"%{variant}%"),
+                Tender.cpv_code.ilike(f"%{variant}%"),
+                Tender.winner.ilike(f"%{variant}%")
+            ))
+        filters.append(or_(*text_filters))
 
     # Exact filters
     if search.category:
@@ -546,7 +551,8 @@ async def search_tenders(
     if search.status:
         filters.append(Tender.status == search.status)
     if search.procuring_entity:
-        filters.append(Tender.procuring_entity.ilike(f"%{search.procuring_entity}%"))
+        entity_variants = get_search_variants(search.procuring_entity)
+        filters.append(or_(*[Tender.procuring_entity.ilike(f"%{v}%") for v in entity_variants]))
     if search.cpv_code:
         filters.append(Tender.cpv_code.startswith(search.cpv_code))
 
@@ -673,7 +679,8 @@ async def export_tenders(
     if search.status:
         filters.append(Tender.status == search.status)
     if search.procuring_entity:
-        filters.append(Tender.procuring_entity.ilike(f"%{search.procuring_entity}%"))
+        entity_variants = get_search_variants(search.procuring_entity)
+        filters.append(or_(*[Tender.procuring_entity.ilike(f"%{v}%") for v in entity_variants]))
     if search.cpv_code:
         filters.append(Tender.cpv_code.startswith(search.cpv_code))
     if search.min_value_mkd:

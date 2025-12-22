@@ -11,6 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from database import get_db
+from utils.transliteration import get_search_variants
 
 router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 
@@ -281,14 +282,23 @@ async def get_known_winners(
             total_bids,
             total_contract_value
         FROM aggregated
-        WHERE company_name ILIKE :search_pattern
+        WHERE (company_name ILIKE :search_pattern1 OR company_name ILIKE :search_pattern2)
         ORDER BY total_wins DESC, total_bids DESC
         LIMIT :limit
     """)
 
-    search_pattern = f"%{search}%" if search else "%"
+    # Get both Latin and Cyrillic search variants
+    if search:
+        variants = get_search_variants(search)
+        search_pattern1 = f"%{variants[0]}%"
+        search_pattern2 = f"%{variants[1]}%" if len(variants) > 1 else search_pattern1
+    else:
+        search_pattern1 = "%"
+        search_pattern2 = "%"
+
     result = await db.execute(query, {
-        "search_pattern": search_pattern,
+        "search_pattern1": search_pattern1,
+        "search_pattern2": search_pattern2,
         "limit": limit
     })
     rows = result.fetchall()
@@ -325,6 +335,11 @@ async def search_suppliers_by_name(
     - company_name: Search term
     - limit: Maximum results to return
     """
+    # Get both Latin and Cyrillic search variants
+    variants = get_search_variants(company_name)
+    search_pattern1 = f"%{variants[0]}%"
+    search_pattern2 = f"%{variants[1]}%" if len(variants) > 1 else search_pattern1
+
     search_query = text("""
         SELECT
             supplier_id::text, company_name, tax_id,
@@ -333,12 +348,16 @@ async def search_suppliers_by_name(
             total_bids, total_wins, win_rate, total_contract_value_mkd,
             created_at
         FROM suppliers
-        WHERE company_name ILIKE :search
+        WHERE (company_name ILIKE :search1 OR company_name ILIKE :search2)
         ORDER BY total_wins DESC NULLS LAST
         LIMIT :limit
     """)
 
-    result = await db.execute(search_query, {"search": f"%{company_name}%", "limit": limit})
+    result = await db.execute(search_query, {
+        "search1": search_pattern1,
+        "search2": search_pattern2,
+        "limit": limit
+    })
     rows = result.fetchall()
 
     return [
