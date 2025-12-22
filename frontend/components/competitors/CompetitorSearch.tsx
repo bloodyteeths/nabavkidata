@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ export function CompetitorSearch({
   trackedCompetitors,
   isTrackingLoading,
 }: CompetitorSearchProps) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -98,11 +100,17 @@ export function CompetitorSearch({
                 return (
                   <div
                     key={result.company_name}
-                    className="flex items-center justify-between px-3 py-2 hover:bg-accent border-b last:border-0 cursor-pointer"
-                    onClick={() => onAddCompetitor(result.company_name)}
+                    className="flex items-center justify-between px-3 py-2 hover:bg-accent border-b last:border-0"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => {
+                        setShowResults(false);
+                        setQuery("");
+                        router.push(`/competitors/${encodeURIComponent(result.company_name)}`);
+                      }}
+                    >
+                      <p className="font-medium text-sm truncate hover:text-primary">
                         {result.company_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -114,8 +122,12 @@ export function CompetitorSearch({
                     <Button
                       variant={tracked ? "secondary" : "default"}
                       size="sm"
-                      className="ml-2 flex-shrink-0 pointer-events-none"
+                      className="ml-2 flex-shrink-0"
                       disabled={isTrackingLoading === result.company_name}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddCompetitor(result.company_name);
+                      }}
                     >
                       {isTrackingLoading === result.company_name ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
