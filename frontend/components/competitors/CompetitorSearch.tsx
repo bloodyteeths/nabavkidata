@@ -89,7 +89,7 @@ export function CompetitorSearch({
 
           {/* Search Results Dropdown */}
           {showResults && results.length > 0 && (
-            <div className="absolute z-50 w-full mt-1 max-h-64 overflow-auto border rounded-md bg-background shadow-lg">
+            <div className="absolute z-[100] w-full mt-1 max-h-64 overflow-auto border rounded-md bg-background shadow-lg">
               {results.map((result) => {
                 const tracked = isTracked(result.company_name);
                 return (
@@ -142,7 +142,7 @@ export function CompetitorSearch({
             query.length >= 2 &&
             results.length === 0 &&
             !isSearching && (
-              <div className="absolute z-50 w-full mt-1 border rounded-md bg-background shadow-lg p-4 text-center text-sm text-muted-foreground">
+              <div className="absolute z-[100] w-full mt-1 border rounded-md bg-background shadow-lg p-4 text-center text-sm text-muted-foreground">
                 Нема резултати за „{query}"
               </div>
             )}

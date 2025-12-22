@@ -233,16 +233,31 @@ export default function CompetitorsPage() {
             };
           }
 
-          // If not in top competitors, we'll use basic data
-          return {
-            name,
-            wins: 0,
-            bidsCount: 0,
-            winRate: 0,
-            totalValueMkd: 0,
-            avgDiscount: undefined,
-            specialtyAreas: [],
-          };
+          // If not in top competitors, fetch stats from API
+          try {
+            const stats = await api.getCompetitorStats(name);
+            return {
+              name: stats.name || name,
+              wins: stats.wins || 0,
+              bidsCount: stats.bids_count || 0,
+              winRate: stats.win_rate || 0,
+              totalValueMkd: stats.total_value_mkd || 0,
+              avgDiscount: stats.avg_discount,
+              specialtyAreas: stats.specialty_areas || [],
+            };
+          } catch (apiErr) {
+            // API call failed, return basic data
+            console.error(`API fetch failed for ${name}:`, apiErr);
+            return {
+              name,
+              wins: 0,
+              bidsCount: 0,
+              winRate: 0,
+              totalValueMkd: 0,
+              avgDiscount: undefined,
+              specialtyAreas: [],
+            };
+          }
         } catch (err) {
           console.error(`Failed to load stats for ${name}:`, err);
           return null;
@@ -863,7 +878,7 @@ export default function CompetitorsPage() {
                   </div>
 
                   {/* AI Summary */}
-                  <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-purple-200">
+                  <Card className="border-purple-200 dark:border-purple-800">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
                         <Bot className="h-4 w-4 text-purple-500" />
@@ -871,7 +886,7 @@ export default function CompetitorsPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm leading-relaxed">{companyAnalysis.summary}</p>
+                      <p className="text-sm leading-relaxed text-foreground">{companyAnalysis.summary}</p>
                     </CardContent>
                   </Card>
 
