@@ -345,7 +345,11 @@ export default function CompetitorDetailPage() {
             ) : (
               <div className="space-y-3">
                 {analysis.common_categories.slice(0, 5).map((cat, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 border rounded">
+                  <Link
+                    key={idx}
+                    href={`/tenders?category=${encodeURIComponent(cat.category)}`}
+                    className="flex items-center justify-between p-2 border rounded hover:bg-accent transition-colors"
+                  >
                     <div>
                       <p className="font-medium text-sm">{cat.category}</p>
                       <p className="text-xs text-muted-foreground">
@@ -357,7 +361,7 @@ export default function CompetitorDetailPage() {
                     >
                       {((cat.win_count / cat.bid_count) * 100).toFixed(0)}%
                     </Badge>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -378,7 +382,11 @@ export default function CompetitorDetailPage() {
             ) : (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {analysis.frequent_institutions.slice(0, 6).map((inst, idx) => (
-                  <div key={idx} className="p-3 border rounded-lg">
+                  <Link
+                    key={idx}
+                    href={`/tenders?search=${encodeURIComponent(inst.institution)}`}
+                    className="p-3 border rounded-lg hover:bg-accent transition-colors block"
+                  >
                     <p className="font-medium text-sm line-clamp-2">{inst.institution}</p>
                     <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                       <span>{inst.bid_count} понуди</span>
@@ -389,7 +397,7 @@ export default function CompetitorDetailPage() {
                         Просечна понуда: {formatCurrency(inst.avg_bid_mkd)}
                       </p>
                     )}
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
