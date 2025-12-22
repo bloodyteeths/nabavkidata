@@ -771,8 +771,9 @@ async def get_corruption_stats():
         """)
 
         if row:
-            by_severity = dict(row['by_severity']) if row['by_severity'] else {}
-            by_type = dict(row['by_type']) if row['by_type'] else {}
+            # JSONB fields are already dicts when returned by asyncpg
+            by_severity = row['by_severity'] if isinstance(row['by_severity'], dict) else {}
+            by_type = row['by_type'] if isinstance(row['by_type'], dict) else {}
             total_flags = row['total_flags'] or 0
             total_tenders_flagged = row['total_tenders_flagged'] or 0
             total_value_at_risk = Decimal(str(row['total_value_at_risk_mkd'])) if row['total_value_at_risk_mkd'] else Decimal(0)
