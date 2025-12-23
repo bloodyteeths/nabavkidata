@@ -23,16 +23,8 @@ export interface FilterState {
   closingDateTo?: string;
 }
 
-// Helper to get default closing date range (today to +30 days)
-function getDefaultClosingDates() {
-  const today = new Date();
-  const future = new Date();
-  future.setDate(today.getDate() + 30);
-  return {
-    closingDateFrom: today.toISOString().split('T')[0],
-    closingDateTo: future.toISOString().split('T')[0]
-  };
-}
+// No default date range - let users explicitly choose dates
+// This prevents confusion about why certain tenders are hidden
 
 interface TenderFiltersProps {
   filters: FilterState;
@@ -42,14 +34,10 @@ interface TenderFiltersProps {
 }
 
 export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onReset }: TenderFiltersProps) {
-  // Get default closing dates
-  const defaults = getDefaultClosingDates();
-
   // Local state for pending filter changes (not applied yet)
+  // No default dates - users must explicitly set date filters
   const [pendingFilters, setPendingFilters] = useState<FilterState>({
-    ...filters,
-    closingDateFrom: filters.closingDateFrom || defaults.closingDateFrom,
-    closingDateTo: filters.closingDateTo || defaults.closingDateTo
+    ...filters
   });
 
   // Check if there are unapplied changes
@@ -82,24 +70,16 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
 
   useEffect(() => {
     if (!initialized) {
-      // Initialize with filters and default closing dates
-      setPendingFilters({
-        ...filters,
-        closingDateFrom: filters.closingDateFrom || defaults.closingDateFrom,
-        closingDateTo: filters.closingDateTo || defaults.closingDateTo
-      });
+      // Initialize with filters as provided - no defaults
+      setPendingFilters({ ...filters });
       setInitialized(true);
     }
-  }, [initialized, filters, defaults.closingDateFrom, defaults.closingDateTo]);
+  }, [initialized, filters]);
 
   // Sync pending filters with parent filters (but skip on mount)
   useEffect(() => {
     if (initialized) {
-      setPendingFilters({
-        ...filters,
-        closingDateFrom: filters.closingDateFrom || pendingFilters.closingDateFrom,
-        closingDateTo: filters.closingDateTo || pendingFilters.closingDateTo
-      });
+      setPendingFilters({ ...filters });
     }
   }, [filters, initialized]);
 
