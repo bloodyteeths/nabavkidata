@@ -5,7 +5,7 @@ Extended tender information: bidders, lots, amendments, documents
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
-from typing import Optional, List
+from typing import Optional, List, Any
 from pydantic import BaseModel
 from datetime import datetime
 from decimal import Decimal
@@ -398,10 +398,10 @@ async def get_tender_documents(
 class AIExtractedProduct(BaseModel):
     """Product/service extracted by AI from tender documents"""
     name: str
-    quantity: Optional[str] = None
+    quantity: Optional[Any] = None  # Can be string or number from AI
     unit: Optional[str] = None
-    unit_price: Optional[str] = None
-    total_price: Optional[str] = None
+    unit_price: Optional[Any] = None  # Can be string or number from AI
+    total_price: Optional[Any] = None  # Can be string or number from AI
     specifications: Optional[str] = None
     category: Optional[str] = None
 
