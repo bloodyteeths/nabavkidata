@@ -170,6 +170,12 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
             className="pl-9"
             value={pendingFilters.search || ""}
             onChange={(e) => updatePendingFilter("search", e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleApply();
+              }
+            }}
           />
         </div>
 
