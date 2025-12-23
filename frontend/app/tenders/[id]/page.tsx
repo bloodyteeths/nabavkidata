@@ -92,6 +92,52 @@ function formatPaymentTerms(value?: string): string {
   return value;
 }
 
+function formatContractDuration(value?: string | number): string {
+  if (!value) return 'Не е наведено';
+  const str = String(value).trim();
+  const num = parseInt(str, 10);
+  if (!isNaN(num) && num > 0) {
+    if (num <= 24) {
+      return `${num} месеци`;
+    } else if (num <= 365) {
+      return `${num} денови`;
+    } else {
+      return `${num} денови (${Math.round(num / 30)} месеци)`;
+    }
+  }
+  return str;
+}
+
+function extractDocumentName(doc: { file_name?: string; file_url?: string }): string {
+  // If we have a proper file_name that's not just a hash, use it
+  if (doc.file_name && !doc.file_name.match(/^[a-f0-9]{32}/i) && !doc.file_name.match(/^\d+_\d+_[a-f0-9]+/)) {
+    return doc.file_name;
+  }
+  // Try to extract fname from URL query parameter
+  if (doc.file_url) {
+    try {
+      const url = new URL(doc.file_url);
+      const fname = url.searchParams.get('fname');
+      if (fname) {
+        return decodeURIComponent(fname);
+      }
+      // Try to find fname in the URL even if not proper URL format
+      const fnameMatch = doc.file_url.match(/fname=([^&]+)/i);
+      if (fnameMatch) {
+        return decodeURIComponent(fnameMatch[1]);
+      }
+    } catch {
+      // URL parsing failed, try regex
+      const fnameMatch = doc.file_url.match(/fname=([^&]+)/i);
+      if (fnameMatch) {
+        return decodeURIComponent(fnameMatch[1]);
+      }
+    }
+  }
+  // Fallback to file_name or unknown
+  return doc.file_name || "Непознат документ";
+}
+
 interface ChatMsg {
   role: "user" | "assistant";
   content: string;
@@ -1257,7 +1303,7 @@ export default function TenderDetailPage() {
                         <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
                         <div>
                           <p className="text-sm font-medium">Времетраење на договор</p>
-                          <p className="text-sm text-muted-foreground">{tender.contract_duration}</p>
+                          <p className="text-sm text-muted-foreground">{formatContractDuration(tender.contract_duration)}</p>
                         </div>
                       </div>
                     )}
@@ -1346,7 +1392,7 @@ export default function TenderDetailPage() {
                               {getFileIcon(doc.file_name, doc.mime_type)}
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">
-                                  {doc.file_name || (doc.file_url ? doc.file_url.split('/').pop()?.split('?')[0] : "Непознат документ")}
+                                  {extractDocumentName(doc)}
                                 </p>
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                   {doc.doc_type && <span>{doc.doc_type}</span>}
