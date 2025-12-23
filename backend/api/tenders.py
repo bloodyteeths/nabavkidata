@@ -2137,6 +2137,30 @@ async def get_tender_bid_advice_by_id(
         ai_summary += f"Историски просечен попуст за слични тендери е {round(avg_discount, 1)}%. "
     ai_summary += f"Ниво на конкуренција: {competition_level}."
 
+    # Fetch item prices from product_items table
+    item_prices = []
+    try:
+        items_query = text("""
+            SELECT name, unit_price, quantity, unit, total_price
+            FROM product_items
+            WHERE tender_id = :tender_id
+              AND unit_price IS NOT NULL
+            LIMIT 20
+        """)
+        items_result = await db.execute(items_query, {"tender_id": tender_id})
+        current_items = items_result.fetchall()
+        for row in current_items:
+            item_prices.append({
+                "item_name": row[0],
+                "unit_price": float(row[1]) if row[1] else None,
+                "quantity": float(row[2]) if row[2] else None,
+                "unit": row[3],
+                "total_price": float(row[4]) if row[4] else None,
+                "source": "current_tender"
+            })
+    except Exception as e:
+        print(f"Failed to fetch item prices: {e}")
+
     return {
         "tender_id": tender_id,
         "tender_title": tender.title,
@@ -2148,6 +2172,7 @@ async def get_tender_bid_advice_by_id(
         "historical_data": historical_summary,
         "recommendations": recommendations,
         "competitor_insights": competitor_insights,
+        "item_prices": item_prices if item_prices else None,
         "ai_summary": ai_summary,
         "generated_at": datetime.utcnow().isoformat()
     }
