@@ -15,15 +15,12 @@ import {
   Download,
   Sparkles,
   Trophy,
-  Clock,
-  CheckCircle,
   XCircle,
   AlertCircle,
   MessageSquare,
   File,
   FileSpreadsheet,
   FileType,
-  TrendingUp,
 } from 'lucide-react';
 import { api, EPazarTenderDetail, EPazarItem, EPazarOffer, EPazarDocument, EPazarAwardedItem, RAGQueryResponse } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -34,9 +31,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { ChatMessage } from '@/components/chat/ChatMessage';
 import { ChatInput } from '@/components/chat/ChatInput';
-import { PriceHistoryChart } from '@/components/charts/PriceHistoryChart';
-import { QuickActions } from '@/components/ai/QuickActions';
-import { PriceIntelligenceCard } from '@/components/epazar/PriceIntelligenceCard';
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -73,6 +67,7 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
             <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Единица</th>
             <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Ед. цена</th>
             <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Вкупно</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Пазар</th>
           </tr>
         </thead>
         <tbody>
@@ -89,6 +84,7 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
               <td className="py-3 px-4 text-sm">{item.unit || '-'}</td>
               <td className="py-3 px-4 text-right text-sm">{formatCurrency(item.estimated_unit_price_mkd)}</td>
               <td className="py-3 px-4 text-right text-sm font-medium">{formatCurrency(item.estimated_total_price_mkd)}</td>
+              <td className="py-3 px-4 text-right text-sm text-gray-500">-</td>
             </tr>
           ))}
         </tbody>
@@ -279,18 +275,6 @@ export default function EPazarDetailPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
-  const [itemPriceHistory, setItemPriceHistory] = useState<Array<{ date: string; price_mkd?: number }>>([]);
-  const [itemPriceLoading, setItemPriceLoading] = useState(false);
-  const [itemPriceError, setItemPriceError] = useState<string | null>(null);
-  const [supplierStats, setSupplierStats] = useState<any | null>(null);
-  const [supplierStatsLoading, setSupplierStatsLoading] = useState(false);
-  const [supplierStatsError, setSupplierStatsError] = useState<string | null>(null);
-  const [priceIntelligence, setPriceIntelligence] = useState<any | null>(null);
-  const [priceIntelligenceLoading, setPriceIntelligenceLoading] = useState(false);
-  const [priceIntelligenceError, setPriceIntelligenceError] = useState<string | null>(null);
-  const [similarTenders, setSimilarTenders] = useState<any[]>([]);
-  const [similarTendersLoading, setSimilarTendersLoading] = useState(false);
-  const [similarTendersError, setSimilarTendersError] = useState<string | null>(null);
 
   useEffect(() => {
     loadTender();
@@ -303,19 +287,6 @@ export default function EPazarDetailPage() {
     try {
       const data = await api.getEPazarTender(tenderId);
       setTender(data);
-      if (data.items && data.items.length > 0 && data.items[0].item_id) {
-        void loadItemPriceHistory(data.items[0].item_id);
-      }
-      const winnerOffer = data.offers?.find((o) => (o as any).supplier_id || o.is_winner) as any;
-      if (winnerOffer?.supplier_id) {
-        void loadSupplierStats(winnerOffer.supplier_id);
-      }
-      // Load price intelligence for first item
-      if (data.items && data.items.length > 0 && data.items[0].item_name) {
-        void loadPriceIntelligence(data.items[0].item_name);
-      }
-      // Load similar tenders
-      void loadSimilarTenders();
       // Generate summary after tender data is loaded
       void generateSummaryWithData(data);
     } catch (err) {
@@ -433,66 +404,6 @@ export default function EPazarDetailPage() {
     }
   }
 
-  async function loadItemPriceHistory(itemId: string) {
-    try {
-      setItemPriceLoading(true);
-      setItemPriceError(null);
-      const result = await api.getEpazarItemPriceHistory(itemId);
-      setItemPriceHistory(result.points || []);
-    } catch (error) {
-      console.error("Failed to load item price history:", error);
-      setItemPriceHistory([]);
-      setItemPriceError("Историјата на цени за овој артикл не е достапна.");
-    } finally {
-      setItemPriceLoading(false);
-    }
-  }
-
-  async function loadSupplierStats(supplierId: string) {
-    try {
-      setSupplierStatsLoading(true);
-      setSupplierStatsError(null);
-      const result = await api.getEpazarSupplierStats(supplierId);
-      setSupplierStats(result.stats || result);
-    } catch (error) {
-      console.error("Failed to load supplier stats:", error);
-      setSupplierStats(null);
-      setSupplierStatsError("Статистиките за добавувачот не се достапни.");
-    } finally {
-      setSupplierStatsLoading(false);
-    }
-  }
-
-  async function loadPriceIntelligence(itemName: string) {
-    try {
-      setPriceIntelligenceLoading(true);
-      setPriceIntelligenceError(null);
-      const result = await api.getEPazarPriceIntelligence({ product_name: itemName });
-      setPriceIntelligence(result);
-    } catch (error) {
-      console.error("Failed to load price intelligence:", error);
-      setPriceIntelligence(null);
-      setPriceIntelligenceError("Не успеавме да ги вчитаме податоците за цени");
-    } finally {
-      setPriceIntelligenceLoading(false);
-    }
-  }
-
-  async function loadSimilarTenders() {
-    try {
-      setSimilarTendersLoading(true);
-      setSimilarTendersError(null);
-      const result = await api.getEPazarSimilarTenders(tenderId, { limit: 5 });
-      setSimilarTenders(result.similar_tenders || []);
-    } catch (error) {
-      console.error("Failed to load similar tenders:", error);
-      setSimilarTenders([]);
-      setSimilarTendersError("Не успеавме да ги вчитаме сличните тендери");
-    } finally {
-      setSimilarTendersLoading(false);
-    }
-  }
-
   const quickPrompts = [
     "Кои артикли се бараат?",
     "Кои се понудувачите и нивните цени?",
@@ -554,7 +465,7 @@ export default function EPazarDetailPage() {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -602,44 +513,6 @@ export default function EPazarDetailPage() {
               </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 text-indigo-500" />
-                <div>
-                  <p className="text-sm text-gray-500">Конкуренција</p>
-                  <p className="font-medium">
-                    {tender.offers && tender.offers.length > 0 ? (
-                      <>
-                        {tender.offers.length} {tender.offers.length === 1 ? 'понуда' : 'понуди'}
-                      </>
-                    ) : (
-                      'Нема понуди'
-                    )}
-                  </p>
-                  {priceIntelligence && (
-                    <Badge
-                      variant="outline"
-                      className={`mt-1 text-xs ${
-                        priceIntelligence.competition_level === 'high'
-                          ? 'bg-red-50 text-red-700 border-red-200'
-                          : priceIntelligence.competition_level === 'medium'
-                          ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                          : 'bg-green-50 text-green-700 border-green-200'
-                      }`}
-                    >
-                      {priceIntelligence.competition_level === 'high'
-                        ? 'Висока'
-                        : priceIntelligence.competition_level === 'medium'
-                        ? 'Средна'
-                        : 'Ниска'}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* AI Summary */}
@@ -673,126 +546,6 @@ export default function EPazarDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Price Intelligence */}
-        {priceIntelligenceError ? (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="pt-6 text-center text-red-600">
-              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-              <p>{priceIntelligenceError}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={() => {
-                  if (tender?.items?.[0]?.item_name) {
-                    loadPriceIntelligence(tender.items[0].item_name);
-                  }
-                }}
-              >
-                Обиди се повторно
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (priceIntelligenceLoading || priceIntelligence) ? (
-          <PriceIntelligenceCard
-            data={priceIntelligence}
-            loading={priceIntelligenceLoading}
-            showProductName={true}
-          />
-        ) : null}
-
-        {/* Similar Tenders */}
-        {similarTendersLoading ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Слични Тендери</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="animate-pulse space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-16 bg-gray-200 rounded" />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ) : similarTendersError ? (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="pt-6 text-center text-red-600">
-              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-              <p>{similarTendersError}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={() => loadSimilarTenders()}
-              >
-                Обиди се повторно
-              </Button>
-            </CardContent>
-          </Card>
-        ) : similarTenders.length > 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-blue-500" />
-                Слични Тендери
-              </CardTitle>
-              <CardDescription>
-                Тендери со слични производи или услуги
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {similarTenders.map((similar: any) => (
-                  <Link
-                    key={similar.tender_id}
-                    href={`/epazar/${encodeURIComponent(similar.tender_id)}`}
-                  >
-                    <Card className="hover:border-primary/50 hover:shadow-md transition-all cursor-pointer">
-                      <CardContent className="pt-4">
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="flex-1">
-                            <h4 className="font-medium line-clamp-2 mb-1">{similar.title}</h4>
-                            {similar.contracting_authority && (
-                              <p className="text-xs text-gray-500 flex items-center gap-1">
-                                <Building2 className="h-3 w-3" />
-                                {similar.contracting_authority}
-                              </p>
-                            )}
-                            {similar.match_reason && (
-                              <p className="text-xs text-primary mt-1">
-                                {similar.match_reason}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            {similar.estimated_value_mkd && (
-                              <p className="font-semibold text-sm">
-                                {formatCurrency(similar.estimated_value_mkd)}
-                              </p>
-                            )}
-                            {similar.similarity_score && (
-                              <Badge variant="outline" className="text-xs mt-1">
-                                {(similar.similarity_score * 100).toFixed(0)}% сличност
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {/* Quick Actions for AI Chat */}
-        <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
-          <CardContent className="pt-6">
-            <QuickActions tenderId={tenderId} />
-          </CardContent>
-        </Card>
 
         {/* Description */}
         {tender.description && (
@@ -837,42 +590,10 @@ export default function EPazarDetailPage() {
             </CardHeader>
             <CardContent>
               <TabsContent value="items">
-                {itemPriceLoading ? (
-                  <p className="text-sm text-gray-500 mb-3">Се вчитува историја на цени за артиклите...</p>
-                ) : itemPriceError ? (
-                  <p className="text-sm text-red-600 mb-3">{itemPriceError}</p>
-                ) : itemPriceHistory.length > 0 ? (
-                  <div className="mb-4">
-                    <PriceHistoryChart
-                      data={itemPriceHistory.map((p) => ({ date: formatDate(p.date), price_mkd: p.price_mkd }))}
-                      series={[{ key: "price_mkd", label: "Цена" }]}
-                      title="Историја на цени за артиклите"
-                    />
-                  </div>
-                ) : null}
                 <ItemsTable items={tender.items || []} />
               </TabsContent>
               <TabsContent value="offers">
                 <OffersTable offers={tender.offers || []} />
-                {supplierStatsLoading ? (
-                  <p className="text-sm text-gray-500 mt-3">Се вчитуваат статистики за добавувачот...</p>
-                ) : supplierStatsError ? (
-                  <p className="text-sm text-red-600 mt-3">{supplierStatsError}</p>
-                ) : supplierStats ? (
-                  <Card className="mt-4">
-                    <CardHeader>
-                      <CardTitle className="text-base">Статистика на добавувач</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-gray-700 space-y-1">
-                      {Object.entries(supplierStats).map(([key, value]) => (
-                        <div key={key} className="flex justify-between">
-                          <span className="capitalize">{key.replace(/_/g, " ")}</span>
-                          <span className="font-medium">{typeof value === "number" ? value.toLocaleString() : String(value)}</span>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                ) : null}
               </TabsContent>
               <TabsContent value="awarded">
                 <AwardedItemsTable items={tender.awarded_items || []} />

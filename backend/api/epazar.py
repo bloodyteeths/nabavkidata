@@ -327,6 +327,110 @@ async def get_epazar_tender(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/active")
+async def get_active_tenders(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get active tenders sorted by closing deadline (soonest first).
+
+    Returns active tenders that are still open for bidding, ordered by
+    closing date to highlight the most urgent opportunities.
+    """
+    try:
+        query = text("""
+            SELECT
+                tender_id, title, contracting_authority,
+                estimated_value_mkd, closing_date, status,
+                procedure_type, cpv_code, publication_date
+            FROM epazar_tenders
+            WHERE status = 'active'
+              AND closing_date >= CURRENT_DATE
+            ORDER BY closing_date ASC
+            LIMIT :limit
+        """)
+
+        result = await db.execute(query, {'limit': limit})
+        rows = result.fetchall()
+
+        tenders = []
+        for row in rows:
+            tenders.append({
+                'tender_id': row.tender_id,
+                'title': row.title,
+                'contracting_authority': row.contracting_authority,
+                'estimated_value_mkd': float(row.estimated_value_mkd) if row.estimated_value_mkd else None,
+                'closing_date': row.closing_date.isoformat() if row.closing_date else None,
+                'status': row.status,
+                'procedure_type': row.procedure_type,
+                'cpv_code': row.cpv_code,
+                'publication_date': row.publication_date.isoformat() if row.publication_date else None,
+            })
+
+        return {
+            "tenders": tenders,
+            "total": len(tenders)
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching active tenders: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/recent-awarded")
+async def get_recent_awarded(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get recently awarded tenders with winner information.
+
+    Returns tenders that have been awarded or signed, showing winning
+    supplier and bid amount for market intelligence.
+    """
+    try:
+        query = text("""
+            SELECT
+                t.tender_id, t.title, t.contracting_authority,
+                t.estimated_value_mkd, t.awarded_value_mkd,
+                t.award_date, t.status,
+                o.supplier_name as winner_name,
+                o.total_bid_mkd as winning_bid
+            FROM epazar_tenders t
+            LEFT JOIN epazar_offers o ON t.tender_id = o.tender_id AND o.is_winner = true
+            WHERE t.status IN ('awarded', 'signed')
+            ORDER BY COALESCE(t.award_date, t.updated_at) DESC
+            LIMIT :limit
+        """)
+
+        result = await db.execute(query, {'limit': limit})
+        rows = result.fetchall()
+
+        tenders = []
+        for row in rows:
+            tenders.append({
+                'tender_id': row.tender_id,
+                'title': row.title,
+                'contracting_authority': row.contracting_authority,
+                'estimated_value_mkd': float(row.estimated_value_mkd) if row.estimated_value_mkd else None,
+                'awarded_value_mkd': float(row.awarded_value_mkd) if row.awarded_value_mkd else None,
+                'award_date': row.award_date.isoformat() if row.award_date else None,
+                'status': row.status,
+                'winner_name': row.winner_name,
+                'winning_bid': float(row.winning_bid) if row.winning_bid else None,
+            })
+
+        return {
+            "tenders": tenders,
+            "total": len(tenders)
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching recently awarded tenders: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # ITEMS ENDPOINTS
 # ============================================================================
