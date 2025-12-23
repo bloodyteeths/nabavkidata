@@ -13,6 +13,7 @@ import logging
 from database import get_db
 from api.auth import get_current_user
 from models import User
+from utils.transliteration import get_search_variants
 from schemas import (
     EPazarTenderResponse,
     EPazarTenderListResponse,
@@ -95,14 +96,31 @@ async def get_epazar_tenders(
             params['contracting_authority'] = f"%{contracting_authority}%"
 
         if search:
-            conditions.append("""
-                (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(description, ''))
-                @@ plainto_tsquery('simple', :search)
-                OR title ILIKE :search_like
-                OR description ILIKE :search_like)
-            """)
-            params['search'] = search
-            params['search_like'] = f"%{search}%"
+            # Get both Latin and Cyrillic variants for bilingual search
+            search_variants = get_search_variants(search)
+            if len(search_variants) == 1:
+                conditions.append("""
+                    (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(description, ''))
+                    @@ plainto_tsquery('simple', :search)
+                    OR title ILIKE :search_like
+                    OR description ILIKE :search_like)
+                """)
+                params['search'] = search_variants[0]
+                params['search_like'] = f"%{search_variants[0]}%"
+            else:
+                # Search both Latin and Cyrillic variants
+                conditions.append("""
+                    (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(description, ''))
+                    @@ plainto_tsquery('simple', :search_latin)
+                    OR to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(description, ''))
+                    @@ plainto_tsquery('simple', :search_cyrillic)
+                    OR title ILIKE :search_latin_like OR title ILIKE :search_cyrillic_like
+                    OR description ILIKE :search_latin_like OR description ILIKE :search_cyrillic_like)
+                """)
+                params['search_latin'] = search_variants[0]
+                params['search_cyrillic'] = search_variants[1]
+                params['search_latin_like'] = f"%{search_variants[0]}%"
+                params['search_cyrillic_like'] = f"%{search_variants[1]}%"
 
         if min_value is not None:
             conditions.append("estimated_value_mkd >= :min_value")
@@ -334,12 +352,24 @@ async def search_epazar_items(
         params = {}
 
         if search:
-            conditions.append("""
-                (i.item_name ILIKE :search
-                OR i.item_description ILIKE :search
-                OR i.cpv_code ILIKE :search)
-            """)
-            params['search'] = f"%{search}%"
+            # Get both Latin and Cyrillic variants for bilingual search
+            search_variants = get_search_variants(search)
+            if len(search_variants) == 1:
+                conditions.append("""
+                    (i.item_name ILIKE :search
+                    OR i.item_description ILIKE :search
+                    OR i.cpv_code ILIKE :search)
+                """)
+                params['search'] = f"%{search_variants[0]}%"
+            else:
+                # Search both Latin and Cyrillic variants
+                conditions.append("""
+                    (i.item_name ILIKE :search_latin OR i.item_name ILIKE :search_cyrillic
+                    OR i.item_description ILIKE :search_latin OR i.item_description ILIKE :search_cyrillic
+                    OR i.cpv_code ILIKE :search_latin)
+                """)
+                params['search_latin'] = f"%{search_variants[0]}%"
+                params['search_cyrillic'] = f"%{search_variants[1]}%"
 
         if cpv_code:
             conditions.append("i.cpv_code LIKE :cpv_code")
@@ -1866,160 +1896,132 @@ async def get_price_intelligence(
     Get comprehensive price intelligence for e-Pazar items.
 
     Returns:
-    - Price statistics (min, max, avg, median, winning average)
-    - Recommended bid range (5-10% below average winning price)
-    - Price trend (rising, falling, stable) based on 3-month comparison
-    - Competition level (high, medium, low) based on average offers per tender
-    - Typical discount percentage vs estimated price
-    - Total tenders and quantity metrics
+    - Price statistics from estimated unit prices
+    - Competition metrics from offers on tenders containing the item
+    - Recommended bid range (5-10% below average winning bid)
+    - Trend and discount data where available
+
+    Supports bilingual search (Latin and Cyrillic).
 
     Example usage:
-    GET /api/epazar/price-intelligence?search=хартија А4
-    GET /api/epazar/price-intelligence?search=лаптоп&category=IT опрема
+    GET /api/epazar/price-intelligence?search=toner
+    GET /api/epazar/price-intelligence?search=хартија
     """
     try:
-        # Build base query parameters
-        params = {'search': f"%{search}%"}
-        category_filter = ""
+        # Get bilingual search variants
+        search_variants = get_search_variants(search)
 
+        # Build search condition for bilingual support
+        if len(search_variants) == 1:
+            search_condition = "i.item_name ILIKE :search"
+            params = {'search': f"%{search_variants[0]}%"}
+        else:
+            search_condition = "(i.item_name ILIKE :search_latin OR i.item_name ILIKE :search_cyrillic)"
+            params = {
+                'search_latin': f"%{search_variants[0]}%",
+                'search_cyrillic': f"%{search_variants[1]}%"
+            }
+
+        category_filter = ""
         if category:
             category_filter = " AND t.category ILIKE :category"
             params['category'] = f"%{category}%"
 
-        # Main price query - get all relevant item prices from offers
-        price_query = text(f"""
-            WITH item_prices AS (
-                SELECT
-                    i.item_id,
-                    i.item_name,
-                    i.unit,
-                    i.estimated_unit_price_mkd as estimated_price,
-                    i.quantity,
-                    t.tender_id,
-                    t.closing_date,
-                    t.category,
-                    oi.unit_price_mkd as offer_price,
-                    o.is_winner,
-                    o.offer_date,
-                    EXTRACT(EPOCH FROM (NOW() - t.closing_date)) / 86400 as days_ago
-                FROM epazar_items i
-                JOIN epazar_tenders t ON i.tender_id = t.tender_id
-                LEFT JOIN epazar_offer_items oi ON i.item_id = oi.item_id
-                LEFT JOIN epazar_offers o ON oi.offer_id = o.offer_id
-                WHERE i.item_name ILIKE :search
-                  AND i.estimated_unit_price_mkd > 0
-                  {category_filter}
-                  AND t.closing_date IS NOT NULL
-            ),
-            price_stats AS (
-                SELECT
-                    COUNT(DISTINCT tender_id) as total_tenders,
-                    COUNT(DISTINCT item_id) as total_items,
-                    SUM(quantity) as total_quantity,
-                    MIN(estimated_price) as min_estimated,
-                    MAX(estimated_price) as max_estimated,
-                    AVG(estimated_price) as avg_estimated,
-                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY estimated_price) as median_estimated,
-                    MIN(offer_price) FILTER (WHERE offer_price > 0) as min_offer,
-                    MAX(offer_price) FILTER (WHERE offer_price > 0) as max_offer,
-                    AVG(offer_price) FILTER (WHERE offer_price > 0) as avg_offer,
-                    AVG(offer_price) FILTER (WHERE is_winner = TRUE AND offer_price > 0) as avg_winning,
-                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY offer_price) FILTER (WHERE offer_price > 0) as median_offer,
-                    COUNT(DISTINCT item_id) FILTER (WHERE offer_price > 0) as items_with_offers,
-                    COUNT(offer_price) FILTER (WHERE offer_price > 0) as total_offers,
-                    COUNT(offer_price) FILTER (WHERE is_winner = TRUE) as total_wins
-                FROM item_prices
-            ),
-            recent_prices AS (
-                SELECT AVG(offer_price) as recent_avg
-                FROM item_prices
-                WHERE offer_price > 0
-                  AND closing_date >= NOW() - INTERVAL '3 months'
-            ),
-            older_prices AS (
-                SELECT AVG(offer_price) as older_avg
-                FROM item_prices
-                WHERE offer_price > 0
-                  AND closing_date >= NOW() - INTERVAL '6 months'
-                  AND closing_date < NOW() - INTERVAL '3 months'
-            ),
-            competition_stats AS (
-                SELECT
-                    tender_id,
-                    COUNT(DISTINCT offer_price) as offers_per_tender
-                FROM item_prices
-                WHERE offer_price > 0
-                GROUP BY tender_id
-            )
+        # Get item-level price stats from estimated prices
+        item_stats_query = text(f"""
             SELECT
-                ps.*,
-                rp.recent_avg,
-                op.older_avg,
-                AVG(cs.offers_per_tender) as avg_offers_per_tender
-            FROM price_stats ps
-            CROSS JOIN recent_prices rp
-            CROSS JOIN older_prices op
-            LEFT JOIN competition_stats cs ON TRUE
-            GROUP BY ps.total_tenders, ps.total_items, ps.total_quantity,
-                     ps.min_estimated, ps.max_estimated, ps.avg_estimated, ps.median_estimated,
-                     ps.min_offer, ps.max_offer, ps.avg_offer, ps.avg_winning, ps.median_offer,
-                     ps.items_with_offers, ps.total_offers, ps.total_wins,
-                     rp.recent_avg, op.older_avg
+                COUNT(DISTINCT i.item_id) as total_items,
+                COUNT(DISTINCT t.tender_id) as total_tenders,
+                SUM(i.quantity) as total_quantity,
+                MIN(i.estimated_unit_price_mkd) FILTER (WHERE i.estimated_unit_price_mkd > 0) as min_estimated,
+                MAX(i.estimated_unit_price_mkd) FILTER (WHERE i.estimated_unit_price_mkd > 0) as max_estimated,
+                AVG(i.estimated_unit_price_mkd) FILTER (WHERE i.estimated_unit_price_mkd > 0) as avg_estimated,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY i.estimated_unit_price_mkd)
+                    FILTER (WHERE i.estimated_unit_price_mkd > 0) as median_estimated,
+                MIN(i.unit) as common_unit
+            FROM epazar_items i
+            JOIN epazar_tenders t ON i.tender_id = t.tender_id
+            WHERE {search_condition}
+              {category_filter}
         """)
 
-        result = await db.execute(price_query, params)
-        stats = result.fetchone()
+        result = await db.execute(item_stats_query, params)
+        item_stats = result.fetchone()
 
-        if not stats or stats.total_tenders == 0:
+        if not item_stats or item_stats.total_items == 0:
             raise HTTPException(
                 status_code=404,
-                detail=f"No price data found for item '{search}'"
+                detail=f"No items found for '{search}'. Try searching in Cyrillic (e.g., 'тонер' instead of 'toner')."
             )
 
-        # Calculate price statistics
-        min_price = float(stats.min_offer) if stats.min_offer else float(stats.min_estimated)
-        max_price = float(stats.max_offer) if stats.max_offer else float(stats.max_estimated)
-        avg_price = float(stats.avg_offer) if stats.avg_offer else float(stats.avg_estimated)
-        median_price = float(stats.median_offer) if stats.median_offer else float(stats.median_estimated)
-        winning_avg = float(stats.avg_winning) if stats.avg_winning else avg_price
+        # Get competition data from offers on tenders that contain these items
+        competition_query = text(f"""
+            WITH tender_items AS (
+                SELECT DISTINCT t.tender_id
+                FROM epazar_items i
+                JOIN epazar_tenders t ON i.tender_id = t.tender_id
+                WHERE {search_condition}
+                  {category_filter}
+            ),
+            tender_offers AS (
+                SELECT
+                    o.tender_id,
+                    COUNT(*) as offer_count,
+                    MIN(o.total_bid_mkd) as min_bid,
+                    MAX(o.total_bid_mkd) as max_bid,
+                    AVG(o.total_bid_mkd) as avg_bid,
+                    MIN(o.total_bid_mkd) FILTER (WHERE o.is_winner = TRUE) as winning_bid
+                FROM epazar_offers o
+                INNER JOIN tender_items ti ON o.tender_id = ti.tender_id
+                WHERE o.total_bid_mkd > 0
+                GROUP BY o.tender_id
+            )
+            SELECT
+                COUNT(*) as tenders_with_offers,
+                SUM(offer_count) as total_offers,
+                AVG(offer_count) as avg_offers_per_tender,
+                AVG(winning_bid / NULLIF(avg_bid, 0)) as avg_discount_ratio,
+                COUNT(*) FILTER (WHERE winning_bid IS NOT NULL) as tenders_with_winner
+            FROM tender_offers
+        """)
 
-        # Calculate recommended bid range (5-10% below winning average)
-        recommended_bid_low = round(winning_avg * 0.90, 2)
-        recommended_bid_high = round(winning_avg * 0.95, 2)
+        comp_result = await db.execute(competition_query, params)
+        comp_stats = comp_result.fetchone()
 
-        # Determine price trend
-        trend = "stable"
-        if stats.recent_avg and stats.older_avg:
-            recent = float(stats.recent_avg)
-            older = float(stats.older_avg)
-            if recent > older * 1.10:
-                trend = "rising"
-            elif recent < older * 0.90:
-                trend = "falling"
-
-        # Determine competition level based on average offers per tender
-        avg_offers = float(stats.avg_offers_per_tender) if stats.avg_offers_per_tender else 1
-        if avg_offers >= 5:
+        # Determine competition level
+        avg_offers = float(comp_stats.avg_offers_per_tender) if comp_stats.avg_offers_per_tender else 1
+        if avg_offers >= 4:
             competition_level = "high"
         elif avg_offers >= 2:
             competition_level = "medium"
         else:
             competition_level = "low"
 
-        # Calculate typical discount percentage (winning price vs estimated)
-        if stats.avg_winning and stats.avg_estimated:
-            typical_discount_percent = round(
-                ((float(stats.avg_estimated) - float(stats.avg_winning)) / float(stats.avg_estimated)) * 100,
-                1
-            )
-        else:
-            typical_discount_percent = 0.0
+        # Calculate typical discount (how much winners bid below average)
+        typical_discount_percent = 0.0
+        if comp_stats.avg_discount_ratio:
+            typical_discount_percent = round((1 - float(comp_stats.avg_discount_ratio)) * 100, 1)
 
-        # Get sample item name from actual data for response
+        # Use estimated prices as base
+        min_price = float(item_stats.min_estimated) if item_stats.min_estimated else 0
+        max_price = float(item_stats.max_estimated) if item_stats.max_estimated else 0
+        avg_price = float(item_stats.avg_estimated) if item_stats.avg_estimated else 0
+        median_price = float(item_stats.median_estimated) if item_stats.median_estimated else avg_price
+
+        # Calculate recommended bid (apply typical discount to estimated price)
+        discount_factor = 1 - (typical_discount_percent / 100) if typical_discount_percent > 0 else 0.92
+        recommended_bid_low = round(avg_price * (discount_factor - 0.05), 2)
+        recommended_bid_high = round(avg_price * discount_factor, 2)
+
+        # Get sample item name from actual data (use condition without table alias)
+        if len(search_variants) == 1:
+            sample_condition = "item_name ILIKE :search"
+        else:
+            sample_condition = "(item_name ILIKE :search_latin OR item_name ILIKE :search_cyrillic)"
         sample_query = text(f"""
             SELECT item_name
             FROM epazar_items
-            WHERE item_name ILIKE :search
+            WHERE {sample_condition}
             LIMIT 1
         """)
         sample_result = await db.execute(sample_query, params)
@@ -2028,24 +2030,27 @@ async def get_price_intelligence(
 
         return {
             "item_name": item_name,
+            "unit": item_stats.common_unit,
             "price_stats": {
                 "min_price": round(min_price, 2),
                 "max_price": round(max_price, 2),
                 "avg_price": round(avg_price, 2),
                 "median_price": round(median_price, 2),
-                "winning_avg": round(winning_avg, 2),
                 "recommended_bid_low": recommended_bid_low,
-                "recommended_bid_high": recommended_bid_high
+                "recommended_bid_high": recommended_bid_high,
+                "price_source": "estimated"
             },
-            "trend": trend,
+            "trend": "stable",  # TODO: add trend analysis when more historical data available
             "competition_level": competition_level,
             "typical_discount_percent": typical_discount_percent,
-            "total_tenders": stats.total_tenders,
-            "total_quantity": float(stats.total_quantity) if stats.total_quantity else 0,
+            "total_tenders": item_stats.total_tenders,
+            "total_quantity": float(item_stats.total_quantity) if item_stats.total_quantity else 0,
             "data_points": {
-                "items_analyzed": stats.total_items,
-                "offers_received": stats.total_offers or 0,
-                "avg_offers_per_tender": round(avg_offers, 1)
+                "items_analyzed": item_stats.total_items,
+                "tenders_with_offers": comp_stats.tenders_with_offers or 0,
+                "total_offers": comp_stats.total_offers or 0,
+                "avg_offers_per_tender": round(avg_offers, 1),
+                "tenders_with_winner": comp_stats.tenders_with_winner or 0
             }
         }
 
