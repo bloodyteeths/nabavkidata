@@ -6358,6 +6358,12 @@ class RAGQueryPipeline:
             )
             answer_text = await agent.answer_question(question, conversation_history, tender_id=tender_id)
 
+            # CRITICAL: Validate response quality before returning
+            is_valid, reason = validate_response_quality(answer_text, question)
+            if not is_valid:
+                logger.warning(f"LLM agent response failed validation: {reason}")
+                raise ValueError(f"Response validation failed: {reason}")
+
             return RAGAnswer(
                 question=question,
                 answer=answer_text,

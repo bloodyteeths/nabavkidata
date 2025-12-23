@@ -76,6 +76,7 @@ class BidAdvisorResponse(BaseModel):
     historical_data: Dict[str, Any]  # {similar_tenders: int, avg_winning_bid: float, min_bid: float, max_bid: float, etc}
     recommendations: List[BidRecommendation]
     competitor_insights: List[Dict[str, Any]]  # [{company: str, win_rate: float, avg_discount: float}]
+    item_prices: Optional[List[Dict[str, Any]]] = None  # [{item_name: str, avg_price: float, unit: str}]
     ai_summary: str
     generated_at: str
 
@@ -446,7 +447,7 @@ async def get_bid_advisor(
             (t.cpv_code = :cpv_code OR t.category = :category)
             OR (t.cpv_code LIKE :cpv_prefix AND t.cpv_code IS NOT NULL)
         )
-        AND t.status = 'awarded'
+        AND (t.status = 'awarded' OR t.status = 'completed')
         AND t.publication_date > CURRENT_DATE - INTERVAL '2 years'
         AND t.actual_value_mkd IS NOT NULL
         AND t.actual_value_mkd > 0
@@ -500,6 +501,81 @@ async def get_bid_advisor(
         all_bidders = result.fetchall()
     else:
         all_bidders = []
+
+    # ========================================================================
+    # 3.5 FETCH PER-ITEM PRICES FOR CURRENT TENDER AND SIMILAR TENDERS
+    # ========================================================================
+    item_prices = []
+
+    # Get items from product_items table for current tender
+    current_items_query = text("""
+        SELECT
+            pi.name,
+            pi.unit_price,
+            pi.quantity,
+            pi.unit,
+            pi.total_price
+        FROM product_items pi
+        WHERE pi.tender_id = :tender_id
+          AND pi.unit_price IS NOT NULL
+        LIMIT 20
+    """)
+
+    try:
+        result = await db.execute(current_items_query, {"tender_id": tender_id})
+        current_items = result.fetchall()
+        for row in current_items:
+            item_prices.append({
+                "item_name": row[0],
+                "unit_price": float(row[1]) if row[1] else None,
+                "quantity": float(row[2]) if row[2] else None,
+                "unit": row[3],
+                "total_price": float(row[4]) if row[4] else None,
+                "source": "current_tender"
+            })
+    except Exception as e:
+        logger.warning(f"Failed to fetch current tender items: {e}")
+
+    # Get market benchmark prices for similar items
+    if category or cpv_code:
+        benchmark_query = text("""
+            SELECT
+                pi.name as item_name,
+                AVG(pi.unit_price) as avg_price,
+                MIN(pi.unit_price) as min_price,
+                MAX(pi.unit_price) as max_price,
+                COUNT(*) as occurrences,
+                pi.unit
+            FROM product_items pi
+            JOIN tenders t ON pi.tender_id = t.tender_id
+            WHERE (t.cpv_code = :cpv_code OR t.category = :category)
+              AND pi.unit_price IS NOT NULL
+              AND pi.unit_price > 0
+              AND t.publication_date > CURRENT_DATE - INTERVAL '2 years'
+            GROUP BY pi.name, pi.unit
+            HAVING COUNT(*) >= 2
+            ORDER BY COUNT(*) DESC
+            LIMIT 15
+        """)
+
+        try:
+            result = await db.execute(benchmark_query, {
+                "cpv_code": cpv_code,
+                "category": category
+            })
+            benchmark_items = result.fetchall()
+            for row in benchmark_items:
+                item_prices.append({
+                    "item_name": row[0],
+                    "avg_price": float(row[1]) if row[1] else None,
+                    "min_price": float(row[2]) if row[2] else None,
+                    "max_price": float(row[3]) if row[3] else None,
+                    "occurrences": row[4],
+                    "unit": row[5],
+                    "source": "market_benchmark"
+                })
+        except Exception as e:
+            logger.warning(f"Failed to fetch benchmark prices: {e}")
 
     # ========================================================================
     # 4. CALCULATE STATISTICS
@@ -630,6 +706,9 @@ async def get_bid_advisor(
 
 ТОП КОНКУРЕНТИ:
 {chr(10).join([f"- {c['company']}: {c['total_wins']}/{c['total_bids']} победи ({c['win_rate']:.1f}%), просек {c['avg_bid_mkd']:,.0f} МКД" for c in competitor_insights[:5]])}
+
+ПАЗАРНИ ЦЕНИ ПО АРТИКЛИ (ако се достапни):
+{chr(10).join([f"- {item['item_name'][:50]}: просек {item.get('avg_price', item.get('unit_price', 0)):,.0f} МКД/{item.get('unit', 'ед.')} (мин: {item.get('min_price', 0):,.0f}, макс: {item.get('max_price', 0):,.0f})" for item in item_prices[:10] if item.get('avg_price') or item.get('unit_price')]) or 'Нема достапни податоци за единечни цени'}
 
 ГЕНЕРИРАЈ 3 СТРАТЕГИИ ЗА ПОНУДА:
 
@@ -794,6 +873,7 @@ async def get_bid_advisor(
         historical_data=historical_data,
         recommendations=recommendations,
         competitor_insights=competitor_insights,
+        item_prices=item_prices if item_prices else None,
         ai_summary=ai_summary,
         generated_at=datetime.utcnow().isoformat()
     )

@@ -82,6 +82,9 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
       if (currentFilters.entity) mappedFilters.procuring_entity = currentFilters.entity;
       if (currentFilters.dateFrom) mappedFilters.date_from = currentFilters.dateFrom;
       if (currentFilters.dateTo) mappedFilters.date_to = currentFilters.dateTo;
+      if (currentFilters.procedureType) mappedFilters.procedure_type = currentFilters.procedureType;
+      if (currentFilters.closingDateFrom) mappedFilters.closing_date_from = currentFilters.closingDateFrom;
+      if (currentFilters.closingDateTo) mappedFilters.closing_date_to = currentFilters.closingDateTo;
 
       console.log("Saving search with filters:", mappedFilters);
 

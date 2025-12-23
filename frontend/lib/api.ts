@@ -1749,6 +1749,16 @@ class APIClient {
         avg_discount: number;
       }>;
       ai_summary: string;
+      item_prices?: Array<{
+        item_name: string;
+        unit_price?: number;
+        avg_price?: number;
+        min_price?: number;
+        max_price?: number;
+        quantity?: number;
+        unit?: string;
+        source?: string;
+      }>;
     }>(`/api/tenders/by-id/${tenderNumber}/${tenderYear}/bid-advice`);
   }
 

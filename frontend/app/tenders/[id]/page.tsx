@@ -77,6 +77,21 @@ function getStatusLabel(status: string): string {
   }
 }
 
+function formatPaymentTerms(value?: string): string {
+  if (!value) return 'Не е наведено';
+  const trimmed = value.trim().toLowerCase();
+  // Handle common cases
+  if (trimmed === 'не' || trimmed === 'no') return 'Нема посебни услови';
+  if (trimmed === 'да' || trimmed === 'yes') return 'Има услови - видете документи';
+  // If it's just a number, assume it's days
+  const num = parseInt(value.trim(), 10);
+  if (!isNaN(num) && num > 0 && num <= 365) {
+    return `${num} денови по фактура`;
+  }
+  // Return as-is if it's already descriptive
+  return value;
+}
+
 interface ChatMsg {
   role: "user" | "assistant";
   content: string;
@@ -95,6 +110,7 @@ export default function TenderDetailPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const [aiSummary, setAiSummary] = useState<string>("");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const [documents, setDocuments] = useState<TenderDocument[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<TenderDocument | null>(null);
@@ -153,6 +169,16 @@ export default function TenderDetailPage() {
       avg_discount: number;
     }>;
     ai_summary: string;
+    item_prices?: Array<{
+      item_name: string;
+      unit_price?: number;
+      avg_price?: number;
+      min_price?: number;
+      max_price?: number;
+      quantity?: number;
+      unit?: string;
+      source?: string;
+    }>;
   } | null>(null);
   const [bidAdviceLoading, setBidAdviceLoading] = useState(false);
   const [bidAdviceError, setBidAdviceError] = useState<string | null>(null);
@@ -161,6 +187,7 @@ export default function TenderDetailPage() {
     if (!tenderId) return;
     loadTender();
     loadNotifyPreference();
+    loadSavedPreference();
     loadDocuments();
     loadProducts();
     loadBidAdvice();
@@ -517,6 +544,67 @@ export default function TenderDetailPage() {
     window.open(tender.source_url, "_blank", "noopener,noreferrer");
   };
 
+  const loadSavedPreference = () => {
+    try {
+      const stored = localStorage.getItem("saved_tenders");
+      if (!stored) return;
+      const parsed: string[] = JSON.parse(stored);
+      setIsSaved(parsed.includes(tenderId!));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSave = () => {
+    if (!tenderId) return;
+    try {
+      const stored = localStorage.getItem("saved_tenders");
+      const parsed: string[] = stored ? JSON.parse(stored) : [];
+      let updated: string[];
+      if (parsed.includes(tenderId)) {
+        updated = parsed.filter((id) => id !== tenderId);
+        setIsSaved(false);
+        toast.success("Тендерот е отстранет од зачувани.");
+      } else {
+        updated = [...parsed, tenderId];
+        setIsSaved(true);
+        toast.success("Тендерот е зачуван! Пристапете до него од Зачувани тендери.");
+      }
+      localStorage.setItem("saved_tenders", JSON.stringify(updated));
+      void logBehavior("save");
+    } catch {
+      toast.error("Не може да се зачува тендерот.");
+    }
+  };
+
+  const handleShare = async () => {
+    if (!tenderId) return;
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: tender?.title || "Тендер",
+          text: `Погледнете го тендерот: ${tender?.title || tenderId}`,
+          url: url,
+        });
+        toast.success("Споделено!");
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Линкот е копиран!");
+      }
+      void logBehavior("share");
+    } catch (error) {
+      // User cancelled share or clipboard failed
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Линкот е копиран!");
+        void logBehavior("share");
+      } catch {
+        toast.error("Не може да се сподели.");
+      }
+    }
+  };
+
   if (!tenderId || loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -568,12 +656,12 @@ export default function TenderDetailPage() {
         </div>
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
           <Button
-            variant="outline"
-            onClick={() => logBehavior("save")}
+            variant={isSaved ? "default" : "outline"}
+            onClick={handleSave}
             className="flex-1 md:flex-none"
           >
-            <Bookmark className="h-4 w-4 mr-2" />
-            Зачувај
+            <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
+            {isSaved ? "Зачувано" : "Зачувај"}
           </Button>
           <Button
             variant={notifyEnabled ? "default" : "outline"}
@@ -639,7 +727,10 @@ export default function TenderDetailPage() {
               {/* Quick Stats Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
                 {/* Complexity */}
-                <div className="text-center p-2 rounded-md bg-background/50">
+                <div
+                  className="text-center p-2 rounded-md bg-background/50 cursor-help"
+                  title="Комплексност на тендерот базирано на број на документи, технички барања, финансиски услови. Висока = повеќе од 10 документи или сложени барања. Средна = стандардна сложеност. Ниска = едноставен тендер."
+                >
                   <p className="text-xs text-muted-foreground">Комплексност</p>
                   <Badge variant={
                     aiSummaryData.estimated_complexity === 'high' ? 'destructive' :
@@ -648,10 +739,17 @@ export default function TenderDetailPage() {
                     {aiSummaryData.estimated_complexity === 'high' ? 'Висока' :
                       aiSummaryData.estimated_complexity === 'medium' ? 'Средна' : 'Ниска'}
                   </Badge>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {aiSummaryData.estimated_complexity === 'high' ? 'Потребна детална подготовка' :
+                      aiSummaryData.estimated_complexity === 'medium' ? 'Стандардна подготовка' : 'Брза подготовка'}
+                  </p>
                 </div>
 
                 {/* Competition */}
-                <div className="text-center p-2 rounded-md bg-background/50">
+                <div
+                  className="text-center p-2 rounded-md bg-background/50 cursor-help"
+                  title="Ниво на конкуренција базирано на историски податоци за слични тендери. Висока = очекувани 5+ понудувачи. Средна = 2-4 понудувачи. Ниска = 1-2 понудувачи."
+                >
                   <p className="text-xs text-muted-foreground">Конкуренција</p>
                   <Badge variant={
                     aiSummaryData.competition_level === 'high' ? 'destructive' :
@@ -661,10 +759,18 @@ export default function TenderDetailPage() {
                       aiSummaryData.competition_level === 'medium' ? 'Средна' :
                         aiSummaryData.competition_level === 'low' ? 'Ниска' : 'Непозната'}
                   </Badge>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {aiSummaryData.competition_level === 'high' ? 'Потребна агресивна понуда' :
+                      aiSummaryData.competition_level === 'medium' ? 'Балансирана понуда' :
+                        aiSummaryData.competition_level === 'low' ? 'Добра шанса за победа' : 'Нема историски податоци'}
+                  </p>
                 </div>
 
                 {/* Deadline Urgency */}
-                <div className="text-center p-2 rounded-md bg-background/50">
+                <div
+                  className="text-center p-2 rounded-md bg-background/50 cursor-help"
+                  title="Итност за поднесување понуда. Критична = помалку од 3 дена. Итна = 3-7 дена. Наскоро = 7-14 дена. Нормална = повеќе од 14 дена."
+                >
                   <p className="text-xs text-muted-foreground">Итност</p>
                   <Badge variant={
                     aiSummaryData.deadline_urgency === 'critical' ? 'destructive' :
@@ -676,15 +782,31 @@ export default function TenderDetailPage() {
                         aiSummaryData.deadline_urgency === 'soon' ? 'Наскоро' :
                           aiSummaryData.deadline_urgency === 'closed' ? 'Затворен' : 'Нормална'}
                   </Badge>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {aiSummaryData.deadline_urgency === 'critical' ? 'Итно поднесете понуда!' :
+                      aiSummaryData.deadline_urgency === 'urgent' ? 'Побрзајте со подготовка' :
+                        aiSummaryData.deadline_urgency === 'soon' ? 'Планирајте ја понудата' :
+                          aiSummaryData.deadline_urgency === 'closed' ? 'Рокот помина' : 'Имате време'}
+                  </p>
                 </div>
 
                 {/* Days Remaining */}
-                <div className="text-center p-2 rounded-md bg-background/50">
+                <div
+                  className="text-center p-2 rounded-md bg-background/50 cursor-help"
+                  title="Број на денови до краен рок за поднесување понуда"
+                >
                   <p className="text-xs text-muted-foreground">Преостанати денови</p>
                   <p className="text-lg font-bold mt-1">
                     {aiSummaryData.days_remaining !== null && aiSummaryData.days_remaining >= 0
                       ? aiSummaryData.days_remaining
                       : '—'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {aiSummaryData.days_remaining !== null && aiSummaryData.days_remaining >= 0
+                      ? (aiSummaryData.days_remaining === 0 ? 'Последен ден!' :
+                         aiSummaryData.days_remaining === 1 ? 'Остана 1 ден' :
+                         `до краен рок`)
+                      : 'Рокот помина'}
                   </p>
                 </div>
               </div>
@@ -713,6 +835,7 @@ export default function TenderDetailPage() {
           marketAnalysis={bidAdvice?.market_analysis}
           recommendations={bidAdvice?.recommendations || []}
           competitorInsights={bidAdvice?.competitor_insights}
+          itemPrices={bidAdvice?.item_prices}
           aiSummary={bidAdvice?.ai_summary}
           loading={bidAdviceLoading}
         />
@@ -974,16 +1097,20 @@ export default function TenderDetailPage() {
 
             <TabsContent value="details" className="space-y-4 mt-4">
               {/* Description */}
-              {tender.description && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Опис</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Опис</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tender.description ? (
                     <p className="text-sm whitespace-pre-wrap">{tender.description}</p>
-                  </CardContent>
-                </Card>
-              )}
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      Нема достапен опис за овој тендер. Проверете ги документите за детални информации.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Metadata */}
               <Card>
@@ -1139,7 +1266,7 @@ export default function TenderDetailPage() {
                         <CreditCard className="h-5 w-5 text-muted-foreground mt-0.5" />
                         <div>
                           <p className="text-sm font-medium">Услови за плаќање</p>
-                          <p className="text-sm text-muted-foreground">{tender.payment_terms}</p>
+                          <p className="text-sm text-muted-foreground">{formatPaymentTerms(tender.payment_terms)}</p>
                         </div>
                       </div>
                     )}
@@ -1219,7 +1346,7 @@ export default function TenderDetailPage() {
                               {getFileIcon(doc.file_name, doc.mime_type)}
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">
-                                  {doc.file_name || "Непознат документ"}
+                                  {doc.file_name || (doc.file_url ? doc.file_url.split('/').pop()?.split('?')[0] : "Непознат документ")}
                                 </p>
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                   {doc.doc_type && <span>{doc.doc_type}</span>}
@@ -1269,7 +1396,7 @@ export default function TenderDetailPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              {doc.extraction_status === 'success' && doc.content_text ? (
+                              {doc.content_text ? (
                                 <Button
                                   variant="default"
                                   size="sm"
@@ -1277,6 +1404,31 @@ export default function TenderDetailPage() {
                                 >
                                   <FileText className="h-4 w-4 mr-1" />
                                   Прегледај
+                                </Button>
+                              ) : doc.extraction_status === 'pending' ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled
+                                  className="text-muted-foreground"
+                                >
+                                  <Clock className="h-4 w-4 mr-1" />
+                                  Се обработува
+                                </Button>
+                              ) : doc.file_url ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  asChild
+                                >
+                                  <a
+                                    href={doc.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLink className="h-4 w-4 mr-1" />
+                                    Отвори
+                                  </a>
                                 </Button>
                               ) : (
                                 <Button
@@ -1286,10 +1438,10 @@ export default function TenderDetailPage() {
                                   className="text-muted-foreground"
                                 >
                                   <FileText className="h-4 w-4 mr-1" />
-                                  Недостапен
+                                  Нема преглед
                                 </Button>
                               )}
-                              {doc.file_url ? (
+                              {doc.file_url && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -1303,15 +1455,6 @@ export default function TenderDetailPage() {
                                     <Download className="h-4 w-4 mr-1" />
                                     Преземи
                                   </a>
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled
-                                >
-                                  <XCircle className="h-4 w-4 mr-1" />
-                                  Недостапен
                                 </Button>
                               )}
                             </div>
@@ -1595,53 +1738,58 @@ export default function TenderDetailPage() {
 
             <TabsContent value="chat" className="mt-4">
               <Card>
-                <CardHeader>
-                  <CardTitle>AI Асистент за Тендери</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">AI Асистент за Тендери</CardTitle>
                   <CardDescription>
-                    Постави прашања за овој тендер
+                    Постави прашања за овој тендер и добиј одговори базирани на документите и историските податоци
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-4 min-h-[400px] max-h-[500px] overflow-y-auto">
-                    {chatMessages.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                        <MessageSquare className="h-12 w-12 mb-2 opacity-20" />
-                        <p className="text-sm">Постави прашање за да започнеш</p>
+                  {/* Quick prompts - show at top when no messages */}
+                  {chatMessages.length === 0 && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">Почни со некое од овие прашања:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {quickPrompts.map((prompt) => (
+                          <Button
+                            key={prompt}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleChatSend(prompt)}
+                            disabled={chatLoading}
+                            className="text-left h-auto py-2"
+                          >
+                            {prompt}
+                          </Button>
+                        ))}
                       </div>
-                    ) : (
-                      chatMessages.map((msg, idx) => (
+                    </div>
+                  )}
+
+                  {/* Chat messages - only show when there are messages */}
+                  {chatMessages.length > 0 && (
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto border rounded-lg p-3 bg-muted/20">
+                      {chatMessages.map((msg, idx) => (
                         <ChatMessage
                           key={idx}
                           role={msg.role}
                           content={msg.content}
                         />
-                      ))
-                    )}
-                    {chatLoading && (
-                      <div className="text-sm text-muted-foreground">AI пишува...</div>
-                    )}
-                  </div>
+                      ))}
+                      {chatLoading && (
+                        <div className="text-sm text-muted-foreground animate-pulse">AI пишува...</div>
+                      )}
+                    </div>
+                  )}
 
-                  <div className="flex flex-wrap gap-2">
-                    {quickPrompts.map((prompt) => (
-                      <Button
-                        key={prompt}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleChatSend(prompt)}
-                        disabled={chatLoading}
-                      >
-                        {prompt}
-                      </Button>
-                    ))}
+                  {/* Chat Input - always visible */}
+                  <div className="pt-2 border-t">
+                    <ChatInput
+                      onSend={handleChatSend}
+                      disabled={chatLoading}
+                      placeholder="Прашај нешто за овој тендер..."
+                    />
                   </div>
-
-                  {/* Chat Input */}
-                  <ChatInput
-                    onSend={handleChatSend}
-                    disabled={chatLoading}
-                    placeholder="Прашај нешто за овој тендер..."
-                  />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1695,18 +1843,18 @@ export default function TenderDetailPage() {
               <Button
                 variant="outline"
                 className="w-full justify-start"
-                onClick={() => logBehavior("share")}
+                onClick={handleShare}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Сподели
               </Button>
               <Button
-                variant="outline"
+                variant={isSaved ? "default" : "outline"}
                 className="w-full justify-start"
-                onClick={() => logBehavior("save")}
+                onClick={handleSave}
               >
-                <Bookmark className="h-4 w-4 mr-2" />
-                Зачувај
+                <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
+                {isSaved ? "Зачувано" : "Зачувај"}
               </Button>
             </CardContent>
           </Card>

@@ -44,6 +44,11 @@ class SavedSearchFilters(BaseModel):
     min_value_mkd: Optional[float] = None
     max_value_mkd: Optional[float] = None
     source_category: Optional[str] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    procedure_type: Optional[str] = None
+    closing_date_from: Optional[str] = None
+    closing_date_to: Optional[str] = None
 
 
 class SavedSearchCreate(BaseModel):

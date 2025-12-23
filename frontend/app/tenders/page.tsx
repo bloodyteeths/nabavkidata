@@ -63,7 +63,7 @@ function TendersPageContent() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<FilterState>({ status: 'open' });
+  const [filters, setFilters] = useState<FilterState>({});
   // Initialize with cached approximate values to avoid showing zeros while loading
   const [stats, setStats] = useState({ total: 273772, open: 833, closed: 545, awarded: 268491, cancelled: 2083 });
   const [error, setError] = useState<string | null>(null);
@@ -79,8 +79,8 @@ function TendersPageContent() {
     if (currentFilters.search) {
       params.set('search', currentFilters.search);
     }
-    // Always include status, even if 'open', to make it explicit
-    if (currentFilters.status) {
+    // Only include status if explicitly set by user
+    if (currentFilters.status && currentFilters.status !== 'all') {
       params.set('status', currentFilters.status);
     }
     if (currentFilters.category) {
@@ -125,8 +125,8 @@ function TendersPageContent() {
   useEffect(() => {
     setIsHydrated(true);
 
-    // Read initial filters from URL params, starting with default
-    const initialFilters: FilterState = { status: 'open' };
+    // Read initial filters from URL params
+    const initialFilters: FilterState = {};
 
     const status = searchParams.get('status');
     if (status) initialFilters.status = status;
@@ -445,10 +445,19 @@ function TendersPageContent() {
                   columns={[
                     { key: 'tender_id', label: 'ID' },
                     { key: 'title', label: 'Наслов' },
-                    { key: 'procuring_entity', label: 'Наручилац' },
+                    { key: 'procuring_entity', label: 'Наручител' },
+                    { key: 'category', label: 'Категорија' },
+                    { key: 'cpv_code', label: 'CPV Код' },
+                    { key: 'procedure_type', label: 'Вид постапка' },
                     { key: 'estimated_value_mkd', label: 'Проценета вредност (МКД)' },
+                    { key: 'actual_value_mkd', label: 'Договорена вредност (МКД)' },
+                    { key: 'publication_date', label: 'Датум на објава' },
+                    { key: 'opening_date', label: 'Датум на отворање' },
                     { key: 'closing_date', label: 'Краен рок' },
                     { key: 'status', label: 'Статус' },
+                    { key: 'winner', label: 'Победник' },
+                    { key: 'num_bidders', label: 'Број на понуди' },
+                    { key: 'source_url', label: 'Линк' },
                   ]}
                 />
               )}

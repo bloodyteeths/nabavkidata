@@ -12,6 +12,16 @@ interface Recommendation {
   reasoning: string;
 }
 
+interface ItemPrice {
+  item_name: string;
+  unit_price?: number;
+  avg_price?: number;
+  min_price?: number;
+  max_price?: number;
+  unit?: string;
+  source?: string;
+}
+
 interface BidRecommendationProps {
   tenderId: string;
   estimatedValue?: number;
@@ -26,6 +36,7 @@ interface BidRecommendationProps {
     win_rate: number;
     avg_discount: number;
   }>;
+  itemPrices?: ItemPrice[];
   aiSummary?: string;
   loading?: boolean;
 }
@@ -36,6 +47,7 @@ export function BidRecommendation({
   marketAnalysis,
   recommendations,
   competitorInsights,
+  itemPrices,
   aiSummary,
   loading = false,
 }: BidRecommendationProps) {
@@ -194,6 +206,29 @@ export function BidRecommendation({
               <span className="text-muted-foreground">Тренд:</span>
               <span className="font-medium">{getTrendLabel(marketAnalysis.price_trend)}</span>
             </div>
+          </div>
+        )}
+
+        {/* Item Prices - Benchmark Data */}
+        {itemPrices && itemPrices.length > 0 && (
+          <div className="pt-2 border-t">
+            <p className="text-xs text-muted-foreground mb-2">Пазарни цени по артикли:</p>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              {itemPrices.slice(0, 5).map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1">
+                  <span className="truncate max-w-[60%]" title={item.item_name}>
+                    {item.item_name.length > 40 ? item.item_name.slice(0, 40) + '...' : item.item_name}
+                  </span>
+                  <span className="font-medium text-right">
+                    {formatCurrency(item.avg_price || item.unit_price || 0)}
+                    {item.unit && <span className="text-muted-foreground">/{item.unit}</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {itemPrices.length > 5 && (
+              <p className="text-xs text-muted-foreground mt-1">+{itemPrices.length - 5} повеќе артикли</p>
+            )}
           </div>
         )}
 
