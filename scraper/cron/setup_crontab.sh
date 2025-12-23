@@ -40,6 +40,16 @@ CRON_ENTRIES="
 # Document processing - run every 4 hours to extract PDFs
 0 */4 * * * $CRON_DIR/process_documents.sh >> $LOG_DIR/docs_\$(date +\\%Y\\%m\\%d).log 2>&1
 
+# Close expired tenders - daily at 00:00
+0 0 * * * $CRON_DIR/close_expired_tenders.sh >> $LOG_DIR/close_expired.log 2>&1
+
+# Close expired e-pazar tenders - daily at 01:00
+0 1 * * * $CRON_DIR/close_expired_epazar.sh >> $LOG_DIR/close_expired_epazar.log 2>&1
+
+# E-Pazar evaluation reports - daily at 18:00 (after tenders close)
+# Extracts winner prices, brands, and per-item data from finished tenders
+0 18 * * * $CRON_DIR/scrape_epazar_evaluations.sh >> $LOG_DIR/epazar_evaluation_\$(date +\\%Y\\%m\\%d).log 2>&1
+
 # Log cleanup - monthly on the 1st at 4 AM
 0 4 1 * * $CRON_DIR/cleanup_logs.sh >> $LOG_DIR/cleanup.log 2>&1
 "
