@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Calendar, Building2, TrendingUp, Clock, Award } from 'lucide-react';
+import { Search, Building2, TrendingUp, Award, Package, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api, EPazarTender, EPazarStats, EPazarItemAggregation } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,52 +11,42 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
-function getDaysRemaining(closingDate: string): string {
-  const now = new Date();
-  const closing = new Date(closingDate);
-  const diffTime = closing.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) return 'Затворен';
-  if (diffDays === 0) return 'Затвора денес';
-  if (diffDays === 1) return 'уште 1 ден';
-  return `уште ${diffDays} дена`;
+function getStatusLabel(status: string): string {
+  switch (status?.toLowerCase()) {
+    case 'active': return 'Активен';
+    case 'awarded': return 'Доделен';
+    case 'signed': return 'Потпишан';
+    case 'cancelled': return 'Откажан';
+    case 'completed': return 'Завршен';
+    default: return status || 'Непознат';
+  }
 }
 
-function StatsCard({ title, value, icon: Icon }: { title: string; value: string | number; icon: any }) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500">{title}</p>
-            <p className="text-2xl font-bold mt-1">{value}</p>
-          </div>
-          <Icon className="h-8 w-8 text-blue-500 opacity-80" />
-        </div>
-      </CardContent>
-    </Card>
-  );
+function getStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  switch (status?.toLowerCase()) {
+    case 'active': return 'default';
+    case 'awarded':
+    case 'signed': return 'secondary';
+    case 'cancelled': return 'destructive';
+    default: return 'outline';
+  }
 }
 
 export default function EPazarPage() {
   const [isHydrated, setIsHydrated] = useState(false);
   const [stats, setStats] = useState<EPazarStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
 
-  // Active tenders
-  const [activeTenders, setActiveTenders] = useState<EPazarTender[]>([]);
-  const [activeLoading, setActiveLoading] = useState(true);
-
-  // Awarded tenders
-  const [awardedTenders, setAwardedTenders] = useState<EPazarTender[]>([]);
-  const [awardedLoading, setAwardedLoading] = useState(true);
-
-  // Search state
-  const [searchTerm, setSearchTerm] = useState('');
+  // Tenders state
+  const [tenders, setTenders] = useState<EPazarTender[]>([]);
+  const [tendersLoading, setTendersLoading] = useState(true);
+  const [tendersTotal, setTendersTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const pageSize = 12;
 
   // Price check state
-  const [priceSearchTerm, setPriceSearchTerm] = useState('');
+  const [priceSearch, setPriceSearch] = useState('');
   const [priceResults, setPriceResults] = useState<EPazarItemAggregation[]>([]);
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceSearched, setPriceSearched] = useState(false);
@@ -68,64 +58,57 @@ export default function EPazarPage() {
   useEffect(() => {
     if (!isHydrated) return;
     loadStats();
-    loadActiveTenders();
-    loadAwardedTenders();
   }, [isHydrated]);
 
+  useEffect(() => {
+    if (!isHydrated) return;
+    loadTenders();
+  }, [isHydrated, page, search]);
+
   async function loadStats() {
-    setStatsLoading(true);
     try {
       const data = await api.getEPazarStats();
       setStats(data);
     } catch (err) {
       console.error('Failed to load stats:', err);
-    } finally {
-      setStatsLoading(false);
     }
   }
 
-  async function loadActiveTenders() {
-    setActiveLoading(true);
+  async function loadTenders() {
+    setTendersLoading(true);
     try {
-      const data = await api.getEPazarTenders({
-        status: 'active',
-        sort_by: 'closing_date',
-        sort_order: 'asc',
-        page_size: 6,
-      });
-      setActiveTenders(data.items);
-    } catch (err) {
-      console.error('Failed to load active tenders:', err);
-    } finally {
-      setActiveLoading(false);
-    }
-  }
-
-  async function loadAwardedTenders() {
-    setAwardedLoading(true);
-    try {
-      const data = await api.getEPazarTenders({
-        status: 'awarded,signed',
-        sort_by: 'award_date',
+      const params: Record<string, any> = {
+        page,
+        page_size: pageSize,
+        sort_by: 'publication_date',
         sort_order: 'desc',
-        page_size: 4,
-      });
-      setAwardedTenders(data.items);
+      };
+      if (search) params.search = search;
+
+      const data = await api.getEPazarTenders(params);
+      setTenders(data.items);
+      setTendersTotal(data.total);
     } catch (err) {
-      console.error('Failed to load awarded tenders:', err);
+      console.error('Failed to load tenders:', err);
     } finally {
-      setAwardedLoading(false);
+      setTendersLoading(false);
     }
+  }
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
   }
 
   async function handlePriceSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!priceSearchTerm.trim()) return;
+    if (!priceSearch.trim()) return;
 
     setPriceLoading(true);
     setPriceSearched(true);
     try {
-      const data = await api.getEPazarItemsAggregations(priceSearchTerm);
+      const data = await api.getEPazarItemsAggregations(priceSearch);
       setPriceResults(data.aggregations || []);
     } catch (err) {
       console.error('Failed to search prices:', err);
@@ -133,13 +116,6 @@ export default function EPazarPage() {
     } finally {
       setPriceLoading(false);
     }
-  }
-
-  function handleMainSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!searchTerm.trim()) return;
-    // Navigate to tenders page with search term
-    window.location.href = `/epazar?search=${encodeURIComponent(searchTerm)}`;
   }
 
   if (!isHydrated) {
@@ -152,43 +128,141 @@ export default function EPazarPage() {
     );
   }
 
-  const activeCount = stats?.status_breakdown?.active?.count || 0;
-  const totalValue = stats?.total_value_mkd || 0;
+  const totalPages = Math.ceil(tendersTotal / pageSize);
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 p-6 max-w-7xl mx-auto">
+      <div className="space-y-6 p-6">
         {/* Header */}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">е-Пазар - Електронски Пазар</h1>
-          <p className="text-gray-500 text-lg">Најдете можности и проверете пазарни цени</p>
+        <div>
+          <h1 className="text-2xl font-bold">е-Пазар - Електронски Пазар</h1>
+          <p className="text-gray-500">Тендери и цени од e-pazar.gov.mk</p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <StatsCard
-            title="Активни тендери"
-            value={statsLoading ? '-' : activeCount.toLocaleString()}
-            icon={TrendingUp}
-          />
-          <StatsCard
-            title="Вкупна доделена вредност"
-            value={statsLoading ? '-' : formatCurrency(totalValue)}
-            icon={Award}
-          />
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Тендери</p>
+                  <p className="text-2xl font-bold">{stats?.total_tenders?.toLocaleString() || '-'}</p>
+                </div>
+                <TrendingUp className="h-8 w-8 text-blue-500 opacity-80" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Ставки</p>
+                  <p className="text-2xl font-bold">{stats?.total_items?.toLocaleString() || '-'}</p>
+                </div>
+                <Package className="h-8 w-8 text-green-500 opacity-80" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Добавувачи</p>
+                  <p className="text-2xl font-bold">{stats?.total_suppliers?.toLocaleString() || '-'}</p>
+                </div>
+                <Building2 className="h-8 w-8 text-purple-500 opacity-80" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Вкупна вредност</p>
+                  <p className="text-2xl font-bold">{formatCurrency(stats?.total_value_mkd || 0)}</p>
+                </div>
+                <Award className="h-8 w-8 text-yellow-500 opacity-80" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Search Bar */}
+        {/* Price Check Tool */}
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-blue-600" />
+              Провери пазарна цена
+            </CardTitle>
+            <CardDescription>
+              Внесете производ за да видите мин/просек/макс цени (работи кирилица и латиница)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={handlePriceSearch} className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="пр. хартија А4, тонер, гориво, канцелариски..."
+                value={priceSearch}
+                onChange={(e) => setPriceSearch(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit" disabled={priceLoading}>
+                {priceLoading ? 'Барам...' : 'Провери'}
+              </Button>
+            </form>
+
+            {priceSearched && !priceLoading && (
+              priceResults.length === 0 ? (
+                <p className="text-gray-500 text-center py-2">Нема резултати за "{priceSearch}"</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Производ</th>
+                        <th className="text-right p-2">Мин</th>
+                        <th className="text-right p-2">Просек</th>
+                        <th className="text-right p-2">Макс</th>
+                        <th className="text-right p-2">Тендери</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {priceResults.slice(0, 8).map((item, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2">
+                            {item.item_name}
+                            {item.unit && <span className="text-xs text-gray-400 ml-1">({item.unit})</span>}
+                          </td>
+                          <td className="text-right p-2 text-green-600 font-medium">
+                            {formatCurrency(item.min_unit_price || 0)}
+                          </td>
+                          <td className="text-right p-2">{formatCurrency(item.avg_unit_price || 0)}</td>
+                          <td className="text-right p-2 text-red-600 font-medium">
+                            {formatCurrency(item.max_unit_price || 0)}
+                          </td>
+                          <td className="text-right p-2">{item.tender_count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tender Search */}
         <Card>
           <CardContent className="pt-6">
-            <form onSubmit={handleMainSearch} className="flex gap-4">
+            <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Пребарај тендери..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Пребарај тендери (кирилица или латиница)..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -197,222 +271,105 @@ export default function EPazarPage() {
           </CardContent>
         </Card>
 
-        {/* Active Opportunities Section */}
+        {/* Tenders List */}
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">АКТИВНИ МОЖНОСТИ</h2>
-            <Link href="/epazar?status=active">
-              <Button variant="outline" size="sm">Види сите</Button>
-            </Link>
+            <h2 className="text-xl font-semibold">
+              {search ? `Резултати за "${search}"` : 'Последни тендери'}
+              <span className="text-sm font-normal text-gray-500 ml-2">({tendersTotal} вкупно)</span>
+            </h2>
           </div>
 
-          {activeLoading ? (
+          {tendersLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i} className="animate-pulse">
                   <CardHeader>
+                    <div className="h-5 bg-gray-200 rounded w-1/4 mb-2" />
                     <div className="h-6 bg-gray-200 rounded w-3/4" />
-                    <div className="h-4 bg-gray-200 rounded w-1/2 mt-2" />
                   </CardHeader>
                   <CardContent>
-                    <div className="h-4 bg-gray-200 rounded w-full mt-2" />
+                    <div className="h-4 bg-gray-200 rounded w-full" />
                   </CardContent>
                 </Card>
               ))}
             </div>
-          ) : activeTenders.length === 0 ? (
+          ) : tenders.length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center text-gray-500">
-                Нема активни можности во моментов
+                {search ? `Нема резултати за "${search}"` : 'Нема тендери'}
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activeTenders.map((tender) => (
-                <Link key={tender.tender_id} href={`/epazar/${encodeURIComponent(tender.tender_id)}`}>
-                  <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg line-clamp-2">{tender.title}</CardTitle>
-                      {tender.contracting_authority && (
-                        <CardDescription className="flex items-center gap-1 mt-2">
-                          <Building2 className="h-3 w-3" />
-                          {tender.contracting_authority}
-                        </CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm">
-                        {tender.closing_date && (
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-orange-500" />
-                            <Badge variant="outline" className="text-orange-600">
-                              {getDaysRemaining(tender.closing_date)}
-                            </Badge>
-                          </div>
-                        )}
-                        {tender.estimated_value_mkd && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500">Проценета вредност:</span>
-                            <span className="font-semibold">{formatCurrency(tender.estimated_value_mkd)}</span>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Price Check Section */}
-        <div>
-          <Card className="border-2 border-blue-100 bg-blue-50/30">
-            <CardHeader>
-              <CardTitle className="text-2xl flex items-center gap-2">
-                <TrendingUp className="h-6 w-6 text-blue-600" />
-                ПРОВЕРИ ЦЕНА
-              </CardTitle>
-              <CardDescription className="text-base">
-                Внесете производ за да видите пазарни цени
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <form onSubmit={handlePriceSearch} className="flex gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Пр. хартија А4, тонер, канцелариски материјал..."
-                    value={priceSearchTerm}
-                    onChange={(e) => setPriceSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Button type="submit" disabled={priceLoading}>
-                  {priceLoading ? 'Се пребарува...' : 'Пребарај'}
-                </Button>
-              </form>
-
-              {priceSearched && !priceLoading && (
-                <div>
-                  {priceResults.length === 0 ? (
-                    <p className="text-center text-gray-500 py-4">
-                      Не се пронајдени резултати за "{priceSearchTerm}"
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b bg-white">
-                            <th className="text-left p-3 font-semibold">Производ</th>
-                            <th className="text-right p-3 font-semibold">Мин. цена</th>
-                            <th className="text-right p-3 font-semibold">Просечна</th>
-                            <th className="text-right p-3 font-semibold">Макс. цена</th>
-                            <th className="text-right p-3 font-semibold">Тендери</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {priceResults.slice(0, 10).map((item, idx) => (
-                            <tr key={idx} className="border-b hover:bg-white/50">
-                              <td className="p-3 font-medium">
-                                {item.item_name}
-                                {item.unit && <span className="text-xs text-gray-500 ml-1">({item.unit})</span>}
-                              </td>
-                              <td className="text-right p-3 text-green-600 font-semibold">
-                                {formatCurrency(item.min_unit_price || 0)}
-                              </td>
-                              <td className="text-right p-3">{formatCurrency(item.avg_unit_price || 0)}</td>
-                              <td className="text-right p-3 text-red-600 font-semibold">
-                                {formatCurrency(item.max_unit_price || 0)}
-                              </td>
-                              <td className="text-right p-3">
-                                <Badge variant="outline">{item.tender_count}</Badge>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Recently Awarded Section */}
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">НЕОДАМНА ДОДЕЛЕНИ</h2>
-            <Link href="/epazar?status=awarded">
-              <Button variant="outline" size="sm">Види сите</Button>
-            </Link>
-          </div>
-
-          {awardedLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardHeader>
-                    <div className="h-6 bg-gray-200 rounded w-3/4" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-4 bg-gray-200 rounded w-full mt-2" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : awardedTenders.length === 0 ? (
-            <Card>
-              <CardContent className="pt-6 text-center text-gray-500">
-                Нема доделени тендери
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {awardedTenders.map((tender) => {
-                // Find winner from offers if available
-                const winner = tender.awarded_value_mkd ? 'Доделен' : 'Доделен';
-
-                return (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {tenders.map((tender) => (
                   <Link key={tender.tender_id} href={`/epazar/${encodeURIComponent(tender.tender_id)}`}>
                     <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <Badge variant="secondary">Доделен</Badge>
-                          {tender.award_date && (
-                            <span className="text-xs text-gray-500 flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {formatDate(tender.award_date)}
-                            </span>
-                          )}
+                      <CardHeader className="pb-2">
+                        <div className="flex justify-between items-start gap-2">
+                          <Badge variant={getStatusVariant(tender.status)}>
+                            {getStatusLabel(tender.status)}
+                          </Badge>
+                          <span className="text-xs text-gray-500">
+                            {tender.publication_date ? formatDate(tender.publication_date) : ''}
+                          </span>
                         </div>
-                        <CardTitle className="text-lg line-clamp-2">{tender.title}</CardTitle>
+                        <CardTitle className="text-base line-clamp-2 mt-2">{tender.title}</CardTitle>
                         {tender.contracting_authority && (
-                          <CardDescription className="flex items-center gap-1 mt-2">
+                          <CardDescription className="flex items-center gap-1 text-xs">
                             <Building2 className="h-3 w-3" />
-                            {tender.contracting_authority}
+                            <span className="line-clamp-1">{tender.contracting_authority}</span>
                           </CardDescription>
                         )}
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-2 text-sm">
-                          {tender.awarded_value_mkd && (
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-500">Доделена вредност:</span>
-                              <span className="font-bold text-green-600">
-                                {formatCurrency(tender.awarded_value_mkd)}
-                              </span>
+                        <div className="text-sm">
+                          {tender.estimated_value_mkd ? (
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Вредност:</span>
+                              <span className="font-semibold">{formatCurrency(tender.estimated_value_mkd)}</span>
                             </div>
-                          )}
+                          ) : tender.awarded_value_mkd ? (
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Доделено:</span>
+                              <span className="font-semibold text-green-600">{formatCurrency(tender.awarded_value_mkd)}</span>
+                            </div>
+                          ) : null}
                         </div>
                       </CardContent>
                     </Card>
                   </Link>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 mt-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Претходна
+                  </Button>
+                  <span className="text-sm text-gray-500">
+                    Страна {page} од {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  >
+                    Следна
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
