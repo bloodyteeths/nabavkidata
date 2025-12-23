@@ -1644,7 +1644,8 @@ async def get_similar_epazar_tenders(
                 "closing_date": row.closing_date.isoformat() if row.closing_date else None,
                 "award_date": row.award_date.isoformat() if row.award_date else None,
                 "similarity_score": row.similarity_score,
-                "similarity_reason": ", ".join(similarity_reasons)
+                "similarity_reason": ", ".join(similarity_reasons),
+                "match_reason": ", ".join(similarity_reasons)  # Alias for frontend compatibility
             })
 
         # Calculate insights from similar tenders
@@ -2028,20 +2029,22 @@ async def get_price_intelligence(
         sample_row = sample_result.fetchone()
         item_name = sample_row.item_name if sample_row else search
 
+        # Return flat structure that matches frontend PriceIntelligence interface
         return {
-            "item_name": item_name,
-            "unit": item_stats.common_unit,
-            "price_stats": {
-                "min_price": round(min_price, 2),
-                "max_price": round(max_price, 2),
-                "avg_price": round(avg_price, 2),
-                "median_price": round(median_price, 2),
-                "recommended_bid_low": recommended_bid_low,
-                "recommended_bid_high": recommended_bid_high,
-                "price_source": "estimated"
-            },
+            # Frontend expected fields (flat structure)
+            "product_name": item_name,
+            "recommended_bid_min_mkd": recommended_bid_low,
+            "recommended_bid_max_mkd": recommended_bid_high,
+            "market_min_mkd": round(min_price, 2),
+            "market_max_mkd": round(max_price, 2),
+            "market_avg_mkd": round(avg_price, 2),
             "trend": "stable",  # TODO: add trend analysis when more historical data available
+            "trend_percentage": typical_discount_percent if typical_discount_percent else None,
             "competition_level": competition_level,
+            "sample_size": item_stats.total_items,
+            # Additional fields for API consumers
+            "unit": item_stats.common_unit,
+            "median_price": round(median_price, 2),
             "typical_discount_percent": typical_discount_percent,
             "total_tenders": item_stats.total_tenders,
             "total_quantity": float(item_stats.total_quantity) if item_stats.total_quantity else 0,
@@ -2200,7 +2203,9 @@ async def get_supplier_rankings(
 
             rankings.append({
                 "rank": row.rank,
-                "supplier_name": row.supplier_name,
+                "supplier_id": row.supplier_name,  # Use name as ID (no UUID in data)
+                "company_name": row.supplier_name,  # Alias for frontend compatibility
+                "supplier_name": row.supplier_name,  # Keep for backwards compatibility
                 "total_wins": row.total_wins,
                 "total_offers": row.total_offers,
                 "win_rate": round(float(row.win_rate), 1),
