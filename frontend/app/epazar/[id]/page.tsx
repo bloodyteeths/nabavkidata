@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowLeft,
   Building2,
@@ -22,6 +23,7 @@ import {
   File,
   FileSpreadsheet,
   FileType,
+  TrendingUp,
 } from 'lucide-react';
 import { api, EPazarTenderDetail, EPazarItem, EPazarOffer, EPazarDocument, EPazarAwardedItem, RAGQueryResponse } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
