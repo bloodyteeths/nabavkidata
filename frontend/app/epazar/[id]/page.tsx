@@ -34,6 +34,7 @@ import { ChatMessage } from '@/components/chat/ChatMessage';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { PriceHistoryChart } from '@/components/charts/PriceHistoryChart';
 import { QuickActions } from '@/components/ai/QuickActions';
+import { PriceIntelligenceCard } from '@/components/epazar/PriceIntelligenceCard';
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -282,6 +283,10 @@ export default function EPazarDetailPage() {
   const [supplierStats, setSupplierStats] = useState<any | null>(null);
   const [supplierStatsLoading, setSupplierStatsLoading] = useState(false);
   const [supplierStatsError, setSupplierStatsError] = useState<string | null>(null);
+  const [priceIntelligence, setPriceIntelligence] = useState<any | null>(null);
+  const [priceIntelligenceLoading, setPriceIntelligenceLoading] = useState(false);
+  const [similarTenders, setSimilarTenders] = useState<any[]>([]);
+  const [similarTendersLoading, setSimilarTendersLoading] = useState(false);
 
   useEffect(() => {
     loadTender();
@@ -301,6 +306,12 @@ export default function EPazarDetailPage() {
       if (winnerOffer?.supplier_id) {
         void loadSupplierStats(winnerOffer.supplier_id);
       }
+      // Load price intelligence for first item
+      if (data.items && data.items.length > 0 && data.items[0].item_name) {
+        void loadPriceIntelligence(data.items[0].item_name);
+      }
+      // Load similar tenders
+      void loadSimilarTenders();
       // Generate summary after tender data is loaded
       void generateSummaryWithData(data);
     } catch (err) {
@@ -448,6 +459,32 @@ export default function EPazarDetailPage() {
     }
   }
 
+  async function loadPriceIntelligence(itemName: string) {
+    try {
+      setPriceIntelligenceLoading(true);
+      const result = await api.getEPazarPriceIntelligence({ product_name: itemName });
+      setPriceIntelligence(result);
+    } catch (error) {
+      console.error("Failed to load price intelligence:", error);
+      setPriceIntelligence(null);
+    } finally {
+      setPriceIntelligenceLoading(false);
+    }
+  }
+
+  async function loadSimilarTenders() {
+    try {
+      setSimilarTendersLoading(true);
+      const result = await api.getEPazarSimilarTenders(tenderId, { limit: 5 });
+      setSimilarTenders(result.similar_tenders || []);
+    } catch (error) {
+      console.error("Failed to load similar tenders:", error);
+      setSimilarTenders([]);
+    } finally {
+      setSimilarTendersLoading(false);
+    }
+  }
+
   const quickPrompts = [
     "Кои артикли се бараат?",
     "Кои се понудувачите и нивните цени?",
@@ -509,7 +546,7 @@ export default function EPazarDetailPage() {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -557,6 +594,44 @@ export default function EPazarDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Users className="h-5 w-5 text-indigo-500" />
+                <div>
+                  <p className="text-sm text-gray-500">Competition</p>
+                  <p className="font-medium">
+                    {tender.offers && tender.offers.length > 0 ? (
+                      <>
+                        {tender.offers.length} {tender.offers.length === 1 ? 'offer' : 'offers'}
+                      </>
+                    ) : (
+                      'N/A'
+                    )}
+                  </p>
+                  {priceIntelligence && (
+                    <Badge
+                      variant="outline"
+                      className={`mt-1 text-xs ${
+                        priceIntelligence.competition_level === 'high'
+                          ? 'bg-red-50 text-red-700 border-red-200'
+                          : priceIntelligence.competition_level === 'medium'
+                          ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                          : 'bg-green-50 text-green-700 border-green-200'
+                      }`}
+                    >
+                      {priceIntelligence.competition_level === 'high'
+                        ? 'High'
+                        : priceIntelligence.competition_level === 'medium'
+                        ? 'Medium'
+                        : 'Low'}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* AI Summary */}
@@ -589,6 +664,91 @@ export default function EPazarDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Price Intelligence */}
+        {priceIntelligenceLoading ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="animate-pulse space-y-4">
+                <div className="h-4 bg-gray-200 rounded w-3/4" />
+                <div className="h-20 bg-gray-200 rounded" />
+              </div>
+            </CardContent>
+          </Card>
+        ) : priceIntelligence ? (
+          <PriceIntelligenceCard data={priceIntelligence} showProductName={true} />
+        ) : null}
+
+        {/* Similar Tenders */}
+        {similarTendersLoading ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Слични Тендери</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="animate-pulse space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-16 bg-gray-200 rounded" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : similarTenders.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-blue-500" />
+                Слични Тендери
+              </CardTitle>
+              <CardDescription>
+                Тендери со слични производи или услуги
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {similarTenders.map((similar: any) => (
+                  <Link
+                    key={similar.tender_id}
+                    href={`/epazar/${encodeURIComponent(similar.tender_id)}`}
+                  >
+                    <Card className="hover:border-primary/50 hover:shadow-md transition-all cursor-pointer">
+                      <CardContent className="pt-4">
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1">
+                            <h4 className="font-medium line-clamp-2 mb-1">{similar.title}</h4>
+                            {similar.contracting_authority && (
+                              <p className="text-xs text-gray-500 flex items-center gap-1">
+                                <Building2 className="h-3 w-3" />
+                                {similar.contracting_authority}
+                              </p>
+                            )}
+                            {similar.match_reason && (
+                              <p className="text-xs text-primary mt-1">
+                                {similar.match_reason}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            {similar.estimated_value_mkd && (
+                              <p className="font-semibold text-sm">
+                                {formatCurrency(similar.estimated_value_mkd)}
+                              </p>
+                            )}
+                            {similar.similarity_score && (
+                              <Badge variant="outline" className="text-xs mt-1">
+                                {(similar.similarity_score * 100).toFixed(0)}% сличност
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Quick Actions for AI Chat */}
         <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">

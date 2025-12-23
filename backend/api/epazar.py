@@ -1001,6 +1001,367 @@ async def analyze_supplier(
 
 
 # ============================================================================
+# BUYER/INSTITUTION PROFILES
+# ============================================================================
+
+@router.get("/buyers", response_model=dict)
+async def get_epazar_buyers(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Search buyer name"),
+    min_tenders: Optional[int] = Query(None, description="Minimum tender count"),
+    sort_by: str = Query("total_value_mkd", description="Sort field: total_value_mkd, total_tenders, avg_tender_value"),
+    sort_order: str = Query("desc", description="Sort order: asc or desc"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get list of e-Pazar buyers/institutions with statistics.
+
+    Returns aggregated buyer profiles showing total tenders, spending, and preferred suppliers.
+    """
+    try:
+        conditions = []
+        params = {}
+
+        if search:
+            conditions.append("contracting_authority ILIKE :search")
+            params['search'] = f"%{search}%"
+
+        if min_tenders is not None:
+            conditions.append("tender_count >= :min_tenders")
+            params['min_tenders'] = min_tenders
+
+        where_clause = " AND " + " AND ".join(conditions) if conditions else ""
+
+        # Validate sort field
+        valid_sort_fields = ['total_value_mkd', 'total_tenders', 'avg_tender_value']
+        if sort_by not in valid_sort_fields:
+            sort_by = 'total_value_mkd'
+
+        sort_direction = 'DESC' if sort_order.lower() == 'desc' else 'ASC'
+
+        # Build aggregated query for buyers
+        base_query = f"""
+            WITH buyer_stats AS (
+                SELECT
+                    contracting_authority,
+                    COUNT(*) as tender_count,
+                    COALESCE(SUM(awarded_value_mkd), 0) as total_value,
+                    COALESCE(AVG(awarded_value_mkd), 0) as avg_value
+                FROM epazar_tenders
+                WHERE contracting_authority IS NOT NULL
+                  AND contracting_authority != ''
+                GROUP BY contracting_authority
+                HAVING COUNT(*) > 0 {where_clause}
+            )
+            SELECT
+                contracting_authority,
+                tender_count as total_tenders,
+                total_value as total_value_mkd,
+                avg_value as avg_tender_value_mkd
+            FROM buyer_stats
+        """
+
+        # Map sort fields
+        sort_field_map = {
+            'total_value_mkd': 'total_value',
+            'total_tenders': 'tender_count',
+            'avg_tender_value': 'avg_value'
+        }
+        actual_sort_field = sort_field_map.get(sort_by, 'total_value')
+
+        # Get total count
+        count_query = f"""
+            WITH buyer_stats AS (
+                SELECT
+                    contracting_authority,
+                    COUNT(*) as tender_count
+                FROM epazar_tenders
+                WHERE contracting_authority IS NOT NULL
+                  AND contracting_authority != ''
+                GROUP BY contracting_authority
+                HAVING COUNT(*) > 0 {where_clause}
+            )
+            SELECT COUNT(*) FROM buyer_stats
+        """
+
+        count_result = await db.execute(text(count_query), params)
+        total = count_result.scalar()
+
+        # Get paginated results
+        offset = (page - 1) * page_size
+        params['limit'] = page_size
+        params['offset'] = offset
+
+        query_str = f"""
+            {base_query}
+            ORDER BY {actual_sort_field} {sort_direction} NULLS LAST
+            LIMIT :limit OFFSET :offset
+        """
+
+        result = await db.execute(text(query_str), params)
+        buyer_rows = result.fetchall()
+
+        # For each buyer, get preferred suppliers and main categories
+        buyers = []
+        for row in buyer_rows:
+            buyer_name = row.contracting_authority
+
+            # Get top 2 preferred suppliers (by contract count)
+            suppliers_result = await db.execute(
+                text("""
+                    SELECT o.supplier_name, COUNT(*) as contract_count
+                    FROM epazar_offers o
+                    JOIN epazar_tenders t ON o.tender_id = t.tender_id
+                    WHERE t.contracting_authority = :buyer_name
+                      AND o.is_winner = TRUE
+                      AND o.supplier_name IS NOT NULL
+                    GROUP BY o.supplier_name
+                    ORDER BY contract_count DESC
+                    LIMIT 2
+                """),
+                {'buyer_name': buyer_name}
+            )
+            preferred_suppliers = [s.supplier_name for s in suppliers_result.fetchall()]
+
+            # Get main categories (top 3)
+            categories_result = await db.execute(
+                text("""
+                    SELECT category, COUNT(*) as count
+                    FROM epazar_tenders
+                    WHERE contracting_authority = :buyer_name
+                      AND category IS NOT NULL
+                    GROUP BY category
+                    ORDER BY count DESC
+                    LIMIT 3
+                """),
+                {'buyer_name': buyer_name}
+            )
+            main_categories = [c.category for c in categories_result.fetchall()]
+
+            buyers.append({
+                'name': buyer_name,
+                'total_tenders': row.total_tenders,
+                'total_value_mkd': float(row.total_value_mkd),
+                'avg_tender_value_mkd': round(float(row.avg_tender_value_mkd), 2),
+                'preferred_suppliers': preferred_suppliers,
+                'main_categories': main_categories
+            })
+
+        return {
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'buyers': buyers
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching e-Pazar buyers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/buyers/{buyer_name}", response_model=dict)
+async def get_epazar_buyer_profile(
+    buyer_name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get detailed profile for a specific e-Pazar buyer/institution.
+
+    Returns comprehensive statistics including spending patterns, supplier relationships,
+    category breakdown, and recent activity.
+    """
+    try:
+        # Get basic stats
+        stats_result = await db.execute(
+            text("""
+                SELECT
+                    COUNT(*) as total_tenders,
+                    COALESCE(SUM(awarded_value_mkd), 0) as total_value,
+                    COALESCE(AVG(awarded_value_mkd), 0) as avg_tender_value,
+                    MIN(publication_date) as first_tender_date,
+                    MAX(publication_date) as last_tender_date
+                FROM epazar_tenders
+                WHERE contracting_authority = :buyer_name
+            """),
+            {'buyer_name': buyer_name}
+        )
+        stats = stats_result.fetchone()
+
+        if not stats or stats.total_tenders == 0:
+            raise HTTPException(status_code=404, detail="Buyer not found")
+
+        # Get average offers per tender
+        offers_stats_result = await db.execute(
+            text("""
+                SELECT AVG(offer_count) as avg_offers
+                FROM (
+                    SELECT t.tender_id, COUNT(o.offer_id) as offer_count
+                    FROM epazar_tenders t
+                    LEFT JOIN epazar_offers o ON t.tender_id = o.tender_id
+                    WHERE t.contracting_authority = :buyer_name
+                    GROUP BY t.tender_id
+                ) offer_counts
+            """),
+            {'buyer_name': buyer_name}
+        )
+        avg_offers = offers_stats_result.scalar() or 0
+
+        # Calculate average discount (estimated vs awarded)
+        discount_result = await db.execute(
+            text("""
+                SELECT AVG(
+                    CASE
+                        WHEN estimated_value_mkd > 0 AND awarded_value_mkd IS NOT NULL
+                        THEN (estimated_value_mkd - awarded_value_mkd) / estimated_value_mkd * 100
+                        ELSE 0
+                    END
+                ) as avg_discount
+                FROM epazar_tenders
+                WHERE contracting_authority = :buyer_name
+                  AND estimated_value_mkd > 0
+                  AND awarded_value_mkd IS NOT NULL
+            """),
+            {'buyer_name': buyer_name}
+        )
+        avg_discount = discount_result.scalar() or 0
+
+        # Get top suppliers (by contract count and value)
+        suppliers_result = await db.execute(
+            text("""
+                SELECT
+                    o.supplier_name,
+                    COUNT(*) as contract_count,
+                    COALESCE(SUM(t.awarded_value_mkd), 0) as total_value,
+                    COALESCE(AVG(t.awarded_value_mkd), 0) as avg_value
+                FROM epazar_offers o
+                JOIN epazar_tenders t ON o.tender_id = t.tender_id
+                WHERE t.contracting_authority = :buyer_name
+                  AND o.is_winner = TRUE
+                  AND o.supplier_name IS NOT NULL
+                GROUP BY o.supplier_name
+                ORDER BY contract_count DESC, total_value DESC
+                LIMIT 10
+            """),
+            {'buyer_name': buyer_name}
+        )
+        top_suppliers = [
+            {
+                'supplier_name': row.supplier_name,
+                'contract_count': row.contract_count,
+                'total_value_mkd': float(row.total_value),
+                'avg_value_mkd': round(float(row.avg_value), 2)
+            }
+            for row in suppliers_result.fetchall()
+        ]
+
+        # Get recent tenders (last 10)
+        recent_result = await db.execute(
+            text("""
+                SELECT
+                    tender_id,
+                    title,
+                    status,
+                    publication_date,
+                    closing_date,
+                    estimated_value_mkd,
+                    awarded_value_mkd,
+                    category
+                FROM epazar_tenders
+                WHERE contracting_authority = :buyer_name
+                ORDER BY publication_date DESC NULLS LAST
+                LIMIT 10
+            """),
+            {'buyer_name': buyer_name}
+        )
+        recent_tenders = [
+            {
+                'tender_id': row.tender_id,
+                'title': row.title,
+                'status': row.status,
+                'publication_date': row.publication_date.isoformat() if row.publication_date else None,
+                'closing_date': row.closing_date.isoformat() if row.closing_date else None,
+                'estimated_value_mkd': float(row.estimated_value_mkd) if row.estimated_value_mkd else None,
+                'awarded_value_mkd': float(row.awarded_value_mkd) if row.awarded_value_mkd else None,
+                'category': row.category
+            }
+            for row in recent_result.fetchall()
+        ]
+
+        # Get category breakdown
+        categories_result = await db.execute(
+            text("""
+                SELECT
+                    category,
+                    COUNT(*) as tender_count,
+                    COALESCE(SUM(awarded_value_mkd), 0) as total_value
+                FROM epazar_tenders
+                WHERE contracting_authority = :buyer_name
+                  AND category IS NOT NULL
+                GROUP BY category
+                ORDER BY tender_count DESC
+                LIMIT 10
+            """),
+            {'buyer_name': buyer_name}
+        )
+        category_breakdown = [
+            {
+                'category': row.category,
+                'tender_count': row.tender_count,
+                'total_value_mkd': float(row.total_value)
+            }
+            for row in categories_result.fetchall()
+        ]
+
+        # Get monthly spending (last 12 months)
+        monthly_result = await db.execute(
+            text("""
+                SELECT
+                    date_trunc('month', publication_date) as month,
+                    COUNT(*) as tender_count,
+                    COALESCE(SUM(awarded_value_mkd), 0) as total_spending
+                FROM epazar_tenders
+                WHERE contracting_authority = :buyer_name
+                  AND publication_date >= NOW() - INTERVAL '12 months'
+                GROUP BY date_trunc('month', publication_date)
+                ORDER BY month DESC
+            """),
+            {'buyer_name': buyer_name}
+        )
+        monthly_spending = [
+            {
+                'month': row.month.strftime('%Y-%m') if row.month else None,
+                'tender_count': row.tender_count,
+                'total_spending_mkd': float(row.total_spending)
+            }
+            for row in monthly_result.fetchall()
+        ]
+
+        return {
+            'name': buyer_name,
+            'stats': {
+                'total_tenders': stats.total_tenders,
+                'total_value_mkd': float(stats.total_value),
+                'avg_tender_value': round(float(stats.avg_tender_value), 2),
+                'avg_offers_per_tender': round(float(avg_offers), 2),
+                'avg_discount_awarded': round(float(avg_discount), 2),
+                'first_tender_date': stats.first_tender_date.isoformat() if stats.first_tender_date else None,
+                'last_tender_date': stats.last_tender_date.isoformat() if stats.last_tender_date else None
+            },
+            'top_suppliers': top_suppliers,
+            'recent_tenders': recent_tenders,
+            'category_breakdown': category_breakdown,
+            'monthly_spending': monthly_spending
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching buyer profile for {buyer_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # ITEM PRICE HISTORY
 # ============================================================================
 
@@ -1116,6 +1477,207 @@ async def get_epazar_item_price_history(
 # ============================================================================
 # SUPPLIER DETAILED STATS
 # ============================================================================
+
+@router.get("/tenders/{tender_id}/similar")
+async def get_similar_epazar_tenders(
+    tender_id: str,
+    limit: int = Query(10, ge=1, le=50, description="Number of similar tenders to return"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get similar past e-Pazar tenders based on:
+    1. Same contracting_authority
+    2. Similar item names (text similarity)
+    3. Same category
+
+    Returns similar tenders with insights for competitive bidding strategy.
+    """
+    try:
+        # Get current tender with items
+        current_tender_query = text("""
+            SELECT t.*,
+                   ARRAY_AGG(DISTINCT i.item_name) FILTER (WHERE i.item_name IS NOT NULL) as item_names
+            FROM epazar_tenders t
+            LEFT JOIN epazar_items i ON t.tender_id = i.tender_id
+            WHERE t.tender_id = :tender_id
+            GROUP BY t.tender_id
+        """)
+        current_result = await db.execute(current_tender_query, {'tender_id': tender_id})
+        current_tender = current_result.fetchone()
+
+        if not current_tender:
+            raise HTTPException(status_code=404, detail="Tender not found")
+
+        # Build similarity query
+        # Priority: 1) Same authority + similar items, 2) Same authority + same category, 3) Similar items
+        similar_query = text("""
+            WITH current_tender_items AS (
+                SELECT item_name
+                FROM epazar_items
+                WHERE tender_id = :tender_id
+            ),
+            similar_tenders AS (
+                SELECT DISTINCT ON (t.tender_id)
+                    t.tender_id,
+                    t.title,
+                    t.contracting_authority,
+                    t.category,
+                    t.estimated_value_mkd,
+                    t.awarded_value_mkd,
+                    t.closing_date,
+                    t.award_date,
+                    t.status,
+                    -- Similarity scoring
+                    CASE
+                        WHEN t.contracting_authority = :authority THEN 100
+                        ELSE 0
+                    END +
+                    CASE
+                        WHEN t.category = :category THEN 50
+                        ELSE 0
+                    END +
+                    CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM epazar_items i2
+                            WHERE i2.tender_id = t.tender_id
+                            AND EXISTS (
+                                SELECT 1 FROM current_tender_items cti
+                                WHERE similarity(i2.item_name, cti.item_name) > 0.3
+                            )
+                        ) THEN 30
+                        ELSE 0
+                    END as similarity_score,
+                    -- Get winning offer details
+                    (SELECT supplier_name FROM epazar_offers WHERE tender_id = t.tender_id AND is_winner = TRUE LIMIT 1) as winner,
+                    (SELECT COUNT(*) FROM epazar_offers WHERE tender_id = t.tender_id) as num_offers,
+                    -- Calculate discount
+                    CASE
+                        WHEN t.estimated_value_mkd > 0 AND t.awarded_value_mkd IS NOT NULL
+                        THEN ROUND(((t.estimated_value_mkd - t.awarded_value_mkd) / t.estimated_value_mkd * 100)::numeric, 2)
+                        ELSE NULL
+                    END as discount_percent
+                FROM epazar_tenders t
+                WHERE t.tender_id != :tender_id
+                    AND t.status IN ('awarded', 'closed')
+                    AND t.awarded_value_mkd IS NOT NULL
+                    AND (
+                        t.contracting_authority = :authority
+                        OR t.category = :category
+                        OR EXISTS (
+                            SELECT 1 FROM epazar_items i
+                            WHERE i.tender_id = t.tender_id
+                            AND EXISTS (
+                                SELECT 1 FROM current_tender_items cti
+                                WHERE i.item_name ILIKE '%' || cti.item_name || '%'
+                                   OR cti.item_name ILIKE '%' || i.item_name || '%'
+                                   OR similarity(i.item_name, cti.item_name) > 0.3
+                            )
+                        )
+                    )
+                ORDER BY t.tender_id, similarity_score DESC
+            )
+            SELECT * FROM similar_tenders
+            WHERE similarity_score > 0
+            ORDER BY similarity_score DESC, closing_date DESC NULLS LAST
+            LIMIT :limit
+        """)
+
+        similar_result = await db.execute(similar_query, {
+            'tender_id': tender_id,
+            'authority': current_tender.contracting_authority,
+            'category': current_tender.category,
+            'limit': limit
+        })
+        similar_rows = similar_result.fetchall()
+
+        # Build similar tenders list with similarity reasons
+        similar_tenders = []
+        for row in similar_rows:
+            similarity_reasons = []
+            if row.contracting_authority == current_tender.contracting_authority:
+                similarity_reasons.append("Same buyer")
+            if row.category == current_tender.category:
+                similarity_reasons.append("Same category")
+            if row.similarity_score >= 30:  # Has item similarity
+                similarity_reasons.append("Similar items")
+
+            similar_tenders.append({
+                "tender_id": row.tender_id,
+                "title": row.title,
+                "contracting_authority": row.contracting_authority,
+                "category": row.category,
+                "estimated_value_mkd": float(row.estimated_value_mkd) if row.estimated_value_mkd else None,
+                "awarded_value_mkd": float(row.awarded_value_mkd) if row.awarded_value_mkd else None,
+                "winner": row.winner,
+                "discount_percent": float(row.discount_percent) if row.discount_percent else None,
+                "num_offers": row.num_offers or 0,
+                "closing_date": row.closing_date.isoformat() if row.closing_date else None,
+                "award_date": row.award_date.isoformat() if row.award_date else None,
+                "similarity_score": row.similarity_score,
+                "similarity_reason": ", ".join(similarity_reasons)
+            })
+
+        # Calculate insights from similar tenders
+        discounts = [t["discount_percent"] for t in similar_tenders if t["discount_percent"] is not None]
+        num_bidders = [t["num_offers"] for t in similar_tenders if t["num_offers"] > 0]
+        awarded_values = [t["awarded_value_mkd"] for t in similar_tenders if t["awarded_value_mkd"] is not None]
+
+        avg_discount = sum(discounts) / len(discounts) if discounts else 0
+        avg_bidders = sum(num_bidders) / len(num_bidders) if num_bidders else 0
+
+        # Estimate bid range based on current tender value and average discount
+        estimated_value = float(current_tender.estimated_value_mkd) if current_tender.estimated_value_mkd else None
+        recommended_min = None
+        recommended_max = None
+
+        if estimated_value and avg_discount:
+            # Apply average discount range
+            recommended_max = estimated_value * (1 - (avg_discount - 5) / 100)
+            recommended_min = estimated_value * (1 - (avg_discount + 5) / 100)
+        elif awarded_values:
+            # Use historical values if available
+            recommended_min = min(awarded_values)
+            recommended_max = max(awarded_values)
+
+        # Determine win probability based on market competition
+        win_probability = "low"
+        if avg_bidders < 3:
+            win_probability = "high"
+        elif avg_bidders < 5:
+            win_probability = "medium"
+
+        insights = {
+            "avg_winning_discount": round(avg_discount, 2) if discounts else None,
+            "avg_num_bidders": round(avg_bidders, 1) if num_bidders else None,
+            "recommended_bid_range": [
+                round(recommended_min, 2) if recommended_min else None,
+                round(recommended_max, 2) if recommended_max else None
+            ] if recommended_min and recommended_max else None,
+            "win_probability_estimate": win_probability,
+            "similar_tenders_count": len(similar_tenders),
+            "same_buyer_count": sum(1 for t in similar_tenders if "Same buyer" in t["similarity_reason"])
+        }
+
+        return {
+            "current_tender": {
+                "tender_id": current_tender.tender_id,
+                "title": current_tender.title,
+                "contracting_authority": current_tender.contracting_authority,
+                "category": current_tender.category,
+                "estimated_value_mkd": float(current_tender.estimated_value_mkd) if current_tender.estimated_value_mkd else None,
+                "closing_date": current_tender.closing_date.isoformat() if current_tender.closing_date else None,
+                "status": current_tender.status
+            },
+            "similar_tenders": similar_tenders,
+            "insights": insights
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error finding similar tenders for {tender_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/suppliers/{supplier_id}/stats")
 async def get_epazar_supplier_stats(
@@ -1287,4 +1849,402 @@ async def get_epazar_supplier_stats(
         raise
     except Exception as e:
         logger.error(f"Error fetching stats for supplier {supplier_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# PRICE INTELLIGENCE ENDPOINT
+# ============================================================================
+
+@router.get("/price-intelligence")
+async def get_price_intelligence(
+    search: str = Query(..., description="Item name to search"),
+    category: Optional[str] = Query(None, description="Optional category filter"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get comprehensive price intelligence for e-Pazar items.
+
+    Returns:
+    - Price statistics (min, max, avg, median, winning average)
+    - Recommended bid range (5-10% below average winning price)
+    - Price trend (rising, falling, stable) based on 3-month comparison
+    - Competition level (high, medium, low) based on average offers per tender
+    - Typical discount percentage vs estimated price
+    - Total tenders and quantity metrics
+
+    Example usage:
+    GET /api/epazar/price-intelligence?search=хартија А4
+    GET /api/epazar/price-intelligence?search=лаптоп&category=IT опрема
+    """
+    try:
+        # Build base query parameters
+        params = {'search': f"%{search}%"}
+        category_filter = ""
+
+        if category:
+            category_filter = " AND t.category ILIKE :category"
+            params['category'] = f"%{category}%"
+
+        # Main price query - get all relevant item prices from offers
+        price_query = text(f"""
+            WITH item_prices AS (
+                SELECT
+                    i.item_id,
+                    i.item_name,
+                    i.unit,
+                    i.estimated_unit_price_mkd as estimated_price,
+                    i.quantity,
+                    t.tender_id,
+                    t.closing_date,
+                    t.category,
+                    oi.unit_price_mkd as offer_price,
+                    o.is_winner,
+                    o.offer_date,
+                    EXTRACT(EPOCH FROM (NOW() - t.closing_date)) / 86400 as days_ago
+                FROM epazar_items i
+                JOIN epazar_tenders t ON i.tender_id = t.tender_id
+                LEFT JOIN epazar_offer_items oi ON i.item_id = oi.item_id
+                LEFT JOIN epazar_offers o ON oi.offer_id = o.offer_id
+                WHERE i.item_name ILIKE :search
+                  AND i.estimated_unit_price_mkd > 0
+                  {category_filter}
+                  AND t.closing_date IS NOT NULL
+            ),
+            price_stats AS (
+                SELECT
+                    COUNT(DISTINCT tender_id) as total_tenders,
+                    COUNT(DISTINCT item_id) as total_items,
+                    SUM(quantity) as total_quantity,
+                    MIN(estimated_price) as min_estimated,
+                    MAX(estimated_price) as max_estimated,
+                    AVG(estimated_price) as avg_estimated,
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY estimated_price) as median_estimated,
+                    MIN(offer_price) FILTER (WHERE offer_price > 0) as min_offer,
+                    MAX(offer_price) FILTER (WHERE offer_price > 0) as max_offer,
+                    AVG(offer_price) FILTER (WHERE offer_price > 0) as avg_offer,
+                    AVG(offer_price) FILTER (WHERE is_winner = TRUE AND offer_price > 0) as avg_winning,
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY offer_price) FILTER (WHERE offer_price > 0) as median_offer,
+                    COUNT(DISTINCT item_id) FILTER (WHERE offer_price > 0) as items_with_offers,
+                    COUNT(offer_price) FILTER (WHERE offer_price > 0) as total_offers,
+                    COUNT(offer_price) FILTER (WHERE is_winner = TRUE) as total_wins
+                FROM item_prices
+            ),
+            recent_prices AS (
+                SELECT AVG(offer_price) as recent_avg
+                FROM item_prices
+                WHERE offer_price > 0
+                  AND closing_date >= NOW() - INTERVAL '3 months'
+            ),
+            older_prices AS (
+                SELECT AVG(offer_price) as older_avg
+                FROM item_prices
+                WHERE offer_price > 0
+                  AND closing_date >= NOW() - INTERVAL '6 months'
+                  AND closing_date < NOW() - INTERVAL '3 months'
+            ),
+            competition_stats AS (
+                SELECT
+                    tender_id,
+                    COUNT(DISTINCT offer_price) as offers_per_tender
+                FROM item_prices
+                WHERE offer_price > 0
+                GROUP BY tender_id
+            )
+            SELECT
+                ps.*,
+                rp.recent_avg,
+                op.older_avg,
+                AVG(cs.offers_per_tender) as avg_offers_per_tender
+            FROM price_stats ps
+            CROSS JOIN recent_prices rp
+            CROSS JOIN older_prices op
+            LEFT JOIN competition_stats cs ON TRUE
+            GROUP BY ps.total_tenders, ps.total_items, ps.total_quantity,
+                     ps.min_estimated, ps.max_estimated, ps.avg_estimated, ps.median_estimated,
+                     ps.min_offer, ps.max_offer, ps.avg_offer, ps.avg_winning, ps.median_offer,
+                     ps.items_with_offers, ps.total_offers, ps.total_wins,
+                     rp.recent_avg, op.older_avg
+        """)
+
+        result = await db.execute(price_query, params)
+        stats = result.fetchone()
+
+        if not stats or stats.total_tenders == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No price data found for item '{search}'"
+            )
+
+        # Calculate price statistics
+        min_price = float(stats.min_offer) if stats.min_offer else float(stats.min_estimated)
+        max_price = float(stats.max_offer) if stats.max_offer else float(stats.max_estimated)
+        avg_price = float(stats.avg_offer) if stats.avg_offer else float(stats.avg_estimated)
+        median_price = float(stats.median_offer) if stats.median_offer else float(stats.median_estimated)
+        winning_avg = float(stats.avg_winning) if stats.avg_winning else avg_price
+
+        # Calculate recommended bid range (5-10% below winning average)
+        recommended_bid_low = round(winning_avg * 0.90, 2)
+        recommended_bid_high = round(winning_avg * 0.95, 2)
+
+        # Determine price trend
+        trend = "stable"
+        if stats.recent_avg and stats.older_avg:
+            recent = float(stats.recent_avg)
+            older = float(stats.older_avg)
+            if recent > older * 1.10:
+                trend = "rising"
+            elif recent < older * 0.90:
+                trend = "falling"
+
+        # Determine competition level based on average offers per tender
+        avg_offers = float(stats.avg_offers_per_tender) if stats.avg_offers_per_tender else 1
+        if avg_offers >= 5:
+            competition_level = "high"
+        elif avg_offers >= 2:
+            competition_level = "medium"
+        else:
+            competition_level = "low"
+
+        # Calculate typical discount percentage (winning price vs estimated)
+        if stats.avg_winning and stats.avg_estimated:
+            typical_discount_percent = round(
+                ((float(stats.avg_estimated) - float(stats.avg_winning)) / float(stats.avg_estimated)) * 100,
+                1
+            )
+        else:
+            typical_discount_percent = 0.0
+
+        # Get sample item name from actual data for response
+        sample_query = text(f"""
+            SELECT item_name
+            FROM epazar_items
+            WHERE item_name ILIKE :search
+            LIMIT 1
+        """)
+        sample_result = await db.execute(sample_query, params)
+        sample_row = sample_result.fetchone()
+        item_name = sample_row.item_name if sample_row else search
+
+        return {
+            "item_name": item_name,
+            "price_stats": {
+                "min_price": round(min_price, 2),
+                "max_price": round(max_price, 2),
+                "avg_price": round(avg_price, 2),
+                "median_price": round(median_price, 2),
+                "winning_avg": round(winning_avg, 2),
+                "recommended_bid_low": recommended_bid_low,
+                "recommended_bid_high": recommended_bid_high
+            },
+            "trend": trend,
+            "competition_level": competition_level,
+            "typical_discount_percent": typical_discount_percent,
+            "total_tenders": stats.total_tenders,
+            "total_quantity": float(stats.total_quantity) if stats.total_quantity else 0,
+            "data_points": {
+                "items_analyzed": stats.total_items,
+                "offers_received": stats.total_offers or 0,
+                "avg_offers_per_tender": round(avg_offers, 1)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting price intelligence for '{search}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# SUPPLIER RANKINGS ENDPOINT
+# ============================================================================
+
+@router.get("/supplier-rankings")
+async def get_supplier_rankings(
+    category: Optional[str] = Query(None, description="Filter by category"),
+    limit: int = Query(20, ge=1, le=100, description="Number of results (default 20)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get supplier rankings for e-Pazar marketplace.
+
+    Returns top suppliers ranked by total wins, with performance metrics including:
+    - Total wins and offers
+    - Win rate percentage
+    - Total contract value
+    - Average discount vs estimated value
+    - Main categories they operate in
+    - Top buyers they work with
+    """
+    try:
+        # Build WHERE clause for category filter
+        category_filter = ""
+        params = {'limit': limit}
+
+        if category:
+            category_filter = "AND t.category ILIKE :category"
+            params['category'] = f"%{category}%"
+
+        # Main query to get supplier rankings
+        rankings_query = text(f"""
+            WITH supplier_wins AS (
+                SELECT
+                    o.supplier_name,
+                    COUNT(*) as total_offers,
+                    COUNT(*) FILTER (WHERE o.is_winner = TRUE) as total_wins,
+                    CASE
+                        WHEN COUNT(*) > 0
+                        THEN (COUNT(*) FILTER (WHERE o.is_winner = TRUE)::NUMERIC / COUNT(*)::NUMERIC * 100)
+                        ELSE 0
+                    END as win_rate,
+                    COALESCE(SUM(o.total_bid_mkd) FILTER (WHERE o.is_winner = TRUE), 0) as total_contract_value_mkd,
+                    -- Calculate average discount (estimated - winning bid) / estimated * 100
+                    AVG(
+                        CASE
+                            WHEN o.is_winner = TRUE AND t.estimated_value_mkd > 0
+                            THEN ((t.estimated_value_mkd - o.total_bid_mkd) / t.estimated_value_mkd * 100)
+                            ELSE NULL
+                        END
+                    ) as avg_discount_percent
+                FROM epazar_offers o
+                JOIN epazar_tenders t ON o.tender_id = t.tender_id
+                WHERE 1=1 {category_filter}
+                GROUP BY o.supplier_name
+                HAVING COUNT(*) FILTER (WHERE o.is_winner = TRUE) > 0
+            ),
+            supplier_categories AS (
+                SELECT
+                    o.supplier_name,
+                    array_agg(DISTINCT t.category ORDER BY t.category)
+                        FILTER (WHERE t.category IS NOT NULL) as categories,
+                    -- Get top categories by win count
+                    (
+                        SELECT json_agg(cat_stats ORDER BY wins DESC)
+                        FROM (
+                            SELECT
+                                t2.category,
+                                COUNT(*) FILTER (WHERE o2.is_winner = TRUE) as wins
+                            FROM epazar_offers o2
+                            JOIN epazar_tenders t2 ON o2.tender_id = t2.tender_id
+                            WHERE o2.supplier_name = o.supplier_name
+                                AND o2.is_winner = TRUE
+                                AND t2.category IS NOT NULL
+                            GROUP BY t2.category
+                            ORDER BY wins DESC
+                            LIMIT 3
+                        ) cat_stats
+                    ) as top_categories_json
+                FROM epazar_offers o
+                JOIN epazar_tenders t ON o.tender_id = t.tender_id
+                WHERE 1=1 {category_filter}
+                GROUP BY o.supplier_name
+            ),
+            supplier_buyers AS (
+                SELECT
+                    o.supplier_name,
+                    -- Get top buyers by contract count
+                    (
+                        SELECT json_agg(buyer_stats ORDER BY contracts DESC)
+                        FROM (
+                            SELECT
+                                t2.contracting_authority as buyer,
+                                COUNT(*) as contracts,
+                                COALESCE(SUM(o2.total_bid_mkd), 0) as total_value
+                            FROM epazar_offers o2
+                            JOIN epazar_tenders t2 ON o2.tender_id = t2.tender_id
+                            WHERE o2.supplier_name = o.supplier_name
+                                AND o2.is_winner = TRUE
+                                AND t2.contracting_authority IS NOT NULL
+                            GROUP BY t2.contracting_authority
+                            ORDER BY contracts DESC
+                            LIMIT 5
+                        ) buyer_stats
+                    ) as top_buyers_json
+                FROM epazar_offers o
+                JOIN epazar_tenders t ON o.tender_id = t.tender_id
+                WHERE 1=1 {category_filter}
+                GROUP BY o.supplier_name
+            )
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY sw.total_wins DESC, sw.total_contract_value_mkd DESC) as rank,
+                sw.supplier_name,
+                sw.total_wins,
+                sw.total_offers,
+                sw.win_rate,
+                sw.total_contract_value_mkd,
+                sw.avg_discount_percent,
+                COALESCE(sc.categories, ARRAY[]::text[]) as main_categories,
+                COALESCE(sb.top_buyers_json, '[]'::json) as top_buyers_json
+            FROM supplier_wins sw
+            LEFT JOIN supplier_categories sc ON sw.supplier_name = sc.supplier_name
+            LEFT JOIN supplier_buyers sb ON sw.supplier_name = sb.supplier_name
+            ORDER BY sw.total_wins DESC, sw.total_contract_value_mkd DESC
+            LIMIT :limit
+        """)
+
+        result = await db.execute(rankings_query, params)
+        rankings_rows = result.fetchall()
+
+        # Build rankings response
+        rankings = []
+        for row in rankings_rows:
+            # Parse top buyers JSON
+            top_buyers_data = row.top_buyers_json if row.top_buyers_json else []
+            top_buyers = [buyer['buyer'] for buyer in top_buyers_data] if top_buyers_data else []
+
+            rankings.append({
+                "rank": row.rank,
+                "supplier_name": row.supplier_name,
+                "total_wins": row.total_wins,
+                "total_offers": row.total_offers,
+                "win_rate": round(float(row.win_rate), 1),
+                "total_contract_value_mkd": float(row.total_contract_value_mkd),
+                "avg_discount_percent": round(float(row.avg_discount_percent), 1) if row.avg_discount_percent else 0.0,
+                "main_categories": list(row.main_categories) if row.main_categories else [],
+                "top_buyers": top_buyers
+            })
+
+        # Calculate market stats
+        market_stats_query = text(f"""
+            SELECT
+                COUNT(DISTINCT supplier_name) as total_suppliers,
+                AVG(
+                    CASE
+                        WHEN total_offers > 0
+                        THEN (total_wins::NUMERIC / total_offers::NUMERIC * 100)
+                        ELSE 0
+                    END
+                ) as avg_win_rate,
+                COALESCE(SUM(total_contract_value), 0) as total_market_value_mkd
+            FROM (
+                SELECT
+                    o.supplier_name,
+                    COUNT(*) as total_offers,
+                    COUNT(*) FILTER (WHERE o.is_winner = TRUE) as total_wins,
+                    COALESCE(SUM(o.total_bid_mkd) FILTER (WHERE o.is_winner = TRUE), 0) as total_contract_value
+                FROM epazar_offers o
+                JOIN epazar_tenders t ON o.tender_id = t.tender_id
+                WHERE 1=1 {category_filter}
+                GROUP BY o.supplier_name
+                HAVING COUNT(*) FILTER (WHERE o.is_winner = TRUE) > 0
+            ) supplier_stats
+        """)
+
+        market_result = await db.execute(market_stats_query, params)
+        market_row = market_result.fetchone()
+
+        market_stats = {
+            "total_suppliers": market_row.total_suppliers or 0,
+            "avg_win_rate": round(float(market_row.avg_win_rate), 1) if market_row.avg_win_rate else 0.0,
+            "total_market_value_mkd": float(market_row.total_market_value_mkd) if market_row.total_market_value_mkd else 0.0
+        }
+
+        return {
+            "rankings": rankings,
+            "market_stats": market_stats
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching supplier rankings: {e}")
         raise HTTPException(status_code=500, detail=str(e))

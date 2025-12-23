@@ -15,7 +15,9 @@ import {
   TrendingUp,
   ShoppingCart,
   ExternalLink,
-  ArrowUpDown
+  ArrowUpDown,
+  Lightbulb,
+  BarChart3
 } from 'lucide-react';
 import { api, EPazarTender, EPazarStats, EPazarItemWithTender, EPazarItemAggregation } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -32,6 +34,7 @@ import {
 } from '@/components/ui/select';
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { SupplierRankings } from '@/components/epazar/SupplierRankings';
 
 function formatQuantity(qty: number | undefined | null, unit: string | undefined | null): string {
   if (!qty) return '-';
@@ -147,7 +150,7 @@ function StatsCard({
   );
 }
 
-type TabType = 'tenders' | 'products';
+type TabType = 'tenders' | 'products' | 'intelligence';
 
 export default function EPazarPage() {
   const [isHydrated, setIsHydrated] = useState(false);
@@ -178,6 +181,12 @@ export default function EPazarPage() {
   const [productsSortOrder, setProductsSortOrder] = useState('asc');
   const [productsAggregations, setProductsAggregations] = useState<EPazarItemAggregation[]>([]);
   const [hasSearchedProducts, setHasSearchedProducts] = useState(false);
+
+  // Intelligence tab state
+  const [supplierRankings, setSupplierRankings] = useState<any[]>([]);
+  const [supplierRankingsLoading, setSupplierRankingsLoading] = useState(false);
+  const [buyerStats, setBuyerStats] = useState<any[]>([]);
+  const [buyerStatsLoading, setBuyerStatsLoading] = useState(false);
 
   const pageSize = 12;
 
@@ -213,6 +222,13 @@ export default function EPazarPage() {
       loadProducts();
     }
   }, [isHydrated, productsPage, productsSortBy, productsSortOrder, activeTab]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (activeTab === 'intelligence') {
+      loadIntelligenceData();
+    }
+  }, [isHydrated, activeTab]);
 
   async function loadStats() {
     try {
@@ -295,6 +311,26 @@ export default function EPazarPage() {
     loadProducts();
   }
 
+  async function loadIntelligenceData() {
+    setSupplierRankingsLoading(true);
+    setBuyerStatsLoading(true);
+
+    try {
+      const [rankingsData, buyersData] = await Promise.all([
+        api.getEPazarSupplierRankings({ page: 1, page_size: 20 }),
+        api.getEPazarBuyerStats({ page: 1, page_size: 20 })
+      ]);
+
+      setSupplierRankings(rankingsData.suppliers);
+      setBuyerStats(buyersData.buyers);
+    } catch (err) {
+      console.error('Failed to load intelligence data:', err);
+    } finally {
+      setSupplierRankingsLoading(false);
+      setBuyerStatsLoading(false);
+    }
+  }
+
   // Wait for hydration
   if (!isHydrated) {
     return (
@@ -366,6 +402,14 @@ export default function EPazarPage() {
           >
             <Package className="h-4 w-4" />
             Производи / Ставки
+          </Button>
+          <Button
+            variant={activeTab === 'intelligence' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('intelligence')}
+            className="gap-2"
+          >
+            <Lightbulb className="h-4 w-4" />
+            Market Intelligence
           </Button>
         </div>
 
@@ -752,6 +796,98 @@ export default function EPazarPage() {
                 )}
               </>
             )}
+          </>
+        )}
+
+        {/* MARKET INTELLIGENCE TAB */}
+        {activeTab === 'intelligence' && (
+          <>
+            <Card className="border-primary/30 bg-gradient-to-br from-purple-50/50 to-blue-50/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-purple-600" />
+                  Пазарна Интелигенција
+                </CardTitle>
+                <CardDescription>
+                  Анализа на добавувачи, купувачи и пазарни трендови на е-Пазар
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            {/* Supplier Rankings */}
+            <div>
+              {supplierRankingsLoading ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="animate-pulse space-y-4">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="h-12 bg-gray-200 rounded" />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <SupplierRankings
+                  suppliers={supplierRankings}
+                  title="Топ Добавувачи"
+                  description="Рангирање според стапка на успех и вредност на договори"
+                  showCity={true}
+                />
+              )}
+            </div>
+
+            {/* Buyer Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-blue-600" />
+                  Статистика на Купувачи
+                </CardTitle>
+                <CardDescription>
+                  Активност на институции што објавуваат тендери
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {buyerStatsLoading ? (
+                  <div className="animate-pulse space-y-4">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="h-12 bg-gray-200 rounded" />
+                    ))}
+                  </div>
+                ) : buyerStats.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">Нема податоци за купувачи</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-3">Институција</th>
+                          <th className="text-right p-3">Тендери</th>
+                          <th className="text-right p-3">Вкупна Вредност</th>
+                          <th className="text-right p-3">Просечна Вредност</th>
+                          <th className="text-right p-3">Активни</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {buyerStats.map((buyer: any, idx: number) => (
+                          <tr key={buyer.buyer_id || idx} className="border-b hover:bg-muted/50">
+                            <td className="p-3 font-medium">{buyer.buyer_name}</td>
+                            <td className="text-right p-3">{buyer.total_tenders?.toLocaleString()}</td>
+                            <td className="text-right p-3 text-green-600 font-semibold">
+                              {formatCurrency(buyer.total_value_mkd)}
+                            </td>
+                            <td className="text-right p-3">{formatCurrency(buyer.avg_tender_value_mkd)}</td>
+                            <td className="text-right p-3">
+                              <Badge variant="outline">{buyer.active_tenders || 0}</Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </>
         )}
       </div>

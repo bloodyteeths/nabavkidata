@@ -1611,6 +1611,71 @@ class APIClient {
     );
   }
 
+  async getEPazarPriceIntelligence(params?: Record<string, any>) {
+    const query = new URLSearchParams(params || {}).toString();
+    return this.request<{
+      product_name: string;
+      recommended_bid_min_mkd?: number;
+      recommended_bid_max_mkd?: number;
+      market_min_mkd?: number;
+      market_max_mkd?: number;
+      market_avg_mkd?: number;
+      trend: 'up' | 'down' | 'stable';
+      trend_percentage?: number;
+      competition_level: 'low' | 'medium' | 'high';
+      sample_size: number;
+    }>(`/api/epazar/price-intelligence?${query}`);
+  }
+
+  async getEPazarSupplierRankings(params?: Record<string, any>) {
+    const query = new URLSearchParams(params || {}).toString();
+    return this.request<{
+      total: number;
+      page: number;
+      page_size: number;
+      suppliers: Array<{
+        supplier_id: string;
+        company_name: string;
+        tax_id?: string;
+        total_wins: number;
+        total_offers: number;
+        win_rate: number;
+        total_contract_value_mkd: number;
+        avg_bid_amount_mkd?: number;
+        city?: string;
+      }>;
+    }>(`/api/epazar/supplier-rankings?${query}`);
+  }
+
+  async getEPazarBuyerStats(params?: Record<string, any>) {
+    const query = new URLSearchParams(params || {}).toString();
+    return this.request<{
+      total: number;
+      page: number;
+      page_size: number;
+      buyers: Array<{
+        buyer_id: string;
+        buyer_name: string;
+        total_tenders: number;
+        total_value_mkd: number;
+        avg_tender_value_mkd: number;
+        active_tenders: number;
+        completed_tenders: number;
+        top_categories?: string[];
+      }>;
+    }>(`/api/epazar/buyers?${query}`);
+  }
+
+  async getEPazarSimilarTenders(tenderId: string, params?: Record<string, any>) {
+    const encodedId = encodeURIComponent(tenderId);
+    const query = new URLSearchParams(params || {}).toString();
+    return this.request<{
+      tender_id: string;
+      similar_tenders: Array<EPazarTender & { similarity_score?: number; match_reason?: string }>;
+      total: number;
+    }>(`/api/epazar/tenders/${encodedId}/similar?${query}`);
+  }
+
   // ============================================================================
   // TRACKED COMPETITORS
   // ============================================================================
