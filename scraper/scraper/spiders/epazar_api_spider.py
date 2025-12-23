@@ -336,14 +336,31 @@ class EPazarApiSpider(scrapy.Spider):
             items_response = json.loads(response.text)
             items_list = items_response.get('data', [])
             if items_list:
-                # Simplify items data for storage
-                items_data = [{
-                    'line_number': item.get('tenderRequirementOrderNumber', 0),
-                    'item_name': item.get('tenderProductName', ''),
-                    'item_description': item.get('tenderProductDescription', ''),
-                    'quantity': item.get('tenderProductQuantity'),
-                    'unit': item.get('tenderProductMesureUnitName', ''),
-                } for item in items_list]
+                # Extract items with brand and attribute data
+                items_data = []
+                for item in items_list:
+                    # Extract accepted brands
+                    brands = item.get('brandTenderProductRequirements', [])
+                    accepted_brands = [b.get('brandName', '') for b in brands if b.get('brandName')]
+
+                    # Extract product attributes (packaging, specifications)
+                    attributes = item.get('tenderProductAttributesJson')
+                    product_attributes = None
+                    if attributes:
+                        try:
+                            product_attributes = json.loads(attributes) if isinstance(attributes, str) else attributes
+                        except (json.JSONDecodeError, TypeError):
+                            product_attributes = {'raw': attributes}
+
+                    items_data.append({
+                        'line_number': item.get('tenderRequirementOrderNumber', 0),
+                        'item_name': item.get('tenderProductName', ''),
+                        'item_description': item.get('tenderProductDescription', ''),
+                        'quantity': item.get('tenderProductQuantity'),
+                        'unit': item.get('tenderProductMesureUnitName', ''),
+                        'accepted_brands': accepted_brands if accepted_brands else None,
+                        'product_attributes': product_attributes,
+                    })
                 logger.info(f"Found {len(items_data)} items for tender {tender_id_num}")
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse items for tender {tender_id_num}: {e}")

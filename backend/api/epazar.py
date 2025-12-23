@@ -803,7 +803,7 @@ async def get_epazar_stats(
                     (SELECT COUNT(*) FROM epazar_offers) as total_offers,
                     (SELECT COUNT(*) FROM epazar_suppliers) as total_suppliers,
                     (SELECT COUNT(*) FROM epazar_documents) as total_documents,
-                    (SELECT COALESCE(SUM(estimated_value_mkd), 0) FROM epazar_tenders) as total_value_mkd,
+                    (SELECT COALESCE(SUM(awarded_value_mkd), 0) FROM epazar_tenders WHERE awarded_value_mkd > 0) as total_value_mkd,
                     (SELECT COALESCE(SUM(awarded_value_mkd), 0) FROM epazar_tenders WHERE status = 'awarded') as awarded_value_mkd
             """)
         )

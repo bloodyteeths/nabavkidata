@@ -1224,6 +1224,8 @@ class EPazarDatabasePipeline:
             'tenders_inserted': 0,
             'tenders_updated': 0,
             'documents_inserted': 0,
+            'items_inserted': 0,
+            'offers_inserted': 0,
             'errors': 0,
         }
 
@@ -1290,6 +1292,26 @@ class EPazarDatabasePipeline:
                 docs_data = adapter.get('documents_data')
                 if docs_data:
                     await self._insert_epazar_documents(tender_id, docs_data, conn)
+
+                # Normalize items into epazar_items table
+                items_data = adapter.get('items_data')
+                if items_data:
+                    await self._insert_epazar_items(tender_id, items_data, conn)
+
+                # For signed contracts, insert the winning offer
+                winner_name = adapter.get('winner_name')
+                contract_value = adapter.get('contract_value_mkd')
+                if winner_name and contract_value:
+                    await self._insert_epazar_offer(
+                        tender_id=tender_id,
+                        supplier_name=winner_name,
+                        supplier_id=adapter.get('winner_id'),
+                        supplier_address=adapter.get('winner_address'),
+                        supplier_city=adapter.get('winner_city'),
+                        bid_amount=float(contract_value),
+                        is_winner=True,
+                        conn=conn
+                    )
 
         except Exception as e:
             logger.error(f"❌ Failed to save e-Pazar item [{tender_id}]: {e}")
@@ -1489,3 +1511,116 @@ class EPazarDatabasePipeline:
             logger.error(f"Error parsing documents JSON for {tender_id}: {e}")
         except Exception as e:
             logger.error(f"Error inserting documents for {tender_id}: {e}")
+
+    async def _insert_epazar_items(self, tender_id: str, items_data: str, conn):
+        """
+        Normalize items from JSON into epazar_items table.
+        This populates the proper normalized items table for better querying.
+        """
+        try:
+            items = json.loads(items_data) if isinstance(items_data, str) else items_data
+            if not items or not isinstance(items, list):
+                return
+
+            inserted_count = 0
+            for item in items:
+                line_number = item.get('line_number', 0)
+                item_name = item.get('item_name', '').strip()
+
+                if not item_name:
+                    continue
+
+                # Check if item already exists for this tender and line number
+                existing = await conn.fetchval(
+                    "SELECT item_id FROM epazar_items WHERE tender_id = $1 AND line_number = $2",
+                    tender_id, line_number
+                )
+
+                if not existing:
+                    # Insert new item with brand and attribute data
+                    await conn.execute("""
+                        INSERT INTO epazar_items (
+                            tender_id, line_number, item_name, item_description,
+                            quantity, unit, estimated_unit_price_mkd, estimated_total_price_mkd,
+                            accepted_brands, product_attributes
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    """,
+                        tender_id,
+                        line_number,
+                        item_name,
+                        item.get('item_description'),
+                        item.get('quantity'),
+                        item.get('unit'),
+                        item.get('estimated_unit_price_mkd'),
+                        item.get('estimated_total_price_mkd'),
+                        item.get('accepted_brands'),  # TEXT[] - list of brand names
+                        json.dumps(item.get('product_attributes')) if item.get('product_attributes') else None  # JSONB
+                    )
+                    inserted_count += 1
+                else:
+                    # Update existing item with new brand/attribute data if available
+                    brands = item.get('accepted_brands')
+                    attrs = item.get('product_attributes')
+                    if brands or attrs:
+                        await conn.execute("""
+                            UPDATE epazar_items SET
+                                accepted_brands = COALESCE($3, accepted_brands),
+                                product_attributes = COALESCE($4::jsonb, product_attributes),
+                                updated_at = NOW()
+                            WHERE tender_id = $1 AND line_number = $2
+                        """,
+                            tender_id,
+                            line_number,
+                            brands,
+                            json.dumps(attrs) if attrs else None
+                        )
+
+            if inserted_count > 0:
+                logger.info(f"✓ Inserted {inserted_count} items for tender {tender_id}")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing items JSON for {tender_id}: {e}")
+        except Exception as e:
+            logger.error(f"Error inserting items for {tender_id}: {e}")
+
+    async def _insert_epazar_offer(self, tender_id: str, supplier_name: str, supplier_id: int,
+                                   supplier_address: str, supplier_city: str, bid_amount: float,
+                                   is_winner: bool, conn):
+        """Insert or update an offer/bid for an e-pazar tender."""
+        try:
+            # Check if offer already exists for this tender and supplier
+            existing = await conn.fetchval(
+                "SELECT offer_id FROM epazar_offers WHERE tender_id = $1 AND supplier_name = $2",
+                tender_id, supplier_name
+            )
+
+            if existing:
+                # Update existing offer
+                await conn.execute("""
+                    UPDATE epazar_offers SET
+                        total_bid_mkd = COALESCE($3, total_bid_mkd),
+                        is_winner = $4,
+                        ranking = CASE WHEN $4 THEN 1 ELSE ranking END,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE tender_id = $1 AND supplier_name = $2
+                """, tender_id, supplier_name, bid_amount, is_winner)
+            else:
+                # Insert new offer
+                await conn.execute("""
+                    INSERT INTO epazar_offers (
+                        tender_id, supplier_name, supplier_address, supplier_city,
+                        total_bid_mkd, is_winner, ranking
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """,
+                    tender_id,
+                    supplier_name,
+                    supplier_address,
+                    supplier_city,
+                    bid_amount,
+                    is_winner,
+                    1 if is_winner else None
+                )
+                logger.info(f"✓ Inserted offer for tender {tender_id} from {supplier_name[:50]}...")
+
+        except Exception as e:
+            logger.error(f"Error inserting offer for {tender_id}: {e}")

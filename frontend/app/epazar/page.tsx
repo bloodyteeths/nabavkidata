@@ -409,7 +409,7 @@ export default function EPazarPage() {
             className="gap-2"
           >
             <Lightbulb className="h-4 w-4" />
-            Market Intelligence
+            Пазарна Интелигенција
           </Button>
         </div>
 

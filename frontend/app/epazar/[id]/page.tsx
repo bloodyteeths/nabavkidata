@@ -59,7 +59,7 @@ function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destr
 
 function ItemsTable({ items }: { items: EPazarItem[] }) {
   if (!items || items.length === 0) {
-    return <p className="text-gray-500 text-center py-8">No items found</p>;
+    return <p className="text-gray-500 text-center py-8">Нема пронајдени ставки</p>;
   }
 
   return (
@@ -68,11 +68,11 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
         <thead>
           <tr className="border-b">
             <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">#</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Item Name</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Quantity</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Unit</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Unit Price</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Total</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Назив</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Количина</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Единица</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Ед. цена</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Вкупно</th>
           </tr>
         </thead>
         <tbody>
@@ -99,7 +99,7 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
 
 function OffersTable({ offers }: { offers: EPazarOffer[] }) {
   if (!offers || offers.length === 0) {
-    return <p className="text-gray-500 text-center py-8">No offers submitted</p>;
+    return <p className="text-gray-500 text-center py-8">Нема поднесени понуди</p>;
   }
 
   return (
@@ -114,18 +114,18 @@ function OffersTable({ offers }: { offers: EPazarOffer[] }) {
                   {offer.is_winner && (
                     <Badge variant="default" className="bg-green-500">
                       <Trophy className="h-3 w-3 mr-1" />
-                      Winner
+                      Победник
                     </Badge>
                   )}
                   {offer.disqualified && (
                     <Badge variant="destructive">
                       <XCircle className="h-3 w-3 mr-1" />
-                      Disqualified
+                      Дисквалификувано
                     </Badge>
                   )}
                 </div>
                 {offer.supplier_tax_id && (
-                  <p className="text-sm text-gray-500">Tax ID: {offer.supplier_tax_id}</p>
+                  <p className="text-sm text-gray-500">ДБ: {offer.supplier_tax_id}</p>
                 )}
                 {offer.supplier_city && (
                   <p className="text-sm text-gray-500">{offer.supplier_city}</p>
@@ -134,7 +134,7 @@ function OffersTable({ offers }: { offers: EPazarOffer[] }) {
               <div className="text-right">
                 <div className="text-2xl font-bold">{formatCurrency(offer.total_bid_mkd)}</div>
                 {offer.ranking && (
-                  <p className="text-sm text-gray-500">Rank: #{offer.ranking}</p>
+                  <p className="text-sm text-gray-500">Место: #{offer.ranking}</p>
                 )}
               </div>
             </div>
@@ -153,7 +153,7 @@ function OffersTable({ offers }: { offers: EPazarOffer[] }) {
 
 function AwardedItemsTable({ items }: { items: EPazarAwardedItem[] }) {
   if (!items || items.length === 0) {
-    return <p className="text-gray-500 text-center py-8">No awarded items</p>;
+    return <p className="text-gray-500 text-center py-8">Нема доделени ставки</p>;
   }
 
   return (
@@ -161,12 +161,12 @@ function AwardedItemsTable({ items }: { items: EPazarAwardedItem[] }) {
       <table className="w-full">
         <thead>
           <tr className="border-b">
-            <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Supplier</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Item</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Quantity</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Unit Price</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Total</th>
-            <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Status</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Добавувач</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Ставка</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Количина</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Ед. цена</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Вкупно</th>
+            <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Статус</th>
           </tr>
         </thead>
         <tbody>
@@ -222,7 +222,7 @@ function formatFileSize(bytes?: number): string {
 
 function DocumentsList({ documents }: { documents: EPazarDocument[] }) {
   if (!documents || documents.length === 0) {
-    return <p className="text-gray-500 text-center py-8">No documents available</p>;
+    return <p className="text-gray-500 text-center py-8">Нема достапни документи</p>;
   }
 
   return (
@@ -250,13 +250,13 @@ function DocumentsList({ documents }: { documents: EPazarDocument[] }) {
                 <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" size="sm" className="flex-shrink-0">
                     <Download className="h-4 w-4 mr-1" />
-                    Download
+                    Преземи
                   </Button>
                 </a>
               ) : (
                 <Button variant="ghost" size="sm" disabled className="flex-shrink-0">
                   <XCircle className="h-4 w-4 mr-1" />
-                  Unavailable
+                  Недостапно
                 </Button>
               )}
             </div>
@@ -509,10 +509,10 @@ export default function EPazarDetailPage() {
     return (
       <DashboardLayout>
         <div className="text-center py-12">
-          <p className="text-red-500">{error || 'Tender not found'}</p>
+          <p className="text-red-500">{error || 'Тендерот не е пронајден'}</p>
           <Button variant="outline" className="mt-4" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Go Back
+            Назад
           </Button>
         </div>
       </DashboardLayout>
@@ -527,7 +527,7 @@ export default function EPazarDetailPage() {
           <div className="flex-1 min-w-0">
             <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-2 pl-0 hover:bg-transparent">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to e-Pazar
+              Назад на е-Пазар
             </Button>
             <div className="flex items-center gap-3">
               <Badge variant={getStatusBadgeVariant(tender.status)} className="text-sm">
@@ -541,7 +541,7 @@ export default function EPazarDetailPage() {
             <a href={tender.source_url} target="_blank" rel="noopener noreferrer" className="w-full md:w-auto">
               <Button variant="outline" className="w-full md:w-auto">
                 <ExternalLink className="h-4 w-4 mr-2" />
-                View Original
+                Отвори оригинал
               </Button>
             </a>
           )}
@@ -554,8 +554,8 @@ export default function EPazarDetailPage() {
               <div className="flex items-center gap-3">
                 <Building2 className="h-5 w-5 text-blue-500" />
                 <div>
-                  <p className="text-sm text-gray-500">Contracting Authority</p>
-                  <p className="font-medium">{tender.contracting_authority || 'N/A'}</p>
+                  <p className="text-sm text-gray-500">Договорен орган</p>
+                  <p className="font-medium">{tender.contracting_authority || 'Непознато'}</p>
                 </div>
               </div>
             </CardContent>
@@ -566,8 +566,8 @@ export default function EPazarDetailPage() {
               <div className="flex items-center gap-3">
                 <DollarSign className="h-5 w-5 text-green-500" />
                 <div>
-                  <p className="text-sm text-gray-500">Estimated Value</p>
-                  <p className="font-medium">{formatCurrency(tender.estimated_value_mkd)}</p>
+                  <p className="text-sm text-gray-500">Проценета вредност</p>
+                  <p className="font-medium">{tender.estimated_value_mkd ? formatCurrency(tender.estimated_value_mkd) : (tender.awarded_value_mkd ? formatCurrency(tender.awarded_value_mkd) + ' (доделено)' : 'Не е наведено')}</p>
                 </div>
               </div>
             </CardContent>
@@ -578,8 +578,8 @@ export default function EPazarDetailPage() {
               <div className="flex items-center gap-3">
                 <Calendar className="h-5 w-5 text-orange-500" />
                 <div>
-                  <p className="text-sm text-gray-500">Closing Date</p>
-                  <p className="font-medium">{formatDate(tender.closing_date)}</p>
+                  <p className="text-sm text-gray-500">Краен рок</p>
+                  <p className="font-medium">{tender.closing_date ? formatDate(tender.closing_date) : 'Не е наведено'}</p>
                 </div>
               </div>
             </CardContent>
@@ -590,8 +590,8 @@ export default function EPazarDetailPage() {
               <div className="flex items-center gap-3">
                 <FileText className="h-5 w-5 text-purple-500" />
                 <div>
-                  <p className="text-sm text-gray-500">Procedure Type</p>
-                  <p className="font-medium">{tender.procedure_type || 'N/A'}</p>
+                  <p className="text-sm text-gray-500">Вид на постапка</p>
+                  <p className="font-medium">{tender.procedure_type || 'Не е наведено'}</p>
                 </div>
               </div>
             </CardContent>
@@ -602,14 +602,14 @@ export default function EPazarDetailPage() {
               <div className="flex items-center gap-3">
                 <Users className="h-5 w-5 text-indigo-500" />
                 <div>
-                  <p className="text-sm text-gray-500">Competition</p>
+                  <p className="text-sm text-gray-500">Конкуренција</p>
                   <p className="font-medium">
                     {tender.offers && tender.offers.length > 0 ? (
                       <>
-                        {tender.offers.length} {tender.offers.length === 1 ? 'offer' : 'offers'}
+                        {tender.offers.length} {tender.offers.length === 1 ? 'понуда' : 'понуди'}
                       </>
                     ) : (
-                      'N/A'
+                      'Нема понуди'
                     )}
                   </p>
                   {priceIntelligence && (
@@ -624,10 +624,10 @@ export default function EPazarDetailPage() {
                       }`}
                     >
                       {priceIntelligence.competition_level === 'high'
-                        ? 'High'
+                        ? 'Висока'
                         : priceIntelligence.competition_level === 'medium'
-                        ? 'Medium'
-                        : 'Low'}
+                        ? 'Средна'
+                        : 'Ниска'}
                     </Badge>
                   )}
                 </div>
@@ -763,7 +763,7 @@ export default function EPazarDetailPage() {
         {tender.description && (
           <Card>
             <CardHeader>
-              <CardTitle>Description</CardTitle>
+              <CardTitle>Опис</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-gray-700 whitespace-pre-wrap">{tender.description}</p>
@@ -779,19 +779,19 @@ export default function EPazarDetailPage() {
                 <TabsList className="w-full justify-start inline-flex min-w-max">
                   <TabsTrigger value="items" className="flex items-center gap-2">
                     <Package className="h-4 w-4" />
-                    Items ({tender.items?.length || 0})
+                    Ставки ({tender.items?.length || 0})
                   </TabsTrigger>
                   <TabsTrigger value="offers" className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
-                    Offers ({tender.offers?.length || 0})
+                    Понуди ({tender.offers?.length || 0})
                   </TabsTrigger>
                   <TabsTrigger value="awarded" className="flex items-center gap-2">
                     <Trophy className="h-4 w-4" />
-                    Awarded ({tender.awarded_items?.length || 0})
+                    Доделено ({tender.awarded_items?.length || 0})
                   </TabsTrigger>
                   <TabsTrigger value="documents" className="flex items-center gap-2">
                     <FileText className="h-4 w-4" />
-                    Documents ({tender.documents?.length || 0})
+                    Документи ({tender.documents?.length || 0})
                   </TabsTrigger>
                   <TabsTrigger value="chat" className="flex items-center gap-2">
                     <MessageSquare className="h-4 w-4" />
@@ -903,41 +903,41 @@ export default function EPazarDetailPage() {
         {/* Additional Details */}
         <Card>
           <CardHeader>
-            <CardTitle>Additional Details</CardTitle>
+            <CardTitle>Детали за тендерот</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
               <div>
-                <p className="text-gray-500">Publication Date</p>
-                <p className="font-medium">{formatDate(tender.publication_date)}</p>
+                <p className="text-gray-500">Датум на објава</p>
+                <p className="font-medium">{tender.publication_date ? formatDate(tender.publication_date) : '-'}</p>
               </div>
               <div>
-                <p className="text-gray-500">Closing Date</p>
-                <p className="font-medium">{formatDate(tender.closing_date)}</p>
+                <p className="text-gray-500">Краен рок</p>
+                <p className="font-medium">{tender.closing_date ? formatDate(tender.closing_date) : '-'}</p>
               </div>
               <div>
-                <p className="text-gray-500">Award Date</p>
-                <p className="font-medium">{formatDate(tender.award_date)}</p>
+                <p className="text-gray-500">Датум на доделување</p>
+                <p className="font-medium">{tender.award_date ? formatDate(tender.award_date) : '-'}</p>
               </div>
               <div>
-                <p className="text-gray-500">Contract Date</p>
-                <p className="font-medium">{formatDate(tender.contract_date)}</p>
+                <p className="text-gray-500">Датум на договор</p>
+                <p className="font-medium">{tender.contract_date ? formatDate(tender.contract_date) : '-'}</p>
               </div>
               <div>
-                <p className="text-gray-500">Contract Number</p>
-                <p className="font-medium">{tender.contract_number || 'N/A'}</p>
+                <p className="text-gray-500">Број на договор</p>
+                <p className="font-medium">{tender.contract_number || '-'}</p>
               </div>
               <div>
-                <p className="text-gray-500">CPV Code</p>
-                <p className="font-medium">{tender.cpv_code || 'N/A'}</p>
+                <p className="text-gray-500">CPV шифра</p>
+                <p className="font-medium">{tender.cpv_code || '-'}</p>
               </div>
               <div>
-                <p className="text-gray-500">Category</p>
-                <p className="font-medium">{tender.category || 'N/A'}</p>
+                <p className="text-gray-500">Категорија</p>
+                <p className="font-medium">{tender.category || '-'}</p>
               </div>
               <div>
-                <p className="text-gray-500">Procedure Type</p>
-                <p className="font-medium">{tender.procedure_type || 'N/A'}</p>
+                <p className="text-gray-500">Вид на постапка</p>
+                <p className="font-medium">{tender.procedure_type || '-'}</p>
               </div>
             </div>
           </CardContent>

@@ -1,0 +1,165 @@
+UX Fixes for risk-analysis/page.tsx
+===================================
+
+This patch contains three UX improvements:
+
+1. **Links open in new tabs** - Add target="_blank" rel="noopener noreferrer" to all Link components
+2. **Clickable card headers** - Make the entire tender title area clickable to expand/collapse
+3. **Performance optimization** - Stats are already loaded separately (no changes needed)
+
+---
+
+FIX 1: Make entire tender card header clickable
+------------------------------------------------
+FIND (around line 698-716):
+
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="relative w-12 h-12 flex-shrink-0">
+                            <svg className="transform -rotate-90 w-12 h-12">
+                              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted" />
+                              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none"
+                                strokeDasharray={`${(Math.min(tender.risk_score, 100) / 100) * 125} 125`}
+                                className={cfg.bg.replace("bg-", "text-")}
+                              />
+                            </svg>
+                            <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
+                              {Math.min(tender.risk_score, 100)}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <Badge className={`${cfg.light} ${cfg.text} border-0 mb-1`}>{cfg.label}</Badge>
+                            <h3 className="font-medium text-sm line-clamp-2">{tender.title}</h3>
+                            <p className="text-xs text-muted-foreground truncate">{tender.procuring_entity}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-3 border-t">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Badge variant="outline" className="text-[10px] font-mono shrink-0">{tender.tender_id}</Badge>
+                            {tender.estimated_value_mkd > 0 && (
+                              <span className="text-xs font-medium text-primary truncate">
+                                {formatCurrency(tender.estimated_value_mkd)}
+                              </span>
+                            )}
+                          </div>
+                          <Button variant="ghost" size="sm" onClick={() => handleExpand(tender.tender_id)} className="shrink-0">
+                            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        </div>
+
+REPLACE WITH:
+
+                        <div
+                          className="flex items-start gap-3 mb-3 cursor-pointer hover:bg-muted/50 -m-1 p-1 rounded transition-colors"
+                          onClick={() => handleExpand(tender.tender_id)}
+                        >
+                          <div className="relative w-12 h-12 flex-shrink-0">
+                            <svg className="transform -rotate-90 w-12 h-12">
+                              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted" />
+                              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none"
+                                strokeDasharray={`${(Math.min(tender.risk_score, 100) / 100) * 125} 125`}
+                                className={cfg.bg.replace("bg-", "text-")}
+                              />
+                            </svg>
+                            <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
+                              {Math.min(tender.risk_score, 100)}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <Badge className={`${cfg.light} ${cfg.text} border-0 mb-1`}>{cfg.label}</Badge>
+                            <h3 className="font-medium text-sm line-clamp-2">{tender.title}</h3>
+                            <p className="text-xs text-muted-foreground truncate">{tender.procuring_entity}</p>
+                          </div>
+                          <div className="flex items-center flex-shrink-0">
+                            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-3 border-t">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Badge variant="outline" className="text-[10px] font-mono shrink-0">{tender.tender_id}</Badge>
+                            {tender.estimated_value_mkd > 0 && (
+                              <span className="text-xs font-medium text-primary truncate">
+                                {formatCurrency(tender.estimated_value_mkd)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+---
+
+FIX 2: Add target="_blank" to tender detail links (in expanded card section)
+-----------------------------------------------------------------------------
+FIND (around line 737-749):
+
+                            <div className="flex gap-2">
+                              <Link href={`/tenders/${encodeURIComponent(tender.tender_id)}`} className="flex-1">
+                                <Button variant="outline" size="sm" className="w-full">
+                                  <Eye className="h-4 w-4 mr-1" /> Тендер
+                                </Button>
+                              </Link>
+                              {tender.winner && (
+                                <Link href={`/suppliers?search=${encodeURIComponent(tender.winner)}`} className="flex-1">
+                                  <Button variant="outline" size="sm" className="w-full">
+                                    <Building2 className="h-4 w-4 mr-1" /> Победник
+                                  </Button>
+                                </Link>
+                              )}
+                            </div>
+
+REPLACE WITH:
+
+                            <div className="flex gap-2">
+                              <Link href={`/tenders/${encodeURIComponent(tender.tender_id)}`} className="flex-1" target="_blank" rel="noopener noreferrer">
+                                <Button variant="outline" size="sm" className="w-full">
+                                  <Eye className="h-4 w-4 mr-1" /> Тендер
+                                </Button>
+                              </Link>
+                              {tender.winner && (
+                                <Link href={`/suppliers?search=${encodeURIComponent(tender.winner)}`} className="flex-1" target="_blank" rel="noopener noreferrer">
+                                  <Button variant="outline" size="sm" className="w-full">
+                                    <Building2 className="h-4 w-4 mr-1" /> Победник
+                                  </Button>
+                                </Link>
+                              )}
+                            </div>
+
+---
+
+FIX 3: Add target="_blank" to search tab tender link
+-----------------------------------------------------
+FIND (around line 805-810):
+
+                      <Link href={`/tenders/${encodeURIComponent(t.tender_id)}`}>
+                        <Button variant="outline" size="sm"><Eye className="h-3 w-3" /></Button>
+                      </Link>
+
+REPLACE WITH:
+
+                      <Link href={`/tenders/${encodeURIComponent(t.tender_id)}`} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm"><Eye className="h-3 w-3" /></Button>
+                      </Link>
+
+---
+
+FIX 4: Add target="_blank" to analysis result link
+---------------------------------------------------
+FIND (around line 845-848):
+
+                <Link href={`/tenders/${encodeURIComponent(analysisResult.tenderId)}`}>
+                  <Button variant="outline" className="w-full"><Eye className="h-4 w-4 mr-2" /> Погледни тендер</Button>
+                </Link>
+
+REPLACE WITH:
+
+                <Link href={`/tenders/${encodeURIComponent(analysisResult.tenderId)}`} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" className="w-full"><Eye className="h-4 w-4 mr-2" /> Погледни тендер</Button>
+                </Link>
+
+---
+
+Summary of changes:
+- ✅ All tender and supplier links now open in new tabs
+- ✅ Entire tender card header is now clickable to expand/collapse (with hover effect)
+- ✅ Chevron icon moved into the clickable header area
+- ✅ Performance already optimized (stats loaded separately, debounced search inputs)
