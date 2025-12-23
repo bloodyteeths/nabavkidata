@@ -287,8 +287,10 @@ export default function EPazarDetailPage() {
   const [supplierStatsError, setSupplierStatsError] = useState<string | null>(null);
   const [priceIntelligence, setPriceIntelligence] = useState<any | null>(null);
   const [priceIntelligenceLoading, setPriceIntelligenceLoading] = useState(false);
+  const [priceIntelligenceError, setPriceIntelligenceError] = useState<string | null>(null);
   const [similarTenders, setSimilarTenders] = useState<any[]>([]);
   const [similarTendersLoading, setSimilarTendersLoading] = useState(false);
+  const [similarTendersError, setSimilarTendersError] = useState<string | null>(null);
 
   useEffect(() => {
     loadTender();
@@ -464,11 +466,13 @@ export default function EPazarDetailPage() {
   async function loadPriceIntelligence(itemName: string) {
     try {
       setPriceIntelligenceLoading(true);
+      setPriceIntelligenceError(null);
       const result = await api.getEPazarPriceIntelligence({ product_name: itemName });
       setPriceIntelligence(result);
     } catch (error) {
       console.error("Failed to load price intelligence:", error);
       setPriceIntelligence(null);
+      setPriceIntelligenceError("Не успеавме да ги вчитаме податоците за цени");
     } finally {
       setPriceIntelligenceLoading(false);
     }
@@ -477,11 +481,13 @@ export default function EPazarDetailPage() {
   async function loadSimilarTenders() {
     try {
       setSimilarTendersLoading(true);
+      setSimilarTendersError(null);
       const result = await api.getEPazarSimilarTenders(tenderId, { limit: 5 });
       setSimilarTenders(result.similar_tenders || []);
     } catch (error) {
       console.error("Failed to load similar tenders:", error);
       setSimilarTenders([]);
+      setSimilarTendersError("Не успеавме да ги вчитаме сличните тендери");
     } finally {
       setSimilarTendersLoading(false);
     }
@@ -668,17 +674,31 @@ export default function EPazarDetailPage() {
         </Card>
 
         {/* Price Intelligence */}
-        {priceIntelligenceLoading ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="animate-pulse space-y-4">
-                <div className="h-4 bg-gray-200 rounded w-3/4" />
-                <div className="h-20 bg-gray-200 rounded" />
-              </div>
+        {priceIntelligenceError ? (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6 text-center text-red-600">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+              <p>{priceIntelligenceError}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  if (tender?.items?.[0]?.item_name) {
+                    loadPriceIntelligence(tender.items[0].item_name);
+                  }
+                }}
+              >
+                Обиди се повторно
+              </Button>
             </CardContent>
           </Card>
-        ) : priceIntelligence ? (
-          <PriceIntelligenceCard data={priceIntelligence} showProductName={true} />
+        ) : (priceIntelligenceLoading || priceIntelligence) ? (
+          <PriceIntelligenceCard
+            data={priceIntelligence}
+            loading={priceIntelligenceLoading}
+            showProductName={true}
+          />
         ) : null}
 
         {/* Similar Tenders */}
@@ -693,6 +713,21 @@ export default function EPazarDetailPage() {
                   <div key={i} className="h-16 bg-gray-200 rounded" />
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        ) : similarTendersError ? (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6 text-center text-red-600">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+              <p>{similarTendersError}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => loadSimilarTenders()}
+              >
+                Обиди се повторно
+              </Button>
             </CardContent>
           </Card>
         ) : similarTenders.length > 0 ? (

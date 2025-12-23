@@ -158,6 +158,7 @@ export default function EPazarPage() {
 
   // Stats
   const [stats, setStats] = useState<EPazarStats | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   // Tenders state
   const [tenders, setTenders] = useState<EPazarTender[]>([]);
@@ -187,6 +188,7 @@ export default function EPazarPage() {
   const [supplierRankingsLoading, setSupplierRankingsLoading] = useState(false);
   const [buyerStats, setBuyerStats] = useState<any[]>([]);
   const [buyerStatsLoading, setBuyerStatsLoading] = useState(false);
+  const [intelligenceError, setIntelligenceError] = useState<string | null>(null);
 
   const pageSize = 12;
 
@@ -231,11 +233,13 @@ export default function EPazarPage() {
   }, [isHydrated, activeTab]);
 
   async function loadStats() {
+    setStatsError(null);
     try {
       const data = await api.getEPazarStats();
       setStats(data);
     } catch (err) {
       console.error('Failed to load stats:', err);
+      setStatsError('Не успеавме да ги вчитаме статистиките');
     }
   }
 
@@ -278,17 +282,24 @@ export default function EPazarPage() {
 
       if (productsSearch) params.search = productsSearch;
 
-      const [searchResult, aggResult] = await Promise.all([
-        api.searchEPazarItems(params),
-        productsPage === 1 && productsSearch ? api.getEPazarItemsAggregations(productsSearch) : Promise.resolve(null),
-      ]);
-
+      // Load search results - this is critical
+      const searchResult = await api.searchEPazarItems(params);
       setProducts(searchResult.items);
       setProductsTotal(searchResult.total);
       setProductsTotalPages(Math.ceil(searchResult.total / pageSize));
 
-      if (aggResult) {
-        setProductsAggregations(aggResult.aggregations);
+      // Try to load aggregations separately - graceful degradation if it fails
+      if (productsPage === 1 && productsSearch) {
+        try {
+          const aggResult = await api.getEPazarItemsAggregations(productsSearch);
+          if (aggResult) {
+            setProductsAggregations(aggResult.aggregations);
+          }
+        } catch (aggErr) {
+          console.error('Aggregations failed (non-critical):', aggErr);
+          // Continue without aggregations - graceful degradation
+          setProductsAggregations([]);
+        }
       }
     } catch (err) {
       console.error('Failed to load products:', err);
@@ -314,6 +325,7 @@ export default function EPazarPage() {
   async function loadIntelligenceData() {
     setSupplierRankingsLoading(true);
     setBuyerStatsLoading(true);
+    setIntelligenceError(null);
 
     try {
       const [rankingsData, buyersData] = await Promise.all([
@@ -325,6 +337,7 @@ export default function EPazarPage() {
       setBuyerStats(buyersData.buyers);
     } catch (err) {
       console.error('Failed to load intelligence data:', err);
+      setIntelligenceError('Не успеавме да ги вчитаме податоците за интелигенција');
     } finally {
       setSupplierRankingsLoading(false);
       setBuyerStatsLoading(false);
@@ -357,33 +370,46 @@ export default function EPazarPage() {
         </div>
 
         {/* Stats - Clickable to switch tabs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatsCard
-            title="Вкупно тендери"
-            value={stats ? stats.total_tenders.toLocaleString() : '-'}
-            icon={FileText}
-            onClick={() => setActiveTab('tenders')}
-            active={activeTab === 'tenders'}
-          />
-          <StatsCard
-            title="Вкупно ставки"
-            value={stats ? stats.total_items.toLocaleString() : '-'}
-            icon={Package}
-            description="Кликни за пребарување"
-            onClick={() => setActiveTab('products')}
-            active={activeTab === 'products'}
-          />
-          <StatsCard
-            title="Вкупно добавувачи"
-            value={stats ? stats.total_suppliers.toLocaleString() : '-'}
-            icon={Users}
-          />
-          <StatsCard
-            title="Вкупна вредност"
-            value={stats ? formatCurrency(stats.total_value_mkd) : '-'}
-            icon={TrendingUp}
-          />
-        </div>
+        {statsError ? (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <p className="text-red-600 text-center">{statsError}</p>
+              <div className="mt-2 text-center">
+                <Button variant="outline" size="sm" onClick={loadStats}>
+                  Обиди се повторно
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatsCard
+              title="Вкупно тендери"
+              value={stats ? stats.total_tenders.toLocaleString() : '-'}
+              icon={FileText}
+              onClick={() => setActiveTab('tenders')}
+              active={activeTab === 'tenders'}
+            />
+            <StatsCard
+              title="Вкупно ставки"
+              value={stats ? stats.total_items.toLocaleString() : '-'}
+              icon={Package}
+              description="Кликни за пребарување"
+              onClick={() => setActiveTab('products')}
+              active={activeTab === 'products'}
+            />
+            <StatsCard
+              title="Вкупно добавувачи"
+              value={stats ? stats.total_suppliers.toLocaleString() : '-'}
+              icon={Users}
+            />
+            <StatsCard
+              title="Вкупна вредност"
+              value={stats ? formatCurrency(stats.total_value_mkd) : '-'}
+              icon={TrendingUp}
+            />
+          </div>
+        )}
 
         {/* Tab Buttons */}
         <div className="flex gap-2 border-b pb-2">
@@ -814,80 +840,84 @@ export default function EPazarPage() {
               </CardHeader>
             </Card>
 
-            {/* Supplier Rankings */}
-            <div>
-              {supplierRankingsLoading ? (
+            {intelligenceError ? (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="pt-6">
+                  <p className="text-red-600 text-center">{intelligenceError}</p>
+                  <div className="mt-2 text-center">
+                    <Button variant="outline" size="sm" onClick={loadIntelligenceData}>
+                      Обиди се повторно
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Supplier Rankings */}
+                <div>
+                  <SupplierRankings
+                    suppliers={supplierRankings}
+                    loading={supplierRankingsLoading}
+                    title="Топ Добавувачи"
+                    description="Рангирање според стапка на успех и вредност на договори"
+                    showCity={true}
+                  />
+                </div>
+
+                {/* Buyer Stats */}
                 <Card>
-                  <CardContent className="pt-6">
-                    <div className="animate-pulse space-y-4">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="h-12 bg-gray-200 rounded" />
-                      ))}
-                    </div>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-blue-600" />
+                      Статистика на Купувачи
+                    </CardTitle>
+                    <CardDescription>
+                      Активност на институции што објавуваат тендери
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {buyerStatsLoading ? (
+                      <div className="animate-pulse space-y-4">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <div key={i} className="h-12 bg-gray-200 rounded" />
+                        ))}
+                      </div>
+                    ) : buyerStats.length === 0 ? (
+                      <p className="text-center text-gray-500 py-8">Нема податоци за купувачи</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left p-3">Институција</th>
+                              <th className="text-right p-3">Тендери</th>
+                              <th className="text-right p-3">Вкупна Вредност</th>
+                              <th className="text-right p-3">Просечна Вредност</th>
+                              <th className="text-right p-3">Активни</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {buyerStats.map((buyer: any, idx: number) => (
+                              <tr key={buyer.buyer_id || idx} className="border-b hover:bg-muted/50">
+                                <td className="p-3 font-medium">{buyer.buyer_name}</td>
+                                <td className="text-right p-3">{buyer.total_tenders?.toLocaleString()}</td>
+                                <td className="text-right p-3 text-green-600 font-semibold">
+                                  {formatCurrency(buyer.total_value_mkd)}
+                                </td>
+                                <td className="text-right p-3">{formatCurrency(buyer.avg_tender_value_mkd)}</td>
+                                <td className="text-right p-3">
+                                  <Badge variant="outline">{buyer.active_tenders || 0}</Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
-              ) : (
-                <SupplierRankings
-                  suppliers={supplierRankings}
-                  title="Топ Добавувачи"
-                  description="Рангирање според стапка на успех и вредност на договори"
-                  showCity={true}
-                />
-              )}
-            </div>
-
-            {/* Buyer Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-blue-600" />
-                  Статистика на Купувачи
-                </CardTitle>
-                <CardDescription>
-                  Активност на институции што објавуваат тендери
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {buyerStatsLoading ? (
-                  <div className="animate-pulse space-y-4">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="h-12 bg-gray-200 rounded" />
-                    ))}
-                  </div>
-                ) : buyerStats.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">Нема податоци за купувачи</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-3">Институција</th>
-                          <th className="text-right p-3">Тендери</th>
-                          <th className="text-right p-3">Вкупна Вредност</th>
-                          <th className="text-right p-3">Просечна Вредност</th>
-                          <th className="text-right p-3">Активни</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {buyerStats.map((buyer: any, idx: number) => (
-                          <tr key={buyer.buyer_id || idx} className="border-b hover:bg-muted/50">
-                            <td className="p-3 font-medium">{buyer.buyer_name}</td>
-                            <td className="text-right p-3">{buyer.total_tenders?.toLocaleString()}</td>
-                            <td className="text-right p-3 text-green-600 font-semibold">
-                              {formatCurrency(buyer.total_value_mkd)}
-                            </td>
-                            <td className="text-right p-3">{formatCurrency(buyer.avg_tender_value_mkd)}</td>
-                            <td className="text-right p-3">
-                              <Badge variant="outline">{buyer.active_tenders || 0}</Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              </>
+            )}
           </>
         )}
       </div>

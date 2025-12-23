@@ -1624,6 +1624,18 @@ class APIClient {
       trend_percentage?: number;
       competition_level: 'low' | 'medium' | 'high';
       sample_size: number;
+      unit?: string;
+      median_price?: number;
+      typical_discount_percent?: number;
+      total_tenders?: number;
+      total_quantity?: number;
+      data_points?: {
+        items_analyzed: number;
+        tenders_with_offers: number;
+        total_offers: number;
+        avg_offers_per_tender: number;
+        tenders_with_winner: number;
+      };
     }>(`/api/epazar/price-intelligence?${query}`);
   }
 
@@ -1644,6 +1656,11 @@ class APIClient {
         avg_bid_amount_mkd?: number;
         city?: string;
       }>;
+      market_stats?: {
+        total_suppliers: number;
+        avg_win_rate: number;
+        total_market_value_mkd: number;
+      };
     }>(`/api/epazar/supplier-rankings?${query}`);
   }
 
@@ -1673,6 +1690,14 @@ class APIClient {
       tender_id: string;
       similar_tenders: Array<EPazarTender & { similarity_score?: number; match_reason?: string }>;
       total: number;
+      insights?: {
+        avg_winning_discount: number;
+        avg_num_bidders: number;
+        recommended_bid_range: [number, number];
+        win_probability_estimate: string;
+        similar_tenders_count: number;
+        same_buyer_count: number;
+      };
     }>(`/api/epazar/tenders/${encodedId}/similar?${query}`);
   }
 

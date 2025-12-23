@@ -30,6 +30,7 @@ export interface SupplierRanking {
 
 interface SupplierRankingsProps {
   suppliers: SupplierRanking[];
+  loading?: boolean;
   title?: string;
   description?: string;
   showCity?: boolean;
@@ -40,12 +41,81 @@ type SortOrder = 'asc' | 'desc';
 
 export function SupplierRankings({
   suppliers,
+  loading = false,
   title = "Топ Добавувачи",
   description = "Рангирање на добавувачи според успешност",
   showCity = false
 }: SupplierRankingsProps) {
   const [sortField, setSortField] = useState<SortField>('win_rate');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-yellow-500" />
+            {title}
+          </CardTitle>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">#</TableHead>
+                  <TableHead>Добавувач</TableHead>
+                  {showCity && <TableHead>Град</TableHead>}
+                  <TableHead className="text-right">Победи</TableHead>
+                  <TableHead className="text-center">% Победи</TableHead>
+                  <TableHead className="text-right">Вкупна Вредност</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: 5 }).map((_, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      <div className="animate-pulse h-4 bg-gray-200 rounded w-6" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-32" />
+                        <div className="h-3 bg-gray-200 rounded w-20" />
+                      </div>
+                    </TableCell>
+                    {showCity && (
+                      <TableCell>
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-16" />
+                      </TableCell>
+                    )}
+                    <TableCell className="text-right">
+                      <div className="animate-pulse space-y-1">
+                        <div className="h-4 bg-gray-200 rounded w-12 ml-auto" />
+                        <div className="h-3 bg-gray-200 rounded w-10 ml-auto" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="animate-pulse flex items-center justify-center gap-2">
+                        <div className="h-4 bg-gray-200 rounded w-12" />
+                        <div className="h-5 bg-gray-200 rounded w-16" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="animate-pulse space-y-1">
+                        <div className="h-4 bg-gray-200 rounded w-24 ml-auto" />
+                        <div className="h-3 bg-gray-200 rounded w-20 ml-auto" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
