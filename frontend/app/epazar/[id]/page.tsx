@@ -51,9 +51,67 @@ function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destr
   }
 }
 
+interface MarketPrice {
+  min: number;
+  max: number;
+  avg: number;
+  count: number;
+}
+
 function ItemsTable({ items }: { items: EPazarItem[] }) {
+  const [marketPrices, setMarketPrices] = useState<Record<string, MarketPrice>>({});
+  const [pricesLoading, setPricesLoading] = useState(false);
+
+  useEffect(() => {
+    if (items && items.length > 0) {
+      loadMarketPrices();
+    }
+  }, [items]);
+
+  async function loadMarketPrices() {
+    setPricesLoading(true);
+    const prices: Record<string, MarketPrice> = {};
+
+    // Fetch market prices for first 5 items to avoid too many requests
+    const itemsToCheck = items.slice(0, 5);
+
+    for (const item of itemsToCheck) {
+      if (!item.item_name) continue;
+      try {
+        // Extract first 2-3 words for search (more specific = better match)
+        const searchTerm = item.item_name.split(' ').slice(0, 3).join(' ');
+        const data = await api.getEPazarItemsAggregations(searchTerm);
+        if (data.aggregations && data.aggregations.length > 0) {
+          const agg = data.aggregations[0];
+          prices[item.item_id || item.item_name] = {
+            min: agg.min_unit_price || 0,
+            max: agg.max_unit_price || 0,
+            avg: agg.avg_unit_price || 0,
+            count: agg.tender_count || 0
+          };
+        }
+      } catch (err) {
+        // Ignore errors for individual items
+      }
+    }
+
+    setMarketPrices(prices);
+    setPricesLoading(false);
+  }
+
   if (!items || items.length === 0) {
     return <p className="text-gray-500 text-center py-8">Нема пронајдени ставки</p>;
+  }
+
+  function getPriceIndicator(itemPrice: number | undefined, marketPrice: MarketPrice | undefined) {
+    if (!itemPrice || !marketPrice || marketPrice.count === 0) return null;
+
+    if (itemPrice < marketPrice.min * 0.9) {
+      return <span className="text-green-600 text-xs">↓ Ниска</span>;
+    } else if (itemPrice > marketPrice.max * 1.1) {
+      return <span className="text-red-600 text-xs">↑ Висока</span>;
+    }
+    return <span className="text-gray-500 text-xs">✓ Во просек</span>;
   }
 
   return (
@@ -67,28 +125,48 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
             <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Единица</th>
             <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Ед. цена</th>
             <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Вкупно</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Пазар</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-500" title="Пазарни цени од претходни тендери">
+              Пазар*
+            </th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item, idx) => (
-            <tr key={item.item_id || idx} className="border-b hover:bg-gray-50">
-              <td className="py-3 px-4 text-sm">{item.line_number}</td>
-              <td className="py-3 px-4">
-                <div className="font-medium">{item.item_name}</div>
-                {item.item_description && (
-                  <div className="text-xs text-gray-500 mt-1 line-clamp-2">{item.item_description}</div>
-                )}
-              </td>
-              <td className="py-3 px-4 text-right text-sm">{item.quantity?.toLocaleString()}</td>
-              <td className="py-3 px-4 text-sm">{item.unit || '-'}</td>
-              <td className="py-3 px-4 text-right text-sm">{formatCurrency(item.estimated_unit_price_mkd)}</td>
-              <td className="py-3 px-4 text-right text-sm font-medium">{formatCurrency(item.estimated_total_price_mkd)}</td>
-              <td className="py-3 px-4 text-right text-sm text-gray-500">-</td>
-            </tr>
-          ))}
+          {items.map((item, idx) => {
+            const market = marketPrices[item.item_id || item.item_name];
+            return (
+              <tr key={item.item_id || idx} className="border-b hover:bg-gray-50">
+                <td className="py-3 px-4 text-sm">{item.line_number}</td>
+                <td className="py-3 px-4">
+                  <div className="font-medium">{item.item_name}</div>
+                  {item.item_description && (
+                    <div className="text-xs text-gray-500 mt-1 line-clamp-2">{item.item_description}</div>
+                  )}
+                </td>
+                <td className="py-3 px-4 text-right text-sm">{item.quantity?.toLocaleString()}</td>
+                <td className="py-3 px-4 text-sm">{item.unit || '-'}</td>
+                <td className="py-3 px-4 text-right text-sm">
+                  {formatCurrency(item.estimated_unit_price_mkd)}
+                  {getPriceIndicator(item.estimated_unit_price_mkd, market)}
+                </td>
+                <td className="py-3 px-4 text-right text-sm font-medium">{formatCurrency(item.estimated_total_price_mkd)}</td>
+                <td className="py-3 px-4 text-right text-sm text-gray-500">
+                  {pricesLoading && idx < 5 ? (
+                    <span className="animate-pulse">...</span>
+                  ) : market ? (
+                    <div className="text-xs">
+                      <div>{formatCurrency(market.min)} - {formatCurrency(market.max)}</div>
+                      <div className="text-gray-400">({market.count} тенд.)</div>
+                    </div>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      <p className="text-xs text-gray-400 mt-2">* Пазарни цени базирани на претходни е-Пазар тендери</p>
     </div>
   );
 }
@@ -656,7 +734,7 @@ export default function EPazarDetailPage() {
           </Tabs>
         </Card>
 
-        {/* Additional Details */}
+        {/* Additional Details - Only show fields that have data */}
         <Card>
           <CardHeader>
             <CardTitle>Детали за тендерот</CardTitle>
@@ -671,26 +749,22 @@ export default function EPazarDetailPage() {
                 <p className="text-gray-500">Краен рок</p>
                 <p className="font-medium">{tender.closing_date ? formatDate(tender.closing_date) : '-'}</p>
               </div>
-              <div>
-                <p className="text-gray-500">Датум на доделување</p>
-                <p className="font-medium">{tender.award_date ? formatDate(tender.award_date) : '-'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Датум на договор</p>
-                <p className="font-medium">{tender.contract_date ? formatDate(tender.contract_date) : '-'}</p>
-              </div>
+              {tender.contract_date && (
+                <div>
+                  <p className="text-gray-500">Датум на договор</p>
+                  <p className="font-medium">{formatDate(tender.contract_date)}</p>
+                </div>
+              )}
               <div>
                 <p className="text-gray-500">Број на договор</p>
-                <p className="font-medium">{tender.contract_number || '-'}</p>
+                <p className="font-medium">{tender.contract_number || tender.tender_id}</p>
               </div>
-              <div>
-                <p className="text-gray-500">CPV шифра</p>
-                <p className="font-medium">{tender.cpv_code || '-'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Категорија</p>
-                <p className="font-medium">{tender.category || '-'}</p>
-              </div>
+              {tender.category && (
+                <div>
+                  <p className="text-gray-500">Категорија</p>
+                  <p className="font-medium">{tender.category}</p>
+                </div>
+              )}
               <div>
                 <p className="text-gray-500">Вид на постапка</p>
                 <p className="font-medium">{tender.procedure_type || '-'}</p>
