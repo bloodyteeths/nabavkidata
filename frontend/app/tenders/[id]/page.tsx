@@ -1442,14 +1442,15 @@ export default function TenderDetailPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              {doc.content_text ? (
+                              {/* AI Analysis button - active only if content was extracted */}
+                              {doc.has_content ? (
                                 <Button
                                   variant="default"
                                   size="sm"
                                   onClick={() => setSelectedDocument(doc)}
                                 >
-                                  <FileText className="h-4 w-4 mr-1" />
-                                  Прегледај
+                                  <Sparkles className="h-4 w-4 mr-1" />
+                                  AI Анализа
                                 </Button>
                               ) : doc.extraction_status === 'pending' ? (
                                 <Button
@@ -1461,21 +1462,6 @@ export default function TenderDetailPage() {
                                   <Clock className="h-4 w-4 mr-1" />
                                   Се обработува
                                 </Button>
-                              ) : doc.file_url ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  asChild
-                                >
-                                  <a
-                                    href={doc.file_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    <ExternalLink className="h-4 w-4 mr-1" />
-                                    Отвори
-                                  </a>
-                                </Button>
                               ) : (
                                 <Button
                                   variant="ghost"
@@ -1484,24 +1470,42 @@ export default function TenderDetailPage() {
                                   className="text-muted-foreground"
                                 >
                                   <FileText className="h-4 w-4 mr-1" />
-                                  Нема преглед
+                                  Нема содржина
                                 </Button>
                               )}
+                              {/* External link buttons - always shown when file_url exists */}
                               {doc.file_url && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  asChild
-                                >
-                                  <a
-                                    href={doc.file_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    asChild
                                   >
-                                    <Download className="h-4 w-4 mr-1" />
-                                    Преземи
-                                  </a>
-                                </Button>
+                                    <a
+                                      href={doc.file_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <ExternalLink className="h-4 w-4 mr-1" />
+                                      Отвори
+                                    </a>
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    asChild
+                                  >
+                                    <a
+                                      href={doc.file_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download
+                                    >
+                                      <Download className="h-4 w-4 mr-1" />
+                                      Преземи
+                                    </a>
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </div>

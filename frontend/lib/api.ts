@@ -76,6 +76,7 @@ export interface TenderDocument {
   file_path?: string;
   file_url?: string;
   content_text?: string;
+  has_content?: boolean;  // True if AI-extractable content is available
   extraction_status: string;
   file_size_bytes?: number;
   page_count?: number;
