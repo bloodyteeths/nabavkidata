@@ -26,7 +26,15 @@ const GoogleIcon = () => (
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { register } = useAuth();
+
+  // Get plan params from URL (from pricing page redirect)
+  const plan = searchParams.get('plan');
+  const interval = searchParams.get('interval');
+  const currency = searchParams.get('currency');
+  const keyword = searchParams.get('keyword');
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -129,7 +137,12 @@ export default function RegisterPage() {
       }
       setSuccess(true);
       setTimeout(() => {
-        router.push('/auth/verify-email');
+        // If user selected a plan, redirect to billing to complete checkout
+        if (plan) {
+          router.push(`/billing?checkout=true&plan=${plan}&interval=${interval || 'monthly'}&currency=${currency || 'mkd'}`);
+        } else {
+          router.push('/auth/verify-email');
+        }
       }, 3000);
     } catch (error: any) {
       setErrors({ general: error.message || 'Грешка при регистрација.' });
@@ -150,9 +163,17 @@ export default function RegisterPage() {
             </div>
             <CardTitle className="text-center">Успешна регистрација!</CardTitle>
             <CardDescription className="text-center">
-              Испратена е верификациска порака на вашата е-пошта.
-              <br />
-              Ве пренасочуваме...
+              {plan ? (
+                <>
+                  Ве пренасочуваме кон плаќање...
+                </>
+              ) : (
+                <>
+                  Испратена е верификациска порака на вашата е-пошта.
+                  <br />
+                  Ве пренасочуваме...
+                </>
+              )}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -160,20 +181,18 @@ export default function RegisterPage() {
     );
   }
 
-  const searchParams = useSearchParams();
-  const keyword = searchParams.get('keyword');
-
-  // ... existing code ...
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            {keyword ? `Следете тендери за "${keyword}"` : 'Регистрација'}
+            {plan ? 'Регистрирај се за да продолжиш' : keyword ? `Следете тендери за "${keyword}"` : 'Регистрација'}
           </CardTitle>
           <CardDescription className="text-center">
-            {keyword
+            {plan
+              ? 'Создадете профил за да го активирате избраниот план'
+              : keyword
               ? 'Создадете профил за да добивате известувања за овој клучен збор'
               : 'Создадете нов профил за пристап до платформата'
             }

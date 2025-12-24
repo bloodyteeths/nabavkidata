@@ -103,7 +103,6 @@ export default function PricingSectionSr() {
             return;
         }
 
-
         setLoading(planId);
         try {
             const response = await api.createCheckoutSession(planId, billingCycle, currency);
@@ -112,8 +111,9 @@ export default function PricingSectionSr() {
             }
         } catch (error: any) {
             console.error("Checkout error:", error);
-            if (error.message?.includes("401") || error.status === 401) {
-                router.push(`/auth/register?redirect=/plans&plan=${planId}`);
+            // Check for unauthorized (not logged in) - redirect to register
+            if (error.message?.includes("Unauthorized") || error.message?.includes("401") || error.status === 401) {
+                router.push(`/auth/register?plan=${planId}&interval=${billingCycle}&currency=${currency}`);
             }
         } finally {
             setLoading(null);
