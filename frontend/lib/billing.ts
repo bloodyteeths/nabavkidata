@@ -133,72 +133,71 @@ class BillingService {
     return [
       {
         tier: 'free',
-        name: 'Free',
+        name: 'Бесплатен',
         price_monthly_mkd: 0,
         price_yearly_mkd: 0,
         price_monthly_id: '',
         price_yearly_id: '',
         daily_queries: 3,
-        trial_days: 14,
+        trial_days: 7,
         allow_vpn: false,
         features: [
-          '3 AI пребарувања дневно',
-          '14-дневен пробен период',
+          '3 AI прашања дневно',
           'Основно пребарување',
-          'Email поддршка'
+          'Преглед на тендери'
         ]
       },
       {
         tier: 'starter',
-        name: 'Starter',
-        price_monthly_mkd: 899,
-        price_yearly_mkd: 8990,
+        name: 'Стартуј',
+        price_monthly_mkd: 1990,
+        price_yearly_mkd: 19900,
         price_monthly_id: 'price_1SYdj7HkVI5icjTla0nOYXpg',
         price_yearly_id: 'price_1SYdj7HkVI5icjTlpqVwQbQT',
-        daily_queries: 5,
-        trial_days: 14,
+        daily_queries: 15,
+        trial_days: 7,
         allow_vpn: true,
         features: [
-          '5 AI пребарувања дневно',
-          '14-дневен пробен период',
-          'Напредни филтри',
-          'CSV/PDF експорт',
-          'Приоритетна поддршка'
+          '15 AI прашања дневно',
+          '10 зачувани известувања',
+          'CSV извоз',
+          '5 известувања за конкуренти',
+          'Поддршка преку е-пошта'
         ]
       },
       {
         tier: 'professional',
-        name: 'Professional',
-        price_monthly_mkd: 2399,
-        price_yearly_mkd: 23990,
+        name: 'Про',
+        price_monthly_mkd: 5990,
+        price_yearly_mkd: 59900,
         price_monthly_id: 'price_1SYdj8HkVI5icjTlqUWXb8QJ',
         price_yearly_id: 'price_1SYdj8HkVI5icjTl7A9x3Glo',
-        daily_queries: 20,
-        trial_days: 14,
+        daily_queries: 50,
+        trial_days: 7,
         allow_vpn: true,
         features: [
-          '20 AI пребарувања дневно',
-          '14-дневен пробен период',
-          'Аналитика',
-          'Интеграции',
-          'Дедицирана поддршка'
+          '50 AI прашања дневно',
+          '50 зачувани известувања',
+          'CSV и PDF извоз',
+          'Анализа на ризик',
+          'Приоритетна поддршка'
         ]
       },
       {
         tier: 'enterprise',
-        name: 'Enterprise',
-        price_monthly_mkd: 5999,
-        price_yearly_mkd: 59990,
+        name: 'Претпријатие',
+        price_monthly_mkd: 12990,
+        price_yearly_mkd: 129900,
         price_monthly_id: 'price_1SYdj8HkVI5icjTlop9VVjAd',
         price_yearly_id: 'price_1SYdj9HkVI5icjTl1Bq2xtGw',
         daily_queries: -1, // Unlimited
-        trial_days: 14,
+        trial_days: 7,
         allow_vpn: true,
         features: [
-          'Неограничени AI пребарувања',
-          '14-дневен пробен период',
-          'White-label',
+          'Неограничени AI прашања',
+          'Неограничени известувања',
           'API пристап',
+          'До 5 членови на тим',
           '24/7 поддршка'
         ]
       }

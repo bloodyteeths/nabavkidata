@@ -16,55 +16,57 @@ const plans = [
         description: "Započnite bez rizika. Idealno za istraživanje.",
         features: [
             "Pregled svih tendera",
+            "3 AI pitanja dnevno",
             "Osnovna pretraga",
-            "Dnevna obaveštenja",
-            "Bez kreditne kartice",
-            "Limitiran pristup"
+            "Bez kreditne kartice"
         ]
     },
     {
-        name: "Start",
+        name: "Starter",
+        id: "starter",
         price: {
-            monthly: "899",
-            yearly: "8.990"
+            monthly: "1.990",
+            yearly: "19.900"
         },
-        description: "Za mala preduzeća koja žele da započnu sa tenderima.",
+        description: "Za frilensere i mala preduzeća.",
         features: [
-            "Pristup svim tenderima",
-            "5 AI pretraga dnevno",
-            "Dnevna obaveštenja",
-            "CSV/PDF izvoz",
-            "Prioritetna podrška"
+            "15 AI pitanja dnevno",
+            "10 sačuvanih obaveštenja",
+            "CSV izvoz",
+            "5 obaveštenja za konkurente",
+            "Podrška putem e-pošte"
         ]
     },
     {
         name: "Pro",
+        id: "professional",
         price: {
-            monthly: "2.399",
-            yearly: "23.990"
+            monthly: "5.990",
+            yearly: "59.900"
         },
         popular: true,
         description: "Za rastuće kompanije koje žele konkurentsku prednost.",
         features: [
-            "Sve iz Start paketa",
-            "20 AI pretraga dnevno",
-            "Analitika",
-            "Integracije",
-            "Posvećena podrška"
+            "50 AI pitanja dnevno",
+            "50 sačuvanih obaveštenja",
+            "CSV i PDF izvoz",
+            "Analiza rizika",
+            "Prioritetna podrška"
         ]
     },
     {
         name: "Enterprise",
+        id: "enterprise",
         price: {
-            monthly: "5.999",
-            yearly: "59.990"
+            monthly: "12.990",
+            yearly: "129.900"
         },
-        description: "Za velike organizacije sa specifičnim potrebama.",
+        description: "Za timove i odeljenja sa naprednim potrebama.",
         features: [
-            "Sve iz Pro paketa",
-            "Neograničene AI pretrage",
+            "Neograničena AI pitanja",
+            "Neograničena obaveštenja",
             "API pristup",
-            "White-label",
+            "Do 5 članova tima",
             "24/7 podrška"
         ]
     }
