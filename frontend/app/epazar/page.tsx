@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Building2, TrendingUp, Award, Package, ChevronLeft, ChevronRight } from 'lucide-react';
-import { api, EPazarTender, EPazarStats, EPazarItemAggregation } from '@/lib/api';
+import { Search, Building2, TrendingUp, Award, Package, ChevronLeft, ChevronRight, Sparkles, Tag } from 'lucide-react';
+import { api, EPazarTender, EPazarStats } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,30 @@ export default function EPazarPage() {
 
   // Price check state
   const [priceSearch, setPriceSearch] = useState('');
-  const [priceResults, setPriceResults] = useState<EPazarItemAggregation[]>([]);
+  const [priceIntelligence, setPriceIntelligence] = useState<{
+    product_name: string;
+    recommended_bid_min_mkd?: number;
+    recommended_bid_max_mkd?: number;
+    market_min_mkd?: number;
+    market_max_mkd?: number;
+    market_avg_mkd?: number;
+    sample_size: number;
+    actual_prices?: {
+      has_data: boolean;
+      sample_size: number;
+      min?: number;
+      max?: number;
+      avg?: number;
+      p25?: number;
+      p75?: number;
+    };
+    winning_brands?: Array<{
+      brand: string;
+      wins: number;
+      avg_price?: number;
+    }>;
+    ai_recommendation?: string;
+  } | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceSearched, setPriceSearched] = useState(false);
 
@@ -108,11 +131,11 @@ export default function EPazarPage() {
     setPriceLoading(true);
     setPriceSearched(true);
     try {
-      const data = await api.getEPazarItemsAggregations(priceSearch);
-      setPriceResults(data.aggregations || []);
+      const data = await api.getEPazarPriceIntelligence({ search: priceSearch });
+      setPriceIntelligence(data);
     } catch (err) {
       console.error('Failed to search prices:', err);
-      setPriceResults([]);
+      setPriceIntelligence(null);
     } finally {
       setPriceLoading(false);
     }
@@ -213,39 +236,61 @@ export default function EPazarPage() {
             </form>
 
             {priceSearched && !priceLoading && (
-              priceResults.length === 0 ? (
+              !priceIntelligence || priceIntelligence.sample_size === 0 ? (
                 <p className="text-gray-500 text-center py-2">Нема резултати за "{priceSearch}"</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2">Производ</th>
-                        <th className="text-right p-2">Мин</th>
-                        <th className="text-right p-2">Просек</th>
-                        <th className="text-right p-2">Макс</th>
-                        <th className="text-right p-2">Тендери</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {priceResults.slice(0, 8).map((item, idx) => (
-                        <tr key={idx} className="border-b">
-                          <td className="p-2">
-                            {item.item_name}
-                            {item.unit && <span className="text-xs text-gray-400 ml-1">({item.unit})</span>}
-                          </td>
-                          <td className="text-right p-2 text-green-600 font-medium">
-                            {formatCurrency(item.min_unit_price || 0)}
-                          </td>
-                          <td className="text-right p-2">{formatCurrency(item.avg_unit_price || 0)}</td>
-                          <td className="text-right p-2 text-red-600 font-medium">
-                            {formatCurrency(item.max_unit_price || 0)}
-                          </td>
-                          <td className="text-right p-2">{item.tender_count}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-4">
+                  {/* Main Price Stats */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-green-50 rounded-lg p-4 text-center">
+                      <p className="text-xs text-green-600 uppercase font-medium">Минимум</p>
+                      <p className="text-xl font-bold text-green-700">
+                        {formatCurrency(priceIntelligence.actual_prices?.min || priceIntelligence.market_min_mkd || 0)}
+                      </p>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-4 text-center">
+                      <p className="text-xs text-blue-600 uppercase font-medium">Просек</p>
+                      <p className="text-xl font-bold text-blue-700">
+                        {formatCurrency(priceIntelligence.actual_prices?.avg || priceIntelligence.market_avg_mkd || 0)}
+                      </p>
+                    </div>
+                    <div className="bg-red-50 rounded-lg p-4 text-center">
+                      <p className="text-xs text-red-600 uppercase font-medium">Максимум</p>
+                      <p className="text-xl font-bold text-red-700">
+                        {formatCurrency(priceIntelligence.actual_prices?.max || priceIntelligence.market_max_mkd || 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Winning Brands from Evaluation Data */}
+                  {priceIntelligence.winning_brands && priceIntelligence.winning_brands.length > 0 && (
+                    <div className="bg-yellow-50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="h-4 w-4 text-yellow-600" />
+                        <span className="text-sm font-medium text-yellow-700">Победнички брендови</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {priceIntelligence.winning_brands.slice(0, 5).map((brand, idx) => (
+                          <Badge key={idx} variant="outline" className="bg-white border-yellow-300">
+                            <Tag className="h-3 w-3 mr-1" />
+                            {brand.brand}
+                            <span className="text-xs text-gray-400 ml-1">({brand.wins}x)</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI Recommendation */}
+                  {priceIntelligence.ai_recommendation && (
+                    <div className="text-sm text-gray-600 border-t pt-3">
+                      {priceIntelligence.ai_recommendation}
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-400 text-right">
+                    Базирано на {priceIntelligence.actual_prices?.sample_size || priceIntelligence.sample_size} тендери
+                  </p>
                 </div>
               )
             )}

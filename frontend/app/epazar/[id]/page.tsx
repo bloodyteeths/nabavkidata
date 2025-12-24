@@ -21,8 +21,9 @@ import {
   File,
   FileSpreadsheet,
   FileType,
+  TrendingUp,
 } from 'lucide-react';
-import { api, EPazarTenderDetail, EPazarItem, EPazarOffer, EPazarDocument, EPazarAwardedItem, RAGQueryResponse } from '@/lib/api';
+import { api, EPazarTenderDetail, EPazarItem, EPazarOffer, EPazarDocument, EPazarAwardedItem, EPazarEvaluation, EPazarEvaluationItem, EPazarPriceHints, EPazarPriceHint, RAGQueryResponse } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -269,6 +270,87 @@ function AwardedItemsTable({ items }: { items: EPazarAwardedItem[] }) {
   );
 }
 
+function EvaluationItemsTable({ items }: { items: EPazarEvaluationItem[] }) {
+  if (!items || items.length === 0) {
+    return <p className="text-gray-500 text-center py-8">Нема податоци од евалуација</p>;
+  }
+
+  function getPriceIndicator(itemPrice: number | undefined, marketMin?: number, marketMax?: number) {
+    if (!itemPrice || !marketMin || !marketMax) return null;
+
+    if (itemPrice < marketMin * 0.9) {
+      return <span className="text-green-600 text-xs ml-1">↓ Ниска</span>;
+    } else if (itemPrice > marketMax * 1.1) {
+      return <span className="text-red-600 text-xs ml-1">↑ Висока</span>;
+    }
+    return <span className="text-gray-500 text-xs ml-1">✓ Просек</span>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b bg-yellow-50">
+            <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">#</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Производ</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Бренд</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Кол.</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Ед. цена</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Вкупно</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-gray-600" title="Пазарни цени од други тендери">
+              Пазар*
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, idx) => (
+            <tr key={idx} className="border-b hover:bg-yellow-50/50">
+              <td className="py-3 px-4 text-sm">{item.line_number}</td>
+              <td className="py-3 px-4">
+                <div className="font-medium text-sm">{item.item_subject}</div>
+                {item.winner_name && (
+                  <div className="text-xs text-green-600 flex items-center gap-1">
+                    <Trophy className="h-3 w-3" />
+                    {item.winner_name}
+                  </div>
+                )}
+              </td>
+              <td className="py-3 px-4 text-sm">
+                {item.offered_brand ? (
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                    {item.offered_brand}
+                  </Badge>
+                ) : '-'}
+              </td>
+              <td className="py-3 px-4 text-right text-sm">
+                {item.quantity?.toLocaleString()} {item.unit}
+              </td>
+              <td className="py-3 px-4 text-right text-sm font-medium text-green-700">
+                {formatCurrency(item.unit_price_without_vat)}
+                {getPriceIndicator(item.unit_price_without_vat, item.market_min, item.market_max)}
+              </td>
+              <td className="py-3 px-4 text-right text-sm font-semibold">
+                {formatCurrency(item.total_without_vat)}
+              </td>
+              <td className="py-3 px-4 text-right text-sm text-gray-500">
+                {item.market_min && item.market_max ? (
+                  <div className="text-xs">
+                    <div>{formatCurrency(item.market_min)} - {formatCurrency(item.market_max)}</div>
+                    {item.market_count && (
+                      <div className="text-gray-400">({item.market_count} тенд.)</div>
+                    )}
+                  </div>
+                ) : '-'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-xs text-gray-400 mt-2">* Пазарни цени базирани на победнички понуди од други е-Пазар тендери</p>
+    </div>
+  );
+}
+
 function getFileIcon(fileName?: string, mimeType?: string) {
   const extension = fileName?.split('.').pop()?.toLowerCase();
   const mime = mimeType?.toLowerCase();
@@ -347,6 +429,8 @@ export default function EPazarDetailPage() {
   const tenderId = decodeURIComponent(params.id as string);
 
   const [tender, setTender] = useState<EPazarTenderDetail | null>(null);
+  const [evaluation, setEvaluation] = useState<EPazarEvaluation | null>(null);
+  const [priceHints, setPriceHints] = useState<EPazarPriceHints | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
@@ -356,6 +440,8 @@ export default function EPazarDetailPage() {
 
   useEffect(() => {
     loadTender();
+    loadEvaluation();
+    loadPriceHints();
   }, [tenderId]);
 
   async function loadTender() {
@@ -372,6 +458,30 @@ export default function EPazarDetailPage() {
       setError('Failed to load tender details');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadEvaluation() {
+    try {
+      const data = await api.getEPazarEvaluation(tenderId);
+      if (data.has_evaluation) {
+        setEvaluation(data);
+      }
+    } catch (err) {
+      console.error('Failed to load evaluation:', err);
+      // Not critical - don't show error, evaluation may not exist
+    }
+  }
+
+  async function loadPriceHints() {
+    try {
+      const data = await api.getEPazarPriceHints(tenderId);
+      if (data.hints_count > 0) {
+        setPriceHints(data);
+      }
+    } catch (err) {
+      console.error('Failed to load price hints:', err);
+      // Not critical
     }
   }
 
@@ -637,12 +747,93 @@ export default function EPazarDetailPage() {
           </Card>
         )}
 
+        {/* Price Hints Widget - Historical prices for similar items */}
+        {priceHints && priceHints.hints_count > 0 && (
+          <Card className="border-green-200 bg-green-50/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-green-600" />
+                Историски цени за слични артикли
+              </CardTitle>
+              <CardDescription>
+                Цени од претходни тендери за артикли кои се бараат во овој тендер
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {priceHints.hints.slice(0, 5).map((hint, idx) => (
+                  <div key={idx} className="bg-white rounded-lg p-3 border border-green-100">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{hint.item_name}</div>
+                        {hint.estimated_price && (
+                          <div className="text-xs text-gray-500">
+                            Проценето: {formatCurrency(hint.estimated_price)}
+                          </div>
+                        )}
+                      </div>
+                      {hint.historical.sample_count > 0 && (
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-sm font-semibold text-green-700">
+                            {formatCurrency(hint.historical.min_price || 0)} - {formatCurrency(hint.historical.max_price || 0)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            од {hint.historical.sample_count} продажби
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* Winning brands */}
+                    {hint.historical.brands && hint.historical.brands.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {hint.historical.brands.slice(0, 3).map((brand, bIdx) => (
+                          <Badge key={bIdx} variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
+                            {brand}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    {/* Example past sales */}
+                    {hint.historical.examples && hint.historical.examples.length > 0 && (
+                      <div className="mt-2 text-xs text-gray-500 space-y-1">
+                        {hint.historical.examples.slice(0, 2).map((ex, eIdx) => (
+                          <div key={eIdx} className="flex items-center gap-2">
+                            <span className="text-green-600 font-medium">{formatCurrency(ex.price)}</span>
+                            {ex.brand && <span>• {ex.brand}</span>}
+                            {ex.winner && <span>• од {ex.winner}</span>}
+                            {ex.tender_id && (
+                              <Link href={`/epazar/${ex.tender_id}`} className="text-blue-600 hover:underline">
+                                #{ex.tender_id}
+                              </Link>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {priceHints.hints_count > 5 && (
+                  <p className="text-xs text-gray-500 text-center">
+                    + уште {priceHints.hints_count - 5} артикли со историски цени
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tabs for Items, Offers, Documents, AI Agent */}
         <Card>
-          <Tabs defaultValue="items">
+          <Tabs defaultValue={evaluation?.has_evaluation ? "evaluation" : "items"}>
             <CardHeader>
               <div className="w-full overflow-x-auto pb-2">
                 <TabsList className="w-full justify-start inline-flex min-w-max">
+                  {evaluation?.has_evaluation && (
+                    <TabsTrigger value="evaluation" className="flex items-center gap-2 bg-yellow-100 data-[state=active]:bg-yellow-200">
+                      <Sparkles className="h-4 w-4 text-yellow-600" />
+                      <span className="text-yellow-700">Победници ({evaluation.items_count})</span>
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="items" className="flex items-center gap-2">
                     <Package className="h-4 w-4" />
                     Ставки ({tender.items?.length || 0})
@@ -667,6 +858,36 @@ export default function EPazarDetailPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {evaluation?.has_evaluation && (
+                <TabsContent value="evaluation">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-sm text-yellow-700 bg-yellow-50 p-3 rounded-lg">
+                      <Sparkles className="h-4 w-4" />
+                      <span>Податоци од евалуационен извештај - реални победнички цени и брендови</span>
+                    </div>
+                    {evaluation.bidders && evaluation.bidders.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {evaluation.bidders.map((bidder, idx) => (
+                          <Badge
+                            key={idx}
+                            variant={bidder.is_winner ? 'default' : bidder.is_rejected ? 'destructive' : 'outline'}
+                            className={bidder.is_winner ? 'bg-green-500' : ''}
+                          >
+                            {bidder.is_winner && <Trophy className="h-3 w-3 mr-1" />}
+                            {bidder.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    <EvaluationItemsTable items={evaluation.items} />
+                    {evaluation.total_value > 0 && (
+                      <div className="text-right text-sm text-gray-600 mt-2">
+                        Вкупна победничка вредност: <span className="font-bold text-green-700">{formatCurrency(evaluation.total_value)}</span>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              )}
               <TabsContent value="items">
                 <ItemsTable items={tender.items || []} />
               </TabsContent>

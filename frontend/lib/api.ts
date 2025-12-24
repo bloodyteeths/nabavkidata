@@ -1571,6 +1571,16 @@ class APIClient {
     return this.request<EPazarDocument[]>(`/api/epazar/tenders/${encodedId}/documents`);
   }
 
+  async getEPazarEvaluation(tenderId: string) {
+    const encodedId = encodeURIComponent(tenderId);
+    return this.request<EPazarEvaluation>(`/api/epazar/tenders/${encodedId}/evaluation`);
+  }
+
+  async getEPazarPriceHints(tenderId: string) {
+    const encodedId = encodeURIComponent(tenderId);
+    return this.request<EPazarPriceHints>(`/api/epazar/tenders/${encodedId}/price-hints`);
+  }
+
   async getEPazarSuppliers(params?: Record<string, any>) {
     const query = new URLSearchParams(params).toString();
     return this.request<{ total: number; page: number; page_size: number; items: EPazarSupplier[] }>(
@@ -1636,6 +1646,22 @@ class APIClient {
         avg_offers_per_tender: number;
         tenders_with_winner: number;
       };
+      // New fields from evaluation data (GOLD data)
+      actual_prices?: {
+        has_data: boolean;
+        sample_size: number;
+        min?: number;
+        max?: number;
+        avg?: number;
+        p25?: number;
+        p75?: number;
+      };
+      winning_brands?: Array<{
+        brand: string;
+        wins: number;
+        avg_price?: number;
+      }>;
+      ai_recommendation?: string;
     }>(`/api/epazar/price-intelligence?${query}`);
   }
 
@@ -2208,6 +2234,69 @@ export interface EPazarTenderDetail extends EPazarTender {
   offers: EPazarOffer[];
   awarded_items: EPazarAwardedItem[];
   documents: EPazarDocument[];
+}
+
+export interface EPazarEvaluationItem {
+  line_number: number;
+  item_subject: string;
+  required_brands_raw?: string;
+  offered_brand?: string;
+  unit?: string;
+  quantity?: number;
+  unit_price_without_vat?: number;
+  total_without_vat?: number;
+  winner_name?: string;
+  market_min?: number;
+  market_avg?: number;
+  market_max?: number;
+  market_count?: number;
+}
+
+export interface EPazarEvaluationBidder {
+  name: string;
+  is_winner?: boolean;
+  is_rejected?: boolean;
+}
+
+export interface EPazarEvaluation {
+  tender_id: string;
+  has_evaluation: boolean;
+  extraction_status?: string;
+  extraction_confidence?: number;
+  tender_number?: string;
+  contracting_authority?: string;
+  tender_subject?: string;
+  bidders: EPazarEvaluationBidder[];
+  items: EPazarEvaluationItem[];
+  items_count: number;
+  total_value: number;
+}
+
+export interface EPazarPriceHint {
+  line_number: number;
+  item_name: string;
+  estimated_price?: number;
+  historical: {
+    min_price?: number;
+    max_price?: number;
+    avg_price?: number;
+    sample_count: number;
+    brands: string[];
+    examples: Array<{
+      price: number;
+      brand?: string;
+      winner?: string;
+      tender_title?: string;
+      tender_id?: string;
+      date?: string;
+    }>;
+  };
+}
+
+export interface EPazarPriceHints {
+  tender_id: string;
+  hints: EPazarPriceHint[];
+  hints_count: number;
 }
 
 export interface EPazarItem {

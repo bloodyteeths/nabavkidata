@@ -737,6 +737,226 @@ async def get_epazar_documents(
 
 
 # ============================================================================
+# EVALUATION DATA ENDPOINTS (GOLD data from PDF evaluation reports)
+# ============================================================================
+
+@router.get("/tenders/{tender_id}/evaluation")
+async def get_epazar_evaluation(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get evaluation data for a tender - winning items with brands and actual prices.
+    This is the GOLD data extracted from PDF evaluation reports.
+    """
+    try:
+        # Get evaluation report info
+        report_result = await db.execute(
+            text("""
+                SELECT report_id, tender_number, contracting_authority,
+                       tender_subject, tender_type, bidders_list,
+                       extraction_status, extraction_confidence
+                FROM epazar_evaluation_reports
+                WHERE tender_id = :tender_id
+                ORDER BY created_at DESC
+                LIMIT 1
+            """),
+            {'tender_id': tender_id}
+        )
+        report = report_result.fetchone()
+
+        # Get evaluation items (winning items with brands and actual prices)
+        items_result = await db.execute(
+            text("""
+                SELECT
+                    line_number, item_subject, required_brands_raw,
+                    offered_brand, unit, quantity,
+                    unit_price_without_vat, total_without_vat,
+                    winner_name
+                FROM epazar_item_evaluations
+                WHERE tender_id = :tender_id
+                ORDER BY line_number
+            """),
+            {'tender_id': tender_id}
+        )
+        items = items_result.fetchall()
+
+        # Get bidders from evaluation
+        bidders_result = await db.execute(
+            text("""
+                SELECT bidder_name, is_winner, is_rejected
+                FROM epazar_bidders
+                WHERE tender_id = :tender_id
+                ORDER BY is_winner DESC, bidder_name
+            """),
+            {'tender_id': tender_id}
+        )
+        bidders = bidders_result.fetchall()
+
+        # Format items with market price comparison
+        formatted_items = []
+        for item in items:
+            item_dict = dict(item._mapping)
+
+            # Get market prices for this item
+            if item.item_subject:
+                market_result = await db.execute(
+                    text("""
+                        SELECT
+                            MIN(unit_price_without_vat) FILTER (WHERE unit_price_without_vat > 0) as market_min,
+                            AVG(unit_price_without_vat) FILTER (WHERE unit_price_without_vat > 0) as market_avg,
+                            MAX(unit_price_without_vat) FILTER (WHERE unit_price_without_vat > 0) as market_max,
+                            COUNT(*) FILTER (WHERE unit_price_without_vat > 0) as market_count
+                        FROM epazar_item_evaluations
+                        WHERE item_subject ILIKE :search
+                          AND tender_id != :tender_id
+                    """),
+                    {'search': f"%{item.item_subject[:30]}%", 'tender_id': tender_id}
+                )
+                market = market_result.fetchone()
+                if market and market.market_count and market.market_count > 0:
+                    item_dict['market_min'] = float(market.market_min) if market.market_min else None
+                    item_dict['market_avg'] = float(market.market_avg) if market.market_avg else None
+                    item_dict['market_max'] = float(market.market_max) if market.market_max else None
+                    item_dict['market_count'] = market.market_count
+
+            # Convert Decimal to float
+            if item_dict.get('unit_price_without_vat'):
+                item_dict['unit_price_without_vat'] = float(item_dict['unit_price_without_vat'])
+            if item_dict.get('total_without_vat'):
+                item_dict['total_without_vat'] = float(item_dict['total_without_vat'])
+            if item_dict.get('quantity'):
+                item_dict['quantity'] = float(item_dict['quantity'])
+
+            formatted_items.append(item_dict)
+
+        return {
+            'tender_id': tender_id,
+            'has_evaluation': report is not None and len(items) > 0,
+            'extraction_status': report.extraction_status if report else None,
+            'extraction_confidence': float(report.extraction_confidence) if report and report.extraction_confidence else None,
+            'tender_number': report.tender_number if report else None,
+            'contracting_authority': report.contracting_authority if report else None,
+            'tender_subject': report.tender_subject if report else None,
+            'bidders': [
+                {
+                    'name': b.bidder_name,
+                    'is_winner': b.is_winner,
+                    'is_rejected': b.is_rejected
+                }
+                for b in bidders
+            ],
+            'items': formatted_items,
+            'items_count': len(formatted_items),
+            'total_value': sum(
+                item.get('total_without_vat', 0) or 0
+                for item in formatted_items
+            )
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching evaluation for tender {tender_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenders/{tender_id}/price-hints")
+async def get_price_hints_for_tender(
+    tender_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get price hints for items in a tender based on historical sales.
+    Uses AI-matched similar items from past evaluation reports.
+    """
+    try:
+        # Get items from this tender
+        items_result = await db.execute(
+            text("""
+                SELECT item_id, line_number, item_name, quantity, unit,
+                       estimated_unit_price_mkd
+                FROM epazar_items
+                WHERE tender_id = :tender_id
+                ORDER BY line_number
+                LIMIT 20
+            """),
+            {'tender_id': tender_id}
+        )
+        items = items_result.fetchall()
+
+        hints = []
+        for item in items:
+            item_name = item.item_name
+            if not item_name or len(item_name) < 3:
+                continue
+
+            # Find similar items from evaluation data (past sales)
+            # Use first few words for matching
+            search_terms = item_name[:40].replace('%', '').strip()
+
+            similar_result = await db.execute(
+                text("""
+                    SELECT
+                        e.item_subject,
+                        e.offered_brand,
+                        e.unit_price_without_vat,
+                        e.quantity,
+                        e.winner_name,
+                        t.title as tender_title,
+                        t.publication_date,
+                        t.tender_id as source_tender_id
+                    FROM epazar_item_evaluations e
+                    JOIN epazar_tenders t ON e.tender_id = t.tender_id
+                    WHERE e.item_subject ILIKE :search
+                      AND e.unit_price_without_vat > 0
+                      AND e.tender_id != :tender_id
+                    ORDER BY t.publication_date DESC
+                    LIMIT 5
+                """),
+                {'search': f"%{search_terms}%", 'tender_id': tender_id}
+            )
+            similar_items = similar_result.fetchall()
+
+            if similar_items:
+                # Calculate price stats
+                prices = [float(s.unit_price_without_vat) for s in similar_items if s.unit_price_without_vat]
+                brands = [s.offered_brand for s in similar_items if s.offered_brand]
+
+                hints.append({
+                    'line_number': item.line_number,
+                    'item_name': item_name,
+                    'estimated_price': float(item.estimated_unit_price_mkd) if item.estimated_unit_price_mkd else None,
+                    'historical': {
+                        'min_price': min(prices) if prices else None,
+                        'max_price': max(prices) if prices else None,
+                        'avg_price': sum(prices) / len(prices) if prices else None,
+                        'sample_count': len(similar_items),
+                        'brands': list(set(brands))[:3],
+                        'examples': [
+                            {
+                                'price': float(s.unit_price_without_vat),
+                                'brand': s.offered_brand,
+                                'winner': s.winner_name,
+                                'tender_title': s.tender_title,
+                                'tender_id': s.source_tender_id,
+                                'date': s.publication_date.isoformat() if s.publication_date else None
+                            }
+                            for s in similar_items[:3]
+                        ]
+                    }
+                })
+
+        return {
+            'tender_id': tender_id,
+            'hints': hints,
+            'hints_count': len(hints)
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching price hints for tender {tender_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # SUPPLIERS ENDPOINTS
 # ============================================================================
 
@@ -2107,11 +2327,69 @@ async def get_price_intelligence(
         if comp_stats.avg_discount_ratio:
             typical_discount_percent = round((1 - float(comp_stats.avg_discount_ratio)) * 100, 1)
 
-        # Use estimated prices as base
-        min_price = float(item_stats.min_estimated) if item_stats.min_estimated else 0
-        max_price = float(item_stats.max_estimated) if item_stats.max_estimated else 0
-        avg_price = float(item_stats.avg_estimated) if item_stats.avg_estimated else 0
-        median_price = float(item_stats.median_estimated) if item_stats.median_estimated else avg_price
+        # Query ACTUAL winning prices from evaluation reports (GOLD data)
+        # This is the real price data extracted from PDF evaluation reports
+        if len(search_variants) == 1:
+            eval_search_condition = "e.item_subject ILIKE :search"
+        else:
+            eval_search_condition = "(e.item_subject ILIKE :search_latin OR e.item_subject ILIKE :search_cyrillic)"
+
+        actual_prices_query = text(f"""
+            SELECT
+                COUNT(*) as evaluation_count,
+                MIN(e.unit_price_without_vat) FILTER (WHERE e.unit_price_without_vat > 0) as actual_min,
+                MAX(e.unit_price_without_vat) FILTER (WHERE e.unit_price_without_vat > 0) as actual_max,
+                AVG(e.unit_price_without_vat) FILTER (WHERE e.unit_price_without_vat > 0) as actual_avg,
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY e.unit_price_without_vat)
+                    FILTER (WHERE e.unit_price_without_vat > 0) as actual_p25,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY e.unit_price_without_vat)
+                    FILTER (WHERE e.unit_price_without_vat > 0) as actual_p75
+            FROM epazar_item_evaluations e
+            WHERE {eval_search_condition}
+        """)
+
+        eval_result = await db.execute(actual_prices_query, params)
+        eval_stats = eval_result.fetchone()
+
+        # Get winning brands from evaluation data
+        brands_query = text(f"""
+            SELECT
+                e.offered_brand,
+                COUNT(*) as win_count,
+                AVG(e.unit_price_without_vat) as avg_price
+            FROM epazar_item_evaluations e
+            WHERE e.offered_brand IS NOT NULL
+              AND e.offered_brand != ''
+              AND e.unit_price_without_vat > 0
+              AND {eval_search_condition}
+            GROUP BY e.offered_brand
+            ORDER BY win_count DESC
+            LIMIT 5
+        """)
+
+        brands_result = await db.execute(brands_query, params)
+        winning_brands = [
+            {"brand": row.offered_brand, "wins": row.win_count, "avg_price": float(row.avg_price) if row.avg_price else None}
+            for row in brands_result.fetchall()
+        ]
+
+        # Use ACTUAL prices from evaluations if available, otherwise fall back to estimated
+        has_actual_prices = eval_stats and eval_stats.evaluation_count and eval_stats.evaluation_count > 0
+        if has_actual_prices:
+            min_price = float(eval_stats.actual_min) if eval_stats.actual_min else 0
+            max_price = float(eval_stats.actual_max) if eval_stats.actual_max else 0
+            avg_price = float(eval_stats.actual_avg) if eval_stats.actual_avg else 0
+            median_price = avg_price  # Use avg as median approximation
+            p25_price = float(eval_stats.actual_p25) if eval_stats.actual_p25 else min_price
+            p75_price = float(eval_stats.actual_p75) if eval_stats.actual_p75 else max_price
+        else:
+            # Fall back to estimated prices
+            min_price = float(item_stats.min_estimated) if item_stats.min_estimated else 0
+            max_price = float(item_stats.max_estimated) if item_stats.max_estimated else 0
+            avg_price = float(item_stats.avg_estimated) if item_stats.avg_estimated else 0
+            median_price = float(item_stats.median_estimated) if item_stats.median_estimated else avg_price
+            p25_price = min_price
+            p75_price = max_price
 
         # Calculate recommended bid (apply typical discount to estimated price)
         discount_factor = 1 - (typical_discount_percent / 100) if typical_discount_percent > 0 else 0.92
@@ -2137,8 +2415,8 @@ async def get_price_intelligence(
         return {
             # Frontend expected fields (flat structure)
             "product_name": item_name,
-            "recommended_bid_min_mkd": recommended_bid_low,
-            "recommended_bid_max_mkd": recommended_bid_high,
+            "recommended_bid_min_mkd": round(p25_price, 2) if has_actual_prices else recommended_bid_low,
+            "recommended_bid_max_mkd": round(p75_price, 2) if has_actual_prices else recommended_bid_high,
             "market_min_mkd": round(min_price, 2),
             "market_max_mkd": round(max_price, 2),
             "market_avg_mkd": round(avg_price, 2),
@@ -2152,12 +2430,30 @@ async def get_price_intelligence(
             "typical_discount_percent": typical_discount_percent,
             "total_tenders": item_stats.total_tenders,
             "total_quantity": float(item_stats.total_quantity) if item_stats.total_quantity else 0,
+            # NEW: Actual prices from evaluation reports (GOLD data)
+            "actual_prices": {
+                "has_data": has_actual_prices,
+                "sample_size": eval_stats.evaluation_count if eval_stats else 0,
+                "min": round(float(eval_stats.actual_min), 2) if eval_stats and eval_stats.actual_min else None,
+                "avg": round(float(eval_stats.actual_avg), 2) if eval_stats and eval_stats.actual_avg else None,
+                "max": round(float(eval_stats.actual_max), 2) if eval_stats and eval_stats.actual_max else None,
+                "p25": round(float(eval_stats.actual_p25), 2) if eval_stats and eval_stats.actual_p25 else None,
+                "p75": round(float(eval_stats.actual_p75), 2) if eval_stats and eval_stats.actual_p75 else None,
+            },
+            # NEW: Winning brands from evaluation data
+            "winning_brands": winning_brands,
+            # NEW: AI recommendation message
+            "ai_recommendation": f"Препорачана цена: {round(p25_price, 0):.0f}-{round(p75_price, 0):.0f} МКД. " +
+                (f"Најчест победнички бренд: {winning_brands[0]['brand']}. " if winning_brands else "") +
+                f"Базирано на {eval_stats.evaluation_count if eval_stats else 0} победнички понуди." if has_actual_prices else
+                f"Препорачана цена: {recommended_bid_low:.0f}-{recommended_bid_high:.0f} МКД (базирано на проценки).",
             "data_points": {
                 "items_analyzed": item_stats.total_items,
                 "tenders_with_offers": comp_stats.tenders_with_offers or 0,
                 "total_offers": comp_stats.total_offers or 0,
                 "avg_offers_per_tender": round(avg_offers, 1),
-                "tenders_with_winner": comp_stats.tenders_with_winner or 0
+                "tenders_with_winner": comp_stats.tenders_with_winner or 0,
+                "evaluation_records": eval_stats.evaluation_count if eval_stats else 0
             }
         }
 
