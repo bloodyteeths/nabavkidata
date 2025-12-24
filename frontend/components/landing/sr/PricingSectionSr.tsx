@@ -18,7 +18,7 @@ const plans = [
             "Pregled svih tendera",
             "3 AI pitanja dnevno",
             "Osnovna pretraga",
-            "Bez kreditne kartice"
+            "1 sačuvano obaveštenje"
         ]
     },
     {
@@ -33,8 +33,7 @@ const plans = [
             "15 AI pitanja dnevno",
             "10 sačuvanih obaveštenja",
             "CSV izvoz",
-            "5 obaveštenja za konkurente",
-            "Podrška putem e-pošte"
+            "5 obaveštenja za konkurente"
         ]
     },
     {
@@ -49,9 +48,9 @@ const plans = [
         features: [
             "50 AI pitanja dnevno",
             "50 sačuvanih obaveštenja",
-            "CSV i PDF izvoz",
+            "CSV izvoz",
             "Analiza rizika",
-            "Prioritetna podrška"
+            "20 obaveštenja za konkurente"
         ]
     },
     {
@@ -66,8 +65,8 @@ const plans = [
             "Neograničena AI pitanja",
             "Neograničena obaveštenja",
             "API pristup",
-            "Do 5 članova tima",
-            "24/7 podrška"
+            "Do 10 članova tima",
+            "Neograničeni konkurenti"
         ]
     }
 ];

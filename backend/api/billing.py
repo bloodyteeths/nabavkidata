@@ -112,7 +112,8 @@ SUBSCRIPTION_PLANS = {
             "doc_extractions_per_day": 5,
             "competitor_alerts": 5,
             "ai_summary": True,
-            "risk_analysis": False
+            "risk_analysis": False,
+            "team_members": 1
         }
     },
     "professional": {
@@ -125,7 +126,7 @@ SUBSCRIPTION_PLANS = {
         "features": [
             "50 AI прашања дневно",
             "50 зачувани известувања",
-            "CSV и PDF извоз",
+            "CSV извоз",
             "Анализа на ризик",
             "20 известувања за конкуренти"
         ],
@@ -136,7 +137,8 @@ SUBSCRIPTION_PLANS = {
             "doc_extractions_per_day": 20,
             "competitor_alerts": 20,
             "ai_summary": True,
-            "risk_analysis": True
+            "risk_analysis": True,
+            "team_members": 1
         }
     },
     "enterprise": {
@@ -149,10 +151,11 @@ SUBSCRIPTION_PLANS = {
         "features": [
             "Неограничени AI прашања",
             "Неограничени известувања",
-            "Неограничен извоз",
+            "Неограничен CSV извоз",
+            "Анализа на ризик",
             "API пристап",
-            "До 5 членови на тим",
-            "Приоритетна поддршка"
+            "До 10 членови на тим",
+            "Неограничени конкуренти"
         ],
         "limits": {
             "rag_queries_per_day": -1,  # unlimited
@@ -162,7 +165,8 @@ SUBSCRIPTION_PLANS = {
             "competitor_alerts": -1,
             "ai_summary": True,
             "risk_analysis": True,
-            "api_access": True
+            "api_access": True,
+            "team_members": 10
         }
     }
 }
