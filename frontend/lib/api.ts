@@ -1621,6 +1621,20 @@ class APIClient {
     );
   }
 
+  async searchEPazarProducts(query: string) {
+    return this.request<{
+      query: string;
+      products: Array<{
+        name: string;
+        count: number;
+        min_price?: number;
+        max_price?: number;
+        avg_price?: number;
+      }>;
+      total: number;
+    }>(`/api/epazar/price-search?q=${encodeURIComponent(query)}`);
+  }
+
   async getEPazarPriceIntelligence(params?: Record<string, any>) {
     const query = new URLSearchParams(params || {}).toString();
     return this.request<{

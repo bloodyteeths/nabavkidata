@@ -47,6 +47,14 @@ export default function EPazarPage() {
 
   // Price check state
   const [priceSearch, setPriceSearch] = useState('');
+  const [productSuggestions, setProductSuggestions] = useState<Array<{
+    name: string;
+    count: number;
+    min_price?: number;
+    max_price?: number;
+    avg_price?: number;
+  }>>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [priceIntelligence, setPriceIntelligence] = useState<{
     product_name: string;
     recommended_bid_min_mkd?: number;
@@ -130,11 +138,46 @@ export default function EPazarPage() {
 
     setPriceLoading(true);
     setPriceSearched(true);
+    setPriceIntelligence(null);
+    setShowSuggestions(false);
+
     try {
-      const data = await api.getEPazarPriceIntelligence({ search: priceSearch });
-      setPriceIntelligence(data);
+      // First search for matching products
+      const searchResult = await api.searchEPazarProducts(priceSearch);
+
+      if (searchResult.products.length === 0) {
+        // No products found
+        setProductSuggestions([]);
+        setPriceIntelligence(null);
+      } else if (searchResult.products.length === 1) {
+        // Only one product - show prices directly
+        setProductSuggestions([]);
+        const data = await api.getEPazarPriceIntelligence({ search: searchResult.products[0].name });
+        setPriceIntelligence(data);
+      } else {
+        // Multiple products - show suggestions
+        setProductSuggestions(searchResult.products);
+        setShowSuggestions(true);
+      }
     } catch (err) {
       console.error('Failed to search prices:', err);
+      setPriceIntelligence(null);
+      setProductSuggestions([]);
+    } finally {
+      setPriceLoading(false);
+    }
+  }
+
+  async function selectProduct(productName: string) {
+    setPriceLoading(true);
+    setShowSuggestions(false);
+    setPriceSearch(productName);
+
+    try {
+      const data = await api.getEPazarPriceIntelligence({ search: productName });
+      setPriceIntelligence(data);
+    } catch (err) {
+      console.error('Failed to get prices:', err);
       setPriceIntelligence(null);
     } finally {
       setPriceLoading(false);
@@ -235,39 +278,68 @@ export default function EPazarPage() {
               </Button>
             </form>
 
-            {priceSearched && !priceLoading && (
-              !priceIntelligence || priceIntelligence.sample_size === 0 ? (
-                <p className="text-muted-foreground text-center py-2">Нема резултати за "{priceSearch}"</p>
-              ) : (
-                <div className="space-y-4">
-                  {/* Main Price Stats - using P25/P75 for typical range */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-muted/50 rounded-lg p-4 text-center border">
-                      <p className="text-xs text-muted-foreground uppercase font-medium">Ниска цена</p>
-                      <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(priceIntelligence.actual_prices?.p25 || priceIntelligence.recommended_bid_min_mkd || 0)}
-                      </p>
-                    </div>
-                    <div className="bg-primary/10 rounded-lg p-4 text-center border border-primary/20">
-                      <p className="text-xs text-primary uppercase font-medium">Просек</p>
-                      <p className="text-xl font-bold text-primary">
-                        {formatCurrency(priceIntelligence.actual_prices?.avg || priceIntelligence.market_avg_mkd || 0)}
-                      </p>
-                    </div>
-                    <div className="bg-muted/50 rounded-lg p-4 text-center border">
-                      <p className="text-xs text-muted-foreground uppercase font-medium">Висока цена</p>
-                      <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(priceIntelligence.actual_prices?.p75 || priceIntelligence.recommended_bid_max_mkd || 0)}
-                      </p>
-                    </div>
-                  </div>
+            {/* Product Suggestions - like Google search */}
+            {priceSearched && !priceLoading && showSuggestions && productSuggestions.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Пронајдени {productSuggestions.length} производи - изберете:</p>
+                <div className="grid gap-2">
+                  {productSuggestions.map((product, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => selectProduct(product.name)}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+                    >
+                      <div>
+                        <span className="font-medium">{product.name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">({product.count} понуди)</span>
+                      </div>
+                      {product.avg_price && (
+                        <span className="text-sm font-semibold text-primary">
+                          ~{formatCurrency(product.avg_price)}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                  {/* Product name that was matched */}
-                  {priceIntelligence.product_name && (
-                    <p className="text-sm text-muted-foreground">
-                      Пронајдено: <span className="font-medium text-foreground">{priceIntelligence.product_name}</span>
+            {/* No results */}
+            {priceSearched && !priceLoading && !showSuggestions && productSuggestions.length === 0 && !priceIntelligence && (
+              <p className="text-muted-foreground text-center py-2">Нема резултати за "{priceSearch}"</p>
+            )}
+
+            {/* Price Intelligence Results */}
+            {priceSearched && !priceLoading && priceIntelligence && priceIntelligence.sample_size > 0 && (
+              <div className="space-y-4">
+                {/* Main Price Stats - using P25/P75 for typical range */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-muted/50 rounded-lg p-4 text-center border">
+                    <p className="text-xs text-muted-foreground uppercase font-medium">Ниска цена</p>
+                    <p className="text-xl font-bold text-foreground">
+                      {formatCurrency(priceIntelligence.actual_prices?.p25 || priceIntelligence.recommended_bid_min_mkd || 0)}
                     </p>
-                  )}
+                  </div>
+                  <div className="bg-primary/10 rounded-lg p-4 text-center border border-primary/20">
+                    <p className="text-xs text-primary uppercase font-medium">Просек</p>
+                    <p className="text-xl font-bold text-primary">
+                      {formatCurrency(priceIntelligence.actual_prices?.avg || priceIntelligence.market_avg_mkd || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-4 text-center border">
+                    <p className="text-xs text-muted-foreground uppercase font-medium">Висока цена</p>
+                    <p className="text-xl font-bold text-foreground">
+                      {formatCurrency(priceIntelligence.actual_prices?.p75 || priceIntelligence.recommended_bid_max_mkd || 0)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Product name that was matched */}
+                {priceIntelligence.product_name && (
+                  <p className="text-sm text-muted-foreground">
+                    Производ: <span className="font-medium text-foreground">{priceIntelligence.product_name}</span>
+                  </p>
+                )}
 
                   {/* Winning Brands from Evaluation Data */}
                   {priceIntelligence.winning_brands && priceIntelligence.winning_brands.length > 0 && (
@@ -295,11 +367,10 @@ export default function EPazarPage() {
                     </div>
                   )}
 
-                  <p className="text-xs text-muted-foreground text-right">
-                    Базирано на {priceIntelligence.actual_prices?.sample_size || priceIntelligence.sample_size} тендери
-                  </p>
-                </div>
-              )
+                <p className="text-xs text-muted-foreground text-right">
+                  Базирано на {priceIntelligence.actual_prices?.sample_size || priceIntelligence.sample_size} тендери
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
