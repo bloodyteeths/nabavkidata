@@ -103,8 +103,8 @@ ${formData.message}
             <div className="bg-white/5 border border-white/10 rounded-xl p-6">
               <Phone className="w-6 h-6 text-primary mb-3" />
               <h3 className="text-white font-semibold mb-1">Телефон</h3>
-              <a href="tel:+38970123456" className="text-gray-400 hover:text-primary transition-colors">
-                +389 70 123 456
+              <a href="tel:+38976355089" className="text-gray-400 hover:text-primary transition-colors">
+                +389 76 355 089
               </a>
             </div>
 
