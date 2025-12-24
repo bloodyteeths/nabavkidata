@@ -79,7 +79,7 @@ const plans = [
             "Do 10 članova tima",
             "Neograničeni konkurenti"
         ],
-        cta: "Kontaktirajte nas"
+        cta: "Započni"
     }
 ];
 
@@ -103,10 +103,6 @@ export default function PricingSectionSr() {
             return;
         }
 
-        if (planId === "enterprise") {
-            router.push("/contact?plan=enterprise");
-            return;
-        }
 
         setLoading(planId);
         try {

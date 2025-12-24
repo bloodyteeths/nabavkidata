@@ -79,7 +79,7 @@ const plans = [
             "До 10 членови на тим",
             "Неограничени конкуренти"
         ],
-        cta: "Контактирајте не"
+        cta: "Започни"
     }
 ];
 
@@ -103,10 +103,6 @@ export default function PricingSection() {
             return;
         }
 
-        if (planId === "enterprise") {
-            router.push("/contact?plan=enterprise");
-            return;
-        }
 
         setLoading(planId);
         try {
