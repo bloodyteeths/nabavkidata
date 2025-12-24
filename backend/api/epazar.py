@@ -2208,6 +2208,69 @@ async def get_epazar_supplier_stats(
 
 
 # ============================================================================
+# PRICE SEARCH - Returns matching products for autocomplete
+# ============================================================================
+
+@router.get("/price-search")
+async def search_products_for_price(
+    q: str = Query(..., min_length=2, description="Search query"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Search for distinct products matching query - for autocomplete/suggestions.
+    Returns list of product names with their price ranges.
+    """
+    try:
+        search_variants = get_search_variants(q)
+
+        if len(search_variants) == 1:
+            search_condition = "item_subject ILIKE :search"
+            params = {'search': f"%{search_variants[0]}%"}
+        else:
+            search_condition = "(item_subject ILIKE :search_latin OR item_subject ILIKE :search_cyrillic)"
+            params = {
+                'search_latin': f"%{search_variants[0]}%",
+                'search_cyrillic': f"%{search_variants[1]}%"
+            }
+
+        # Get distinct products with price stats from evaluation data
+        query = text(f"""
+            SELECT
+                TRIM(item_subject) as product_name,
+                COUNT(*) as count,
+                MIN(unit_price_without_vat) FILTER (WHERE unit_price_without_vat > 0) as min_price,
+                MAX(unit_price_without_vat) FILTER (WHERE unit_price_without_vat > 0) as max_price,
+                AVG(unit_price_without_vat) FILTER (WHERE unit_price_without_vat > 0) as avg_price
+            FROM epazar_item_evaluations
+            WHERE {search_condition}
+              AND item_subject IS NOT NULL
+              AND LENGTH(TRIM(item_subject)) >= 3
+            GROUP BY TRIM(item_subject)
+            HAVING COUNT(*) >= 1
+            ORDER BY COUNT(*) DESC
+            LIMIT 10
+        """)
+
+        result = await db.execute(query, params)
+        products = []
+        for row in result.fetchall():
+            if row.product_name and len(row.product_name.strip()) >= 3:
+                products.append({
+                    "name": row.product_name,
+                    "count": row.count,
+                    "min_price": round(float(row.min_price), 2) if row.min_price else None,
+                    "max_price": round(float(row.max_price), 2) if row.max_price else None,
+                    "avg_price": round(float(row.avg_price), 2) if row.avg_price else None,
+                })
+
+        return {"query": q, "products": products, "total": len(products)}
+
+    except Exception as e:
+        logger.error(f"Error in price search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # PRICE INTELLIGENCE ENDPOINT
 # ============================================================================
 
@@ -2351,7 +2414,7 @@ async def get_price_intelligence(
         eval_result = await db.execute(actual_prices_query, params)
         eval_stats = eval_result.fetchone()
 
-        # Get winning brands from evaluation data
+        # Get winning brands from evaluation data (filter out garbage from bad PDF parsing)
         brands_query = text(f"""
             SELECT
                 e.offered_brand,
@@ -2360,6 +2423,10 @@ async def get_price_intelligence(
             FROM epazar_item_evaluations e
             WHERE e.offered_brand IS NOT NULL
               AND e.offered_brand != ''
+              AND LENGTH(e.offered_brand) >= 2
+              AND LENGTH(e.offered_brand) <= 50
+              AND e.offered_brand !~ '[:\)\(\[\]0-9]'
+              AND e.offered_brand NOT ILIKE '%производот нема%'
               AND e.unit_price_without_vat > 0
               AND {eval_search_condition}
             GROUP BY e.offered_brand
@@ -2371,6 +2438,7 @@ async def get_price_intelligence(
         winning_brands = [
             {"brand": row.offered_brand, "wins": row.win_count, "avg_price": float(row.avg_price) if row.avg_price else None}
             for row in brands_result.fetchall()
+            if row.offered_brand and len(row.offered_brand.strip()) >= 2
         ]
 
         # Use ACTUAL prices from evaluations if available, otherwise fall back to estimated
