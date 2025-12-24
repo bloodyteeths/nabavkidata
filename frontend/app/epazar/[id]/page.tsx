@@ -135,7 +135,7 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
           {items.map((item, idx) => {
             const market = marketPrices[item.item_id || item.item_name];
             return (
-              <tr key={item.item_id || idx} className="border-b hover:bg-gray-50">
+              <tr key={item.item_id || idx} className="border-b hover:bg-muted/50">
                 <td className="py-3 px-4 text-sm">{item.line_number}</td>
                 <td className="py-3 px-4">
                   <div className="font-medium">{item.item_name}</div>
@@ -246,7 +246,7 @@ function AwardedItemsTable({ items }: { items: EPazarAwardedItem[] }) {
         </thead>
         <tbody>
           {items.map((item, idx) => (
-            <tr key={item.awarded_item_id || idx} className="border-b hover:bg-gray-50">
+            <tr key={item.awarded_item_id || idx} className="border-b hover:bg-muted/50">
               <td className="py-3 px-4">
                 <div className="font-medium">{item.supplier_name}</div>
                 {item.supplier_tax_id && (
@@ -304,7 +304,7 @@ function EvaluationItemsTable({ items }: { items: EPazarEvaluationItem[] }) {
         </thead>
         <tbody>
           {items.map((item, idx) => (
-            <tr key={idx} className="border-b hover:bg-yellow-50/50">
+            <tr key={idx} className="border-b hover:bg-muted/50">
               <td className="py-3 px-4 text-sm">{item.line_number}</td>
               <td className="py-3 px-4">
                 <div className="font-medium text-sm">{item.item_subject}</div>
@@ -762,22 +762,22 @@ export default function EPazarDetailPage() {
             <CardContent>
               <div className="space-y-3">
                 {priceHints.hints.slice(0, 5).map((hint, idx) => (
-                  <div key={idx} className="rounded-lg p-3 border bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <div key={idx} className="rounded-lg p-3 border bg-muted/30 hover:bg-muted/50 transition-colors">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-gray-900">{hint.item_name}</div>
+                        <div className="font-medium text-sm">{hint.item_name}</div>
                         {hint.estimated_price && (
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-muted-foreground">
                             Проценето: {formatCurrency(hint.estimated_price)}
                           </div>
                         )}
                       </div>
                       {hint.historical.sample_count > 0 && (
                         <div className="text-right flex-shrink-0">
-                          <div className="text-sm font-bold text-gray-900">
+                          <div className="text-sm font-bold">
                             {formatCurrency(hint.historical.min_price || 0)} - {formatCurrency(hint.historical.max_price || 0)}
                           </div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-muted-foreground">
                             од {hint.historical.sample_count} продажби
                           </div>
                         </div>
@@ -795,14 +795,14 @@ export default function EPazarDetailPage() {
                     )}
                     {/* Example past sales */}
                     {hint.historical.examples && hint.historical.examples.length > 0 && (
-                      <div className="mt-2 text-xs text-gray-600 space-y-1">
+                      <div className="mt-2 text-xs text-muted-foreground space-y-1">
                         {hint.historical.examples.slice(0, 2).map((ex, eIdx) => (
                           <div key={eIdx} className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-gray-900">{formatCurrency(ex.price)}</span>
-                            {ex.brand && <span className="text-gray-500">• {ex.brand}</span>}
-                            {ex.winner && <span className="text-gray-500 truncate max-w-[200px]">• {ex.winner}</span>}
+                            <span className="font-semibold text-foreground">{formatCurrency(ex.price)}</span>
+                            {ex.brand && <span>• {ex.brand}</span>}
+                            {ex.winner && <span className="truncate max-w-[200px]">• {ex.winner}</span>}
                             {ex.tender_id && (
-                              <Link href={`/epazar/${ex.tender_id}`} className="text-blue-600 hover:underline font-medium">
+                              <Link href={`/epazar/${ex.tender_id}`} className="text-primary hover:underline font-medium">
                                 {ex.tender_id}
                               </Link>
                             )}
@@ -813,7 +813,7 @@ export default function EPazarDetailPage() {
                   </div>
                 ))}
                 {priceHints.hints_count > 5 && (
-                  <p className="text-xs text-gray-500 text-center">
+                  <p className="text-xs text-muted-foreground text-center">
                     + уште {priceHints.hints_count - 5} артикли со историски цени
                   </p>
                 )}
