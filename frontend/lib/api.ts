@@ -2223,6 +2223,21 @@ class APIClient {
       total_months: number;
     }>('/api/insights/seasonal-patterns');
   }
+
+  // Contact Form
+  async submitContactForm(data: {
+    name: string;
+    email: string;
+    company?: string | null;
+    phone?: string | null;
+    message: string;
+    plan?: string | null;
+  }) {
+    return this.request<{ success: boolean; message: string }>('/api/contact', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 // E-Pazar Types

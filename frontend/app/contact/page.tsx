@@ -5,8 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Building2, Mail, Phone, Send, CheckCircle } from 'lucide-react';
+import { Building2, Mail, Phone, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { api } from '@/lib/api';
 
 export default function ContactPage() {
   const searchParams = useSearchParams();
@@ -24,30 +25,30 @@ export default function ContactPage() {
   });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
-    // For now, just open mailto link
-    const subject = isEnterprise
-      ? 'Enterprise Plan Inquiry - nabavkidata.com'
-      : 'Contact from nabavkidata.com';
+    try {
+      await api.submitContactForm({
+        name: formData.name,
+        email: formData.email,
+        company: formData.company || null,
+        phone: formData.phone || null,
+        message: formData.message,
+        plan: isEnterprise ? 'enterprise' : null
+      });
 
-    const body = `
-Име: ${formData.name}
-Компанија: ${formData.company}
-Email: ${formData.email}
-Телефон: ${formData.phone}
-
-Порака:
-${formData.message}
-    `.trim();
-
-    window.location.href = `mailto:support@nabavkidata.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
-    setLoading(false);
-    setSubmitted(true);
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Contact form error:', err);
+      setError('Грешка при испраќање. Ве молиме обидете се повторно или контактирајте не директно на support@nabavkidata.com');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -57,8 +58,7 @@ ${formData.message}
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
           <h1 className="text-2xl font-bold text-white mb-4">Благодариме!</h1>
           <p className="text-gray-400 mb-8">
-            Вашата порака е подготвена. Ако вашиот email клиент не се отвори автоматски,
-            ве молиме контактирајте не на support@nabavkidata.com
+            Вашата порака е успешно испратена. Ќе ви одговориме наскоро.
           </p>
           <Link href="/">
             <Button>Назад кон почетна</Button>
@@ -126,6 +126,12 @@ ${formData.message}
           {/* Contact Form */}
           <div className="md:col-span-2">
             <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-xl p-8 space-y-6">
+              {error && (
+                <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <p className="text-sm">{error}</p>
+                </div>
+              )}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">

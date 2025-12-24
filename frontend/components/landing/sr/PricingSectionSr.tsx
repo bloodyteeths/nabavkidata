@@ -248,7 +248,7 @@ export default function PricingSectionSr() {
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ delay: index * 0.1 }}
-                                className={`relative p-6 rounded-2xl border backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] ${
+                                className={`relative p-6 rounded-2xl border backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] flex flex-col h-full ${
                                     plan.popular
                                         ? "bg-gradient-to-b from-primary/20 to-primary/5 border-primary shadow-[0_0_40px_rgba(124,58,237,0.15)]"
                                         : "bg-white/5 border-white/10 hover:border-white/20"
@@ -286,7 +286,7 @@ export default function PricingSectionSr() {
                                     )}
                                 </div>
 
-                                <ul className="space-y-3 mb-6">
+                                <ul className="space-y-3 mb-6 flex-grow">
                                     {plan.features.map((feature, idx) => (
                                         <li key={idx} className="flex items-start gap-2.5 text-gray-300 text-sm">
                                             <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
@@ -300,7 +300,7 @@ export default function PricingSectionSr() {
                                 <Button
                                     onClick={() => handleSelectPlan(plan.id)}
                                     disabled={loading === plan.id}
-                                    className={`w-full transition-all ${
+                                    className={`w-full transition-all mt-auto ${
                                         plan.popular
                                             ? "bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25"
                                             : "bg-white/10 hover:bg-white/20 text-white border border-white/10"

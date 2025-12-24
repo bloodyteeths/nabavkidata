@@ -12,10 +12,12 @@ from pathlib import Path
 import json
 import os
 
-from database import init_db, close_db, get_db
+from database import init_db, close_db, close_pool, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact
+# Note: report_campaigns commented out - missing weasyprint on server
+# from api import report_campaigns
 from middleware.fraud import FraudPreventionMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 
@@ -65,6 +67,7 @@ async def startup():
 async def shutdown():
     """Close database connections on shutdown"""
     await close_db()
+    await close_pool()
     print("✓ Database connections closed")
 
 
@@ -99,6 +102,8 @@ app.include_router(notifications.router, prefix="/api/notifications", tags=["not
 app.include_router(corruption.router)  # Corruption detection & risk analysis
 app.include_router(risk.router)  # Risk investigation (corruption research orchestrator)
 app.include_router(api_keys.router, prefix="/api")  # API key management (Enterprise tier)
+# app.include_router(report_campaigns.router)  # Report-first outreach campaigns (disabled - missing weasyprint)
+app.include_router(contact.router, prefix="/api")  # Contact form submissions
 
 
 # Root endpoints
