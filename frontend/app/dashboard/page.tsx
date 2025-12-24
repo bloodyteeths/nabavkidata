@@ -46,9 +46,9 @@ export default function DashboardPage() {
       ]);
 
       setOnboardingData({
-        hasAlerts: alertsRes.status === "fulfilled" && ((alertsRes.value as any)?.alerts?.length || (alertsRes.value as any)?.length || 0) > 0,
-        hasSearches: searchesRes.status === "fulfilled" && ((searchesRes.value as any)?.searches?.length || (searchesRes.value as any)?.length || 0) > 0,
-        hasTrackedCompetitors: competitorsRes.status === "fulfilled" && ((competitorsRes.value as any)?.competitors?.length || (competitorsRes.value as any)?.length || 0) > 0,
+        hasAlerts: alertsRes.status === "fulfilled" && ((alertsRes.value as any)?.alerts?.length || 0) > 0,
+        hasSearches: searchesRes.status === "fulfilled" && ((searchesRes.value as any)?.items?.length || 0) > 0,
+        hasTrackedCompetitors: competitorsRes.status === "fulfilled" && ((competitorsRes.value as any)?.tracked_competitors?.length || (competitorsRes.value as any)?.count || 0) > 0,
         hasSetPreferences: Boolean((user as any)?.preferences_set || (user as any)?.industry || (user as any)?.cpv_codes?.length),
       });
     } catch (error) {
