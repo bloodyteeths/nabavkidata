@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Bookmark, Play, Trash2, Loader2 } from "lucide-react";
+import { Bookmark, Play, Trash2, Loader2, RefreshCw } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -39,6 +39,7 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     loadSearches();
@@ -47,10 +48,18 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
   const loadSearches = async () => {
     try {
       setLoading(true);
+      setLoadError(false);
       const result = await api.getSavedSearches();
       setSearches(result.items || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to load saved searches:", error);
+      // Check if it's an auth error (user not logged in)
+      if (error.status === 401) {
+        // User not authenticated, don't show error - just empty state
+        setSearches([]);
+        return;
+      }
+      setLoadError(true);
       // Fallback to localStorage if API fails
       const saved = localStorage.getItem("nabavki_saved_searches");
       if (saved) {
@@ -103,7 +112,13 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
       toast.success("Пребарувањето е зачувано");
     } catch (error: any) {
       console.error("Failed to save search:", error);
-      const errorMessage = error.message || "Не успеавме да зачуваме пребарување";
+      // Handle browser-level network errors (Safari shows "load failed", Chrome shows "Failed to fetch")
+      const isNetworkError = error.message?.toLowerCase().includes('load failed') ||
+                            error.message?.toLowerCase().includes('failed to fetch') ||
+                            error.message?.toLowerCase().includes('network');
+      const errorMessage = isNetworkError
+        ? "Грешка во мрежата. Обидете се повторно."
+        : (error.message || "Не успеавме да зачуваме пребарување");
       toast.error(errorMessage);
     } finally {
       setSaving(false);
@@ -216,6 +231,13 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Се вчитуваат...
+          </div>
+        ) : loadError ? (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Грешка при вчитување</span>
+            <Button size="sm" variant="ghost" onClick={loadSearches} title="Обиди се повторно">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </div>
         ) : searches.length === 0 ? (
           <p className="text-sm text-muted-foreground">Нема зачувани пребарувања</p>
