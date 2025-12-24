@@ -12,6 +12,8 @@ export interface BillingPlan {
   name: string;
   price_monthly_mkd: number;
   price_yearly_mkd: number;
+  price_monthly_eur?: number;
+  price_yearly_eur?: number;
   price_monthly_id: string;
   price_yearly_id: string;
   daily_queries: number;
@@ -152,8 +154,10 @@ class BillingService {
         name: 'Стартуј',
         price_monthly_mkd: 1990,
         price_yearly_mkd: 19900,
-        price_monthly_id: 'price_1SYdj7HkVI5icjTla0nOYXpg',
-        price_yearly_id: 'price_1SYdj7HkVI5icjTlpqVwQbQT',
+        price_monthly_eur: 39,
+        price_yearly_eur: 390,
+        price_monthly_id: 'price_1Si1UMHkVI5icjTlgX63qyG6',
+        price_yearly_id: 'price_1Si1UMHkVI5icjTlrze0oUdX',
         daily_queries: 15,
         trial_days: 7,
         allow_vpn: true,
@@ -169,8 +173,10 @@ class BillingService {
         name: 'Про',
         price_monthly_mkd: 5990,
         price_yearly_mkd: 59900,
-        price_monthly_id: 'price_1SYdj8HkVI5icjTlqUWXb8QJ',
-        price_yearly_id: 'price_1SYdj8HkVI5icjTl7A9x3Glo',
+        price_monthly_eur: 99,
+        price_yearly_eur: 990,
+        price_monthly_id: 'price_1Si1UNHkVI5icjTlaKDnWZuE',
+        price_yearly_id: 'price_1Si1UNHkVI5icjTlRiW5safT',
         daily_queries: 50,
         trial_days: 7,
         allow_vpn: true,
@@ -187,8 +193,10 @@ class BillingService {
         name: 'Претпријатие',
         price_monthly_mkd: 12990,
         price_yearly_mkd: 129900,
-        price_monthly_id: 'price_1SYdj8HkVI5icjTlop9VVjAd',
-        price_yearly_id: 'price_1SYdj9HkVI5icjTl1Bq2xtGw',
+        price_monthly_eur: 199,
+        price_yearly_eur: 1990,
+        price_monthly_id: 'price_1Si1UNHkVI5icjTlJrHnLL7K',
+        price_yearly_id: 'price_1Si1UOHkVI5icjTlhmTPVZSv',
         daily_queries: -1, // Unlimited
         trial_days: 7,
         allow_vpn: true,
@@ -216,11 +224,12 @@ class BillingService {
    * Create Stripe checkout session
    * @param tier - The subscription tier (free, starter, professional, enterprise)
    * @param interval - monthly or yearly
+   * @param currency - mkd or eur
    */
-  async createCheckoutSession(tier: string, interval: 'monthly' | 'yearly' = 'monthly'): Promise<CheckoutSession> {
+  async createCheckoutSession(tier: string, interval: 'monthly' | 'yearly' = 'monthly', currency: 'mkd' | 'eur' = 'mkd'): Promise<CheckoutSession> {
     const response = await this.request<CheckoutSession>('/api/billing/checkout', {
       method: 'POST',
-      body: JSON.stringify({ tier, interval }),
+      body: JSON.stringify({ tier, interval, currency }),
     });
 
     return response;

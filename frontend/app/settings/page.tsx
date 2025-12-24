@@ -899,6 +899,7 @@ export default function SettingsPage() {
   const [plans, setPlans] = useState<BillingPlan[]>([]);
   const [currentTier, setCurrentTier] = useState<string>("free");
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
+  const [currency, setCurrency] = useState<'mkd' | 'eur'>('mkd');
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const [trialCredits, setTrialCredits] = useState<TrialCredits | null>(null);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState<number>(0);
@@ -1004,8 +1005,10 @@ export default function SettingsPage() {
           name: 'Стартуј',
           price_monthly_mkd: 1990,
           price_yearly_mkd: 19900,
-          price_monthly_id: 'price_1ShgNPHkVI5icjTly68LrF4r',
-          price_yearly_id: 'price_1ShgNcHkVI5icjTl1cZHOEf6',
+          price_monthly_eur: 39,
+          price_yearly_eur: 390,
+          price_monthly_id: 'price_1Si1UMHkVI5icjTlgX63qyG6',
+          price_yearly_id: 'price_1Si1UMHkVI5icjTlrze0oUdX',
           daily_queries: 15,
           trial_days: 0,
           allow_vpn: true,
@@ -1016,8 +1019,10 @@ export default function SettingsPage() {
           name: 'Про',
           price_monthly_mkd: 5990,
           price_yearly_mkd: 59900,
-          price_monthly_id: 'price_1ShgO8HkVI5icjTl68Mk5BXJ',
-          price_yearly_id: 'price_1ShgOEHkVI5icjTlMN2CAj7h',
+          price_monthly_eur: 99,
+          price_yearly_eur: 990,
+          price_monthly_id: 'price_1Si1UNHkVI5icjTlaKDnWZuE',
+          price_yearly_id: 'price_1Si1UNHkVI5icjTlRiW5safT',
           daily_queries: 50,
           trial_days: 0,
           allow_vpn: true,
@@ -1028,8 +1033,10 @@ export default function SettingsPage() {
           name: 'Претпријатие',
           price_monthly_mkd: 12990,
           price_yearly_mkd: 129900,
-          price_monthly_id: 'price_1ShgPVHkVI5icjTl20YY8LUw',
-          price_yearly_id: 'price_1ShgPZHkVI5icjTl3HeYecMd',
+          price_monthly_eur: 199,
+          price_yearly_eur: 1990,
+          price_monthly_id: 'price_1Si1UNHkVI5icjTlJrHnLL7K',
+          price_yearly_id: 'price_1Si1UOHkVI5icjTlhmTPVZSv',
           daily_queries: -1,
           trial_days: 0,
           allow_vpn: true,
@@ -1125,7 +1132,7 @@ export default function SettingsPage() {
     if (tier === 'free') return;
     try {
       setUpgrading(tier);
-      const session = await api.createCheckoutSession(tier, interval);
+      const session = await api.createCheckoutSession(tier, interval, currency);
       window.location.href = session.checkout_url;
     } catch (error) {
       console.error("Failed to create checkout session:", error);
@@ -1245,8 +1252,9 @@ export default function SettingsPage() {
             <CardDescription className="text-xs md:text-sm">Одберете го планот што најдобро одговара на вашите потреби</CardDescription>
           </CardHeader>
           <CardContent className="p-4 md:p-6 pt-0">
-            {/* Monthly/Yearly Toggle */}
-            <div className="flex justify-center mb-4 md:mb-6">
+            {/* Monthly/Yearly and Currency Toggle */}
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-3 mb-4 md:mb-6">
+              {/* Interval Toggle */}
               <div className="inline-flex rounded-lg border border-primary/20 p-1 bg-background/50">
                 <button
                   onClick={() => setInterval('monthly')}
@@ -1270,7 +1278,41 @@ export default function SettingsPage() {
                   </Badge>
                 </button>
               </div>
+
+              {/* Currency Toggle */}
+              <div className="inline-flex rounded-lg border border-primary/20 p-1 bg-background/50">
+                <button
+                  onClick={() => setCurrency('mkd')}
+                  className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition-all ${currency === 'mkd'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  MKD
+                </button>
+                <button
+                  onClick={() => setCurrency('eur')}
+                  className={`px-3 py-1.5 md:px-4 md:py-2 rounded-md text-xs md:text-sm font-medium transition-all ${currency === 'eur'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  EUR
+                </button>
+              </div>
             </div>
+
+            {/* Bank Transfer Info for EUR */}
+            {currency === 'eur' && (
+              <div className="text-center text-xs md:text-sm text-muted-foreground mb-4 px-4">
+                <span className="inline-flex items-center gap-1.5">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  За EUR плаќања можете да користите банкарски трансфер (SEPA) или картичка
+                </span>
+              </div>
+            )}
 
             {/* Current Usage / Trial Credits Display */}
             {(isTrialActive || currentTier !== 'free') && (
@@ -1366,7 +1408,10 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {plans.map((plan) => {
                 const isCurrentPlan = plan.tier === currentTier;
-                const price = interval === 'monthly' ? plan.price_monthly_mkd : plan.price_yearly_mkd;
+                const price = currency === 'mkd'
+                  ? (interval === 'monthly' ? plan.price_monthly_mkd : plan.price_yearly_mkd)
+                  : (interval === 'monthly' ? (plan.price_monthly_eur || 0) : (plan.price_yearly_eur || 0));
+                const currencySymbol = currency === 'mkd' ? 'ден' : '€';
                 const isFree = plan.tier === 'free' || plan.tier === 'trial';
                 const isPopular = plan.tier === 'professional';
 
@@ -1391,14 +1436,16 @@ export default function SettingsPage() {
                         </div>
                         <div className="mt-2 md:mt-4">
                           <div className="flex items-baseline gap-1">
-                            <span className="text-2xl md:text-4xl font-bold">{price.toLocaleString('mk-MK')}</span>
+                            <span className="text-2xl md:text-4xl font-bold">
+                              {currency === 'eur' ? `€${price}` : price.toLocaleString('mk-MK')}
+                            </span>
                             <span className="text-xs md:text-sm text-muted-foreground">
-                              ден{isFree ? '/засекогаш' : `/${interval === 'monthly' ? 'мес' : 'год'}`}
+                              {currency === 'mkd' ? 'ден' : ''}{isFree ? '/засекогаш' : `/${interval === 'monthly' ? 'мес' : 'год'}`}
                             </span>
                           </div>
                           {!isFree && interval === 'yearly' && (
                             <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                              {Math.round(price / 12).toLocaleString('mk-MK')} ден месечно
+                              {currency === 'eur' ? `€${Math.round(price / 12)}` : `${Math.round(price / 12).toLocaleString('mk-MK')} ден`} месечно
                             </p>
                           )}
                         </div>
