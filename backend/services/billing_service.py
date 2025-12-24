@@ -109,11 +109,12 @@ class BillingService:
                 cancel_url = os.getenv('FRONTEND_URL', 'http://localhost:3000') + '/billing/cancel'
 
             # Create checkout session
+            # Enable both card and SEPA Direct Debit for EUR payments
             session = self.stripe.checkout.Session.create(
                 customer_email=email,
                 client_reference_id=user_id,
                 mode='subscription',
-                payment_method_types=['card'],
+                payment_method_types=['card', 'sepa_debit'],
                 line_items=[{
                     'price': price_id,
                     'quantity': 1
