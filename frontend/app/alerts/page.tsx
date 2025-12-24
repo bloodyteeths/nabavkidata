@@ -39,7 +39,7 @@ export default function AlertsPage() {
         </TabsList>
 
         <TabsContent value="alerts" className="mt-6">
-          <AlertList />
+          <AlertList onCreateClick={() => setActiveTab('create')} />
         </TabsContent>
         <TabsContent value="matches" className="mt-6">
           <AlertMatches />

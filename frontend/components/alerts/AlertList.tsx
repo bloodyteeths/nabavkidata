@@ -8,8 +8,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Bell, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
-
 interface Alert {
   id: string;
   name: string;
@@ -21,10 +19,13 @@ interface Alert {
   updated_at?: string;
 }
 
-export function AlertList() {
+interface AlertListProps {
+  onCreateClick?: () => void;
+}
+
+export function AlertList({ onCreateClick }: AlertListProps) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     loadAlerts();
@@ -107,7 +108,7 @@ export function AlertList() {
           <p className="text-muted-foreground mb-4 max-w-md">
             Креирајте алерт за да добивате известувања за нови тендери кои се совпаѓаат со вашите критериуми.
           </p>
-          <Button onClick={() => router.push('/alerts?tab=create')}>
+          <Button onClick={onCreateClick}>
             <Plus className="w-4 h-4 mr-2" />
             Креирај Алерт
           </Button>
