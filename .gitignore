@@ -103,3 +103,6 @@ temp/
 *.tmp
 
 scraper/opendata_cache/
+
+# Claude Code
+.claude/
