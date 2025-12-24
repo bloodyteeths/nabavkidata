@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { api, UserPreferences } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { billing, BillingPlan } from "@/lib/billing";
+import { billing, BillingPlan, UserSubscriptionStatus, TrialCredits } from "@/lib/billing";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -900,6 +900,10 @@ export default function SettingsPage() {
   const [currentTier, setCurrentTier] = useState<string>("free");
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
   const [upgrading, setUpgrading] = useState<string | null>(null);
+  const [trialCredits, setTrialCredits] = useState<TrialCredits | null>(null);
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState<number>(0);
+  const [isTrialActive, setIsTrialActive] = useState<boolean>(false);
+  const [dailyUsage, setDailyUsage] = useState<{ used: number; limit: number }>({ used: 0, limit: 3 });
 
   // Hydration guard to prevent client-side errors
   const [isHydrated, setIsHydrated] = useState(false);
@@ -1036,6 +1040,19 @@ export default function SettingsPage() {
       try {
         const status = await billing.getSubscriptionStatus();
         setCurrentTier(status.tier);
+        setDailyUsage({ used: status.daily_queries_used, limit: status.daily_queries_limit });
+
+        // Check if in trial and store credits
+        if (status.trial?.active) {
+          setIsTrialActive(true);
+          setTrialDaysRemaining(status.trial.days_remaining);
+          if (status.trial.credits) {
+            setTrialCredits(status.trial.credits);
+          }
+        } else {
+          setIsTrialActive(false);
+          setTrialCredits(null);
+        }
       } catch {
         console.log('No subscription found, defaulting to free tier');
         setCurrentTier('free');
@@ -1250,6 +1267,96 @@ export default function SettingsPage() {
                 </button>
               </div>
             </div>
+
+            {/* Current Usage / Trial Credits Display */}
+            {(isTrialActive || currentTier !== 'free') && (
+              <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-blue-900">
+                      {isTrialActive ? (
+                        <>
+                          Пробен период - уште {trialDaysRemaining} {trialDaysRemaining === 1 ? 'ден' : 'дена'}
+                        </>
+                      ) : (
+                        <>Ваш план: {plans.find(p => p.tier === currentTier)?.name || currentTier}</>
+                      )}
+                    </h3>
+                    <p className="text-sm text-blue-700 mt-1">
+                      {isTrialActive
+                        ? 'Искористете ги Pro функциите пред да истече пробниот период'
+                        : `${dailyUsage.used}/${dailyUsage.limit === -1 ? '∞' : dailyUsage.limit} AI прашања денес`}
+                    </p>
+                  </div>
+
+                  {/* Trial Credits Display */}
+                  {isTrialActive && trialCredits && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {trialCredits.ai_messages && (
+                        <div className="text-center p-2 bg-white/60 rounded-lg">
+                          <div className="text-lg font-bold text-blue-600">
+                            {trialCredits.ai_messages.remaining}
+                          </div>
+                          <div className="text-xs text-blue-800">AI пораки</div>
+                        </div>
+                      )}
+                      {trialCredits.doc_extractions && (
+                        <div className="text-center p-2 bg-white/60 rounded-lg">
+                          <div className="text-lg font-bold text-blue-600">
+                            {trialCredits.doc_extractions.remaining}
+                          </div>
+                          <div className="text-xs text-blue-800">Екстракции</div>
+                        </div>
+                      )}
+                      {trialCredits.exports && (
+                        <div className="text-center p-2 bg-white/60 rounded-lg">
+                          <div className="text-lg font-bold text-blue-600">
+                            {trialCredits.exports.remaining}
+                          </div>
+                          <div className="text-xs text-blue-800">Извози</div>
+                        </div>
+                      )}
+                      {trialCredits.competitor_alerts && (
+                        <div className="text-center p-2 bg-white/60 rounded-lg">
+                          <div className="text-lg font-bold text-blue-600">
+                            {trialCredits.competitor_alerts.remaining}
+                          </div>
+                          <div className="text-xs text-blue-800">Конкуренти</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Daily usage bar for non-trial paid plans */}
+                  {!isTrialActive && currentTier !== 'free' && dailyUsage.limit !== -1 && (
+                    <div className="w-full md:w-48">
+                      <div className="h-2 bg-blue-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-600 transition-all"
+                          style={{ width: `${Math.min((dailyUsage.used / dailyUsage.limit) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Free tier warning */}
+            {currentTier === 'free' && !isTrialActive && (
+              <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-amber-900">Бесплатен план - ограничен пристап</h3>
+                    <p className="text-sm text-amber-700">
+                      Имате {dailyUsage.limit - dailyUsage.used} AI прашања преостанати денес.
+                      Надградете за повеќе функции и неограничен пристап.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Plans Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">

@@ -42,83 +42,148 @@ router = APIRouter(
 )
 
 # Free trial configuration
-FREE_TRIAL_DAYS = 14
+FREE_TRIAL_DAYS = 7
 
-# Subscription plan definitions (unified with billing_service)
+# Subscription plan definitions - matches Stripe products
+# Free tier after trial expires - very limited
+# Trial: 7 days with Pro features, credit-based (50 AI, 15 docs, 5 exports, 20 alerts)
+# Start/Pro/Team: paid tiers with new pricing
 SUBSCRIPTION_PLANS = {
     "free": {
-        "name": "Free",
+        "name": "Бесплатен",
         "price_mkd": 0,
         "price_eur": 0,
         "stripe_price_id": None,
         "features": [
-            "Basic tender search",
-            "3 AI queries per day",
-            "14-day trial",
-            "Email support"
+            "Основно пребарување",
+            "3 AI прашања дневно",
+            "Преглед на тендери",
+            "Нема извоз"
         ],
         "limits": {
             "rag_queries_per_day": 3,
             "saved_alerts": 1,
-            "export_results": False
+            "export_results": False,
+            "doc_extractions_per_day": 0,
+            "competitor_alerts": 0,
+            "ai_summary": False,
+            "risk_analysis": False
         }
     },
-    "starter": {
-        "name": "Starter",
-        "price_mkd": 899,
-        "price_eur": 14.99,
-        "stripe_price_id": PRICE_IDS.get("starter", {}).get("monthly"),
+    "trial": {
+        "name": "Пробен период",
+        "price_mkd": 0,
+        "price_eur": 0,
+        "stripe_price_id": None,
         "features": [
-            "10 AI queries per day",
-            "14-day free trial",
-            "Advanced filters",
-            "CSV/PDF export",
-            "Priority support"
+            "50 AI пораки (кредит)",
+            "15 екстракции на документи",
+            "5 извози",
+            "20 известувања за конкуренти",
+            "Про функции 7 дена"
         ],
         "limits": {
-            "rag_queries_per_day": 10,
-            "saved_alerts": 10,
-            "export_results": True,
-            "alerts_per_day": 10
-        }
-    },
-    "professional": {
-        "name": "Professional",
-        "price_mkd": 2399,
-        "price_eur": 39.99,
-        "stripe_price_id": PRICE_IDS.get("professional", {}).get("monthly"),
-        "features": [
-            "20 AI queries per day",
-            "14-day free trial",
-            "Analytics",
-            "CSV/PDF export",
-            "Priority support"
-        ],
-        "limits": {
-            "rag_queries_per_day": 20,
+            "rag_queries_per_day": 50,  # Credit-based, not daily
             "saved_alerts": 20,
             "export_results": True,
-            "alerts_per_day": 20
+            "doc_extractions_per_day": 15,
+            "competitor_alerts": 20,
+            "ai_summary": True,
+            "risk_analysis": True
         }
     },
-    "enterprise": {
-        "name": "Enterprise",
-        "price_mkd": 5999,
-        "price_eur": 99.99,
-        "stripe_price_id": PRICE_IDS.get("enterprise", {}).get("monthly"),
+    "start": {
+        "name": "Стартуј",
+        "price_mkd": 1990,
+        "price_eur": 39,
+        "price_yearly_mkd": 19900,
+        "price_yearly_eur": 390,
+        "stripe_price_id": PRICE_IDS.get("start", {}).get("monthly"),
         "features": [
-            "Unlimited AI queries",
-            "14-day free trial",
-            "API access",
-            "CSV/PDF export",
-            "Priority support"
+            "15 AI прашања дневно",
+            "10 зачувани известувања",
+            "CSV извоз",
+            "5 известувања за конкуренти"
+        ],
+        "limits": {
+            "rag_queries_per_day": 15,
+            "saved_alerts": 10,
+            "export_results": True,
+            "doc_extractions_per_day": 5,
+            "competitor_alerts": 5,
+            "ai_summary": True,
+            "risk_analysis": False
+        }
+    },
+    "pro": {
+        "name": "Про",
+        "price_mkd": 5990,
+        "price_eur": 99,
+        "price_yearly_mkd": 59900,
+        "price_yearly_eur": 990,
+        "stripe_price_id": PRICE_IDS.get("pro", {}).get("monthly"),
+        "features": [
+            "50 AI прашања дневно",
+            "50 зачувани известувања",
+            "CSV и PDF извоз",
+            "Анализа на ризик",
+            "20 известувања за конкуренти"
+        ],
+        "limits": {
+            "rag_queries_per_day": 50,
+            "saved_alerts": 50,
+            "export_results": True,
+            "doc_extractions_per_day": 20,
+            "competitor_alerts": 20,
+            "ai_summary": True,
+            "risk_analysis": True
+        }
+    },
+    "team": {
+        "name": "Тим",
+        "price_mkd": 12990,
+        "price_eur": 199,
+        "price_yearly_mkd": 129900,
+        "price_yearly_eur": 1990,
+        "stripe_price_id": PRICE_IDS.get("team", {}).get("monthly"),
+        "features": [
+            "Неограничени AI прашања",
+            "Неограничени известувања",
+            "Неограничен извоз",
+            "Основен API пристап",
+            "До 5 членови на тим"
         ],
         "limits": {
             "rag_queries_per_day": -1,  # unlimited
             "saved_alerts": -1,  # unlimited
             "export_results": True,
-            "api_access": True,
-            "alerts_per_day": -1  # unlimited
+            "doc_extractions_per_day": -1,
+            "competitor_alerts": -1,
+            "ai_summary": True,
+            "risk_analysis": True,
+            "api_access": True
+        }
+    },
+    "enterprise": {
+        "name": "Претпријатие",
+        "price_mkd": 0,  # Custom pricing
+        "price_eur": 0,
+        "stripe_price_id": None,
+        "features": [
+            "Неограничен пристап",
+            "Полн API пристап",
+            "Посветен менаџер",
+            "SLA гаранција"
+        ],
+        "limits": {
+            "rag_queries_per_day": -1,
+            "saved_alerts": -1,
+            "export_results": True,
+            "doc_extractions_per_day": -1,
+            "competitor_alerts": -1,
+            "ai_summary": True,
+            "risk_analysis": True,
+            "api_access": True
         }
     }
 }
@@ -505,7 +570,7 @@ async def get_billing_status(
 
     Returns:
         - Subscription details
-        - Trial status
+        - Trial status with credits
         - Usage statistics
         - Payment status
 
@@ -528,29 +593,66 @@ async def get_billing_status(
     # Get usage stats
     usage = await get_usage_stats(db, str(current_user.user_id), period_start)
 
-    # Get plan details - check subscription first, then fall back to user's subscription_tier
-    tier = subscription.tier if subscription else (current_user.subscription_tier or "free")
-    plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS["free"])
+    # Check trial status from users table (new trial system)
+    tier = current_user.subscription_tier or "free"
+    in_trial = False
+    trial_days_remaining = 0
+    trial_ends_at = None
+    trial_credits = {}
+
+    # Check if user is in active trial (from users table)
+    if hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
+        now = datetime.utcnow()
+        if current_user.trial_ends_at > now:
+            in_trial = True
+            trial_days_remaining = (current_user.trial_ends_at - now).days
+            trial_ends_at = current_user.trial_ends_at.isoformat()
+            tier = "trial"  # Override tier if in trial
+
+            # Get trial credits
+            from sqlalchemy import text
+            credits_result = await db.execute(
+                text("""
+                    SELECT credit_type, total_credits, used_credits
+                    FROM trial_credits
+                    WHERE user_id = :user_id AND expires_at > NOW()
+                """),
+                {"user_id": str(current_user.user_id)}
+            )
+            for row in credits_result:
+                trial_credits[row[0]] = {
+                    "total": row[1],
+                    "used": row[2],
+                    "remaining": row[1] - row[2]
+                }
+
+    # Get plan details
+    plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS.get("free", {}))
     limits = plan.get("limits", {})
 
-    # Check trial eligibility and status
+    # Check trial eligibility
     trial_eligible = await check_trial_eligibility(db, current_user)
-    in_trial = await is_in_trial_period(subscription) if subscription else False
 
-    # Calculate days remaining in trial
-    trial_days_remaining = 0
-    if in_trial and subscription and subscription.current_period_start:
-        trial_end = subscription.current_period_start + timedelta(days=FREE_TRIAL_DAYS)
-        trial_days_remaining = (trial_end - datetime.utcnow()).days
+    # For trial users, set daily limit based on credits
+    daily_queries_limit = limits.get("rag_queries_per_day", 3)
+    daily_queries_used = usage.get("rag_queries", 0)
+
+    # If in trial, use credit-based limits
+    if in_trial and trial_credits.get("ai_messages"):
+        ai_credits = trial_credits["ai_messages"]
+        daily_queries_limit = ai_credits["total"]
+        daily_queries_used = ai_credits["used"]
 
     return {
         "tier": tier,
-        "status": subscription.status if subscription else "free",
+        "status": "trialing" if in_trial else (subscription.status if subscription else "free"),
         "plan": plan,
         "trial": {
             "eligible": trial_eligible,
             "active": in_trial,
-            "days_remaining": trial_days_remaining
+            "days_remaining": trial_days_remaining,
+            "ends_at": trial_ends_at,
+            "credits": trial_credits if in_trial else None
         },
         "billing_period": {
             "start": period_start.isoformat(),
@@ -558,6 +660,9 @@ async def get_billing_status(
         },
         "usage": usage,
         "limits": limits,
+        "daily_queries_used": daily_queries_used,
+        "daily_queries_limit": daily_queries_limit,
+        "is_blocked": daily_queries_used >= daily_queries_limit if daily_queries_limit > 0 else False,
         "subscription_id": str(subscription.subscription_id) if subscription else None,
         "cancel_at_period_end": subscription.cancel_at_period_end if subscription else False,
         "stripe_customer_id": current_user.stripe_customer_id
@@ -1584,4 +1689,229 @@ async def get_payment_methods(
             for pm in payment_methods.data
         ],
         "total": len(payment_methods.data)
+    }
+
+
+# ============================================================================
+# CREDIT CONSUMPTION ENDPOINTS
+# ============================================================================
+
+class UseCreditsRequest(BaseModel):
+    credit_type: str  # ai_messages, doc_extractions, exports, competitor_alerts
+
+
+@router.post("/use-credit")
+async def use_trial_credit(
+    request_data: UseCreditsRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Consume a trial credit for a specific action.
+    Called by AI endpoints before performing the action.
+
+    Credit types:
+        - ai_messages: AI chat, tender summary, AI products extraction
+        - doc_extractions: Document text extraction
+        - exports: CSV/PDF exports
+        - competitor_alerts: Setting up competitor tracking
+
+    Returns:
+        - allowed: Whether the action is allowed
+        - remaining: Credits remaining after this action
+        - upgrade_required: True if user needs to upgrade
+    """
+    from sqlalchemy import text
+
+    user_id = str(current_user.user_id)
+    tier = current_user.subscription_tier or "free"
+    credit_type = request_data.credit_type
+
+    # Check if user is in trial
+    in_trial = False
+    if hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
+        if current_user.trial_ends_at > datetime.utcnow():
+            in_trial = True
+
+    if in_trial:
+        # Check and consume trial credit
+        result = await db.execute(
+            text("""
+                SELECT credit_id, total_credits, used_credits
+                FROM trial_credits
+                WHERE user_id = :user_id
+                  AND credit_type = :credit_type
+                  AND expires_at > NOW()
+                FOR UPDATE
+            """),
+            {"user_id": user_id, "credit_type": credit_type}
+        )
+        credit_row = result.fetchone()
+
+        if not credit_row:
+            return {
+                "allowed": False,
+                "remaining": 0,
+                "upgrade_required": True,
+                "message": "Немате кредити за оваа функција. Надградете го вашиот план."
+            }
+
+        credit_id, total, used = credit_row
+        remaining = total - used
+
+        if remaining <= 0:
+            return {
+                "allowed": False,
+                "remaining": 0,
+                "upgrade_required": True,
+                "message": "Ги искористивте сите кредити. Надградете го вашиот план."
+            }
+
+        # Consume credit
+        await db.execute(
+            text("""
+                UPDATE trial_credits
+                SET used_credits = used_credits + 1, updated_at = NOW()
+                WHERE credit_id = :credit_id
+            """),
+            {"credit_id": credit_id}
+        )
+        await db.commit()
+
+        return {
+            "allowed": True,
+            "remaining": remaining - 1,
+            "upgrade_required": False,
+            "message": None
+        }
+    else:
+        # Non-trial user: check daily limits
+        plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS.get("free", {}))
+        limits = plan.get("limits", {})
+
+        # Map credit type to limit key
+        limit_map = {
+            "ai_messages": "rag_queries_per_day",
+            "doc_extractions": "doc_extractions_per_day",
+            "exports": "export_results",  # Boolean
+            "competitor_alerts": "competitor_alerts"
+        }
+
+        limit_key = limit_map.get(credit_type)
+        if not limit_key:
+            return {"allowed": True, "remaining": -1, "upgrade_required": False}
+
+        limit_value = limits.get(limit_key, 0)
+
+        # Unlimited
+        if limit_value == -1:
+            return {"allowed": True, "remaining": -1, "upgrade_required": False}
+
+        # Boolean (like exports)
+        if isinstance(limit_value, bool):
+            return {
+                "allowed": limit_value,
+                "remaining": -1 if limit_value else 0,
+                "upgrade_required": not limit_value,
+                "message": None if limit_value else "Извозот не е достапен на вашиот план."
+            }
+
+        # Check daily usage
+        period_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        usage = await get_usage_stats(db, user_id, period_start)
+
+        usage_key_map = {
+            "ai_messages": "rag_queries",
+            "doc_extractions": "doc_extractions",
+            "competitor_alerts": "competitor_alerts"
+        }
+        usage_key = usage_key_map.get(credit_type, "rag_queries")
+        current_usage = usage.get(usage_key, 0)
+
+        if current_usage >= limit_value:
+            return {
+                "allowed": False,
+                "remaining": 0,
+                "upgrade_required": True,
+                "message": f"Дневниот лимит е достигнат ({limit_value}). Надградете за повеќе."
+            }
+
+        return {
+            "allowed": True,
+            "remaining": limit_value - current_usage - 1,
+            "upgrade_required": False,
+            "message": None
+        }
+
+
+@router.get("/check-feature/{feature}")
+async def check_feature_access(
+    feature: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Check if user has access to a specific feature.
+
+    Features:
+        - ai_summary: AI tender summary
+        - risk_analysis: Corruption/risk analysis
+        - export_csv: CSV export
+        - export_pdf: PDF export
+        - api_access: API access
+        - competitor_alerts: Competitor tracking
+
+    Returns:
+        - allowed: Whether feature is accessible
+        - tier_required: Minimum tier needed
+        - upgrade_url: URL to upgrade page
+    """
+    tier = current_user.subscription_tier or "free"
+
+    # Check trial
+    in_trial = False
+    if hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
+        if current_user.trial_ends_at > datetime.utcnow():
+            in_trial = True
+            tier = "trial"
+
+    plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS.get("free", {}))
+    limits = plan.get("limits", {})
+
+    # Feature to limit key mapping
+    feature_map = {
+        "ai_summary": "ai_summary",
+        "risk_analysis": "risk_analysis",
+        "export_csv": "export_results",
+        "export_pdf": "export_results",
+        "api_access": "api_access",
+        "competitor_alerts": "competitor_alerts"
+    }
+
+    limit_key = feature_map.get(feature, feature)
+    allowed = limits.get(limit_key, False)
+
+    # For numeric limits, check if > 0
+    if isinstance(allowed, int):
+        allowed = allowed != 0
+
+    # Determine minimum tier needed
+    tier_required = None
+    if not allowed:
+        for check_tier in ["start", "pro", "team"]:
+            check_plan = SUBSCRIPTION_PLANS.get(check_tier, {})
+            check_limits = check_plan.get("limits", {})
+            check_value = check_limits.get(limit_key, False)
+            if isinstance(check_value, int):
+                check_value = check_value != 0
+            if check_value:
+                tier_required = check_tier
+                break
+
+    return {
+        "feature": feature,
+        "allowed": allowed,
+        "current_tier": tier,
+        "tier_required": tier_required,
+        "upgrade_url": f"/settings#plans" if not allowed else None
     }

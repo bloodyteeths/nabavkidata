@@ -38,15 +38,53 @@ export interface BillingPortalSession {
   url: string;
 }
 
+export interface TrialCredit {
+  total: number;
+  used: number;
+  remaining: number;
+}
+
+export interface TrialCredits {
+  ai_messages?: TrialCredit;
+  doc_extractions?: TrialCredit;
+  exports?: TrialCredit;
+  competitor_alerts?: TrialCredit;
+}
+
 export interface UserSubscriptionStatus {
   tier: string;
   status: string;
-  trial_ends_at?: string;
-  is_trial_expired: boolean;
+  trial?: {
+    eligible: boolean;
+    active: boolean;
+    days_remaining: number;
+    ends_at?: string;
+    credits?: TrialCredits;
+  };
+  plan?: {
+    name: string;
+    features: string[];
+    limits: Record<string, number | boolean>;
+  };
   daily_queries_used: number;
   daily_queries_limit: number;
   is_blocked: boolean;
   block_reason?: string;
+}
+
+export interface UseCreditResult {
+  allowed: boolean;
+  remaining: number;
+  upgrade_required: boolean;
+  message?: string;
+}
+
+export interface FeatureCheckResult {
+  feature: string;
+  allowed: boolean;
+  current_tier: string;
+  tier_required?: string;
+  upgrade_url?: string;
 }
 
 class BillingService {
@@ -227,6 +265,24 @@ class BillingService {
     await this.request('/api/billing/cancel', {
       method: 'POST',
     });
+  }
+
+  /**
+   * Use a trial credit for a specific action
+   * Call before performing AI, export, or other limited actions
+   */
+  async useCredit(creditType: 'ai_messages' | 'doc_extractions' | 'exports' | 'competitor_alerts'): Promise<UseCreditResult> {
+    return this.request<UseCreditResult>('/api/billing/use-credit', {
+      method: 'POST',
+      body: JSON.stringify({ credit_type: creditType }),
+    });
+  }
+
+  /**
+   * Check if user has access to a specific feature
+   */
+  async checkFeature(feature: string): Promise<FeatureCheckResult> {
+    return this.request<FeatureCheckResult>(`/api/billing/check-feature/${feature}`);
   }
 }
 

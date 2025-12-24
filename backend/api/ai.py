@@ -605,6 +605,70 @@ async def rag_chat(
             detail="AI service not available. Configure GEMINI_API_KEY."
         )
 
+    # Check and consume credits/usage for AI messages
+    from api.billing import SUBSCRIPTION_PLANS, use_trial_credit, UseCreditsRequest
+    from datetime import datetime
+    from sqlalchemy import text
+
+    user_id = str(current_user.user_id) if current_user else None
+    tier = current_user.subscription_tier if current_user else "free"
+
+    # Check if user is in trial
+    in_trial = False
+    if current_user and hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
+        if current_user.trial_ends_at > datetime.utcnow():
+            in_trial = True
+
+    if in_trial:
+        # Check trial credits
+        credits_result = await db.execute(
+            text("""
+                SELECT credit_id, total_credits, used_credits
+                FROM trial_credits
+                WHERE user_id = :user_id
+                  AND credit_type = 'ai_messages'
+                  AND expires_at > NOW()
+            """),
+            {"user_id": user_id}
+        )
+        credit_row = credits_result.fetchone()
+
+        if credit_row:
+            _, total, used = credit_row
+            if used >= total:
+                raise HTTPException(
+                    status_code=402,
+                    detail="Ги искористивте сите AI кредити. Надградете го вашиот план."
+                )
+        else:
+            raise HTTPException(
+                status_code=402,
+                detail="Немате кредити за AI пораки. Надградете го вашиот план."
+            )
+    else:
+        # Check daily limits for non-trial users
+        plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS.get("free", {}))
+        daily_limit = plan.get("limits", {}).get("rag_queries_per_day", 3)
+
+        if daily_limit != -1:  # -1 means unlimited
+            # Count today's usage
+            today_usage = await db.execute(
+                text("""
+                    SELECT COUNT(*) FROM usage_tracking
+                    WHERE user_id = :user_id
+                      AND action_type = 'rag_query'
+                      AND created_at >= CURRENT_DATE
+                """),
+                {"user_id": user_id}
+            )
+            current_count = today_usage.scalar() or 0
+
+            if current_count >= daily_limit:
+                raise HTTPException(
+                    status_code=402,
+                    detail=f"Дневниот лимит од {daily_limit} AI прашања е достигнат. Надградете за повеќе."
+                )
+
     try:
         # Import RAG pipeline
         from rag_query import RAGQueryPipeline
@@ -629,6 +693,30 @@ async def rag_chat(
             }
             for s in answer.sources[:5]  # Limit to top 5 sources
         ]
+
+        # Consume credit/usage after successful response
+        if in_trial:
+            await db.execute(
+                text("""
+                    UPDATE trial_credits
+                    SET used_credits = used_credits + 1, updated_at = NOW()
+                    WHERE user_id = :user_id
+                      AND credit_type = 'ai_messages'
+                      AND expires_at > NOW()
+                """),
+                {"user_id": user_id}
+            )
+            await db.commit()
+        else:
+            # Track usage for non-trial users
+            await db.execute(
+                text("""
+                    INSERT INTO usage_tracking (user_id, action_type, details, created_at)
+                    VALUES (:user_id, 'rag_query', :details, NOW())
+                """),
+                {"user_id": user_id, "details": f"Question: {request.message[:100]}"}
+            )
+            await db.commit()
 
         return ChatResponse(
             response=answer.answer,
