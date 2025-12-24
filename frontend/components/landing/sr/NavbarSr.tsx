@@ -14,6 +14,7 @@ export default function NavbarSr() {
         { href: "/sr#features", label: "Mogućnosti" },
         { href: "/sr#comparison", label: "Prednosti" },
         { href: "/sr#pricing", label: "Cene" },
+        { href: "/contact", label: "Kontakt" },
     ];
 
     return (

@@ -44,7 +44,7 @@ Email: ${formData.email}
 ${formData.message}
     `.trim();
 
-    window.location.href = `mailto:info@nabavkidata.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:support@nabavkidata.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
     setLoading(false);
     setSubmitted(true);
@@ -58,7 +58,7 @@ ${formData.message}
           <h1 className="text-2xl font-bold text-white mb-4">Благодариме!</h1>
           <p className="text-gray-400 mb-8">
             Вашата порака е подготвена. Ако вашиот email клиент не се отвори автоматски,
-            ве молиме контактирајте не на info@nabavkidata.com
+            ве молиме контактирајте не на support@nabavkidata.com
           </p>
           <Link href="/">
             <Button>Назад кон почетна</Button>
@@ -95,8 +95,8 @@ ${formData.message}
             <div className="bg-white/5 border border-white/10 rounded-xl p-6">
               <Mail className="w-6 h-6 text-primary mb-3" />
               <h3 className="text-white font-semibold mb-1">Email</h3>
-              <a href="mailto:info@nabavkidata.com" className="text-gray-400 hover:text-primary transition-colors">
-                info@nabavkidata.com
+              <a href="mailto:support@nabavkidata.com" className="text-gray-400 hover:text-primary transition-colors">
+                support@nabavkidata.com
               </a>
             </div>
 

@@ -14,6 +14,7 @@ export default function Navbar() {
         { href: "#features", label: "Можности" },
         { href: "#comparison", label: "Предности" },
         { href: "#pricing", label: "Цени" },
+        { href: "/contact", label: "Контакт" },
     ];
 
     return (

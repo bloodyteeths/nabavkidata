@@ -71,7 +71,7 @@ export default function LandingPage() {
                                 Услови за користење
                             </a>
                             <a
-                                href="mailto:support@nabavkidata.com"
+                                href="/contact"
                                 className="hover:text-primary transition-colors"
                             >
                                 Контакт
