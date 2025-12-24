@@ -394,11 +394,33 @@ class APIClient {
       }
     }
 
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
+    // Retry logic for network failures
+    let response: Response;
+    let lastError: Error | null = null;
+    const maxRetries = 2;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        response = await fetch(`${this.baseURL}${endpoint}`, {
+          ...options,
+          headers,
+          credentials: 'include',
+        });
+        break; // Success, exit retry loop
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[API] Fetch attempt ${attempt + 1} failed:`, err.message);
+        if (attempt < maxRetries) {
+          // Wait before retry (exponential backoff: 500ms, 1000ms)
+          await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        }
+      }
+    }
+
+    // If all retries failed, throw the last error
+    if (!response!) {
+      throw lastError || new Error('Network request failed');
+    }
 
     // Handle 401 Unauthorized - token refresh needed
     if (response.status === 401) {
