@@ -773,9 +773,11 @@ async def create_checkout_session(
         success_url = f"{FRONTEND_URL}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{FRONTEND_URL}/billing/cancel"
 
-        # Get EUR price ID if currency is EUR
+        # Get price ID - prefer EUR prices (hardcoded), fallback to MKD from env
         price_id_override = None
-        if currency == "eur" and tier in EUR_PRICE_IDS:
+        if tier in EUR_PRICE_IDS:
+            # Always use EUR prices as they are reliably configured
+            # MKD prices from env vars may not be set
             price_id_override = EUR_PRICE_IDS[tier].get(interval)
 
         # Create checkout session with trial if eligible
