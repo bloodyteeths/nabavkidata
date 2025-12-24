@@ -211,10 +211,10 @@ export default function EPazarPage() {
         </div>
 
         {/* Price Check Tool */}
-        <Card className="border-blue-200 bg-blue-50/50">
+        <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
+              <TrendingUp className="h-5 w-5 text-primary" />
               Провери пазарна цена
             </CardTitle>
             <CardDescription>
@@ -237,26 +237,26 @@ export default function EPazarPage() {
 
             {priceSearched && !priceLoading && (
               !priceIntelligence || priceIntelligence.sample_size === 0 ? (
-                <p className="text-gray-500 text-center py-2">Нема резултати за "{priceSearch}"</p>
+                <p className="text-muted-foreground text-center py-2">Нема резултати за "{priceSearch}"</p>
               ) : (
                 <div className="space-y-4">
                   {/* Main Price Stats */}
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-green-50 rounded-lg p-4 text-center">
-                      <p className="text-xs text-green-600 uppercase font-medium">Минимум</p>
-                      <p className="text-xl font-bold text-green-700">
+                    <div className="bg-muted/50 rounded-lg p-4 text-center border">
+                      <p className="text-xs text-muted-foreground uppercase font-medium">Минимум</p>
+                      <p className="text-xl font-bold text-foreground">
                         {formatCurrency(priceIntelligence.actual_prices?.min || priceIntelligence.market_min_mkd || 0)}
                       </p>
                     </div>
-                    <div className="bg-blue-50 rounded-lg p-4 text-center">
-                      <p className="text-xs text-blue-600 uppercase font-medium">Просек</p>
-                      <p className="text-xl font-bold text-blue-700">
+                    <div className="bg-primary/10 rounded-lg p-4 text-center border border-primary/20">
+                      <p className="text-xs text-primary uppercase font-medium">Просек</p>
+                      <p className="text-xl font-bold text-primary">
                         {formatCurrency(priceIntelligence.actual_prices?.avg || priceIntelligence.market_avg_mkd || 0)}
                       </p>
                     </div>
-                    <div className="bg-red-50 rounded-lg p-4 text-center">
-                      <p className="text-xs text-red-600 uppercase font-medium">Максимум</p>
-                      <p className="text-xl font-bold text-red-700">
+                    <div className="bg-muted/50 rounded-lg p-4 text-center border">
+                      <p className="text-xs text-muted-foreground uppercase font-medium">Максимум</p>
+                      <p className="text-xl font-bold text-foreground">
                         {formatCurrency(priceIntelligence.actual_prices?.max || priceIntelligence.market_max_mkd || 0)}
                       </p>
                     </div>
@@ -264,17 +264,17 @@ export default function EPazarPage() {
 
                   {/* Winning Brands from Evaluation Data */}
                   {priceIntelligence.winning_brands && priceIntelligence.winning_brands.length > 0 && (
-                    <div className="bg-yellow-50 rounded-lg p-3">
+                    <div className="bg-muted/30 rounded-lg p-3 border">
                       <div className="flex items-center gap-2 mb-2">
-                        <Sparkles className="h-4 w-4 text-yellow-600" />
-                        <span className="text-sm font-medium text-yellow-700">Победнички брендови</span>
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">Победнички брендови</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {priceIntelligence.winning_brands.slice(0, 5).map((brand, idx) => (
-                          <Badge key={idx} variant="outline" className="bg-white border-yellow-300">
+                          <Badge key={idx} variant="secondary">
                             <Tag className="h-3 w-3 mr-1" />
                             {brand.brand}
-                            <span className="text-xs text-gray-400 ml-1">({brand.wins}x)</span>
+                            <span className="text-xs text-muted-foreground ml-1">({brand.wins}x)</span>
                           </Badge>
                         ))}
                       </div>
@@ -283,12 +283,12 @@ export default function EPazarPage() {
 
                   {/* AI Recommendation */}
                   {priceIntelligence.ai_recommendation && (
-                    <div className="text-sm text-gray-600 border-t pt-3">
+                    <div className="text-sm text-muted-foreground border-t pt-3">
                       {priceIntelligence.ai_recommendation}
                     </div>
                   )}
 
-                  <p className="text-xs text-gray-400 text-right">
+                  <p className="text-xs text-muted-foreground text-right">
                     Базирано на {priceIntelligence.actual_prices?.sample_size || priceIntelligence.sample_size} тендери
                   </p>
                 </div>
