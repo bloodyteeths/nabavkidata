@@ -749,10 +749,10 @@ export default function EPazarDetailPage() {
 
         {/* Price Hints Widget - Historical prices for similar items */}
         {priceHints && priceHints.hints_count > 0 && (
-          <Card className="border-green-200 bg-green-50/50">
+          <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-600" />
+                <TrendingUp className="h-5 w-5 text-blue-600" />
                 Историски цени за слични артикли
               </CardTitle>
               <CardDescription>
@@ -762,10 +762,10 @@ export default function EPazarDetailPage() {
             <CardContent>
               <div className="space-y-3">
                 {priceHints.hints.slice(0, 5).map((hint, idx) => (
-                  <div key={idx} className="bg-white rounded-lg p-3 border border-green-100">
+                  <div key={idx} className="rounded-lg p-3 border bg-gray-50 hover:bg-gray-100 transition-colors">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{hint.item_name}</div>
+                        <div className="font-medium text-sm text-gray-900">{hint.item_name}</div>
                         {hint.estimated_price && (
                           <div className="text-xs text-gray-500">
                             Проценето: {formatCurrency(hint.estimated_price)}
@@ -774,7 +774,7 @@ export default function EPazarDetailPage() {
                       </div>
                       {hint.historical.sample_count > 0 && (
                         <div className="text-right flex-shrink-0">
-                          <div className="text-sm font-semibold text-green-700">
+                          <div className="text-sm font-bold text-gray-900">
                             {formatCurrency(hint.historical.min_price || 0)} - {formatCurrency(hint.historical.max_price || 0)}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -787,7 +787,7 @@ export default function EPazarDetailPage() {
                     {hint.historical.brands && hint.historical.brands.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {hint.historical.brands.slice(0, 3).map((brand, bIdx) => (
-                          <Badge key={bIdx} variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
+                          <Badge key={bIdx} variant="secondary" className="text-xs">
                             {brand}
                           </Badge>
                         ))}
@@ -795,15 +795,15 @@ export default function EPazarDetailPage() {
                     )}
                     {/* Example past sales */}
                     {hint.historical.examples && hint.historical.examples.length > 0 && (
-                      <div className="mt-2 text-xs text-gray-500 space-y-1">
+                      <div className="mt-2 text-xs text-gray-600 space-y-1">
                         {hint.historical.examples.slice(0, 2).map((ex, eIdx) => (
-                          <div key={eIdx} className="flex items-center gap-2">
-                            <span className="text-green-600 font-medium">{formatCurrency(ex.price)}</span>
-                            {ex.brand && <span>• {ex.brand}</span>}
-                            {ex.winner && <span>• од {ex.winner}</span>}
+                          <div key={eIdx} className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-900">{formatCurrency(ex.price)}</span>
+                            {ex.brand && <span className="text-gray-500">• {ex.brand}</span>}
+                            {ex.winner && <span className="text-gray-500 truncate max-w-[200px]">• {ex.winner}</span>}
                             {ex.tender_id && (
-                              <Link href={`/epazar/${ex.tender_id}`} className="text-blue-600 hover:underline">
-                                #{ex.tender_id}
+                              <Link href={`/epazar/${ex.tender_id}`} className="text-blue-600 hover:underline font-medium">
+                                {ex.tender_id}
                               </Link>
                             )}
                           </div>
