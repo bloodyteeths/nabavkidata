@@ -290,14 +290,15 @@ function EvaluationItemsTable({ items }: { items: EPazarEvaluationItem[] }) {
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
-          <tr className="border-b bg-yellow-50">
-            <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">#</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Производ</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Бренд</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Кол.</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Ед. цена</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Вкупно</th>
-            <th className="text-right py-3 px-4 text-sm font-medium text-gray-600" title="Пазарни цени од други тендери">
+          <tr className="border-b bg-muted/50">
+            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">#</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Производ</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Барано</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Понудено</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Кол.</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Ед. цена</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Вкупно</th>
+            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground" title="Пазарни цени од други тендери">
               Пазар*
             </th>
           </tr>
@@ -315,9 +316,12 @@ function EvaluationItemsTable({ items }: { items: EPazarEvaluationItem[] }) {
                   </div>
                 )}
               </td>
+              <td className="py-3 px-4 text-sm text-muted-foreground">
+                {item.required_brands_raw || '-'}
+              </td>
               <td className="py-3 px-4 text-sm">
                 {item.offered_brand ? (
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  <Badge variant="secondary" className="text-xs">
                     {item.offered_brand}
                   </Badge>
                 ) : '-'}
@@ -325,7 +329,7 @@ function EvaluationItemsTable({ items }: { items: EPazarEvaluationItem[] }) {
               <td className="py-3 px-4 text-right text-sm">
                 {item.quantity ? Number(item.quantity.toFixed(2)).toLocaleString() : '-'} {item.unit}
               </td>
-              <td className="py-3 px-4 text-right text-sm font-medium text-green-700">
+              <td className="py-3 px-4 text-right text-sm font-medium text-primary">
                 {formatCurrency(item.unit_price_without_vat)}
                 {getPriceIndicator(item.unit_price_without_vat, item.market_min, item.market_max)}
               </td>
