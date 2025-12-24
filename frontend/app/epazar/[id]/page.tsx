@@ -143,7 +143,7 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
                     <div className="text-xs text-gray-500 mt-1 line-clamp-2">{item.item_description}</div>
                   )}
                 </td>
-                <td className="py-3 px-4 text-right text-sm">{item.quantity?.toLocaleString()}</td>
+                <td className="py-3 px-4 text-right text-sm">{item.quantity ? Number(item.quantity.toFixed(2)).toLocaleString() : '-'}</td>
                 <td className="py-3 px-4 text-sm">{item.unit || '-'}</td>
                 <td className="py-3 px-4 text-right text-sm">
                   {formatCurrency(item.estimated_unit_price_mkd)}
@@ -254,7 +254,7 @@ function AwardedItemsTable({ items }: { items: EPazarAwardedItem[] }) {
                 )}
               </td>
               <td className="py-3 px-4 text-sm">{item.item_name || '-'}</td>
-              <td className="py-3 px-4 text-right text-sm">{item.contracted_quantity?.toLocaleString()}</td>
+              <td className="py-3 px-4 text-right text-sm">{item.contracted_quantity ? Number(item.contracted_quantity.toFixed(2)).toLocaleString() : '-'}</td>
               <td className="py-3 px-4 text-right text-sm">{formatCurrency(item.contracted_unit_price_mkd)}</td>
               <td className="py-3 px-4 text-right text-sm font-medium">{formatCurrency(item.contracted_total_mkd)}</td>
               <td className="py-3 px-4 text-center">
@@ -323,7 +323,7 @@ function EvaluationItemsTable({ items }: { items: EPazarEvaluationItem[] }) {
                 ) : '-'}
               </td>
               <td className="py-3 px-4 text-right text-sm">
-                {item.quantity?.toLocaleString()} {item.unit}
+                {item.quantity ? Number(item.quantity.toFixed(2)).toLocaleString() : '-'} {item.unit}
               </td>
               <td className="py-3 px-4 text-right text-sm font-medium text-green-700">
                 {formatCurrency(item.unit_price_without_vat)}
