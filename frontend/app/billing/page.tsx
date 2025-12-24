@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, UserSubscription, Invoice, UsageStats } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,12 +11,38 @@ import { formatDate } from '@/lib/utils';
 
 export default function BillingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [usage, setUsage] = useState<UsageStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  // Handle checkout redirect from login/register with plan selection
+  useEffect(() => {
+    const checkout = searchParams.get('checkout');
+    const plan = searchParams.get('plan');
+    const interval = searchParams.get('interval') as 'monthly' | 'yearly' || 'monthly';
+    const currency = searchParams.get('currency') as 'mkd' | 'eur' || 'mkd';
+
+    if (checkout === 'true' && plan) {
+      // Initiate checkout for the selected plan
+      setCheckoutLoading(true);
+      api.createCheckoutSession(plan, interval, currency)
+        .then((response) => {
+          if (response.checkout_url) {
+            window.location.href = response.checkout_url;
+          }
+        })
+        .catch((err) => {
+          console.error('Checkout error:', err);
+          setError('Грешка при креирање на плаќање. Обидете се повторно.');
+          setCheckoutLoading(false);
+        });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     loadBillingData();
@@ -92,6 +118,18 @@ export default function BillingPage() {
 
   const formatDateDisplay = (date: string) =>
     formatDate(date, { year: 'numeric', month: 'long', day: 'numeric' });
+
+  // Show loading when redirecting to checkout
+  if (checkoutLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Ве пренасочуваме кон плаќање...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

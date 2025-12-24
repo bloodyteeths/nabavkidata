@@ -55,6 +55,10 @@ export default function RegisterPage() {
   const handleGoogleRegister = () => {
     setGoogleLoading(true);
     setErrors({});
+    // Store plan info for checkout after OAuth
+    if (plan) {
+      localStorage.setItem('auth_redirect', `/billing?checkout=true&plan=${plan}&interval=${interval || 'monthly'}&currency=${currency || 'mkd'}`);
+    }
     // Redirect to backend Google OAuth endpoint (handles both login and registration)
     const apiUrl = window.location.hostname === 'localhost'
       ? 'http://localhost:8000'
@@ -331,7 +335,10 @@ export default function RegisterPage() {
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
             Веќе имате профил?{' '}
-            <Link href="/auth/login" className="text-primary hover:underline font-medium">
+            <Link
+              href={plan ? `/auth/login?plan=${plan}&interval=${interval || 'monthly'}&currency=${currency || 'mkd'}` : '/auth/login'}
+              className="text-primary hover:underline font-medium"
+            >
               Најавете се
             </Link>
           </p>
