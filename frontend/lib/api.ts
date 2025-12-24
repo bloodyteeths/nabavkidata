@@ -459,9 +459,20 @@ class APIClient {
       throw new Error('Unauthorized. Please login again.');
     }
 
+    // Handle 402 Payment Required - user needs to upgrade
+    if (response.status === 402) {
+      const errorData = await response.json().catch(() => ({ detail: 'Upgrade required' }));
+      const error = new Error(errorData.detail || 'Upgrade required to access this feature');
+      (error as any).status = 402;
+      (error as any).upgradeRequired = true;
+      throw error;
+    }
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `API Error: ${response.statusText}`);
+      const error = new Error(errorData.detail || `API Error: ${response.statusText}`);
+      (error as any).status = response.status;
+      throw error;
     }
 
     return response.json();

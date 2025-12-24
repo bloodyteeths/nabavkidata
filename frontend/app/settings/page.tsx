@@ -999,7 +999,7 @@ export default function SettingsPage() {
           features: ['50 AI пораки', '15 екстракции', '5 извози', '20 конкурентски известувања']
         },
         {
-          tier: 'start',
+          tier: 'starter',
           name: 'Стартуј',
           price_monthly_mkd: 1990,
           price_yearly_mkd: 19900,
@@ -1011,7 +1011,7 @@ export default function SettingsPage() {
           features: ['15 AI прашања дневно', '10 известувања', 'CSV извоз', 'Основна аналитика']
         },
         {
-          tier: 'pro',
+          tier: 'professional',
           name: 'Про',
           price_monthly_mkd: 5990,
           price_yearly_mkd: 59900,
@@ -1023,8 +1023,8 @@ export default function SettingsPage() {
           features: ['50 AI прашања дневно', 'Анализа на ризик', 'PDF извоз', 'Приоритетна поддршка']
         },
         {
-          tier: 'team',
-          name: 'Тим',
+          tier: 'enterprise',
+          name: 'Претпријатие',
           price_monthly_mkd: 12990,
           price_yearly_mkd: 129900,
           price_monthly_id: 'price_1ShgPVHkVI5icjTl20YY8LUw',
@@ -1364,7 +1364,7 @@ export default function SettingsPage() {
                 const isCurrentPlan = plan.tier === currentTier;
                 const price = interval === 'monthly' ? plan.price_monthly_mkd : plan.price_yearly_mkd;
                 const isFree = plan.tier === 'free' || plan.tier === 'trial';
-                const isPopular = plan.tier === 'pro';
+                const isPopular = plan.tier === 'professional';
 
                 return (
                   <div key={plan.tier} className="relative">

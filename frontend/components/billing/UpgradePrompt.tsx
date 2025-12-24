@@ -30,15 +30,15 @@ const FEATURE_LABELS: Record<string, string> = {
 const TIER_LABELS: Record<string, string> = {
   free: 'Бесплатен',
   trial: 'Пробен период',
-  start: 'Стартуј',
-  pro: 'Про',
-  team: 'Тим',
+  starter: 'Стартуј',
+  professional: 'Про',
+  enterprise: 'Претпријатие',
 };
 
 const TIER_PRICES: Record<string, string> = {
-  start: '1,990 МКД/месец',
-  pro: '5,990 МКД/месец',
-  team: '12,990 МКД/месец',
+  starter: '1,990 МКД/месец',
+  professional: '5,990 МКД/месец',
+  enterprise: '12,990 МКД/месец',
 };
 
 export function UpgradePrompt({

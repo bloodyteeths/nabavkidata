@@ -83,11 +83,73 @@ async def query_rag(
             detail="RAG service not available. Check configuration."
         )
 
-    # PHASE 4: Check tier-based rate limits before processing query
-    if FRAUD_PREVENTION_AVAILABLE:
+    # Check trial credits and free tier limits before processing
+    from api.billing import SUBSCRIPTION_PLANS
+    from datetime import datetime as dt
+    from sqlalchemy import text as sql_text
+
+    user_id = str(current_user.user_id)
+    tier = current_user.subscription_tier if current_user else "free"
+
+    # Check if user is in trial
+    in_trial = False
+    if current_user and hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
+        if current_user.trial_ends_at > dt.utcnow():
+            in_trial = True
+
+    if in_trial:
+        # Check trial credits
+        credits_result = await db.execute(
+            sql_text("""
+                SELECT credit_id, total_credits, used_credits
+                FROM trial_credits
+                WHERE user_id = :user_id
+                  AND credit_type = 'ai_messages'
+                  AND expires_at > NOW()
+            """),
+            {"user_id": user_id}
+        )
+        credit_row = credits_result.fetchone()
+
+        if credit_row:
+            _, total, used = credit_row
+            if used >= total:
+                raise HTTPException(
+                    status_code=402,
+                    detail="Ги искористивте сите AI кредити. Надградете го вашиот план."
+                )
+        else:
+            raise HTTPException(
+                status_code=402,
+                detail="Немате кредити за AI пораки. Надградете го вашиот план."
+            )
+    elif tier == "free":
+        # Check daily limits for free tier users
+        plan = SUBSCRIPTION_PLANS.get("free", {})
+        daily_limit = plan.get("limits", {}).get("rag_queries_per_day", 3)
+
+        if daily_limit != -1:
+            today_usage = await db.execute(
+                sql_text("""
+                    SELECT COUNT(*) FROM usage_tracking
+                    WHERE user_id = :user_id
+                      AND action_type = 'rag_query'
+                      AND created_at >= CURRENT_DATE
+                """),
+                {"user_id": user_id}
+            )
+            current_count = today_usage.scalar() or 0
+
+            if current_count >= daily_limit:
+                raise HTTPException(
+                    status_code=402,
+                    detail=f"Дневниот лимит од {daily_limit} AI прашања е достигнат. Надградете за повеќе."
+                )
+
+    # PHASE 4: Check tier-based rate limits for paid users
+    if FRAUD_PREVENTION_AVAILABLE and not in_trial and tier != "free":
         is_allowed, reason, info = await check_rate_limit(db, current_user.user_id, current_user)
         if not is_allowed:
-            tier = getattr(current_user, 'subscription_tier', 'free').lower()
             tier_config = TIER_LIMITS.get(tier, TIER_LIMITS['free'])
             raise HTTPException(
                 status_code=429,
@@ -150,6 +212,36 @@ async def query_rag(
                 await increment_query_count(db, current_user.user_id)
             except Exception as e:
                 print(f"Warning: Failed to increment query count: {e}")
+
+        # Consume trial credit or track usage
+        if in_trial:
+            try:
+                await db.execute(
+                    sql_text("""
+                        UPDATE trial_credits
+                        SET used_credits = used_credits + 1, updated_at = NOW()
+                        WHERE user_id = :user_id
+                          AND credit_type = 'ai_messages'
+                          AND expires_at > NOW()
+                    """),
+                    {"user_id": user_id}
+                )
+                await db.commit()
+            except Exception as e:
+                print(f"Warning: Failed to consume trial credit: {e}")
+        elif tier == "free":
+            # Track usage for free tier
+            try:
+                await db.execute(
+                    sql_text("""
+                        INSERT INTO usage_tracking (user_id, action_type, details, created_at)
+                        VALUES (:user_id, 'rag_query', :details, NOW())
+                    """),
+                    {"user_id": user_id, "details": f"Q: {request.question[:100]}"}
+                )
+                await db.commit()
+            except Exception as e:
+                print(f"Warning: Failed to track usage: {e}")
 
         # Convert sources to response format
         sources_response = []

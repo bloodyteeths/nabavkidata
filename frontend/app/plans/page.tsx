@@ -31,7 +31,7 @@ interface Plan {
 
 const plans: Plan[] = [
   {
-    id: 'start',
+    id: 'starter',
     name: 'Стартуј',
     description: 'За фриленсери и мали бизниси',
     price: { mkd: 1990, eur: 39 },
@@ -51,7 +51,7 @@ const plans: Plan[] = [
     ],
   },
   {
-    id: 'pro',
+    id: 'professional',
     name: 'Про',
     description: 'За растечки компании',
     price: { mkd: 5990, eur: 99 },
@@ -72,13 +72,13 @@ const plans: Plan[] = [
     ],
   },
   {
-    id: 'team',
-    name: 'Тим',
+    id: 'enterprise',
+    name: 'Претпријатие',
     description: 'За тимови и одделенија',
     price: { mkd: 12990, eur: 199 },
     yearlyPrice: { mkd: 129900, eur: 1990 },
     icon: <Building2 className="h-6 w-6" />,
-    cta: 'Контактирајте не',
+    cta: 'Надогради',
     features: [
       { text: 'Неограничени AI прашања', included: true },
       { text: 'Неограничени известувања', included: true },

@@ -92,13 +92,13 @@ SUBSCRIPTION_PLANS = {
             "risk_analysis": True
         }
     },
-    "start": {
+    "starter": {
         "name": "Стартуј",
         "price_mkd": 1990,
         "price_eur": 39,
         "price_yearly_mkd": 19900,
         "price_yearly_eur": 390,
-        "stripe_price_id": PRICE_IDS.get("start", {}).get("monthly"),
+        "stripe_price_id": PRICE_IDS.get("starter", {}).get("monthly"),
         "features": [
             "15 AI прашања дневно",
             "10 зачувани известувања",
@@ -115,13 +115,13 @@ SUBSCRIPTION_PLANS = {
             "risk_analysis": False
         }
     },
-    "pro": {
+    "professional": {
         "name": "Про",
         "price_mkd": 5990,
         "price_eur": 99,
         "price_yearly_mkd": 59900,
         "price_yearly_eur": 990,
-        "stripe_price_id": PRICE_IDS.get("pro", {}).get("monthly"),
+        "stripe_price_id": PRICE_IDS.get("professional", {}).get("monthly"),
         "features": [
             "50 AI прашања дневно",
             "50 зачувани известувања",
@@ -139,45 +139,24 @@ SUBSCRIPTION_PLANS = {
             "risk_analysis": True
         }
     },
-    "team": {
-        "name": "Тим",
+    "enterprise": {
+        "name": "Претпријатие",
         "price_mkd": 12990,
         "price_eur": 199,
         "price_yearly_mkd": 129900,
         "price_yearly_eur": 1990,
-        "stripe_price_id": PRICE_IDS.get("team", {}).get("monthly"),
+        "stripe_price_id": PRICE_IDS.get("enterprise", {}).get("monthly"),
         "features": [
             "Неограничени AI прашања",
             "Неограничени известувања",
             "Неограничен извоз",
-            "Основен API пристап",
-            "До 5 членови на тим"
+            "API пристап",
+            "До 5 членови на тим",
+            "Приоритетна поддршка"
         ],
         "limits": {
             "rag_queries_per_day": -1,  # unlimited
             "saved_alerts": -1,  # unlimited
-            "export_results": True,
-            "doc_extractions_per_day": -1,
-            "competitor_alerts": -1,
-            "ai_summary": True,
-            "risk_analysis": True,
-            "api_access": True
-        }
-    },
-    "enterprise": {
-        "name": "Претпријатие",
-        "price_mkd": 0,  # Custom pricing
-        "price_eur": 0,
-        "stripe_price_id": None,
-        "features": [
-            "Неограничен пристап",
-            "Полн API пристап",
-            "Посветен менаџер",
-            "SLA гаранција"
-        ],
-        "limits": {
-            "rag_queries_per_day": -1,
-            "saved_alerts": -1,
             "export_results": True,
             "doc_extractions_per_day": -1,
             "competitor_alerts": -1,
@@ -1898,7 +1877,7 @@ async def check_feature_access(
     # Determine minimum tier needed
     tier_required = None
     if not allowed:
-        for check_tier in ["start", "pro", "team"]:
+        for check_tier in ["starter", "professional", "enterprise"]:
             check_plan = SUBSCRIPTION_PLANS.get(check_tier, {})
             check_limits = check_plan.get("limits", {})
             check_value = check_limits.get(limit_key, False)
