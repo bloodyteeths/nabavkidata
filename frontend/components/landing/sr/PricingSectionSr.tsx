@@ -110,7 +110,7 @@ export default function PricingSectionSr() {
 
         setLoading(planId);
         try {
-            const response = await api.createCheckoutSession(planId, billingCycle);
+            const response = await api.createCheckoutSession(planId, billingCycle, currency);
             if (response.checkout_url) {
                 window.location.href = response.checkout_url;
             }

@@ -1165,10 +1165,10 @@ class APIClient {
     return this.request<UserSubscription | null>('/api/billing/subscription');
   }
 
-  async createCheckoutSession(tier: string, interval: 'monthly' | 'yearly' = 'monthly') {
+  async createCheckoutSession(tier: string, interval: 'monthly' | 'yearly' = 'monthly', currency: 'mkd' | 'eur' = 'mkd') {
     return this.request<{ checkout_url: string; session_id: string }>('/api/billing/checkout', {
       method: 'POST',
-      body: JSON.stringify({ tier, interval }),
+      body: JSON.stringify({ tier, interval, currency }),
     });
   }
 

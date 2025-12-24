@@ -81,7 +81,8 @@ class BillingService:
         tier: str,
         interval: str = 'monthly',
         success_url: str = None,
-        cancel_url: str = None
+        cancel_url: str = None,
+        price_id_override: str = None
     ) -> Dict[str, Any]:
         """
         Create a Stripe Checkout session for subscription purchase
@@ -98,7 +99,7 @@ class BillingService:
             Dict containing checkout session details
         """
         try:
-            price_id = self.get_price_id(tier, interval)
+            price_id = price_id_override or self.get_price_id(tier, interval)
             if not price_id:
                 raise ValueError(f"Invalid tier or interval: {tier}/{interval}")
 

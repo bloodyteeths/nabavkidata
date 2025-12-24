@@ -179,6 +179,24 @@ SUBSCRIPTION_PLANS = {
 class CheckoutRequest(BaseModel):
     tier: str
     interval: str = "monthly"  # monthly or yearly
+    currency: str = "mkd"  # mkd or eur
+
+
+# EUR Price IDs from Stripe
+EUR_PRICE_IDS = {
+    "starter": {
+        "monthly": "price_1ShtEpHkVI5icjTlOJKgga8k",
+        "yearly": "price_1ShtFLHkVI5icjTlpxJhTCuH"
+    },
+    "professional": {
+        "monthly": "price_1ShtHSHkVI5icjTlbtO73TdR",
+        "yearly": "price_1ShtHlHkVI5icjTlcoBNfY4V"
+    },
+    "enterprise": {
+        "monthly": "price_1ShtIVHkVI5icjTlxdB46YKO",
+        "yearly": "price_1ShtIrHkVI5icjTlvYtX3Fwi"
+    }
+}
 
 
 class UpgradeRequest(BaseModel):
@@ -682,6 +700,7 @@ async def create_checkout_session(
     """
     tier = checkout_data.tier
     interval = checkout_data.interval
+    currency = checkout_data.currency.lower() if checkout_data.currency else "mkd"
     user_id_str = str(current_user.user_id)
     ip_address = request.client.host if request.client else "unknown"
 
@@ -754,6 +773,11 @@ async def create_checkout_session(
         success_url = f"{FRONTEND_URL}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{FRONTEND_URL}/billing/cancel"
 
+        # Get EUR price ID if currency is EUR
+        price_id_override = None
+        if currency == "eur" and tier in EUR_PRICE_IDS:
+            price_id_override = EUR_PRICE_IDS[tier].get(interval)
+
         # Create checkout session with trial if eligible
         checkout_session = await billing_service.create_checkout_session(
             user_id=user_id_str,
@@ -761,7 +785,8 @@ async def create_checkout_session(
             tier=tier,
             interval=interval,
             success_url=success_url,
-            cancel_url=cancel_url
+            cancel_url=cancel_url,
+            price_id_override=price_id_override
         )
 
         # If trial eligible, add trial to the session
