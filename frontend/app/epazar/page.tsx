@@ -240,12 +240,12 @@ export default function EPazarPage() {
                 <p className="text-muted-foreground text-center py-2">Нема резултати за "{priceSearch}"</p>
               ) : (
                 <div className="space-y-4">
-                  {/* Main Price Stats */}
+                  {/* Main Price Stats - using P25/P75 for typical range */}
                   <div className="grid grid-cols-3 gap-4">
                     <div className="bg-muted/50 rounded-lg p-4 text-center border">
-                      <p className="text-xs text-muted-foreground uppercase font-medium">Минимум</p>
+                      <p className="text-xs text-muted-foreground uppercase font-medium">Ниска цена</p>
                       <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(priceIntelligence.actual_prices?.min || priceIntelligence.market_min_mkd || 0)}
+                        {formatCurrency(priceIntelligence.actual_prices?.p25 || priceIntelligence.recommended_bid_min_mkd || 0)}
                       </p>
                     </div>
                     <div className="bg-primary/10 rounded-lg p-4 text-center border border-primary/20">
@@ -255,12 +255,19 @@ export default function EPazarPage() {
                       </p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4 text-center border">
-                      <p className="text-xs text-muted-foreground uppercase font-medium">Максимум</p>
+                      <p className="text-xs text-muted-foreground uppercase font-medium">Висока цена</p>
                       <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(priceIntelligence.actual_prices?.max || priceIntelligence.market_max_mkd || 0)}
+                        {formatCurrency(priceIntelligence.actual_prices?.p75 || priceIntelligence.recommended_bid_max_mkd || 0)}
                       </p>
                     </div>
                   </div>
+
+                  {/* Product name that was matched */}
+                  {priceIntelligence.product_name && (
+                    <p className="text-sm text-muted-foreground">
+                      Пронајдено: <span className="font-medium text-foreground">{priceIntelligence.product_name}</span>
+                    </p>
+                  )}
 
                   {/* Winning Brands from Evaluation Data */}
                   {priceIntelligence.winning_brands && priceIntelligence.winning_brands.length > 0 && (
