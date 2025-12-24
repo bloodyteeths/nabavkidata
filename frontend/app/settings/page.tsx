@@ -904,6 +904,7 @@ export default function SettingsPage() {
   const [trialDaysRemaining, setTrialDaysRemaining] = useState<number>(0);
   const [isTrialActive, setIsTrialActive] = useState<boolean>(false);
   const [dailyUsage, setDailyUsage] = useState<{ used: number; limit: number }>({ used: 0, limit: 3 });
+  const [hasStripeCustomer, setHasStripeCustomer] = useState<boolean>(false);
 
   // Hydration guard to prevent client-side errors
   const [isHydrated, setIsHydrated] = useState(false);
@@ -1041,6 +1042,8 @@ export default function SettingsPage() {
         const status = await billing.getSubscriptionStatus();
         setCurrentTier(status.tier);
         setDailyUsage({ used: status.daily_queries_used, limit: status.daily_queries_limit });
+        // Track if user has Stripe customer (needed for billing portal)
+        setHasStripeCustomer(!!(status as any).stripe_customer_id);
 
         // Check if in trial and store credits
         if (status.trial?.active) {
@@ -1056,6 +1059,7 @@ export default function SettingsPage() {
       } catch {
         console.log('No subscription found, defaulting to free tier');
         setCurrentTier('free');
+        setHasStripeCustomer(false);
       }
     } catch (error) {
       console.error("Failed to load plans:", error);
@@ -1422,10 +1426,16 @@ export default function SettingsPage() {
                         </div>
                         <div className="pt-4">
                           {isCurrentPlan ? (
-                            <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" onClick={handleManageBilling}>
-                              <CreditCard className="mr-2 h-3 w-3 md:h-4 md:w-4" />
-                              Управувај претплата
-                            </Button>
+                            hasStripeCustomer ? (
+                              <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" onClick={handleManageBilling}>
+                                <CreditCard className="mr-2 h-3 w-3 md:h-4 md:w-4" />
+                                Управувај претплата
+                              </Button>
+                            ) : (
+                              <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" disabled>
+                                Тековен план
+                              </Button>
+                            )
                           ) : isFree ? (
                             <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" disabled>
                               Тековен план
