@@ -983,52 +983,52 @@ export default function SettingsPage() {
     try {
       const hardcodedPlans: BillingPlan[] = [
         {
-          tier: 'free',
-          name: 'Free',
+          tier: 'trial',
+          name: 'Пробен период',
           price_monthly_mkd: 0,
           price_yearly_mkd: 0,
           price_monthly_id: '',
           price_yearly_id: '',
-          daily_queries: 3,
-          trial_days: 14,
-          allow_vpn: false,
-          features: ['Основно пребарување', 'Email поддршка']
+          daily_queries: 50,
+          trial_days: 7,
+          allow_vpn: true,
+          features: ['50 AI пораки', '15 екстракции', '5 извози', '20 конкурентски известувања']
         },
         {
-          tier: 'starter',
-          name: 'Starter',
-          price_monthly_mkd: 899,
-          price_yearly_mkd: 8990,
-          price_monthly_id: 'price_1SYdj7HkVI5icjTla0nOYXpg',
-          price_yearly_id: 'price_1SYdj7HkVI5icjTlpqVwQbQT',
-          daily_queries: 10,
+          tier: 'start',
+          name: 'Стартуј',
+          price_monthly_mkd: 1990,
+          price_yearly_mkd: 19900,
+          price_monthly_id: 'price_1ShgNPHkVI5icjTly68LrF4r',
+          price_yearly_id: 'price_1ShgNcHkVI5icjTl1cZHOEf6',
+          daily_queries: 15,
           trial_days: 0,
           allow_vpn: true,
-          features: ['Напредни филтри', 'CSV/PDF експорт', 'Приоритетна поддршка']
+          features: ['15 AI прашања дневно', '10 известувања', 'CSV извоз', 'Основна аналитика']
         },
         {
-          tier: 'professional',
-          name: 'Professional',
-          price_monthly_mkd: 2399,
-          price_yearly_mkd: 23990,
-          price_monthly_id: 'price_1SYdj8HkVI5icjTlqUWXb8QJ',
-          price_yearly_id: 'price_1SYdj8HkVI5icjTl7A9x3Glo',
-          daily_queries: 20,
+          tier: 'pro',
+          name: 'Про',
+          price_monthly_mkd: 5990,
+          price_yearly_mkd: 59900,
+          price_monthly_id: 'price_1ShgO8HkVI5icjTl68Mk5BXJ',
+          price_yearly_id: 'price_1ShgOEHkVI5icjTlMN2CAj7h',
+          daily_queries: 50,
           trial_days: 0,
           allow_vpn: true,
-          features: ['Аналитика', 'CSV/PDF експорт', 'Приоритетна поддршка']
+          features: ['50 AI прашања дневно', 'Анализа на ризик', 'PDF извоз', 'Приоритетна поддршка']
         },
         {
-          tier: 'enterprise',
-          name: 'Enterprise',
-          price_monthly_mkd: 5999,
-          price_yearly_mkd: 59990,
-          price_monthly_id: 'price_1SYdj8HkVI5icjTlop9VVjAd',
-          price_yearly_id: 'price_1SYdj9HkVI5icjTl1Bq2xtGw',
+          tier: 'team',
+          name: 'Тим',
+          price_monthly_mkd: 12990,
+          price_yearly_mkd: 129900,
+          price_monthly_id: 'price_1ShgPVHkVI5icjTl20YY8LUw',
+          price_yearly_id: 'price_1ShgPZHkVI5icjTl3HeYecMd',
           daily_queries: -1,
           trial_days: 0,
           allow_vpn: true,
-          features: ['API пристап', 'CSV/PDF експорт', 'Приоритетна поддршка']
+          features: ['Неограничени AI прашања', 'До 5 членови', 'API пристап', 'Приоритетна поддршка']
         }
       ];
       setPlans(hardcodedPlans);
@@ -1256,8 +1256,8 @@ export default function SettingsPage() {
               {plans.map((plan) => {
                 const isCurrentPlan = plan.tier === currentTier;
                 const price = interval === 'monthly' ? plan.price_monthly_mkd : plan.price_yearly_mkd;
-                const isFree = plan.tier === 'free';
-                const isPopular = plan.tier === 'professional';
+                const isFree = plan.tier === 'free' || plan.tier === 'trial';
+                const isPopular = plan.tier === 'pro';
 
                 return (
                   <div key={plan.tier} className="relative">
@@ -1340,10 +1340,17 @@ export default function SettingsPage() {
               })}
             </div>
 
+            {currentTier === 'trial' && (
+              <div className="mt-4 md:mt-6 p-3 md:p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                <p className="text-xs md:text-sm text-green-400">
+                  <strong>🎁 Активен пробен период:</strong> Имате пристап до Про функциите со 50 AI пораки, 15 екстракции на документи, 5 извози и 20 конкурентски известувања. Надградете пред истекот!
+                </p>
+              </div>
+            )}
             {currentTier === 'free' && (
               <div className="mt-4 md:mt-6 p-3 md:p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
                 <p className="text-xs md:text-sm text-orange-400">
-                  <strong>Важно:</strong> Бесплатниот план е ограничен на 14 дена. По истекот на пробниот период, ќе треба да надоградите за да продолжите да ја користите платформата.
+                  <strong>⚠️ Пробниот период истече:</strong> Надградете на платен план за да продолжите да ги користите сите функции.
                 </p>
               </div>
             )}
