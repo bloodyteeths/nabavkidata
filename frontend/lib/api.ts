@@ -379,9 +379,6 @@ class APIClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // Debug logging for failed requests
-    console.log(`[API] ${options?.method || 'GET'} ${endpoint}`, { hasToken: !!token, tokenLength: token?.length });
-
     // Add CSRF token for state-changing operations on billing endpoints
     if (
       options?.method &&
@@ -656,8 +653,6 @@ class APIClient {
     // Base64 encode the token to obfuscate JWT pattern from DPI
     const encodedToken = token ? btoa(token) : '';
 
-    console.log('[API] POST /api/queries/saved (encoded auth)', { hasToken: !!token });
-
     const response = await fetch(`${this.baseURL}/api/queries/saved-encoded`, {
       method: 'POST',
       headers: {
@@ -698,8 +693,6 @@ class APIClient {
     if (token) {
       headers['X-Auth-Token'] = token;
     }
-
-    console.log(`[API] ${options?.method || 'GET'} ${endpoint} (custom auth)`, { hasToken: !!token });
 
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       ...options,

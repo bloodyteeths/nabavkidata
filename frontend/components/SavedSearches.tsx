@@ -95,14 +95,10 @@ export function SavedSearches({ currentFilters, onLoadSearch }: SavedSearchesPro
       if (currentFilters.closingDateFrom) mappedFilters.closing_date_from = currentFilters.closingDateFrom;
       if (currentFilters.closingDateTo) mappedFilters.closing_date_to = currentFilters.closingDateTo;
 
-      console.log("Saving search with filters:", mappedFilters);
-
-      const result = await api.createSavedSearch({
+      await api.createSavedSearch({
         name: newSearchName,
         filters: mappedFilters
       });
-
-      console.log("Search saved successfully:", result);
 
       // Refresh the list to get the latest data
       await loadSearches();
