@@ -186,6 +186,13 @@ function TendersPageContent() {
       }
     }
 
+    // Default to last 30 days if no date filter specified
+    if (!initialFilters.dateFrom && !initialFilters.dateTo && !initialFilters.closingDateFrom && !initialFilters.closingDateTo) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      initialFilters.dateFrom = thirtyDaysAgo.toISOString().split('T')[0];
+    }
+
     setFilters(initialFilters);
     if (Object.keys(initialFilters).length > 1) { // More than just status
       setShowFilters(true); // Show filters panel when filters are applied from URL
@@ -288,7 +295,12 @@ function TendersPageContent() {
   };
 
   const handleReset = () => {
-    const defaultFilters = { status: 'open' };
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const defaultFilters = {
+      status: 'open',
+      dateFrom: thirtyDaysAgo.toISOString().split('T')[0]
+    };
     setFilters(defaultFilters);
     setPage(1);
     setShouldLoad(prev => prev + 1);
