@@ -2,14 +2,17 @@
 Saved Searches API endpoints
 CRUD operations for user saved searches/alerts
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import text, select
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from datetime import datetime
 from uuid import UUID
+from jose import JWTError, jwt
 import json
+import os
 
 from database import get_db
 from models import User, Alert
@@ -17,6 +20,59 @@ from api.auth import get_current_user
 
 # Note: Using "/queries" instead of "/search" to avoid ad-blocker keyword filters
 router = APIRouter(prefix="/queries", tags=["saved-queries"])
+
+# JWT Configuration (same as auth.py)
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+ALGORITHM = "HS256"
+
+
+async def get_user_from_custom_auth(
+    request: Request,
+    x_auth_token: Optional[str] = Header(None, alias="X-Auth-Token"),
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db)
+) -> User:
+    """
+    Custom auth that accepts both X-Auth-Token and Authorization headers.
+    This bypasses content filters that block certain Authorization header patterns.
+    """
+    # Try X-Auth-Token first (custom header to bypass filters)
+    token = x_auth_token
+
+    # Fall back to Authorization header
+    if not token and authorization:
+        if authorization.startswith("Bearer "):
+            token = authorization[7:]
+        else:
+            token = authorization
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        token_type: str = payload.get("type")
+
+        if user_id is None or token_type != "access":
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+    # Get user from database
+    result = await db.execute(
+        select(User).where(User.user_id == user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return user
 
 
 # ============================================================================
@@ -218,7 +274,7 @@ async def list_saved_searches(
 async def create_saved_search(
     search: SavedSearchCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user_from_custom_auth)  # Use custom auth to accept X-Auth-Token
 ):
     """
     Create a new saved search.
