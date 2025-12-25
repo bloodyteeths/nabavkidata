@@ -494,12 +494,12 @@ async def list_tenders(
         count_query = count_query.where(and_(*filters))
     total = await db.scalar(count_query)
 
-    # Sort
+    # Sort (nulls last so tenders with dates appear first)
     sort_column = getattr(Tender, sort_by, Tender.created_at)
     if sort_order.lower() == "desc":
-        query = query.order_by(sort_column.desc())
+        query = query.order_by(sort_column.desc().nullslast())
     else:
-        query = query.order_by(sort_column.asc())
+        query = query.order_by(sort_column.asc().nullslast())
 
     # Paginate
     offset = (page - 1) * page_size

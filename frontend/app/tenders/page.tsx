@@ -70,6 +70,9 @@ function TendersPageContent() {
   const [showFilters, setShowFilters] = useState(false);
   // Track if we should trigger a load (for manual apply button)
   const [shouldLoad, setShouldLoad] = useState(0);
+  // Sorting
+  const [sortBy, setSortBy] = useState('publication_date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const limit = 20;
 
   // Sync filters to URL
@@ -194,7 +197,7 @@ function TendersPageContent() {
   useEffect(() => {
     if (!isHydrated) return;
     loadTenders();
-  }, [isHydrated, page, shouldLoad]);
+  }, [isHydrated, page, shouldLoad, sortBy, sortOrder]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -208,9 +211,8 @@ function TendersPageContent() {
       const params: Record<string, any> = {
         page: page,
         page_size: limit,
-        // Default sort: newest tenders first (by publication date)
-        sort_by: 'publication_date',
-        sort_order: 'desc',
+        sort_by: sortBy,
+        sort_order: sortOrder,
       };
 
       // Apply text search
@@ -431,9 +433,29 @@ function TendersPageContent() {
         <div className="lg:col-span-3 space-y-4">
           {/* Results Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2">
-            <p className="text-xs md:text-sm text-muted-foreground">
-              {total.toLocaleString()} резултати {filters.search && `за "${filters.search}"`}
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-xs md:text-sm text-muted-foreground">
+                {total.toLocaleString()} резултати {filters.search && `за "${filters.search}"`}
+              </p>
+              {/* Sort Dropdown */}
+              <select
+                value={`${sortBy}-${sortOrder}`}
+                onChange={(e) => {
+                  const [newSortBy, newSortOrder] = e.target.value.split('-');
+                  setSortBy(newSortBy);
+                  setSortOrder(newSortOrder as 'asc' | 'desc');
+                  setPage(1);
+                }}
+                className="text-xs md:text-sm bg-background border border-input rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="publication_date-desc">Најнови прво</option>
+                <option value="publication_date-asc">Најстари прво</option>
+                <option value="closing_date-asc">Краен рок (наскоро)</option>
+                <option value="closing_date-desc">Краен рок (подоцна)</option>
+                <option value="estimated_value_mkd-desc">Вредност (највисока)</option>
+                <option value="estimated_value_mkd-asc">Вредност (најниска)</option>
+              </select>
+            </div>
             <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
               <p className="text-xs md:text-sm text-muted-foreground">
                 Страна {page} од {totalPages}
