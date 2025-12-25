@@ -181,7 +181,7 @@ export function AlertCreator({ onCreated }: AlertCreatorProps) {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Alert Name */}
           <div className="space-y-2">
-            <Label htmlFor="name">Име на Алерт *</Label>
+            <Label htmlFor="name">Име на Алерт <span className="text-red-500">*</span></Label>
             <Input
               id="name"
               value={name}
@@ -189,6 +189,11 @@ export function AlertCreator({ onCreated }: AlertCreatorProps) {
               placeholder="нпр. IT Опрема за Скопје"
               required
             />
+          </div>
+
+          {/* Required criteria note */}
+          <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+            <span className="text-red-500">*</span> Додадете најмалку еден критериум подолу (клучен збор, CPV код, институција, конкурент или буџет)
           </div>
 
           {/* Alert Type */}
