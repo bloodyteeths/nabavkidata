@@ -258,7 +258,8 @@ async def compare_tenders(
                 "num_bidders": t.num_bidders,
                 "has_lots": t.has_lots,
                 "source_url": t.source_url,
-                "source_category": t.source_category
+                "source_category": t.source_category,
+                "dossier_id": t.dossier_id
             }
             for t in tenders
         ]
@@ -735,6 +736,7 @@ async def export_tenders(
                 "opening_date": t.opening_date.isoformat() if t.opening_date else None,
                 "closing_date": t.closing_date.isoformat() if t.closing_date else None,
                 "source_url": t.source_url,
+                "dossier_id": t.dossier_id,
                 "procedure_type": t.procedure_type,
             })
 
@@ -2511,6 +2513,7 @@ async def get_enhanced_tender_by_id(
         "status": tender.status,
         "winner": tender.winner,
         "source_url": tender.source_url,
+        "dossier_id": tender.dossier_id,
         "language": tender.language,
         "source_category": tender.source_category,
         "procedure_type": tender.procedure_type,

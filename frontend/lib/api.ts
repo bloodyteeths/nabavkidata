@@ -28,6 +28,7 @@ export interface Tender {
   status?: string;
   winner?: string;
   source_url?: string;
+  dossier_id?: string;
   language?: string;
   procedure_type?: string;
   contract_signing_date?: string;

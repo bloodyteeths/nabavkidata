@@ -12,7 +12,7 @@ from pathlib import Path
 import json
 import os
 
-from database import init_db, close_db, close_pool, get_db
+from database import init_db, close_db, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact
@@ -67,7 +67,6 @@ async def startup():
 async def shutdown():
     """Close database connections on shutdown"""
     await close_db()
-    await close_pool()
     print("✓ Database connections closed")
 
 

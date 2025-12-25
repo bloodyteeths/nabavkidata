@@ -77,7 +77,22 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
   };
 
   const tenderPath = encodeURIComponent(tender.tender_id);
-  const sourceUrl = tender.source_url;
+
+  // Generate proper e-nabavki link - prioritize dossier_id over stored source_url
+  const getSourceUrl = (): string | undefined => {
+    // If we have a dossier_id, generate the e-nabavki URL
+    if (tender.dossier_id) {
+      return `https://e-nabavki.gov.mk/PublicAccess/home.aspx#/dossie-acpp/${tender.dossier_id}`;
+    }
+    // If source_url is already an e-nabavki URL, use it
+    if (tender.source_url?.includes('e-nabavki.gov.mk')) {
+      return tender.source_url;
+    }
+    // Don't return opentender or other external URLs - they're not useful
+    return undefined;
+  };
+
+  const sourceUrl = getSourceUrl();
 
   return (
     <Card className="hover:bg-accent/50 transition-colors">
