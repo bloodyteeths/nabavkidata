@@ -208,9 +208,9 @@ function TendersPageContent() {
       const params: Record<string, any> = {
         page: page,
         page_size: limit,
-        // Default sort: closing date ascending (soonest closing first)
-        sort_by: 'closing_date',
-        sort_order: 'asc',
+        // Default sort: newest tenders first (by publication date)
+        sort_by: 'publication_date',
+        sort_order: 'desc',
       };
 
       // Apply text search

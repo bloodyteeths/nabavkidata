@@ -384,7 +384,7 @@ async def list_tenders(
     opening_date_to: Optional[date] = Query(None, description="Filter by opening date to"),
     closing_date_from: Optional[date] = Query(None, description="Filter by closing date from"),
     closing_date_to: Optional[date] = Query(None, description="Filter by closing date to"),
-    sort_by: str = Query("created_at", description="Field to sort by"),
+    sort_by: str = Query("publication_date", description="Field to sort by"),
     sort_order: str = Query("desc", description="asc or desc"),
     db: AsyncSession = Depends(get_db)
 ):
