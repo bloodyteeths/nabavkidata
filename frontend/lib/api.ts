@@ -643,14 +643,15 @@ class APIClient {
   }
 
   // Saved Searches
+  // Note: Using "/queries" instead of "/search" to avoid ad-blocker keyword filters
   async getSavedSearches() {
     return this.request<{ items: Array<{ id: string; name: string; filters: Record<string, any>; created_at: string }> }>(
-      `/api/search/saved`
+      `/api/queries/saved`
     );
   }
 
   async createSavedSearch(payload: { name: string; filters: Record<string, any> }) {
-    return this.request<{ id: string; name: string; filters: Record<string, any>; created_at: string }>(`/api/search/saved`, {
+    return this.request<{ id: string; name: string; filters: Record<string, any>; created_at: string }>(`/api/queries/saved`, {
       method: 'POST',
       body: JSON.stringify({
         name: payload.name,
@@ -662,7 +663,7 @@ class APIClient {
   }
 
   async deleteSavedSearch(id: string) {
-    return this.request<{ message: string }>(`/api/search/saved/${encodeURIComponent(id)}`, {
+    return this.request<{ message: string }>(`/api/queries/saved/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   }

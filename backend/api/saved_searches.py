@@ -15,7 +15,8 @@ from database import get_db
 from models import User, Alert
 from api.auth import get_current_user
 
-router = APIRouter(prefix="/search", tags=["saved-searches"])
+# Note: Using "/queries" instead of "/search" to avoid ad-blocker keyword filters
+router = APIRouter(prefix="/queries", tags=["saved-queries"])
 
 
 # ============================================================================
