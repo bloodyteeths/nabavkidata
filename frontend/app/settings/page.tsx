@@ -1302,17 +1302,15 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Bank Transfer Info for EUR */}
-            {currency === 'eur' && (
-              <div className="text-center text-xs md:text-sm text-muted-foreground mb-4 px-4">
-                <span className="inline-flex items-center gap-1.5">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  За EUR плаќања можете да користите банкарски трансфер (SEPA) или картичка
-                </span>
-              </div>
-            )}
+            {/* Bank Transfer Info - always visible */}
+            <div className="text-center text-xs md:text-sm text-muted-foreground mb-4 px-4">
+              <span className="inline-flex items-center gap-1.5">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                За EUR плаќања можете да користите банкарски трансфер (SEPA) или картичка
+              </span>
+            </div>
 
             {/* Current Usage / Trial Credits Display */}
             {(isTrialActive || currentTier !== 'free') && (
@@ -1405,15 +1403,23 @@ export default function SettingsPage() {
             )}
 
             {/* Plans Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            <div key={`plans-${currency}-${interval}`} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {plans.map((plan) => {
                 const isCurrentPlan = plan.tier === currentTier;
-                const price = currency === 'mkd'
-                  ? (interval === 'monthly' ? plan.price_monthly_mkd : plan.price_yearly_mkd)
-                  : (interval === 'monthly' ? (plan.price_monthly_eur || 0) : (plan.price_yearly_eur || 0));
-                const currencySymbol = currency === 'mkd' ? 'ден' : '€';
                 const isFree = plan.tier === 'free' || plan.tier === 'trial';
                 const isPopular = plan.tier === 'professional';
+
+                // Get price based on currency and interval
+                let price: number;
+                if (currency === 'eur') {
+                  price = interval === 'monthly'
+                    ? (plan.price_monthly_eur ?? 0)
+                    : (plan.price_yearly_eur ?? 0);
+                } else {
+                  price = interval === 'monthly'
+                    ? plan.price_monthly_mkd
+                    : plan.price_yearly_mkd;
+                }
 
                 return (
                   <div key={plan.tier} className="relative">
