@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,13 +45,26 @@ import {
   Download,
   Printer,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Network,
+  BarChart3,
+  TrendingUp,
+  TrendingDown,
+  GitBranch,
+  Target,
+  Lightbulb,
+  Cpu,
+  Gauge
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import { useDebounce } from "@/hooks/use-debounce";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
+} from "recharts";
+import { TenderExplanation } from "@/components/explainability/TenderExplanation";
 
 const API_URL = typeof window !== 'undefined'
   ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://api.nabavkidata.com')
@@ -96,7 +109,64 @@ interface RiskyTender {
   flags: RiskFlag[];
 }
 
+// ML Types
+interface FeatureImportance {
+  name: string;
+  importance: number;
+  rank: number;
+  category?: string;
+  description?: string;
+}
+
+interface ModelPerformance {
+  model_name: string;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  roc_auc: number;
+  top_features: FeatureImportance[];
+  trained_at: string;
+  confusion_matrix?: number[][];
+}
+
+interface CollusionCluster {
+  cluster_id: string;
+  num_companies: number;
+  confidence: number;
+  risk_level: string;
+  pattern_type: string;
+  top_companies: string[];
+  companies?: string[];
+  detection_method?: string;
+}
+
+interface CollusionStats {
+  total_clusters: number;
+  high_confidence_clusters: number;
+  total_suspicious_companies: number;
+  avg_cluster_size: number;
+  largest_cluster_size: number;
+  most_common_pattern: string;
+}
+
+interface CompanyRisk {
+  company_name: string;
+  probability: number;
+  risk_level: string;
+  prediction: number;
+}
+
 const PAGE_SIZE = 24;
+
+const PATTERN_LABELS: Record<string, string> = {
+  bid_clustering: "Групирање понуди",
+  clique_detection: "Клика компании",
+  community_detection: "Заедница",
+  price_manipulation: "Ценовна манипулација",
+  repeat_bidding: "Повторувачко понудување",
+  unknown: "Непознат образец"
+};
 
 export default function RiskAnalysisPage() {
   const [mode, setMode] = useState<string>("flagged");
@@ -144,6 +214,22 @@ export default function RiskAnalysisPage() {
   const [searchResultsPerPage] = useState(18);
   const [searchStatusFilter, setSearchStatusFilter] = useState<string>("all");
 
+  // ML Insights state
+  const [mlLoading, setMlLoading] = useState(false);
+  const [modelPerformance, setModelPerformance] = useState<ModelPerformance | null>(null);
+  const [featureImportance, setFeatureImportance] = useState<FeatureImportance[]>([]);
+
+  // Collusion state
+  const [collusionLoading, setCollusionLoading] = useState(false);
+  const [collusionStats, setCollusionStats] = useState<CollusionStats | null>(null);
+  const [collusionClusters, setCollusionClusters] = useState<CollusionCluster[]>([]);
+  const [companyRisks, setCompanyRisks] = useState<CompanyRisk[]>([]);
+  const [selectedCluster, setSelectedCluster] = useState<CollusionCluster | null>(null);
+  const [clusterCompanySearch, setClusterCompanySearch] = useState("");
+
+  // ML Explanation for individual tenders
+  const [showMLExplanation, setShowMLExplanation] = useState<string | null>(null);
+
   // Load stats separately (cached)
   useEffect(() => {
     async function loadStats() {
@@ -184,6 +270,54 @@ export default function RiskAnalysisPage() {
       searchTenders();
     }
   }, [searchPage, searchStatusFilter]);
+
+  // Load ML data when tab is selected
+  useEffect(() => {
+    if (mode === "ml" && !modelPerformance && !mlLoading) {
+      loadMLData();
+    }
+  }, [mode]);
+
+  // Load collusion data when tab is selected
+  useEffect(() => {
+    if (mode === "collusion" && collusionClusters.length === 0 && !collusionLoading) {
+      loadCollusionData();
+    }
+  }, [mode]);
+
+  async function loadMLData() {
+    setMlLoading(true);
+    try {
+      const [perfRes, featRes] = await Promise.all([
+        api.getModelPerformance().catch(() => null),
+        api.getFeatureImportance(20).catch(() => [])
+      ]);
+      if (perfRes) setModelPerformance(perfRes);
+      setFeatureImportance(featRes || []);
+    } catch (err) {
+      console.error("Failed to load ML data:", err);
+    } finally {
+      setMlLoading(false);
+    }
+  }
+
+  async function loadCollusionData() {
+    setCollusionLoading(true);
+    try {
+      const [statsRes, clustersRes, risksRes] = await Promise.all([
+        api.getCollusionStats().catch(() => null),
+        api.getCollusionClusters({ min_confidence: 50, limit: 50 }).catch(() => []),
+        api.getCompanyRiskScores({ limit: 30, min_probability: 0.5 }).catch(() => [])
+      ]);
+      if (statsRes) setCollusionStats(statsRes);
+      setCollusionClusters(clustersRes || []);
+      setCompanyRisks(risksRes || []);
+    } catch (err) {
+      console.error("Failed to load collusion data:", err);
+    } finally {
+      setCollusionLoading(false);
+    }
+  }
 
   async function loadFlaggedTenders() {
     setLoading(true);
@@ -494,11 +628,22 @@ export default function RiskAnalysisPage() {
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Shield className="h-6 w-6 text-primary" />
-          AI Детекција на Ризици
+          AI Систем за Детекција на Корупција
         </h1>
         <p className="text-muted-foreground">
-          Автоматска анализа на тендери за корупциски индикатори
+          Напредна анализа со машинско учење: Random Forest, XGBoost, Graph Neural Networks
         </p>
+        <div className="flex flex-wrap gap-2 mt-2">
+          <Badge variant="outline" className="text-[10px]">
+            <Cpu className="h-3 w-3 mr-1" /> ML Предвидување
+          </Badge>
+          <Badge variant="outline" className="text-[10px]">
+            <Network className="h-3 w-3 mr-1" /> Детекција на мрежи
+          </Badge>
+          <Badge variant="outline" className="text-[10px]">
+            <Lightbulb className="h-3 w-3 mr-1" /> SHAP/LIME објаснувања
+          </Badge>
+        </div>
       </div>
 
       {/* Legal Disclaimer */}
@@ -521,14 +666,22 @@ export default function RiskAnalysisPage() {
 
       {/* Tabs */}
       <Tabs value={mode} onValueChange={setMode}>
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
           <TabsTrigger value="flagged" className="gap-2">
             <Radar className="h-4 w-4" />
-            Детектирани ризици
+            <span className="hidden sm:inline">Ризици</span>
           </TabsTrigger>
           <TabsTrigger value="search" className="gap-2">
             <Search className="h-4 w-4" />
-            Пребарај тендери
+            <span className="hidden sm:inline">Пребарај</span>
+          </TabsTrigger>
+          <TabsTrigger value="ml" className="gap-2">
+            <Cpu className="h-4 w-4" />
+            <span className="hidden sm:inline">AI Модел</span>
+          </TabsTrigger>
+          <TabsTrigger value="collusion" className="gap-2">
+            <Network className="h-4 w-4" />
+            <span className="hidden sm:inline">Мрежи</span>
           </TabsTrigger>
         </TabsList>
 
@@ -796,6 +949,24 @@ export default function RiskAnalysisPage() {
                               </div>
                             )}
 
+                            {/* ML Explanation Toggle */}
+                            <Button
+                              variant={showMLExplanation === tender.tender_id ? "default" : "secondary"}
+                              size="sm"
+                              className="w-full mb-3"
+                              onClick={() => setShowMLExplanation(showMLExplanation === tender.tender_id ? null : tender.tender_id)}
+                            >
+                              <Brain className="h-4 w-4 mr-2" />
+                              {showMLExplanation === tender.tender_id ? "Сокриј AI анализа" : "Детална AI анализа"}
+                            </Button>
+
+                            {/* ML Explanation Component */}
+                            {showMLExplanation === tender.tender_id && (
+                              <div className="mb-3">
+                                <TenderExplanation tenderId={tender.tender_id} compact={true} />
+                              </div>
+                            )}
+
                             <div className="flex gap-2">
                               <Link href={`/tenders/${encodeURIComponent(tender.tender_id)}`} className="flex-1" target="_blank" rel="noopener noreferrer">
                                 <Button variant="outline" size="sm" className="w-full">
@@ -987,6 +1158,395 @@ export default function RiskAnalysisPage() {
                 </Link>
               </CardContent>
             </Card>
+          )}
+        </TabsContent>
+
+        {/* ML MODEL TAB */}
+        <TabsContent value="ml" className="space-y-6 mt-6">
+          <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border-purple-200">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Cpu className="h-6 w-6 text-purple-600" />
+              <div>
+                <p className="font-medium">Како функционира AI моделот?</p>
+                <p className="text-sm text-muted-foreground">
+                  Прегледајте ги факторите кои влијаат на детекцијата на ризици и точноста на предвидувањата
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {mlLoading ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Card key={i}><CardContent className="p-4"><Skeleton className="h-32" /></CardContent></Card>
+              ))}
+            </div>
+          ) : (
+            <>
+              {/* Model Performance Stats */}
+              {modelPerformance && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                          <Target className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{(modelPerformance.accuracy * 100).toFixed(1)}%</p>
+                          <p className="text-xs text-muted-foreground">Точност</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                          <Gauge className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{(modelPerformance.precision * 100).toFixed(1)}%</p>
+                          <p className="text-xs text-muted-foreground">Прецизност</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                          <Activity className="h-5 w-5 text-orange-600" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{(modelPerformance.recall * 100).toFixed(1)}%</p>
+                          <p className="text-xs text-muted-foreground">Откривање</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                          <BarChart3 className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{(modelPerformance.roc_auc * 100).toFixed(1)}%</p>
+                          <p className="text-xs text-muted-foreground">ROC AUC</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Feature Importance Chart */}
+              {featureImportance.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Lightbulb className="h-5 w-5 text-yellow-500" />
+                      Што влијае на предвидувањата?
+                    </CardTitle>
+                    <CardDescription>
+                      Топ фактори кои AI моделот ги користи за детекција на ризици
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[400px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={featureImportance.slice(0, 15)}
+                          layout="vertical"
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis type="number" domain={[0, 'auto']} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
+                          <YAxis type="category" dataKey="name" width={180} tick={{ fontSize: 12 }} />
+                          <Tooltip
+                            formatter={(value: number) => [`${(value * 100).toFixed(1)}%`, 'Важност']}
+                            labelFormatter={(label) => `Фактор: ${label}`}
+                          />
+                          <Bar dataKey="importance" radius={[0, 4, 4, 0]}>
+                            {featureImportance.slice(0, 15).map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={index < 5 ? '#ef4444' : index < 10 ? '#f97316' : '#3b82f6'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex items-center justify-center gap-4 mt-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded bg-red-500" />
+                        <span>Најважни</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded bg-orange-500" />
+                        <span>Важни</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded bg-blue-500" />
+                        <span>Помалку важни</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Model info */}
+              {modelPerformance && (
+                <Card className="bg-muted/30">
+                  <CardContent className="p-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <span>Модел: <strong>{modelPerformance.model_name}</strong></span>
+                      <span>•</span>
+                      <span>F1 Score: <strong>{(modelPerformance.f1 * 100).toFixed(1)}%</strong></span>
+                      <span>•</span>
+                      <span>Тренирано: {new Date(modelPerformance.trained_at).toLocaleDateString('mk-MK')}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {!modelPerformance && !mlLoading && (
+                <Card className="border-dashed">
+                  <CardContent className="py-12 text-center">
+                    <Cpu className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Моделот не е достапен</p>
+                    <Button variant="outline" className="mt-4" onClick={loadMLData}>
+                      <RefreshCw className="h-4 w-4 mr-2" /> Обиди се повторно
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </TabsContent>
+
+        {/* COLLUSION/NETWORKS TAB */}
+        <TabsContent value="collusion" className="space-y-6 mt-6">
+          <Card className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20 border-red-200">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Network className="h-6 w-6 text-red-600" />
+              <div>
+                <p className="font-medium">Мрежи на поврзани компании</p>
+                <p className="text-sm text-muted-foreground">
+                  AI детекција на групи компании кои можеби координираат понуди
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {collusionLoading ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Card key={i}><CardContent className="p-4"><Skeleton className="h-32" /></CardContent></Card>
+              ))}
+            </div>
+          ) : (
+            <>
+              {/* Collusion Stats */}
+              {collusionStats && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                          <GitBranch className="h-5 w-5 text-red-600" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{collusionStats.total_clusters}</p>
+                          <p className="text-xs text-muted-foreground">Детектирани мрежи</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                          <AlertTriangle className="h-5 w-5 text-orange-600" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{collusionStats.high_confidence_clusters}</p>
+                          <p className="text-xs text-muted-foreground">Висока сигурност</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                          <Users className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{collusionStats.total_suspicious_companies}</p>
+                          <p className="text-xs text-muted-foreground">Сомнителни компании</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                          <Activity className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{collusionStats.avg_cluster_size.toFixed(1)}</p>
+                          <p className="text-xs text-muted-foreground">Просечна големина</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Collusion Clusters */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Network className="h-5 w-5" />
+                      Детектирани мрежи
+                    </CardTitle>
+                    <CardDescription>
+                      Групи компании со сомнително координирање
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                      {collusionClusters.length > 0 ? (
+                        collusionClusters.map((cluster) => (
+                          <div
+                            key={cluster.cluster_id}
+                            className={`p-3 rounded-lg border cursor-pointer transition-all hover:bg-muted/50 ${selectedCluster?.cluster_id === cluster.cluster_id ? 'ring-2 ring-primary bg-muted/30' : ''}`}
+                            onClick={() => setSelectedCluster(selectedCluster?.cluster_id === cluster.cluster_id ? null : cluster)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Badge variant={cluster.risk_level === 'critical' || cluster.risk_level === 'high' ? 'destructive' : 'secondary'}>
+                                  {cluster.confidence.toFixed(0)}%
+                                </Badge>
+                                <span className="text-sm font-medium">{cluster.num_companies} компании</span>
+                              </div>
+                              <Badge variant="outline" className="text-[10px]">
+                                {PATTERN_LABELS[cluster.pattern_type] || cluster.pattern_type}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground line-clamp-2">
+                              {cluster.top_companies?.slice(0, 3).join(', ')}
+                              {cluster.top_companies && cluster.top_companies.length > 3 && ` и уште ${cluster.top_companies.length - 3}`}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Network className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p>Нема детектирани мрежи</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Selected Cluster Details or Risky Companies */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      {selectedCluster ? (
+                        <>
+                          <GitBranch className="h-5 w-5" />
+                          Детали за мрежа
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle className="h-5 w-5 text-orange-500" />
+                          Најризични компании
+                        </>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedCluster
+                        ? `${selectedCluster.num_companies} компании • ${selectedCluster.confidence.toFixed(0)}% сигурност`
+                        : 'Компании со највисок ризик за сомнително однесување'
+                      }
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedCluster ? (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          <Badge variant="outline">{PATTERN_LABELS[selectedCluster.pattern_type] || selectedCluster.pattern_type}</Badge>
+                          <Badge className={RISK_LEVELS[selectedCluster.risk_level]?.light + ' ' + RISK_LEVELS[selectedCluster.risk_level]?.text + ' border-0'}>
+                            {RISK_LEVELS[selectedCluster.risk_level]?.label || selectedCluster.risk_level}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {(selectedCluster.companies || selectedCluster.top_companies)?.map((company, i) => (
+                            <div key={i} className="flex items-center gap-2 p-2 rounded bg-muted/50">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm flex-1 truncate">{company}</span>
+                              <Link href={`/suppliers?search=${encodeURIComponent(company)}`} target="_blank">
+                                <Button variant="ghost" size="sm"><Eye className="h-3 w-3" /></Button>
+                              </Link>
+                            </div>
+                          ))}
+                        </div>
+                        <Button variant="outline" className="w-full mt-4" onClick={() => setSelectedCluster(null)}>
+                          Назад кон листа
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                        {companyRisks.length > 0 ? (
+                          companyRisks.map((company, i) => (
+                            <div key={i} className="flex items-center gap-3 p-2 rounded border hover:bg-muted/50 transition-colors">
+                              <div className="relative w-10 h-10 flex-shrink-0">
+                                <svg className="transform -rotate-90 w-10 h-10">
+                                  <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="3" fill="none" className="text-muted" />
+                                  <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="3" fill="none"
+                                    strokeDasharray={`${(company.probability) * 100} 100`}
+                                    className={company.probability > 0.7 ? 'text-red-500' : company.probability > 0.5 ? 'text-orange-500' : 'text-yellow-500'}
+                                  />
+                                </svg>
+                                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">
+                                  {(company.probability * 100).toFixed(0)}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{company.company_name}</p>
+                                <Badge variant="outline" className={`text-[9px] ${RISK_LEVELS[company.risk_level]?.text || ''}`}>
+                                  {RISK_LEVELS[company.risk_level]?.label || company.risk_level}
+                                </Badge>
+                              </div>
+                              <Link href={`/suppliers?search=${encodeURIComponent(company.company_name)}`} target="_blank">
+                                <Button variant="ghost" size="sm"><Eye className="h-3 w-3" /></Button>
+                              </Link>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p>Нема податоци за компании</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Refresh button */}
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={loadCollusionData} disabled={collusionLoading}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${collusionLoading ? 'animate-spin' : ''}`} />
+                  Освежи податоци
+                </Button>
+              </div>
+            </>
           )}
         </TabsContent>
       </Tabs>

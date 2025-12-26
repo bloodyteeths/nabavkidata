@@ -1,0 +1,783 @@
+{
+  "search_date": "2025-12-26T04:13:05.839532",
+  "sanctioned_entity_matches": [
+    {
+      "tender_id": "OT-995b8294c47c/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за завршни и занаетчиски работи во градежништвото ОБЕЛ Камчев ДООЕЛ Штип",
+      "value_mkd": 2500000.0
+    },
+    {
+      "tender_id": "OT-925379d0ee56/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за завршни и занаетчиски работи во градежништвото ОБЕЛ Камчев ДООЕЛ Штип",
+      "value_mkd": 1000000.0
+    },
+    {
+      "tender_id": "OT-de066a97000e/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Јавно трговско друштво за производство, трговија и превоз на големо и мало увоз-извоз „Орка-Пром“ и др.ЈТД Виница.",
+      "value_mkd": 739517.33
+    },
+    {
+      "tender_id": "18136/2024",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за завршни и занаетчиски работи во градежништвото ОБЕЛ Камчев ДООЕЛ Штип",
+      "value_mkd": 725130.06
+    },
+    {
+      "tender_id": "OT-17e7a2bad302/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за завршни и занаетчиски работи во градежништвото ОБЕЛ Камчев ДООЕЛ Штип",
+      "value_mkd": 720000.0
+    },
+    {
+      "tender_id": "OT-5abf4d9d9fba/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Авто-Камчеви ДООЕЛ Велес",
+      "value_mkd": 600000.0
+    },
+    {
+      "tender_id": "OT-e09dcd7a7013/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "ДПТУ КИМЕ ГРАФ ДАЈАНЧО ДООЕЛ Куманово со седиште во Населба Вера Которка бб од Куманово",
+      "value_mkd": 483800.0
+    },
+    {
+      "tender_id": "18867/2024",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за завршни и занаетчиски работи во градежништвото ОБЕЛ Камчев ДООЕЛ Штип",
+      "value_mkd": 472000.0
+    },
+    {
+      "tender_id": "OT-02c91b39c4ac/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за производство,трговија и угостителство АМБАСАДОР КАМЧЕВ ДООЕЛ Радовиш",
+      "value_mkd": 435420.0
+    },
+    {
+      "tender_id": "11332/2019",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за производство,трговија и угостителство АМБАСАДОР КАМЧЕВ ДООЕЛ Радовиш",
+      "value_mkd": 400000.0
+    },
+    {
+      "tender_id": "OT-ad9af6dd1de9/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за производство,трговија и угостителство АМБАСАДОР КАМЧЕВ ДООЕЛ Радовиш",
+      "value_mkd": 381300.0
+    },
+    {
+      "tender_id": "OT-32e8af3804b6/8243",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за производство,трговија и угостителство АМБАСАДОР КАМЧЕВ ДООЕЛ Радовиш",
+      "value_mkd": 350000.0
+    },
+    {
+      "tender_id": "OT-84109a638fb7/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за производство,трговија и угостителство АМБАСАДОР КАМЧЕВ ДООЕЛ Радовиш",
+      "value_mkd": 350000.0
+    },
+    {
+      "tender_id": "OT-d996cc75e649/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за производство,трговија и угостителство АМБАСАДОР КАМЧЕВ ДООЕЛ Радовиш",
+      "value_mkd": 338983.05
+    },
+    {
+      "tender_id": "OT-e9a8f835276d/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Трговец поединец за такси превоз КАМЧЕВ КОМПАНИ Ристо Ѓорги Камчев ТП с.Зрновци Зрновци",
+      "value_mkd": 337154.4
+    },
+    {
+      "tender_id": "OT-d6a54ccc1e38/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Трговец поединец за такси превоз КАМЧЕВ КОМПАНИ Ристо Ѓорги Камчев ТП с.Зрновци Зрновци",
+      "value_mkd": 303078.0
+    },
+    {
+      "tender_id": "OT-60d2db4ded4d/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за производство,трговија и угостителство АМБАСАДОР КАМЧЕВ ДООЕЛ Радовиш",
+      "value_mkd": 302858.8
+    },
+    {
+      "tender_id": "20695/2024",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за завршни и занаетчиски работи во градежништвото ОБЕЛ Камчев ДООЕЛ Штип",
+      "value_mkd": 300000.01
+    },
+    {
+      "tender_id": "OT-9a7f74e64042/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "ТП ТЕОНА МАРКЕТ трговија на мало Борка Радоје Серафимовски",
+      "value_mkd": 300000.0
+    },
+    {
+      "tender_id": "OT-399c49700b49/2020",
+      "entity": "Kamcev/Orka",
+      "winner": "Друштво за производство,трговија и угостителство АМБАСАДОР КАМЧЕВ ДООЕЛ Радовиш",
+      "value_mkd": 300000.0
+    },
+    {
+      "tender_id": "OT-55159e63b614/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Company for Production, Trade and Service PUCKO PETROL Import-Export DOOEL s.Plasnica Plasnica",
+      "value_mkd": 2142005148.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-abb8567dd4db/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko Petrol",
+      "value_mkd": 299997000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-d609b84a3ffd/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko Petrol",
+      "value_mkd": 200000000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-d99ac0f0719c/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko petrol",
+      "value_mkd": 159781392.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-e5ea5d1ac434/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "pucko petrol dooel skopje",
+      "value_mkd": 90000000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-ca2ba6203427/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko petrol Dooel",
+      "value_mkd": 90000000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-1e0abcd9ecee/8364",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko Petrol DOOEL",
+      "value_mkd": 80000000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-898bb910465d/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko Petrol DOOEL Skopje",
+      "value_mkd": 79999999.5,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-429e7938253b/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko Petrol",
+      "value_mkd": 70000000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-a2dc8df107af/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Company for production, trade and services PUCKO PETROL import-export DOOEL village of Plasnica Plasnica",
+      "value_mkd": 56877117.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-561e076bd59a/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Company for Production, Trade and Service PUCKO PETROL Import - Export DOOEL s.Plasnica Plasnica",
+      "value_mkd": 41768460.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-96efd3213a0d/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko Petrol",
+      "value_mkd": 40710000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-23e210349395/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "DPTU ‘Pucko Petrol’ DOO",
+      "value_mkd": 40500000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-ee850a9f6a32/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "DPTU Pucko Petrol Dooel",
+      "value_mkd": 35000000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-ac5bc70605ac/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Company for Production, Trade and Services Pucko Petrol Import-Export Dooel s. Plasnica Plasnica",
+      "value_mkd": 27498437.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-88c07b8ba9ef/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko Petrol Dooel Plasnica",
+      "value_mkd": 27009939.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-6f96af98d0f4/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "DPTU Pucko Petrol Dooel",
+      "value_mkd": 25000000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-08a18610214b/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Company for production, trade and services PUCKO PETROL import-export DOOEL Plasnica Plasnica",
+      "value_mkd": 24000000.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-167881881084/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "\"Pucko Petrol\"",
+      "value_mkd": 22881356.0,
+      "case_link": "MK-2024-001"
+    },
+    {
+      "tender_id": "OT-218af5b7ae21/2020",
+      "entity": "RKM/Pucko Petrol",
+      "winner": "Pucko Petrol uvoz-izvoz Dooel s.Plasnica",
+      "value_mkd": 20000000.0,
+      "case_link": "MK-2024-001"
+    }
+  ],
+  "case_matches": {
+    "MK-2023-001": [
+      {
+        "tender_id": "OT-a6cb67ae63d8/2020",
+        "title": "Санитетско моторно возило со комплет опрема",
+        "procuring_entity": "ЈЗУ Градска општа болница „8-ми Септември“ Скопје",
+        "value_mkd": 4500000.0
+      },
+      {
+        "tender_id": "OT-01a958797a0d/2020",
+        "title": "Патничко моторно возило - комбе",
+        "procuring_entity": "ЈЗУ Градска општа болница „8-ми Септември“ Скопје",
+        "value_mkd": 2000000.0
+      },
+      {
+        "tender_id": "OT-8ae7893c8987/2020",
+        "title": "Набавка на мало товарно возило",
+        "procuring_entity": "Јавна Општинска Установа-Детска Градинка,,11 Октомври,,",
+        "value_mkd": 1271186.0
+      },
+      {
+        "tender_id": "OT-14516335faaa/2020",
+        "title": "Набавка на ново комбинирано моторно возило - N1 (ПИК АП)",
+        "procuring_entity": "ЈОУДГ 11 Септември - Ресен",
+        "value_mkd": 1169492.0
+      },
+      {
+        "tender_id": "OT-a553cd99fa0a/2020",
+        "title": "Наменско возило за транспорт на службено куче, по спецификација",
+        "procuring_entity": "Министерство за внатрешни работи на РМ",
+        "value_mkd": 1161120.0
+      },
+      {
+        "tender_id": "OT-b7b1604ab9e6/2020",
+        "title": "-Набавката на товарно моторно возило",
+        "procuring_entity": "ЈУДГ.ОЦ. 13 Ноември - Скопје",
+        "value_mkd": 984049.2
+      },
+      {
+        "tender_id": "OT-35398acfaa60/2020",
+        "title": "Набавка на патничко моторно возило",
+        "procuring_entity": "ОЈУД - Детска градинка 7 - ми Септември - Македонски Брод",
+        "value_mkd": 803108.0
+      },
+      {
+        "tender_id": "OT-edcd6dbb2d6f/2020",
+        "title": "Набавка на возило",
+        "procuring_entity": "СУГС 8 ми Септември - Скопје",
+        "value_mkd": 696672.0
+      },
+      {
+        "tender_id": "OT-864f52fed037/2020",
+        "title": "Набавка на патничко моторно возило",
+        "procuring_entity": "ЈУДГ.ОЦ. 13 Ноември - Скопје",
+        "value_mkd": 678000.0
+      },
+      {
+        "tender_id": "OT-6d31722f611b/2020",
+        "title": "Набавка на ново товарно моторно возило за превоз на патници и товар",
+        "procuring_entity": "ОЈУ Детска градинка 7 „Септември“ - Пехчево",
+        "value_mkd": 663600.0
+      }
+    ],
+    "MK-2025-001": [
+      {
+        "tender_id": "OT-0bed832ad47e/2020",
+        "title": "PLC контролери",
+        "procuring_entity": "Друштво за производство на топлинска енергија ЕСМ ПРОИЗВОДСТВО НА ТОПЛИНА ДООЕЛ Скопје",
+        "value_mkd": 600000.0
+      },
+      {
+        "tender_id": "OT-7ff69d27663a/2020",
+        "title": "Контрола на челични конструкции, заварени споеви и машински делови, прием на материјали и технологија за заварување",
+        "procuring_entity": "ФОД ДООЕЛ - Новаци, АД ЕСМ Скопје",
+        "value_mkd": 307500.0
+      },
+      {
+        "tender_id": "OT-641c6889a44b/2020",
+        "title": "Набавка на софтвер - Терминал за евиденција на работно време и контрола на пристап",
+        "procuring_entity": "ФОД ДООЕЛ - Новаци, АД ЕСМ Скопје",
+        "value_mkd": 92500.0
+      },
+      {
+        "tender_id": "OT-0e0814edbf7b/2020",
+        "title": "Терминал за евиденција на работно време и контрола на пристап за работните простории во Кичево - повторена постапка",
+        "procuring_entity": "ФОД ДООЕЛ - Новаци, АД ЕСМ Скопје",
+        "value_mkd": 0.0
+      },
+      {
+        "tender_id": "OT-b23fb55572ce/2020",
+        "title": "Набавка на контролни ормари",
+        "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+        "value_mkd": 0.0
+      },
+      {
+        "tender_id": "OT-cd1d9ad7cabe/2020",
+        "title": "Набавка на софтвер – терминал за евиденција на работното време и контрола на пристап",
+        "procuring_entity": "ФОД ДООЕЛ - Новаци, АД ЕСМ Скопје",
+        "value_mkd": 0.0
+      },
+      {
+        "tender_id": "OT-8058a88b13ef/2020",
+        "title": "Одржување и сервисирање на апликации за мониторинг на процесни параметри во топлани",
+        "procuring_entity": "Друштво за производство на топлинска енергија ЕСМ ПРОИЗВОДСТВО НА ТОПЛИНА ДООЕЛ Скопје",
+        "value_mkd": 0.0
+      },
+      {
+        "tender_id": "OT-f6bddc769513/2020",
+        "title": "Терминал за евиденција на работно време и контрола на пристап за работните простории во Кичево",
+        "procuring_entity": "ФОД ДООЕЛ - Новаци, АД ЕСМ Скопје",
+        "value_mkd": 0.0
+      },
+      {
+        "tender_id": "OT-df2900491471/2020",
+        "title": "Одржување и сервисирање на апликации за мониторинг на процесни параметри во топлани",
+        "procuring_entity": "Друштво за производство на топлинска енергија ЕСМ ПРОИЗВОДСТВО НА ТОПЛИНА ДООЕЛ Скопје",
+        "value_mkd": 0.0
+      }
+    ],
+    "MK-2024-001": [
+      {
+        "tender_id": "OT-5be81a0254fd/2020",
+        "title": "Префизибилити студија за оптимални локации и инсталирана моќност на нови термоелектрични централи, што како гориво користат висококалоричен (увозен) јаглен",
+        "procuring_entity": "АД Електрани на Македонија - Скопје",
+        "winner": "Energy Platform Living Lab – Udruga za otvorene inovacije u energetici",
+        "value_mkd": 6150000.0
+      },
+      {
+        "tender_id": "OT-be77e94b5823/2020",
+        "title": "Санација на термоизолација на резервоари за мазут (РЕК Осломеј)",
+        "procuring_entity": "Акционерско друштво за производство на електрична енергија ЕЛЕКТРАНИ НА СЕВЕРНА МАКЕДОНИЈА, во државна сопственост, Скопје",
+        "winner": null,
+        "value_mkd": 5000000.0
+      },
+      {
+        "tender_id": "OT-3386a6cbd74e/2020",
+        "title": "Мазут М1",
+        "procuring_entity": "Акционерско друштво за производство на електрична енергија ЕЛЕКТРАНИ НА СЕВЕРНА МАКЕДОНИЈА, во државна сопственост, Скопје",
+        "winner": "Производство на топлина Балкан Енерџи ДООЕЛ Скопје",
+        "value_mkd": 4482713.0
+      },
+      {
+        "tender_id": "OT-bcaa3b2974ee/2020",
+        "title": "Масло за греење ЕЛ, бензин 95 и дизел гориво",
+        "procuring_entity": "ЈУОДГ Фемо Кулаков - Неготино",
+        "winner": "МАКПЕТРОЛ Акционерско друштво за промет со нафта и нафтени деривати Скопје",
+        "value_mkd": 4000000.0
+      },
+      {
+        "tender_id": "OT-15faabf7ca30/8696",
+        "title": "Чистење на резервоари за мазут во ТЕ (РЕК Осломеј)",
+        "procuring_entity": "Акционерско друштво за производство на електрична енергија ЕЛЕКТРАНИ НА СЕВЕРНА МАКЕДОНИЈА, во државна сопственост, Скопје",
+        "winner": null,
+        "value_mkd": 4000000.0
+      },
+      {
+        "tender_id": "OT-06a40e030393/2020",
+        "title": "Чистење на резервоари од мазут за складирање на дизел гориво, замена на неповратни вентили за вентилација на резервоарите и подесување (штелување) на горилници во топланите Исток и Запад",
+        "procuring_entity": "Акционерско друштво за производство на електрична енергија ЕЛЕКТРАНИ НА СЕВЕРНА МАКЕДОНИЈА, во државна сопственост, Скопје",
+        "winner": null,
+        "value_mkd": 3600000.0
+      },
+      {
+        "tender_id": "OT-a86081c3c6ed/2020",
+        "title": "Чистење на резервоари од мазут за складирање на дизел гориво, замена на неповратни вентили за вентилација на резервоарите и подесување (штелување) на горилници во топланите Исток и Запад",
+        "procuring_entity": "Акционерско друштво за производство на електрична енергија ЕЛЕКТРАНИ НА СЕВЕРНА МАКЕДОНИЈА, во државна сопственост, Скопје",
+        "winner": null,
+        "value_mkd": 3600000.0
+      },
+      {
+        "tender_id": "09684/2019",
+        "title": "Гориво за моторни возила",
+        "procuring_entity": "АД ТЕЦ НЕГОТИНО",
+        "winner": "МАКПЕТРОЛ Акционерско друштво за промет со нафта и нафтени деривати Скопје",
+        "value_mkd": 2714000.0
+      },
+      {
+        "tender_id": "13553/2020",
+        "title": "Гориво за моторни возила",
+        "procuring_entity": "АД ТЕЦ НЕГОТИНО",
+        "winner": "МАКПЕТРОЛ Акционерско друштво за промет со нафта и нафтени деривати Скопје",
+        "value_mkd": 2714000.0
+      },
+      {
+        "tender_id": "OT-b9653110245d/2020",
+        "title": "Гориво за моторни возила",
+        "procuring_entity": "АД ТЕЦ НЕГОТИНО",
+        "winner": "МАКПЕТРОЛ Акционерско друштво за промет со нафта и нафтени деривати Скопје",
+        "value_mkd": 2500000.0
+      },
+      {
+        "tender_id": "OT-18f6079abe10/2020",
+        "title": "Гориво за моторни возила",
+        "procuring_entity": "АД ТЕЦ НЕГОТИНО",
+        "winner": "МАКПЕТРОЛ Акционерско друштво за промет со нафта и нафтени деривати Скопје",
+        "value_mkd": 2500000.0
+      },
+      {
+        "tender_id": "OT-349dfd80697f/2020",
+        "title": "ГОРИВО ЗА ВОЗИЛА -МОТОРЕН БЕНЗИН ЕУРО СУПЕР 95 И ЕУРО ДИЗЕЛ БС (Д-Е V)",
+        "procuring_entity": "ЈЗУ ЗД НЕГОТИНО",
+        "winner": "МАКПЕТРОЛ Акционерско друштво за промет со нафта и нафтени деривати Скопје",
+        "value_mkd": 2500000.0
+      },
+      {
+        "tender_id": "OT-042e4e07d0a4/2020",
+        "title": "ГОРИВО ЗА ВОЗИЛА -МОТОРЕН БЕНЗИН ЕУРО СУПЕР 95 , И ЕУРО ДИЗЕЛ БС(Д-Е V)",
+        "procuring_entity": "ЈЗУ ЗД НЕГОТИНО",
+        "winner": "МАКПЕТРОЛ Акционерско друштво за промет со нафта и нафтени деривати Скопје",
+        "value_mkd": 2500000.0
+      },
+      {
+        "tender_id": "OT-2f61d15641e5/2020",
+        "title": "Набавка на хидраулични пневматски црева за гориво за машини и возила, РЕК Битола",
+        "procuring_entity": "АД Електрани на Македонија - Скопје",
+        "winner": null,
+        "value_mkd": 2400000.0
+      },
+      {
+        "tender_id": "OT-d49f63dd98ba/2020",
+        "title": "Гориво за моторни возила",
+        "procuring_entity": "АД ТЕЦ НЕГОТИНО",
+        "winner": "МАКПЕТРОЛ Акционерско друштво за промет со нафта и нафтени деривати Скопје",
+        "value_mkd": 2300000.0
+      }
+    ],
+    "MK-2016-001": [
+      {
+        "tender_id": "OT-96db46cb5c3a/2020",
+        "title": "Completion of Works for Construction A4, Section Miladinovci – Sveti Nikole – Stip",
+        "procuring_entity": "Public Entreprise for State Roads — Skopje",
+        "winner": "GD Granit AD",
+        "value_mkd": 21750799587.0
+      },
+      {
+        "tender_id": "OT-04619c4efcb1/2020",
+        "title": "Supervision of Construction of Motorway A4, Section Border Crossing “Blace” — Skopje (interchange “Stenkovec”)",
+        "procuring_entity": "Public Entreprise for State Roads — Skopje",
+        "winner": "Gradezen institut Makedonija AD",
+        "value_mkd": 1519978650.0
+      },
+      {
+        "tender_id": "OT-a1a68ba7ad9d/2020",
+        "title": "Construction of Motorway A4, Section from Border Crossing Point ‘Blace’ – Skopje (Interchange ‘Stenkovec’)",
+        "procuring_entity": "Public Entreprise for State Roads — Skopje",
+        "winner": "GD Granit AD",
+        "value_mkd": 881742867.0
+      },
+      {
+        "tender_id": "OT-3e3fd3ae8181/2020",
+        "title": "Completion of construction of Motorway A4, section from border crossing point “Blace” – Skopje (interchange “Stenkovec”), subsection 1",
+        "procuring_entity": "Public Entreprise for State Roads — Skopje",
+        "winner": "GD GRANIT AD",
+        "value_mkd": 598399811.0
+      },
+      {
+        "tender_id": "OT-690385180110/2020",
+        "title": "Consulting Services for Supervision of Construction of Motorway A4, Section Miladinovci – Sveti Nikole – Stip.",
+        "procuring_entity": "Public Entreprise for State Roads — Skopje",
+        "winner": "DGPU GEING Krebs und Kifer Internesnl i dr. DOO Skopje",
+        "value_mkd": 420645861.0
+      },
+      {
+        "tender_id": "OT-2a1bc5e27a76/2020",
+        "title": "Докомплетирање на градежни работи за изградба на автопат А4, делница Миладиновци – Свети Николе - Штип.",
+        "procuring_entity": "Јавно претпријатие за државни патишта",
+        "winner": "Градежно друштво ГРАНИТ АД-Скопје",
+        "value_mkd": 300000000.0
+      },
+      {
+        "tender_id": "9f0743db-73ba-44e2-b790-cb38255850bc",
+        "title": "Техничка помош за изградба на автопатски делници на Коридор VIII и Коридор X-d",
+        "procuring_entity": "Јавно претпријатие за државни патишта",
+        "winner": "Трговско друштво за инженеринг и консалтинг услуги САФЕГЕ ДООЕЛ Скопје",
+        "value_mkd": 236000000.0
+      },
+      {
+        "tender_id": "OT-8ac00dbc08f9/2020",
+        "title": "Construction of the national road A4 (M-6), Stip – Strumica, section Surdulci – Radicevo, from km 42+700 to 52+700.",
+        "procuring_entity": "Agency for State Roads - Skopje",
+        "winner": "GD Granit AD - Skopje",
+        "value_mkd": 188807618.29
+      },
+      {
+        "tender_id": "OT-df27a044895b/2020",
+        "title": "Изградба на магистрален пат А4 (М-6) Штип – Струмица, делница Сурдулци – Радичево, од км. 42+700 до км.52+700.",
+        "procuring_entity": "Агенција за државни патишта",
+        "winner": "Градежно друштво ГРАНИТ АД-Скопје",
+        "value_mkd": 160000000.0
+      },
+      {
+        "tender_id": "OT-273defe8169a/2020",
+        "title": "Поправка и рехабилитација на автопатски и магистрални делници",
+        "procuring_entity": "Јавно претпријатие за државни патишта",
+        "winner": "null",
+        "value_mkd": 150000000.0
+      },
+      {
+        "tender_id": "3bb05674-a609-4a57-9c0d-2553d3da49ba",
+        "title": "Tender 3bb05674-a609-4a57-9c0d-2553d3da49ba",
+        "procuring_entity": "Јавно претпријатие за државни патишта",
+        "winner": null,
+        "value_mkd": 141600000.0
+      },
+      {
+        "tender_id": "OT-d1be5b75bf8c/2020",
+        "title": "Поставување на Сообраќајна сигнализација и опрема на државен пат А3 делница Буково -Охрид подделница Буково-влез во Охрид",
+        "procuring_entity": "Јавно претпријатие за државни патишта",
+        "winner": null,
+        "value_mkd": 125000000.0
+      },
+      {
+        "tender_id": "OT-3257e6d1edae/2020",
+        "title": "Рехабилитација на сообраќајна возна лента на државен пат А1 делница Велес (Штипска клучка) – Градско и Градско – Велес (Штипска клучка).",
+        "procuring_entity": "Јавно претпријатие за државни патишта",
+        "winner": "Друштво за производство трговија и услуги ЕСКАВАТОРИ-МК ДООЕЛ увоз-извоз-Скопје",
+        "value_mkd": 120000000.0
+      },
+      {
+        "tender_id": "OT-7d231ea94514/2020",
+        "title": "Preparation of Project Documentation for Construction of State Road A4 Section Stip - Radovis",
+        "procuring_entity": "Public Entreprise for State Roads — Skopje",
+        "winner": "DPPI PROSTOR DOO Kumanovo",
+        "value_mkd": 98400000.0
+      },
+      {
+        "tender_id": "OT-98dd935db9da/2020",
+        "title": "Осветлување на дел од автопат А2 и А4 (делница клучка Хиподром – клучка Белви – клучка Илинден и делница клучка Хиподром – клучка Кадино)",
+        "procuring_entity": "Јавно претпријатие за државни патишта",
+        "winner": "Друштво за трговија, производство и услуги ЕЛМОНД ЕЛЕКТРО ДООЕЛ експорт импорт Скопје",
+        "value_mkd": 66000000.0
+      }
+    ],
+    "MK-2024-002": [
+      {
+        "tender_id": "decf1e9f-8a62-494d-bad2-6d83fb861fd4",
+        "title": "Маркетинг активности за промоција, поддршка и популаризација на интернет игри",
+        "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+        "value_mkd": 118000000.0
+      },
+      {
+        "tender_id": "112124b6-6310-4e96-b900-8bb64da05e6e",
+        "title": "Маркетинг активности за промоција, поддршка и популаризација на интернет игри",
+        "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+        "value_mkd": 118000000.0
+      },
+      {
+        "tender_id": "OT-757c2d761852/9496",
+        "title": "Реконструкција на мултифункционални игралишта",
+        "procuring_entity": "Државна видеолотарија на Република Македонија",
+        "value_mkd": 26000000.0
+      },
+      {
+        "tender_id": "6129d430-e9c0-4b8e-8eed-8eb3ce6c3734",
+        "title": "Tender 6129d430-e9c0-4b8e-8eed-8eb3ce6c3734",
+        "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+        "value_mkd": 11800000.0
+      },
+      {
+        "tender_id": "2c3b9f43-f205-49bb-8eec-6c3a56325ad8",
+        "title": "Tender 2c3b9f43-f205-49bb-8eec-6c3a56325ad8",
+        "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+        "value_mkd": 11800000.0
+      },
+      {
+        "tender_id": "OT-7f6ac5e60ebf/2020",
+        "title": "Реконструкција на мултифункционални игралишта",
+        "procuring_entity": "Државна видеолотарија на Република Македонија",
+        "value_mkd": 11515000.0
+      },
+      {
+        "tender_id": "OT-496ef464edb5/2020",
+        "title": "Набавка на услуги од маркетинг агенција за подршка и развој.",
+        "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+        "value_mkd": 10000000.0
+      },
+      {
+        "tender_id": "OT-ac4cd3674223/9286",
+        "title": "Набавка на столици за ВЛТ",
+        "procuring_entity": "Друштво за организирање електронски игри на среќа-Нова Државна Видео Лотарија -НОВО ВЛТ ДОО Скопје",
+        "value_mkd": 9254640.0
+      },
+      {
+        "tender_id": "1fdc0609-f8f6-4237-970c-a6b27cb9ac69",
+        "title": "Tender 1fdc0609-f8f6-4237-970c-a6b27cb9ac69",
+        "procuring_entity": "Државна видеолотарија на Република Македонија",
+        "value_mkd": 8568617.2
+      },
+      {
+        "tender_id": "OT-a78eb9bd4e5f/2020",
+        "title": "Услуги од маркетинг агенција за подршка и развој.",
+        "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+        "value_mkd": 8500000.0
+      },
+      {
+        "tender_id": "OT-b7dfa88bb47a/2020",
+        "title": "Набавка на услуги за надворешно рекламирање на автобуси",
+        "procuring_entity": "Државна видеолотарија на Република Македонија",
+        "value_mkd": 8300000.0
+      },
+      {
+        "tender_id": "OT-e21e51ae4812/2020",
+        "title": "Комуникациски услуги за АПН мрежа и закуп на компјутерски ресурси",
+        "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+        "value_mkd": 7800000.0
+      },
+      {
+        "tender_id": "OT-ada2e4b9a24e/2020",
+        "title": "Телекомуникациски услуги за поврзување со продажни места",
+        "procuring_entity": "Државна видеолотарија на Република Македонија",
+        "value_mkd": 7800000.0
+      },
+      {
+        "tender_id": "OT-cd42dd6b49ab/2020",
+        "title": "Набавка на комуникациски услуги за APN мрежа и услуги за закуп на компјутерски ресурси за период од 2 (две) години.",
+        "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+        "value_mkd": 7800000.0
+      },
+      {
+        "tender_id": "OT-e873a1631d03/2020",
+        "title": "Набавка и испорака на лозови Инстант и Експрес лотарија.",
+        "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+        "value_mkd": 7500000.0
+      }
+    ],
+    "MK-2024-003": [
+      {
+        "tender_id": "OT-3c88aefbb3b7/2020",
+        "title": "Maintaining hygiene and currently maintenance of state administration facilities",
+        "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+        "value_mkd": 472000015.5
+      },
+      {
+        "tender_id": "OT-29e9f0b0d647/2020",
+        "title": "Изведување на градежни и градежно занаетчиски работи за конзолно проширување и партерно уредување",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 469067797.0
+      },
+      {
+        "tender_id": "OT-3dc7abb58af0/2020",
+        "title": "Reconstruction of the former facility of Komercijalna banka",
+        "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+        "value_mkd": 406434496.5
+      },
+      {
+        "tender_id": "OT-903b6d6e6073/2020",
+        "title": "Изведување на градежни работи на фасадата на објектот Државни институции и Факултет за драмски уметности",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 260593220.0
+      },
+      {
+        "tender_id": "OT-50f59472cdda/2020",
+        "title": "Изведување на градежни и градежно занаетчиски работи за изградба на административен објект на улица Македонија во Скопје",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 210000000.0
+      },
+      {
+        "tender_id": "OT-66bb9577a03e/2020",
+        "title": "Physical security of the state administration facilities",
+        "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+        "value_mkd": 198237132.0
+      },
+      {
+        "tender_id": "OT-fdea31a48396/2020",
+        "title": "Изведба на градежни и градежно-занаетчиски работи за ентериерно уредување и адаптација на Кула 6 во објектот на Владата на Република Македонија",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 182415254.0
+      },
+      {
+        "tender_id": "OT-57470dd80234/2020",
+        "title": "Motor vehicles by way of operational leasing",
+        "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+        "value_mkd": 112537189.5
+      },
+      {
+        "tender_id": "OT-c8fe786c4f21/2020",
+        "title": "Electricity and related services",
+        "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+        "value_mkd": 105872926.5
+      },
+      {
+        "tender_id": "OT-2e44d258f8c4/8614",
+        "title": "Eнтериерно уредување на објектот за државни институции - Уставен суд на Република Македонија, Државен архив и археолошки музеј",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 100000000.0
+      },
+      {
+        "tender_id": "OT-ce0183238b4f/2020",
+        "title": "Изведување на дополнителни и непредвидени градежни работи",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 98305084.75
+      },
+      {
+        "tender_id": "OT-48abd6fb7ece/2020",
+        "title": "Изведување на дополнителни и непредвидени работи за изградба на административниот објект за Уставен суд на Република Македонија, Државен архив на Република Македонија и Археолошки музеј",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 97711864.41
+      },
+      {
+        "tender_id": "OT-27f3eef473e9/9072",
+        "title": "Изведување на градежнi работи за изградба на подземна гаража",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 92000000.0
+      },
+      {
+        "tender_id": "OT-7d4261e5cea4/2020",
+        "title": "Изведување на декоративни елементи на фасадата (скулптури, рељефи и останати орнаменти) на новиот објект на Министерството за надворешни работи",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 88500000.0
+      },
+      {
+        "tender_id": "OT-9e8c56d0b76d/2020",
+        "title": "Изведување на градежни и градежно - занаетчиски работи за изработка на тераса со посебна заштита и кровна проодна тераса за објектот на Владата на Република Македонија",
+        "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+        "value_mkd": 68000000.0
+      }
+    ]
+  }
+}

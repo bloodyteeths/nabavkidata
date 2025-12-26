@@ -2304,6 +2304,288 @@ class APIClient {
       body: JSON.stringify(data),
     });
   }
+
+  // ==========================================
+  // ML EXPLAINABILITY & COLLUSION DETECTION
+  // ==========================================
+
+  /**
+   * Get ML explanation for a tender's risk prediction (SHAP/LIME)
+   */
+  async getTenderExplanation(tenderId: string, method: 'shap' | 'lime' | 'combined' = 'combined') {
+    const encodedId = encodeURIComponent(tenderId);
+    return this.request<{
+      tender_id: string;
+      risk: { probability: number; level: string; color: string };
+      method: string;
+      factors: Array<{
+        name: string;
+        display_name: string;
+        value: number;
+        contribution: number;
+        direction: 'increases_risk' | 'decreases_risk';
+        importance_rank: number;
+        description?: string;
+        category?: string;
+      }>;
+      summary: string;
+      recommendations?: string[];
+      counterfactuals?: string[];
+      model_fidelity?: number;
+      cached: boolean;
+      generated_at: string;
+    }>(`/api/corruption/explain/${encodedId}?method=${method}`);
+  }
+
+  /**
+   * Get global feature importance from trained models
+   */
+  async getFeatureImportance(limit: number = 30, category?: string) {
+    const params = new URLSearchParams({ limit: limit.toString() });
+    if (category) params.append('category', category);
+    return this.request<Array<{
+      name: string;
+      importance: number;
+      rank: number;
+      category?: string;
+      description?: string;
+    }>>(`/api/corruption/feature-importance?${params}`);
+  }
+
+  /**
+   * Get ML model performance metrics
+   */
+  async getModelPerformance() {
+    return this.request<{
+      model_name: string;
+      accuracy: number;
+      precision: number;
+      recall: number;
+      f1: number;
+      roc_auc: number;
+      average_precision?: number;
+      optimal_threshold?: number;
+      confusion_matrix?: number[][];
+      cv_mean?: number;
+      cv_std?: number;
+      top_features: Array<{
+        name: string;
+        importance: number;
+        rank: number;
+        category?: string;
+        description?: string;
+      }>;
+      trained_at: string;
+    }>('/api/corruption/models/performance');
+  }
+
+  /**
+   * Get comparison of all ML models
+   */
+  async getModelComparison() {
+    return this.request<{
+      models: Array<{
+        name: string;
+        type: string;
+        accuracy: number;
+        roc_auc?: number;
+        precision?: number;
+        recall?: number;
+        f1?: number;
+        num_nodes?: number;
+        num_edges?: number;
+        training_samples?: number;
+        trained_at: string;
+      }>;
+      best_model: string | null;
+      total_models: number;
+    }>('/api/corruption/models/comparison');
+  }
+
+  /**
+   * Get list of detected collusion clusters
+   */
+  async getCollusionClusters(params?: {
+    min_confidence?: number;
+    min_companies?: number;
+    pattern_type?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.min_confidence) query.append('min_confidence', params.min_confidence.toString());
+    if (params?.min_companies) query.append('min_companies', params.min_companies.toString());
+    if (params?.pattern_type) query.append('pattern_type', params.pattern_type);
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.offset) query.append('offset', params.offset.toString());
+
+    return this.request<Array<{
+      cluster_id: string;
+      num_companies: number;
+      confidence: number;
+      risk_level: string;
+      pattern_type: string;
+      top_companies: string[];
+    }>>(`/api/corruption/collusion/clusters?${query}`);
+  }
+
+  /**
+   * Get detailed information about a specific collusion cluster
+   */
+  async getCollusionClusterDetail(clusterId: string) {
+    return this.request<{
+      cluster_id: string;
+      companies: string[];
+      num_companies: number;
+      confidence: number;
+      risk_level: string;
+      pattern_type: string;
+      detection_method: string;
+      evidence: Array<{
+        evidence_type: string;
+        description: string;
+        score: number;
+        details?: Record<string, any>;
+      }>;
+      common_tenders?: string[];
+      common_institutions?: string[];
+      metadata?: Record<string, any>;
+    }>(`/api/corruption/collusion/clusters/${encodeURIComponent(clusterId)}`);
+  }
+
+  /**
+   * Get collusion detection statistics
+   */
+  async getCollusionStats() {
+    return this.request<{
+      total_clusters: number;
+      high_confidence_clusters: number;
+      total_suspicious_companies: number;
+      avg_cluster_size: number;
+      largest_cluster_size: number;
+      most_common_pattern: string;
+      generated_at: string;
+    }>('/api/corruption/collusion/stats');
+  }
+
+  /**
+   * Get company risk scores from GNN predictions
+   */
+  async getCompanyRiskScores(params?: {
+    risk_level?: string;
+    min_probability?: number;
+    limit?: number;
+    offset?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.risk_level) query.append('risk_level', params.risk_level);
+    if (params?.min_probability) query.append('min_probability', params.min_probability.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.offset) query.append('offset', params.offset.toString());
+
+    return this.request<Array<{
+      company_name: string;
+      prediction: number;
+      probability: number;
+      risk_level: string;
+    }>>(`/api/corruption/collusion/companies/risk-scores?${query}`);
+  }
+
+  /**
+   * Get collusion profile for a specific company
+   */
+  async getCompanyCollusionProfile(companyName: string) {
+    return this.request<{
+      company_name: string;
+      risk_prediction: {
+        company_name: string;
+        prediction: number;
+        probability: number;
+        risk_level: string;
+      } | null;
+      clusters: Array<{
+        cluster_id: string;
+        confidence: number;
+        pattern_type: string;
+        num_companies: number;
+        other_companies: string[];
+      }>;
+      total_clusters: number;
+      database_relationships: Array<{
+        related_company: string;
+        relationship_type: string;
+        confidence: number;
+        source: string;
+        evidence?: Record<string, any>;
+      }>;
+      is_suspicious: boolean;
+    }>(`/api/corruption/collusion/company/${encodeURIComponent(companyName)}`);
+  }
+
+  /**
+   * Get network visualization data for a cluster
+   */
+  async getClusterNetwork(clusterId: string) {
+    return this.request<{
+      nodes: Array<{
+        id: string;
+        name: string;
+        type: string;
+        risk_score?: number;
+        risk_level?: string;
+        metadata?: Record<string, any>;
+      }>;
+      edges: Array<{
+        source: string;
+        target: string;
+        type: string;
+        weight: number;
+        metadata?: Record<string, any>;
+      }>;
+      cluster_id?: string;
+      center_node?: string;
+    }>(`/api/corruption/collusion/network/${encodeURIComponent(clusterId)}`);
+  }
+
+  /**
+   * Get network visualization data centered on a company
+   */
+  async getCompanyNetwork(companyName: string, depth: number = 1, maxNodes: number = 50) {
+    const params = new URLSearchParams({
+      depth: depth.toString(),
+      max_nodes: maxNodes.toString(),
+    });
+    return this.request<{
+      nodes: Array<{
+        id: string;
+        name: string;
+        type: string;
+        risk_score?: number;
+        risk_level?: string;
+        metadata?: Record<string, any>;
+      }>;
+      edges: Array<{
+        source: string;
+        target: string;
+        type: string;
+        weight: number;
+        metadata?: Record<string, any>;
+      }>;
+      center_node?: string;
+    }>(`/api/corruption/collusion/network/company/${encodeURIComponent(companyName)}?${params}`);
+  }
+
+  /**
+   * Get available collusion pattern types
+   */
+  async getCollusionPatternTypes() {
+    return this.request<Array<{
+      pattern_type: string;
+      count: number;
+      avg_confidence: number;
+      total_companies: number;
+    }>>('/api/corruption/collusion/patterns');
+  }
 }
 
 // E-Pazar Types

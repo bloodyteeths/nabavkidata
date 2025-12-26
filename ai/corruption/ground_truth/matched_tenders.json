@@ -1,0 +1,2703 @@
+{
+  "generated_at": "2025-12-26T04:20:08.393627",
+  "cases": [
+    {
+      "case_id": "MK-2024-001",
+      "case_name": "TEC Negotino Fuel Oil",
+      "estimated_damage_eur": 167549985,
+      "matched_tenders": [
+        {
+          "tender_id": "OT-55159e63b614/2020",
+          "title": "Purchase of goods - Light burning oil - Extra light household oil -1 (EL) for a period of 2 years",
+          "procuring_entity": "PHI Specialized hospital for geriatric and palliative medicine 13 November - Skopje",
+          "winner": "Company for Production, Trade and Service PUCKO PETROL Import-Export DOOEL s.Plasnica Plasnica",
+          "estimated_value_mkd": 2142005148.0,
+          "estimated_value_eur": 34829352.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-abb8567dd4db/2020",
+          "title": "Naphta and naphta derivates.",
+          "procuring_entity": "M.R. Transport JSC",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 299997000.0,
+          "estimated_value_eur": 4878000.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-d609b84a3ffd/2020",
+          "title": "Dizel goriva i naftni derivati",
+          "procuring_entity": "M.R. Transport JSC Skopje",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 200000000.0,
+          "estimated_value_eur": 3252032.52,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-d99ac0f0719c/2020",
+          "title": "Fuel with Vouchers",
+          "procuring_entity": "Ministry of Interior of the Republic of North Macedonia",
+          "winner": "Pucko petrol",
+          "estimated_value_mkd": 159781392.0,
+          "estimated_value_eur": 2598071.41,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-e5ea5d1ac434/2020",
+          "title": "Fuels",
+          "procuring_entity": "JP Komunalna higiena Skopje",
+          "winner": "pucko petrol dooel skopje",
+          "estimated_value_mkd": 90000000.0,
+          "estimated_value_eur": 1463414.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-ca2ba6203427/2020",
+          "title": "Fuels",
+          "procuring_entity": "JP Komunalna higiena Skopje",
+          "winner": "Pucko petrol Dooel",
+          "estimated_value_mkd": 90000000.0,
+          "estimated_value_eur": 1463414.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-1e0abcd9ecee/8364",
+          "title": "Fuels.",
+          "procuring_entity": "JP Komunalna higiena Skopje",
+          "winner": "Pucko Petrol DOOEL",
+          "estimated_value_mkd": 80000000.0,
+          "estimated_value_eur": 1300813.01,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-898bb910465d/2020",
+          "title": "Fuels.",
+          "procuring_entity": "JP Komunalna higiena Skopje",
+          "winner": "Pucko Petrol DOOEL Skopje",
+          "estimated_value_mkd": 79999999.5,
+          "estimated_value_eur": 1300813.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-429e7938253b/2020",
+          "title": "Extra Light Fuel (EL-1)",
+          "procuring_entity": "Ministry of Interior of the Republic of Macedonia",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 70000000.0,
+          "estimated_value_eur": 1138211.38,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-a2dc8df107af/2020",
+          "title": "Purchase of extra light heating oil El-1",
+          "procuring_entity": "Municipality of Bitola",
+          "winner": "Company for production, trade and services PUCKO PETROL import-export DOOEL village of Plasnica Plas",
+          "estimated_value_mkd": 56877117.0,
+          "estimated_value_eur": 924831.17,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-561e076bd59a/2020",
+          "title": "Light Heating Oil - Extra light Oil for household - 1 (EL-1) for a period of 2 years",
+          "procuring_entity": "PHI Specialized hospital for geriatric and palliative medicine 13 November - Skopje",
+          "winner": "Company for Production, Trade and Service PUCKO PETROL Import - Export DOOEL s.Plasnica Plasnica",
+          "estimated_value_mkd": 41768460.0,
+          "estimated_value_eur": 679161.95,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-96efd3213a0d/2020",
+          "title": "12223/2023 Bright derivatives for AD ESM's own gas stations",
+          "procuring_entity": "AD Elektrani na Severna Makedonija - Skopje",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 40710000.0,
+          "estimated_value_eur": 661951.22,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-23e210349395/2020",
+          "title": "Purchase, transport and delivery of heating oil extra light (EL) for primary and secondary schools, kindergartens and building municipalities Stip.",
+          "procuring_entity": "OOU Vanco Prke",
+          "winner": "DPTU ‘Pucko Petrol’ DOO",
+          "estimated_value_mkd": 40500000.0,
+          "estimated_value_eur": 658536.59,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-ee850a9f6a32/2020",
+          "title": "Liquid Fuels 29/2018",
+          "procuring_entity": "JP Ulici i patishta-Skopje",
+          "winner": "DPTU Pucko Petrol Dooel",
+          "estimated_value_mkd": 35000000.0,
+          "estimated_value_eur": 569105.69,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-ac5bc70605ac/2020",
+          "title": "Light Heating Oil — Extra Light Oil for Household — 1 (EL-1) for a Period of 2 Years",
+          "procuring_entity": "PHI Specialized hospital for geriatric and palliative medicine 13 November — Skopje",
+          "winner": "Company for Production, Trade and Services Pucko Petrol Import-Export Dooel s. Plasnica Plasnica",
+          "estimated_value_mkd": 27498437.0,
+          "estimated_value_eur": 447129.06,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-88c07b8ba9ef/2020",
+          "title": "Heating Oil (EL-1)",
+          "procuring_entity": "Ministry of defence of Republic of Macedonia, Logistics sector",
+          "winner": "Pucko Petrol Dooel Plasnica",
+          "estimated_value_mkd": 27009939.0,
+          "estimated_value_eur": 439186.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-6f96af98d0f4/2020",
+          "title": "Liquid Fuels 08587/2019",
+          "procuring_entity": "JP Ulici i patishta-Skopje",
+          "winner": "DPTU Pucko Petrol Dooel",
+          "estimated_value_mkd": 25000000.0,
+          "estimated_value_eur": 406504.07,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-08a18610214b/2020",
+          "title": "Light heating oil — extra light oil for household — 1 (EL-1) for a period of 2 years.",
+          "procuring_entity": "PHI Gerontology Institute 13 November — Skopje",
+          "winner": "Company for production, trade and services PUCKO PETROL import-export DOOEL Plasnica Plasnica",
+          "estimated_value_mkd": 24000000.0,
+          "estimated_value_eur": 390243.9,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-167881881084/2020",
+          "title": "Procurement of heating oil.",
+          "procuring_entity": "Customs Administration of the Republic of Macedonia",
+          "winner": "\"Pucko Petrol\"",
+          "estimated_value_mkd": 22881356.0,
+          "estimated_value_eur": 372054.57,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-218af5b7ae21/2020",
+          "title": "Acquisition of Heating Oil",
+          "procuring_entity": "Customs Administration of the Republic of North Macedonia",
+          "winner": "Pucko Petrol uvoz-izvoz Dooel s.Plasnica",
+          "estimated_value_mkd": 20000000.0,
+          "estimated_value_eur": 325203.25,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-ac671217bb85/2020",
+          "title": "Aquisition of heating oil",
+          "procuring_entity": "Customs Administration of the Republic of Macedonia",
+          "winner": "DPTU Pucko Petrol uvoz-izvoz DOOEL",
+          "estimated_value_mkd": 18655800.0,
+          "estimated_value_eur": 303346.34,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-fdc1330de94b/2020",
+          "title": "Liquid Fuels 02441/2021",
+          "procuring_entity": "JP Ulici i patishta-Skopje",
+          "winner": "DPTU Pucko Petrol DOOEL",
+          "estimated_value_mkd": 18000000.0,
+          "estimated_value_eur": 292682.93,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-8e29f82e60ef/2020",
+          "title": "Supply of heating oil",
+          "procuring_entity": "Municipal elementary school Cyril and Methodius",
+          "winner": "Pucko Petrol uvoz-izvoz DOOEL Plasnica",
+          "estimated_value_mkd": 17713353.0,
+          "estimated_value_eur": 288022.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-6fa97004bbc5/2020",
+          "title": "Heating oil",
+          "procuring_entity": "Customs administration of the Republic of Macedonia",
+          "winner": "Drustvo za proizvodstvo, trgovija i uslugi PUCKO PETROL uvoz-izvoz DOOEL s.Plasnica Plasnica",
+          "estimated_value_mkd": 16949152.54,
+          "estimated_value_eur": 275595.98,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-7ea6230f0fed/8197",
+          "title": "Loživo ulje ekstra lako El-1.",
+          "procuring_entity": "Specijalna bolnica za ortopediju i traumatologiju „Sv Erazmo” – Ohrid",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 16500019.5,
+          "estimated_value_eur": 268293.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-24dfee8bcc98/2020",
+          "title": "Extra light heating oil - 1 (EL-1)",
+          "procuring_entity": "Municipality of Gevgelija",
+          "winner": "DPTU PUCKO PETROL Dooel Plasnica",
+          "estimated_value_mkd": 15720322.5,
+          "estimated_value_eur": 255615.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-e0c4037d4651/2020",
+          "title": "Petroleum and Petroleum Destillates",
+          "procuring_entity": "Public Enterprise Macedonian Railways Infrastructure — Skopje",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 15000000.0,
+          "estimated_value_eur": 243902.44,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-ee102956b3b7/2020",
+          "title": "Purchase of extra light heating oil EL1 for the necessity of municipality Gjorce Petrov,primary schools and kindergarten.",
+          "procuring_entity": "Municipality Gjorce Petrov",
+          "winner": "DPTU Pucko Petrol DOOEL s.Plasnica",
+          "estimated_value_mkd": 13928704.5,
+          "estimated_value_eur": 226483.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-1e262a8c569d/2020",
+          "title": "Ekstra light fuel (EL-1).",
+          "procuring_entity": "PHI Gerontology Institute 13 November — Skopje",
+          "winner": "Company for production, trade and services Pucko Petrol import-export DOO (Ltd) s. Plasnica",
+          "estimated_value_mkd": 13000000.0,
+          "estimated_value_eur": 211382.11,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        },
+        {
+          "tender_id": "OT-efb30092cf56/2020",
+          "title": "Procurement of Motor Gasoline, Diesel Fuel and Liquified Petroleum Gas",
+          "procuring_entity": "Joint Stock Company for water management of the Republic of Macedonia state owned – Skopje",
+          "winner": "Drustvo za proizvodstvo, trgovija i uslugi Pucko petrol uvoz izvoz DOOEL s.Plasnica ul.Bulevar parti",
+          "estimated_value_mkd": 12798280.0,
+          "estimated_value_eur": 208102.11,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner is Pucko Petrol (under investigation for TEC Negotino fraud)"
+          ]
+        }
+      ],
+      "total_matches": 30,
+      "total_value_eur": 60671454.960000016
+    },
+    {
+      "case_id": "MK-2016-001",
+      "case_name": "Trajectory (Sinohydro Highway)",
+      "estimated_damage_eur": 155000000,
+      "contract_value_eur": 638000000,
+      "matched_tenders": [
+        {
+          "tender_id": "OT-96db46cb5c3a/2020",
+          "title": "Completion of Works for Construction A4, Section Miladinovci – Sveti Nikole – Stip",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "GD Granit AD",
+          "estimated_value_mkd": 21750799587.0,
+          "estimated_value_eur": 353671538.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-04619c4efcb1/2020",
+          "title": "Supervision of Construction of Motorway A4, Section Border Crossing “Blace” — Skopje (interchange “Stenkovec”)",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "Gradezen institut Makedonija AD",
+          "estimated_value_mkd": 1519978650.0,
+          "estimated_value_eur": 24715100.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-a1a68ba7ad9d/2020",
+          "title": "Construction of Motorway A4, Section from Border Crossing Point ‘Blace’ – Skopje (Interchange ‘Stenkovec’)",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "GD Granit AD",
+          "estimated_value_mkd": 881742867.0,
+          "estimated_value_eur": 14337282.39,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-3e3fd3ae8181/2020",
+          "title": "Completion of construction of Motorway A4, section from border crossing point “Blace” – Skopje (interchange “Stenkovec”), subsection 1",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "GD GRANIT AD",
+          "estimated_value_mkd": 598399811.0,
+          "estimated_value_eur": 9730078.23,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-690385180110/2020",
+          "title": "Consulting Services for Supervision of Construction of Motorway A4, Section Miladinovci – Sveti Nikole – Stip.",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "DGPU GEING Krebs und Kifer Internesnl i dr. DOO Skopje",
+          "estimated_value_mkd": 420645861.0,
+          "estimated_value_eur": 6839770.1,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-2a1bc5e27a76/2020",
+          "title": "Докомплетирање на градежни работи за изградба на автопат А4, делница Миладиновци – Свети Николе - Штип.",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Градежно друштво ГРАНИТ АД-Скопје",
+          "estimated_value_mkd": 300000000.0,
+          "estimated_value_eur": 4878048.78,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "9f0743db-73ba-44e2-b790-cb38255850bc",
+          "title": "Техничка помош за изградба на автопатски делници на Коридор VIII и Коридор X-d",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Трговско друштво за инженеринг и консалтинг услуги САФЕГЕ ДООЕЛ Скопје",
+          "estimated_value_mkd": 236000000.0,
+          "estimated_value_eur": 3837398.37,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-8ac00dbc08f9/2020",
+          "title": "Construction of the national road A4 (M-6), Stip – Strumica, section Surdulci – Radicevo, from km 42+700 to 52+700.",
+          "procuring_entity": "Agency for State Roads - Skopje",
+          "winner": "GD Granit AD - Skopje",
+          "estimated_value_mkd": 188807618.29,
+          "estimated_value_eur": 3070042.57,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-273defe8169a/2020",
+          "title": "Поправка и рехабилитација на автопатски и магистрални делници",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "null",
+          "estimated_value_mkd": 150000000.0,
+          "estimated_value_eur": 2439024.39,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "3bb05674-a609-4a57-9c0d-2553d3da49ba",
+          "title": "Tender 3bb05674-a609-4a57-9c0d-2553d3da49ba",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": null,
+          "estimated_value_mkd": 141600000.0,
+          "estimated_value_eur": 2302439.02,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-7d231ea94514/2020",
+          "title": "Preparation of Project Documentation for Construction of State Road A4 Section Stip - Radovis",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "DPPI PROSTOR DOO Kumanovo",
+          "estimated_value_mkd": 98400000.0,
+          "estimated_value_eur": 1600000.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-98dd935db9da/2020",
+          "title": "Осветлување на дел од автопат А2 и А4 (делница клучка Хиподром – клучка Белви – клучка Илинден и делница клучка Хиподром – клучка Кадино)",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Друштво за трговија, производство и услуги ЕЛМОНД ЕЛЕКТРО ДООЕЛ експорт импорт Скопје",
+          "estimated_value_mkd": 66000000.0,
+          "estimated_value_eur": 1073170.73,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-6fec95c1ee78/2020",
+          "title": "Поставување на хоризонтална и вертикална сигнализација на коловозот на автопатот М-1/Е-75: Граничен премин Табановце; Рафинерија - клучка Миладиновци ",
+          "procuring_entity": "Агенција за државни патишта",
+          "winner": "Алпине Бау ГмбХ",
+          "estimated_value_mkd": 50847457.63,
+          "estimated_value_eur": 826787.93,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-ec3335278efc/2020",
+          "title": "Расчистување на одронет материјал и олеснување на косини на автопат А4, делница Миладиновци - Свети Николе",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Друштво за производство, промет и услуги СТЕНТОН ГРАДБА ДОО с.Долно Оризари, Битола",
+          "estimated_value_mkd": 40000000.0,
+          "estimated_value_eur": 650406.5,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-87899a039028/2020",
+          "title": "Supervision of construction and reconstruction of state road A4, section Stip-Radovis.",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "DGPU Geing Krebs und Kifer Internesnl i dr DOO",
+          "estimated_value_mkd": 35423729.0,
+          "estimated_value_eur": 575995.59,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-7e6c58cac5a6/2020",
+          "title": "Поставување на сообраќајна сигнализација и опрема за зголемување на безбедноста на автопатиштата.",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Градежно друштво ГРАНИТ АД-Скопје",
+          "estimated_value_mkd": 30000000.0,
+          "estimated_value_eur": 487804.88,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-638c8f700f0e/9583",
+          "title": "Докомплетирање на сообраќајна сигнализација при изградба на автопат А4, делница Миладиновци - Свети Николе - Штип",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Друштво за градежништво БЕТОН Акционерско друштво Скопје",
+          "estimated_value_mkd": 30000000.0,
+          "estimated_value_eur": 487804.88,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-dc1d2ab4feb0/2020",
+          "title": "Mowing grass and weeds, removing bushes, trimming branches and cutting off trees in the road reserve of highway for a 3-year period.",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "Tdekdu Eko Klub Dooel",
+          "estimated_value_mkd": 25423729.0,
+          "estimated_value_eur": 413393.97,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-8f69d1fb3340/2020",
+          "title": "Итни работи за растеретување и санација на косините на автопатот А4, делница Миладиновци – Свети Николе - Штип.",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Градежно друштво ГРАНИТ АД-Скопје",
+          "estimated_value_mkd": 24000000.0,
+          "estimated_value_eur": 390243.9,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-1bae8f4b744a/2020",
+          "title": "Изработка на проектна документација за рехабилитација на автопати, делници: Хиподром – Миладиновци, Миладиновци – Петровец и Петровец – Хиподром.",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Друштво за планирање проектирање и инженеринг ПРОСТОР ДОО Куманово",
+          "estimated_value_mkd": 15000000.0,
+          "estimated_value_eur": 243902.44,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-afa823775535/8919",
+          "title": "Supervision of construction of 4 toll stations: toll station Miravci (Motorway A1, Demir Kapija — Smokvica, toll stations Preod and Kadrifakovo (Motor",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "DIPK Evro Konsalting Doo",
+          "estimated_value_mkd": 14322034.0,
+          "estimated_value_eur": 232878.6,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-27f3136af534/2020",
+          "title": "Supervision of construction works on and completion of Motorway A4, section from border crossing point “Blace” – Skopje (interchange “Stenkovec”), sub",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "Gradezen Institut Makedonija AD",
+          "estimated_value_mkd": 11915000.0,
+          "estimated_value_eur": 193739.84,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-19df8540cd62/8033",
+          "title": "Санација на штети на оптички кабел на автопат А4, Штип - Миладиновци и поставување на видео надзор на седум клучки",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": null,
+          "estimated_value_mkd": 10000000.0,
+          "estimated_value_eur": 162601.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-3a9f65d1cd7f/2020",
+          "title": "Осветлување на излезна лента на км 7+358 на потпатник на Автопатот А1 (Е75), делница Табановце – Куманово за Д.Коњаре и БС Детоил",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Друштво за производство, трговија и услуги МАКПРИМАТ ДООЕЛ Скопје",
+          "estimated_value_mkd": 9322033.9,
+          "estimated_value_eur": 151577.79,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-6b178dd91da7/2020",
+          "title": "Supervision of Construction Works Completion on Motorway A4, Section Miladinovci — Sveti Nikole — Stip",
+          "procuring_entity": "Public Entreprise for State Roads — Skopje",
+          "winner": "DIPK Evro Konsalting Doo",
+          "estimated_value_mkd": 8838200.0,
+          "estimated_value_eur": 143710.57,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-eb9d145261d3/2020",
+          "title": "Изработка на проектна документација за реконструкција на државен пат А1, делница Катланово-Петровец на ниво на стандарден автопат и рехабилитација на ",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Друштво за инженеринг и консалтинг ЧАКАР-ПАРТНЕРС ДОО Скопје",
+          "estimated_value_mkd": 8000000.0,
+          "estimated_value_eur": 130081.3,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-830ded34e30f/2020",
+          "title": "Докомплетирање на проектна документација за изградба на Автопат А2, делница Требениште - Струга.",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Градежен институт МАКЕДОНИЈА АД-Скопје",
+          "estimated_value_mkd": 8000000.0,
+          "estimated_value_eur": 130081.3,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-d4a91e0c6793/2020",
+          "title": "Надзор над докомплетирање на градежни работи за изградба на автопат А4, делница Миладиновци – Свети Николе – Штип.",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Друштво за проектирање, градежништво, трговија и услуги ДИВИ МАКЕДОНИЈА ДОО Скопје",
+          "estimated_value_mkd": 7500000.0,
+          "estimated_value_eur": 121951.22,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-e859eca546f7/2020",
+          "title": "Непредвидени и дополнителни услуги кои не се вклучени во основниот Договор за Надзор над одржување на државни патишта бр. 07-4391/33 од 10.09.2013 год",
+          "procuring_entity": "Јавно претпријатие за државни патишта",
+          "winner": "Друштво за градежништво,промет и услуги ГЕИНГ Кребс унд Кифер Интернешнл и др.ДОО Скопје",
+          "estimated_value_mkd": 6949152.54,
+          "estimated_value_eur": 112994.35,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        },
+        {
+          "tender_id": "OT-f2a98bebc138/2020",
+          "title": "Обележување на патен појас – експропријационен појас, вештачење на земјиште, земјоделски култури, шумски култури и вештачење на објекти за автопатскат",
+          "procuring_entity": "Агенција за државни патишта",
+          "winner": "Друштвото за производство, трговија и геодетски услуги ГЕО МРЕЖА ДОО увоз – извоз од Скопје",
+          "estimated_value_mkd": 6000000.0,
+          "estimated_value_eur": 97560.98,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Roads highway construction - similar to Trajectory case"
+          ]
+        }
+      ],
+      "total_matches": 30,
+      "total_value_eur": 434047410.25000006
+    },
+    {
+      "case_id": "MK-2024-003",
+      "case_name": "SOZR Tender Fraud",
+      "matched_tenders": [
+        {
+          "tender_id": "OT-3c88aefbb3b7/2020",
+          "title": "Maintaining hygiene and currently maintenance of state administration facilities",
+          "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+          "winner": "BIGOR KLINING DOOEL Skopje",
+          "estimated_value_mkd": 472000015.5,
+          "estimated_value_eur": 7674797.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-29e9f0b0d647/2020",
+          "title": "Изведување на градежни и градежно занаетчиски работи за конзолно проширување и партерно уредување",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Градежно Трговско Друштво БЕТОН ШТИП АД",
+          "estimated_value_mkd": 469067797.0,
+          "estimated_value_eur": 7627118.65,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-3dc7abb58af0/2020",
+          "title": "Reconstruction of the former facility of Komercijalna banka",
+          "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+          "winner": null,
+          "estimated_value_mkd": 406434496.5,
+          "estimated_value_eur": 6608691.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-903b6d6e6073/2020",
+          "title": "Изведување на градежни работи на фасадата на објектот Државни институции и Факултет за драмски уметности",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": null,
+          "estimated_value_mkd": 260593220.0,
+          "estimated_value_eur": 4237288.13,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-50f59472cdda/2020",
+          "title": "Изведување на градежни и градежно занаетчиски работи за изградба на административен објект на улица Македонија во Скопје",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за производство,трговија градежништво и услуги ДЕКОН-КОМ ДООЕЛ увоз-извоз Скопје",
+          "estimated_value_mkd": 210000000.0,
+          "estimated_value_eur": 3414634.15,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-66bb9577a03e/2020",
+          "title": "Physical security of the state administration facilities",
+          "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+          "winner": "NIKOB DOO Skopje",
+          "estimated_value_mkd": 198237132.0,
+          "estimated_value_eur": 3223368.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-fdea31a48396/2020",
+          "title": "Изведба на градежни и градежно-занаетчиски работи за ентериерно уредување и адаптација на Кула 6 во објектот на Владата на Република Македонија",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за градежништво услуги и трговија АСПРОМ ДООЕЛ увоз-извоз Скопје",
+          "estimated_value_mkd": 182415254.0,
+          "estimated_value_eur": 2966101.69,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-57470dd80234/2020",
+          "title": "Motor vehicles by way of operational leasing",
+          "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+          "winner": "PORSE LIZING DOOEL Skopje",
+          "estimated_value_mkd": 112537189.5,
+          "estimated_value_eur": 1829873.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-c8fe786c4f21/2020",
+          "title": "Electricity and related services",
+          "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+          "winner": null,
+          "estimated_value_mkd": 105872926.5,
+          "estimated_value_eur": 1721511.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-2e44d258f8c4/8614",
+          "title": "Eнтериерно уредување на објектот за државни институции - Уставен суд на Република Македонија, Државен архив и археолошки музеј",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Градежно друштво ГРАНИТ АД - Скопје",
+          "estimated_value_mkd": 100000000.0,
+          "estimated_value_eur": 1626016.26,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-ce0183238b4f/2020",
+          "title": "Изведување на дополнителни и непредвидени градежни работи",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Градежно друштво ГРАНИТ АД - Скопје",
+          "estimated_value_mkd": 98305084.75,
+          "estimated_value_eur": 1598456.66,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-48abd6fb7ece/2020",
+          "title": "Изведување на дополнителни и непредвидени работи за изградба на административниот објект за Уставен суд на Република Македонија, Државен архив на Репу",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Градежно друштво ГРАНИТ АД - Скопје",
+          "estimated_value_mkd": 97711864.41,
+          "estimated_value_eur": 1588810.8,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-27f3eef473e9/9072",
+          "title": "Изведување на градежнi работи за изградба на подземна гаража",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Градежното друштво ГРАНИТ АД Скопје",
+          "estimated_value_mkd": 92000000.0,
+          "estimated_value_eur": 1495934.96,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-7d4261e5cea4/2020",
+          "title": "Изведување на декоративни елементи на фасадата (скулптури, рељефи и останати орнаменти) на новиот објект на Министерството за надворешни работи",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за градежништво БЕТОН АД",
+          "estimated_value_mkd": 88500000.0,
+          "estimated_value_eur": 1439024.39,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-9e8c56d0b76d/2020",
+          "title": "Изведување на градежни и градежно - занаетчиски работи за изработка на тераса со посебна заштита и кровна проодна тераса за објектот на Владата на Реп",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за градежништво,трговија и услуги БАУЕР БГ ДОО Скопје",
+          "estimated_value_mkd": 68000000.0,
+          "estimated_value_eur": 1105691.06,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "0c8fd48e-372d-499a-b2bd-25de8a7211fc",
+          "title": "Tender 0c8fd48e-372d-499a-b2bd-25de8a7211fc",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Северна Македонија",
+          "winner": null,
+          "estimated_value_mkd": 49999999.58,
+          "estimated_value_eur": 813008.12,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-385fc43c88fb/2020",
+          "title": "Maintaining and Landscaping Green Areas at the Government, Residential Buildings and State Administration Bodies",
+          "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+          "winner": "Drustvoto Trista-grup Dooel Skopje",
+          "estimated_value_mkd": 48158251.5,
+          "estimated_value_eur": 783061.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-7ac4f85e47c6/2020",
+          "title": "Electricity and Related Services",
+          "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+          "winner": "Future Energi trajding end ekscajng dinamiks in Macedonia",
+          "estimated_value_mkd": 48000012.0,
+          "estimated_value_eur": 780488.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-551cb0d25a24/2020",
+          "title": "Реконструкција на објектот Дом на АРМ во Куманово",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за производство,трговија градежништво и услуги ДЕКОН-КОМ ДООЕЛ увоз-извоз Скопје",
+          "estimated_value_mkd": 46610170.0,
+          "estimated_value_eur": 757888.94,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-c889e0424c86/2020",
+          "title": "Изведба на градежни и градежно - занаетчиски работи за оградување на објектот на Владата на Република Македонија",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за градежништво,трговија и услуги БАУЕР БГ ДОО Скопје",
+          "estimated_value_mkd": 42435000.0,
+          "estimated_value_eur": 690000.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "22563/2021",
+          "title": "Одржување на хигиена и тековно одржување на објектите Вила 1 и НИП Нова Македонија",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Северна Македонија",
+          "winner": "Друштво за производство, трговија и услуги СЕРТА ДООЕЛ увоз-извоз Скопје",
+          "estimated_value_mkd": 41300000.0,
+          "estimated_value_eur": 671544.72,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-24a09b29873e/9352",
+          "title": "Maintenance of hygiene and ongoing maintenance of the facilities Villa 1 and NIP Nova Makedonija",
+          "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+          "winner": "INFINITI KLINING GROUP DOOEL Skopje",
+          "estimated_value_mkd": 41226832.5,
+          "estimated_value_eur": 670355.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-110227a4fe57/9874",
+          "title": "Реконструкција на хангар за авион",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Северна Македонија",
+          "winner": "Друштво за производство, инженеринг, услуги и трговија КОНСТРУКТОР ДОО експорт-импорт Скопје",
+          "estimated_value_mkd": 34501271.0,
+          "estimated_value_eur": 560996.28,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-f9136c95602f/2020",
+          "title": "Изведување на дополнителни работи за изградба на објектот на Министерството за надворешни работи.",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "ДГ БЕТОН АД Скопје",
+          "estimated_value_mkd": 32372881.36,
+          "estimated_value_eur": 526388.31,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-d913a75db102/2020",
+          "title": "Изведување на дополнителни работи за конзолно проширување и партерно уредување на потегот од Камениот мост до мостот кај новиот објект на Министерство",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Градежно трговско друштво БЕТОН-ШТИП акционерско друштво Штип",
+          "estimated_value_mkd": 30932203.39,
+          "estimated_value_eur": 502962.66,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-22b2609000db/2020",
+          "title": "Изведување на градежно - занаетчиски работи за адатација на дел ид содржините на објектот на Владата на Република Македонија",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за производство,трговија градежништво и услуги ДЕКОН-КОМ ДООЕЛ увоз-извоз Скопје",
+          "estimated_value_mkd": 30750000.0,
+          "estimated_value_eur": 500000.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-c5df1fb37017/9273",
+          "title": "Mobile and Fixed Telephony and Maintenance",
+          "procuring_entity": "Service for General and Common Affairs of the Government of the Republic of Macedonia",
+          "winner": "Makedonski Telekom AD Skopje",
+          "estimated_value_mkd": 30000007.5,
+          "estimated_value_eur": 487805.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-df0611c656fe/2020",
+          "title": "Јавно приватно партнерство за стопанисување и управување со комплексот Македонско село",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за угостителство,туризам и трговија КВИНС ХОТЕЛ ДОО Скопје",
+          "estimated_value_mkd": 30000000.0,
+          "estimated_value_eur": 487804.88,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-0cdbeaa7bb21/2020",
+          "title": "Изведување на дополнителни и непредвидени работи",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за производство,трговија градежништво и услуги ДЕКОН-КОМ ДООЕЛ увоз-извоз Скопје",
+          "estimated_value_mkd": 26694915.25,
+          "estimated_value_eur": 434063.66,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-a95ee0b08791/9826",
+          "title": "Изведба на градежни и градежно-занаетчиски работи за адаптација на дел од содржините, во објектот на Владата на Република Македонија",
+          "procuring_entity": "Служба за општи и заеднички работи на Владата на Република Македонија",
+          "winner": "Друштво за производство,трговија градежништво и услуги ДЕКОН-КОМ ДООЕЛ увоз-извоз Скопје",
+          "estimated_value_mkd": 26270000.0,
+          "estimated_value_eur": 427154.47,
+          "match_confidence": "high",
+          "match_reasons": [
+            "SOZR institution (under investigation)"
+          ]
+        }
+      ],
+      "total_matches": 30,
+      "total_value_eur": 57250837.789999984
+    },
+    {
+      "case_id": "MK-2024-002",
+      "case_name": "State Lottery Embezzlement",
+      "estimated_damage_eur": 8200000,
+      "matched_tenders": [
+        {
+          "tender_id": "112124b6-6310-4e96-b900-8bb64da05e6e",
+          "title": "Маркетинг активности за промоција, поддршка и популаризација на интернет игри",
+          "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+          "winner": "Друштво за глобални комуникации ГРЕЈ - ВОРЛДВАЈД ЛТД ДООЕЛ Скопје",
+          "estimated_value_mkd": 118000000.0,
+          "estimated_value_eur": 1918699.19,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "decf1e9f-8a62-494d-bad2-6d83fb861fd4",
+          "title": "Маркетинг активности за промоција, поддршка и популаризација на интернет игри",
+          "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+          "winner": "Друштво за производство,промет и услуги ПОИНТЕР ДООЕЛ извоз-увоз Скопје",
+          "estimated_value_mkd": 118000000.0,
+          "estimated_value_eur": 1918699.19,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-757c2d761852/9496",
+          "title": "Реконструкција на мултифункционални игралишта",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": null,
+          "estimated_value_mkd": 26000000.0,
+          "estimated_value_eur": 422764.23,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "2c3b9f43-f205-49bb-8eec-6c3a56325ad8",
+          "title": "Tender 2c3b9f43-f205-49bb-8eec-6c3a56325ad8",
+          "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+          "winner": null,
+          "estimated_value_mkd": 11800000.0,
+          "estimated_value_eur": 191869.92,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "6129d430-e9c0-4b8e-8eed-8eb3ce6c3734",
+          "title": "Tender 6129d430-e9c0-4b8e-8eed-8eb3ce6c3734",
+          "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+          "winner": null,
+          "estimated_value_mkd": 11800000.0,
+          "estimated_value_eur": 191869.92,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-7f6ac5e60ebf/2020",
+          "title": "Реконструкција на мултифункционални игралишта",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": "ДАУТИ КОМЕРЦ Друштво за производство, промет и услуги увоз-извоз АД с.Бојане општина Сарај",
+          "estimated_value_mkd": 11515000.0,
+          "estimated_value_eur": 187235.77,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-496ef464edb5/2020",
+          "title": "Набавка на услуги од маркетинг агенција за подршка и развој.",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": null,
+          "estimated_value_mkd": 10000000.0,
+          "estimated_value_eur": 162601.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-ac4cd3674223/9286",
+          "title": "Набавка на столици за ВЛТ",
+          "procuring_entity": "Друштво за организирање електронски игри на среќа-Нова Државна Видео Лотарија -НОВО ВЛТ ДОО Скопје",
+          "winner": "SMIB TECHNOLOGY DOO",
+          "estimated_value_mkd": 9254640.0,
+          "estimated_value_eur": 150481.95,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "1fdc0609-f8f6-4237-970c-a6b27cb9ac69",
+          "title": "Tender 1fdc0609-f8f6-4237-970c-a6b27cb9ac69",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": null,
+          "estimated_value_mkd": 8568617.2,
+          "estimated_value_eur": 139327.11,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-a78eb9bd4e5f/2020",
+          "title": "Услуги од маркетинг агенција за подршка и развој.",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": null,
+          "estimated_value_mkd": 8500000.0,
+          "estimated_value_eur": 138211.38,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-b7dfa88bb47a/2020",
+          "title": "Набавка на услуги за надворешно рекламирање на автобуси",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": "Друштво за маркетинг и интелектуална сопственост МАРАТОН ГРОУП ДООЕЛ Скопје",
+          "estimated_value_mkd": 8300000.0,
+          "estimated_value_eur": 134959.35,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-e21e51ae4812/2020",
+          "title": "Комуникациски услуги за АПН мрежа и закуп на компјутерски ресурси",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": "Македонски Телеком Акционерско друштво за електронски комуникации - Скопје",
+          "estimated_value_mkd": 7800000.0,
+          "estimated_value_eur": 126829.27,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-ada2e4b9a24e/2020",
+          "title": "Телекомуникациски услуги за поврзување со продажни места",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": "Т-МОБИЛЕ МАКЕДОНИЈА Акционерско друштво за мобилни комуникации-Скопје",
+          "estimated_value_mkd": 7800000.0,
+          "estimated_value_eur": 126829.27,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-cd42dd6b49ab/2020",
+          "title": "Набавка на комуникациски услуги за APN мрежа и услуги за закуп на компјутерски ресурси за период од 2 (две) години.",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": "Македонски Телеком Акционерско друштво за електронски комуникации - Скопје",
+          "estimated_value_mkd": 7800000.0,
+          "estimated_value_eur": 126829.27,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-e873a1631d03/2020",
+          "title": "Набавка и испорака на лозови Инстант и Експрес лотарија.",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": "Eagle Press Private Limited",
+          "estimated_value_mkd": 7500000.0,
+          "estimated_value_eur": 121951.22,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-f1136e201e79/8399",
+          "title": "Набавка на услуги за надворешно рекламирање, автобуси",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": "Друштво за маркетинг и интелектуална сопственост МАРАТОН ГРОУП ДООЕЛ Скопје",
+          "estimated_value_mkd": 7360000.0,
+          "estimated_value_eur": 119674.8,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-bffd95985bf1/2020",
+          "title": "Продукциски услуги од маркетинг агенција за креатива радио и ТВ",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": "Друштво за услуги БД ГРУПА ДООЕЛ Скопје",
+          "estimated_value_mkd": 7100000.0,
+          "estimated_value_eur": 115447.15,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-a91b31279710/2020",
+          "title": "Компјутерска и комуникациска опрема",
+          "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+          "winner": "Друштво за производство, трговија и услуги РИТРОН КОПИ ДООЕЛ увоз-извоз Куманово",
+          "estimated_value_mkd": 7000000.0,
+          "estimated_value_eur": 113821.14,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-7af1d1fbef9b/2020",
+          "title": "Продукција и емитување на ТВ канал за потребите на игрите на среќа",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": "Трговско радиодифузно друштво КАНАЛ 5 ДООЕЛ Скопје",
+          "estimated_value_mkd": 7000000.0,
+          "estimated_value_eur": 113821.14,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-38e9da155384/2020",
+          "title": "Телекомуникациски услуги за поврзување на лотарискиот он лајн систем со уплатно/исплатни места.",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": "Македонски Телеком Акционерско друштво за електронски комуникации - Скопје",
+          "estimated_value_mkd": 6779661.02,
+          "estimated_value_eur": 110238.39,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-81db8d436300/2020",
+          "title": "Софтвер за лотариски систем (изнајмување)",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": "Državna lutrija Srbije d.o.o. Beograd",
+          "estimated_value_mkd": 6742857.14,
+          "estimated_value_eur": 109639.95,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-24b79e5035e4/2020",
+          "title": "Софтвер за лотариски систем (изнајмување)",
+          "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+          "winner": "Državna lutrija Srbije d.o.o. Beograd",
+          "estimated_value_mkd": 6742857.14,
+          "estimated_value_eur": 109639.95,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-4ce496a2f6ec/2020",
+          "title": "Софтвер за лотариски систем со оперативен лизинг (изнајмување).",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": "Državna lutrija Srbije d.o.o. Beograd",
+          "estimated_value_mkd": 6673728.81,
+          "estimated_value_eur": 108515.92,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-d2d1cb6f58ca/2020",
+          "title": "Набавка на автомобили за наградна игра",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": "Друштво за трговија на големо и мало МАК АУТОСТАР ДООЕЛ Скопје",
+          "estimated_value_mkd": 6500000.0,
+          "estimated_value_eur": 105691.06,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-29238d3f06f8/2020",
+          "title": "Закуп на рекламен простор на автобуси",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": "Друштво за маркетинг и интелектуална сопственост МАРАТОН ГРОУП ДООЕЛ Скопје",
+          "estimated_value_mkd": 6460000.0,
+          "estimated_value_eur": 105040.65,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-0e01e81623a2/9848",
+          "title": "Услуги на маркетинг агенција за маркетинг поддршка на корпоративен бренд и игрите на среќа на Државна лотарија на Македонија",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": null,
+          "estimated_value_mkd": 6280000.0,
+          "estimated_value_eur": 102113.82,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-882edfc7e160/2020",
+          "title": "Услуги од маркетинг агенција за креативно решение и продукција на радио и ТВ реклама",
+          "procuring_entity": "Државна видеолотарија на Република Македонија",
+          "winner": "Друштво за услуги БД ГРУПА ДООЕЛ Скопје",
+          "estimated_value_mkd": 6250000.0,
+          "estimated_value_eur": 101626.02,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-5014ef402330/9906",
+          "title": "Услуги од маркетинг агенција за маркетинг поддршка на корпоративен бренд",
+          "procuring_entity": "Акционерско друштво за приредување игри на среќа, Државна лотарија на Република Северна Македонија",
+          "winner": "Друштво за маркетинг,дизајн,трговија и услуги АМГ ПРИНТ ДООЕЛ експорт-импорт Тетово",
+          "estimated_value_mkd": 6000000.0,
+          "estimated_value_eur": 97560.98,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-a8e00cfa56c7/2020",
+          "title": "Набавка на услуги за продукција и емитување на ТВ канал на извлекувања на добитните броеви од играта на среќа Лото.",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": "Трговско радиодифузно друштво КАНАЛ 5 ДООЕЛ Скопје",
+          "estimated_value_mkd": 6000000.0,
+          "estimated_value_eur": 97560.98,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        },
+        {
+          "tender_id": "OT-df0e127d3ced/2020",
+          "title": "Набавка и испорака на светлечки реклами и брендирани елементи и материјали за поддршка на продажба.",
+          "procuring_entity": "Акционерско друштво за приредување на игри на среќа Државна лотарија на Македонија Скопје",
+          "winner": "Трговско друштво за производство, трговија и инженеринг ПАП-КОМПАНИ Охрид ДООЕЛ",
+          "estimated_value_mkd": 6000000.0,
+          "estimated_value_eur": 97560.98,
+          "match_confidence": "high",
+          "match_reasons": [
+            "State Lottery (under investigation for embezzlement)"
+          ]
+        }
+      ],
+      "total_matches": 30,
+      "total_value_eur": 7667111.599999998
+    },
+    {
+      "case_id": "MK-2023-001",
+      "case_name": "Tank Case (Mercedes)",
+      "estimated_damage_eur": 600000,
+      "matched_tenders": [
+        {
+          "tender_id": "OT-a6cb67ae63d8/2020",
+          "title": "Санитетско моторно возило со комплет опрема",
+          "procuring_entity": "ЈЗУ Градска општа болница „8-ми Септември“ Скопје",
+          "winner": "Трговско друштво за производство и трговија на големо и мало КА-ДИС ДОО извоз-увоз,Скопје",
+          "estimated_value_mkd": 4500000.0,
+          "estimated_value_eur": 73170.73,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-01a958797a0d/2020",
+          "title": "Патничко моторно возило - комбе",
+          "procuring_entity": "ЈЗУ Градска општа болница „8-ми Септември“ Скопје",
+          "winner": "„АУТОМОТИВ ГРУП“ ДООЕЛ СКОПЈЕ",
+          "estimated_value_mkd": 2000000.0,
+          "estimated_value_eur": 32520.33,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-8ae7893c8987/2020",
+          "title": "Набавка на мало товарно возило",
+          "procuring_entity": "Јавна Општинска Установа-Детска Градинка,,11 Октомври,,",
+          "winner": "Друштво за производство, трговија и услуги ГРАНД АУТО ДООЕЛ Скопје",
+          "estimated_value_mkd": 1271186.0,
+          "estimated_value_eur": 20669.69,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-14516335faaa/2020",
+          "title": "Набавка на ново комбинирано моторно возило - N1 (ПИК АП)",
+          "procuring_entity": "ЈОУДГ 11 Септември - Ресен",
+          "winner": "Друштво за внатрешна и надворешна трговија ЕУРОИМПЕКС ДОО увоз-извоз Скопје",
+          "estimated_value_mkd": 1169492.0,
+          "estimated_value_eur": 19016.13,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-a553cd99fa0a/2020",
+          "title": "Наменско возило за транспорт на службено куче, по спецификација",
+          "procuring_entity": "Министерство за внатрешни работи на РМ",
+          "winner": "Друштвото за внатрешна и надворешна трговија ЕУРОИМПЕКС ДОО увоз-извоз Скопје",
+          "estimated_value_mkd": 1161120.0,
+          "estimated_value_eur": 18880.0,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-b7b1604ab9e6/2020",
+          "title": "-Набавката на товарно моторно возило",
+          "procuring_entity": "ЈУДГ.ОЦ. 13 Ноември - Скопје",
+          "winner": "Друштво за промет и услуги ПОРШЕ МАКЕДОНИЈА ДООЕЛ Скопје",
+          "estimated_value_mkd": 984049.2,
+          "estimated_value_eur": 16000.8,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-35398acfaa60/2020",
+          "title": "Набавка на патничко моторно возило",
+          "procuring_entity": "ОЈУД - Детска градинка 7 - ми Септември - Македонски Брод",
+          "winner": "Друштво за производство трговија и услуги АУТОМОБИЛЕ-СК ДОО експорт-импорт Скопје",
+          "estimated_value_mkd": 803108.0,
+          "estimated_value_eur": 13058.67,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-edcd6dbb2d6f/2020",
+          "title": "Набавка на возило",
+          "procuring_entity": "СУГС 8 ми Септември - Скопје",
+          "winner": "Друштво за промет и услуги АУТОМОТИВ ГРУП ДООЕЛ Скопје",
+          "estimated_value_mkd": 696672.0,
+          "estimated_value_eur": 11328.0,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-864f52fed037/2020",
+          "title": "Набавка на патничко моторно возило",
+          "procuring_entity": "ЈУДГ.ОЦ. 13 Ноември - Скопје",
+          "winner": "Друштво за трговија и услуги АВТОНОВА ДОО експорт-импорт Скопје",
+          "estimated_value_mkd": 678000.0,
+          "estimated_value_eur": 11024.39,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-6d31722f611b/2020",
+          "title": "Набавка на ново товарно моторно возило за превоз на патници и товар",
+          "procuring_entity": "ОЈУ Детска градинка 7 „Септември“ - Пехчево",
+          "winner": "Друштво за производство трговија и услуги АУТОМОБИЛЕ-СК ДОО експорт-импорт Скопје",
+          "estimated_value_mkd": 663600.0,
+          "estimated_value_eur": 10790.24,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-4a3e7beded76/2020",
+          "title": "НАБАВКА НА УСЛУГА - СЕРВИСИРАЊЕ НА СЛУЖБЕНО ВОЗИЛО НА ЈУ ДЕТСКИ ДОМ 11 ОКТОМВРИ СКОПЈЕ",
+          "procuring_entity": "ЈУ Детски дом 11 Октомври - Скопје",
+          "winner": "Трговско друштво за производство,трговија и услуги БУБА ДОО увоз-извоз Скопје",
+          "estimated_value_mkd": 164000.46,
+          "estimated_value_eur": 2666.67,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-854ed3d2df75/2020",
+          "title": "Набавка на гориво и масла за моторно возило",
+          "procuring_entity": "СУГС 8 ми Септември - Скопје",
+          "winner": "Друштво за производство, трговија и услуги ПУЦКО ПЕТРОЛ увоз-извоз ДООЕЛ с.Пласница Пласница",
+          "estimated_value_mkd": 96760.0,
+          "estimated_value_eur": 1573.33,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-bb1601cfea01/2020",
+          "title": "Поправки и одржување на возило",
+          "procuring_entity": "СУГС 8 ми Септември - Скопје",
+          "winner": "Друштво за промет и услуги МОБИЛ АУТО ПАРТС ДООЕЛ Скопје",
+          "estimated_value_mkd": 96760.0,
+          "estimated_value_eur": 1573.33,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-4cbc5098ee64/2020",
+          "title": "Вградување и поправка на систем за греење во возило",
+          "procuring_entity": "ЈЗУ Градска општа болница „8-ми Септември“ Скопје",
+          "winner": "Друштво за услуги трговија и производство ДАЦ ДООЕЛ експорт-импорт Скопје",
+          "estimated_value_mkd": 96760.0,
+          "estimated_value_eur": 1573.33,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-12dc050c82ac/9325",
+          "title": "Јавна набавка на услуга - сервисирање на службено возило",
+          "procuring_entity": "ЈУ Детски дом 11 Октомври - Скопје",
+          "winner": "Трговско друштво за производство,трговија и услуги БУБА ДОО увоз-извоз Скопје",
+          "estimated_value_mkd": 84746.0,
+          "estimated_value_eur": 1377.98,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-d64562a7a006/2020",
+          "title": "Јавна набавка на гориво за моторни возило",
+          "procuring_entity": "ЈУ Детски дом 11 Октомври - Скопје",
+          "winner": null,
+          "estimated_value_mkd": 0.0,
+          "estimated_value_eur": 0.0,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-5c9cce524499/2020",
+          "title": "Вградување и поправка на системот за греење и климатизација на возило",
+          "procuring_entity": "ЈЗУ Градска општа болница „8-ми Септември“ Скопје",
+          "winner": null,
+          "estimated_value_mkd": 0.0,
+          "estimated_value_eur": 0.0,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-34c93742cdbb/8619",
+          "title": "Набавка на стоки - Патничко моторно возило",
+          "procuring_entity": "ЈЗУ Специјализирана болница за геријатриска и палијативна медицина „13 Ноември“ - Скопје",
+          "winner": null,
+          "estimated_value_mkd": 0.0,
+          "estimated_value_eur": 0.0,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-81306bbe881d/2020",
+          "title": "Набавка на горива и масла за моторно возило",
+          "procuring_entity": "СУГС 8 ми Септември - Скопје",
+          "winner": null,
+          "estimated_value_mkd": 0.0,
+          "estimated_value_eur": 0.0,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        },
+        {
+          "tender_id": "OT-fc6440ff9779/2020",
+          "title": "Набавка на возило",
+          "procuring_entity": "Јавна Општинска Установа-Детска Градинка,,11 Октомври,,",
+          "winner": null,
+          "estimated_value_mkd": 0.0,
+          "estimated_value_eur": 0.0,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "MVR vehicle procurement - similar to Tank Case"
+          ]
+        }
+      ],
+      "total_matches": 20,
+      "total_value_eur": 235223.61999999997
+    },
+    {
+      "case_id": "MK-2025-001",
+      "case_name": "ESM District Heating SCADA",
+      "estimated_damage_eur": 2041576,
+      "matched_tenders": [
+        {
+          "tender_id": "OT-2c42b7bc82d3/2020",
+          "title": "Набавка за изградба на секундарни водови",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": null,
+          "estimated_value_mkd": 216300000.0,
+          "estimated_value_eur": 3517073.17,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "07ae55fc-e4de-4d68-8c17-e74fc03ebea0",
+          "title": "Санација на дефекти",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за производство трговија и услуги ТИГ-ВЕЛД ДОО увоз-извоз Велес",
+          "estimated_value_mkd": 11800000.0,
+          "estimated_value_eur": 191869.92,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-344959b0f6e6/2020",
+          "title": "Осигурување на имот ТО",
+          "procuring_entity": "Друштво за производство на топлинска енергија ЕСМ ПРОИЗВОДСТВО НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": null,
+          "estimated_value_mkd": 10169491.53,
+          "estimated_value_eur": 165357.59,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-22488639c48d/2020",
+          "title": "Набавка на циркулациони и дренажни пумпи",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за трговија на големо со метална стока ПРОТИМ ДОО Скопје",
+          "estimated_value_mkd": 8000000.0,
+          "estimated_value_eur": 130081.3,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-4573b5219cde/2020",
+          "title": "Набавка на телекомуникациска врска за Скада системот(дата сим картици ,виртуелна приватна мрежа и бежичен бекап линк за оптички врски",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за комуникациски услуги А1 МАКЕДОНИЈА ДООЕЛ Скопје",
+          "estimated_value_mkd": 8000000.0,
+          "estimated_value_eur": 130081.3,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-81ccb77a11c1/2020",
+          "title": "Набавка на инструменти за детекција на истекување",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за трговија и услуги ЈУТИЛИТЕК СОЛУШНС ДООЕЛ Скопје",
+          "estimated_value_mkd": 7788000.0,
+          "estimated_value_eur": 126634.15,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-b873d06303b6/8656",
+          "title": "Набвака на градежна механизација",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за производство,промет и услуги ТЕХНО ХАУС ДООЕЛ Скопје",
+          "estimated_value_mkd": 7080000.0,
+          "estimated_value_eur": 115121.95,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "17871/2023",
+          "title": "Набвака на градежна механизација",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за производство,промет и услуги ТЕХНО ХАУС ДООЕЛ Скопје",
+          "estimated_value_mkd": 7080000.0,
+          "estimated_value_eur": 115121.95,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-99a2e825ccf2/9399",
+          "title": "Набавка на градежни материјали",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за производство градежништво трговија и услуги АГОРА-ЕПОКСИД ДООЕЛ експорт-импорт Тетово",
+          "estimated_value_mkd": 7080000.0,
+          "estimated_value_eur": 115121.95,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-d525b282817c/2020",
+          "title": "Набвака на градежна механизација",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за производство,промет и услуги ТЕХНО ХАУС ДООЕЛ Скопје",
+          "estimated_value_mkd": 7080000.0,
+          "estimated_value_eur": 115121.95,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-41e935f98149/8521",
+          "title": "Набавка на услуга за вршење на надзор за изградба на секундарни водови",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": null,
+          "estimated_value_mkd": 6000000.0,
+          "estimated_value_eur": 97560.98,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-0d6751993967/2020",
+          "title": "Набавка на услуга за мобилна телефонија",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за комуникациски услуги А1 МАКЕДОНИЈА ДООЕЛ Скопје",
+          "estimated_value_mkd": 5000000.0,
+          "estimated_value_eur": 81300.81,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-f378d091ba04/2020",
+          "title": "Набавка на материјали за оддржување на топлински станици ,административни згради,пунктови,,испитна станица ,шахти и дгуго",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за трговија и услуги АДВАНС МЕДИЈА ДООЕЛ увоз-извоз Скопје",
+          "estimated_value_mkd": 4720000.0,
+          "estimated_value_eur": 76747.97,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "17653/2024",
+          "title": "Браварски и заварувачки работи во топлани",
+          "procuring_entity": "Друштво за производство на топлинска енергија ЕСМ ПРОИЗВОДСТВО НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за производство,промет и услуги ДМБ ПРОДУЦТИОН ДООЕЛ Прилеп",
+          "estimated_value_mkd": 4720000.0,
+          "estimated_value_eur": 76747.97,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-78b83cc1e296/2020",
+          "title": "Набавка на канцелариски мебел",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за промет и услуги ПОВЕР ГРОУП ПЛУС ДООЕЛ извоз-увоз Скопје",
+          "estimated_value_mkd": 4720000.0,
+          "estimated_value_eur": 76747.97,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-9785bd4dc3d2/8491",
+          "title": "Преносни, десктоп компјутери и опрема",
+          "procuring_entity": "Друштво за снабдување со топлинска енергија ЕСМ СНАБДУВАЊЕ СО ТОПЛИНА ДООЕЛ Скопје",
+          "winner": null,
+          "estimated_value_mkd": 4000000.0,
+          "estimated_value_eur": 65040.65,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-f45f45b39660/2020",
+          "title": "Одржување на службени моторни возила",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за производство, трговија и услуги ИНТЕР ГУМА ТРЕЈД ДОО Скопје",
+          "estimated_value_mkd": 4000000.0,
+          "estimated_value_eur": 65040.65,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-073e89eb1515/2020",
+          "title": "Набавка на хтз опрема",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за трговија и услуги БМС ГРУП ДООЕЛ Скопје",
+          "estimated_value_mkd": 3540000.0,
+          "estimated_value_eur": 57560.98,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-a87c674d14a9/2020",
+          "title": "Набавка на гориво за моторни возила",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за производство, трговија и услуги ПУЦКО ПЕТРОЛ увоз-извоз ДООЕЛ с.Пласница Пласница",
+          "estimated_value_mkd": 3540000.0,
+          "estimated_value_eur": 57560.98,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-b95461298c4e/2020",
+          "title": "Набавка на радиостаници",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Трговско друштво за производство трговија и услуги ГИЗА КО ЕЛЕКТРОНИКА ДООЕЛ увоз-извоз Скопје",
+          "estimated_value_mkd": 3540000.0,
+          "estimated_value_eur": 57560.98,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-87d516d6b301/9838",
+          "title": "Канцелариски материјали",
+          "procuring_entity": "Друштво за снабдување со топлинска енергија ЕСМ СНАБДУВАЊЕ СО ТОПЛИНА ДООЕЛ Скопје",
+          "winner": null,
+          "estimated_value_mkd": 3500000.0,
+          "estimated_value_eur": 56910.57,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-6acdbed3dcf4/2020",
+          "title": "Изолаторски работи",
+          "procuring_entity": "Друштво за производство на топлинска енергија ЕСМ ПРОИЗВОДСТВО НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за градежништво и градежно занаетчиски работи СПЕКТАРТЕРМО ДОО Скопје",
+          "estimated_value_mkd": 3000000.0,
+          "estimated_value_eur": 48780.49,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "20330/2025",
+          "title": "Регулатори и преструјни вентили",
+          "procuring_entity": "ЕСМ ДИСТРИБУЦИЈА НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": null,
+          "estimated_value_mkd": 3000000.0,
+          "estimated_value_eur": 48780.49,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "OT-b807b4350e47/2020",
+          "title": "Канцелариски материјали",
+          "procuring_entity": "Друштво за снабдување со топлинска енергија ЕСМ СНАБДУВАЊЕ СО ТОПЛИНА ДООЕЛ Скопје",
+          "winner": null,
+          "estimated_value_mkd": 3000000.0,
+          "estimated_value_eur": 48780.49,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        },
+        {
+          "tender_id": "16500/2025",
+          "title": "Набавка на пеперуткасти вентили",
+          "procuring_entity": "Друштво за производство на топлинска енергија ЕСМ ПРОИЗВОДСТВО НА ТОПЛИНА ДООЕЛ Скопје",
+          "winner": "Друштво за,трговија и услуги  ХРИСФОРТ ДОО експорт-импорт Скопје",
+          "estimated_value_mkd": 2950000.0,
+          "estimated_value_eur": 47967.48,
+          "match_confidence": "medium",
+          "match_reasons": [
+            "ESM District Heating (under investigation)"
+          ]
+        }
+      ],
+      "total_matches": 25,
+      "total_value_eur": 5684674.690000003
+    },
+    {
+      "case_id": "SANCTIONED_ENTITIES",
+      "case_name": "US OFAC Sanctioned Entities",
+      "matched_tenders": [
+        {
+          "tender_id": "OT-55159e63b614/2020",
+          "title": "Purchase of goods - Light burning oil - Extra light household oil -1 (EL) for a period of 2 years",
+          "procuring_entity": "PHI Specialized hospital for geriatric and palliative medicine 13 November - Skopje",
+          "winner": "Company for Production, Trade and Service PUCKO PETROL Import-Export DOOEL s.Plasnica Plasnica",
+          "estimated_value_mkd": 2142005148.0,
+          "estimated_value_eur": 34829352.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-abb8567dd4db/2020",
+          "title": "Naphta and naphta derivates.",
+          "procuring_entity": "M.R. Transport JSC",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 299997000.0,
+          "estimated_value_eur": 4878000.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-d609b84a3ffd/2020",
+          "title": "Dizel goriva i naftni derivati",
+          "procuring_entity": "M.R. Transport JSC Skopje",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 200000000.0,
+          "estimated_value_eur": 3252032.52,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-d99ac0f0719c/2020",
+          "title": "Fuel with Vouchers",
+          "procuring_entity": "Ministry of Interior of the Republic of North Macedonia",
+          "winner": "Pucko petrol",
+          "estimated_value_mkd": 159781392.0,
+          "estimated_value_eur": 2598071.41,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-ca2ba6203427/2020",
+          "title": "Fuels",
+          "procuring_entity": "JP Komunalna higiena Skopje",
+          "winner": "Pucko petrol Dooel",
+          "estimated_value_mkd": 90000000.0,
+          "estimated_value_eur": 1463414.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-e5ea5d1ac434/2020",
+          "title": "Fuels",
+          "procuring_entity": "JP Komunalna higiena Skopje",
+          "winner": "pucko petrol dooel skopje",
+          "estimated_value_mkd": 90000000.0,
+          "estimated_value_eur": 1463414.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-1e0abcd9ecee/8364",
+          "title": "Fuels.",
+          "procuring_entity": "JP Komunalna higiena Skopje",
+          "winner": "Pucko Petrol DOOEL",
+          "estimated_value_mkd": 80000000.0,
+          "estimated_value_eur": 1300813.01,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-898bb910465d/2020",
+          "title": "Fuels.",
+          "procuring_entity": "JP Komunalna higiena Skopje",
+          "winner": "Pucko Petrol DOOEL Skopje",
+          "estimated_value_mkd": 79999999.5,
+          "estimated_value_eur": 1300813.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-429e7938253b/2020",
+          "title": "Extra Light Fuel (EL-1)",
+          "procuring_entity": "Ministry of Interior of the Republic of Macedonia",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 70000000.0,
+          "estimated_value_eur": 1138211.38,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-a2dc8df107af/2020",
+          "title": "Purchase of extra light heating oil El-1",
+          "procuring_entity": "Municipality of Bitola",
+          "winner": "Company for production, trade and services PUCKO PETROL import-export DOOEL village of Plasnica Plas",
+          "estimated_value_mkd": 56877117.0,
+          "estimated_value_eur": 924831.17,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-561e076bd59a/2020",
+          "title": "Light Heating Oil - Extra light Oil for household - 1 (EL-1) for a period of 2 years",
+          "procuring_entity": "PHI Specialized hospital for geriatric and palliative medicine 13 November - Skopje",
+          "winner": "Company for Production, Trade and Service PUCKO PETROL Import - Export DOOEL s.Plasnica Plasnica",
+          "estimated_value_mkd": 41768460.0,
+          "estimated_value_eur": 679161.95,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-96efd3213a0d/2020",
+          "title": "12223/2023 Bright derivatives for AD ESM's own gas stations",
+          "procuring_entity": "AD Elektrani na Severna Makedonija - Skopje",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 40710000.0,
+          "estimated_value_eur": 661951.22,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-23e210349395/2020",
+          "title": "Purchase, transport and delivery of heating oil extra light (EL) for primary and secondary schools, kindergartens and building municipalities Stip.",
+          "procuring_entity": "OOU Vanco Prke",
+          "winner": "DPTU ‘Pucko Petrol’ DOO",
+          "estimated_value_mkd": 40500000.0,
+          "estimated_value_eur": 658536.59,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-ee850a9f6a32/2020",
+          "title": "Liquid Fuels 29/2018",
+          "procuring_entity": "JP Ulici i patishta-Skopje",
+          "winner": "DPTU Pucko Petrol Dooel",
+          "estimated_value_mkd": 35000000.0,
+          "estimated_value_eur": 569105.69,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-ac5bc70605ac/2020",
+          "title": "Light Heating Oil — Extra Light Oil for Household — 1 (EL-1) for a Period of 2 Years",
+          "procuring_entity": "PHI Specialized hospital for geriatric and palliative medicine 13 November — Skopje",
+          "winner": "Company for Production, Trade and Services Pucko Petrol Import-Export Dooel s. Plasnica Plasnica",
+          "estimated_value_mkd": 27498437.0,
+          "estimated_value_eur": 447129.06,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-88c07b8ba9ef/2020",
+          "title": "Heating Oil (EL-1)",
+          "procuring_entity": "Ministry of defence of Republic of Macedonia, Logistics sector",
+          "winner": "Pucko Petrol Dooel Plasnica",
+          "estimated_value_mkd": 27009939.0,
+          "estimated_value_eur": 439186.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-6f96af98d0f4/2020",
+          "title": "Liquid Fuels 08587/2019",
+          "procuring_entity": "JP Ulici i patishta-Skopje",
+          "winner": "DPTU Pucko Petrol Dooel",
+          "estimated_value_mkd": 25000000.0,
+          "estimated_value_eur": 406504.07,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-08a18610214b/2020",
+          "title": "Light heating oil — extra light oil for household — 1 (EL-1) for a period of 2 years.",
+          "procuring_entity": "PHI Gerontology Institute 13 November — Skopje",
+          "winner": "Company for production, trade and services PUCKO PETROL import-export DOOEL Plasnica Plasnica",
+          "estimated_value_mkd": 24000000.0,
+          "estimated_value_eur": 390243.9,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-167881881084/2020",
+          "title": "Procurement of heating oil.",
+          "procuring_entity": "Customs Administration of the Republic of Macedonia",
+          "winner": "\"Pucko Petrol\"",
+          "estimated_value_mkd": 22881356.0,
+          "estimated_value_eur": 372054.57,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-218af5b7ae21/2020",
+          "title": "Acquisition of Heating Oil",
+          "procuring_entity": "Customs Administration of the Republic of North Macedonia",
+          "winner": "Pucko Petrol uvoz-izvoz Dooel s.Plasnica",
+          "estimated_value_mkd": 20000000.0,
+          "estimated_value_eur": 325203.25,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-ac671217bb85/2020",
+          "title": "Aquisition of heating oil",
+          "procuring_entity": "Customs Administration of the Republic of Macedonia",
+          "winner": "DPTU Pucko Petrol uvoz-izvoz DOOEL",
+          "estimated_value_mkd": 18655800.0,
+          "estimated_value_eur": 303346.34,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-fdc1330de94b/2020",
+          "title": "Liquid Fuels 02441/2021",
+          "procuring_entity": "JP Ulici i patishta-Skopje",
+          "winner": "DPTU Pucko Petrol DOOEL",
+          "estimated_value_mkd": 18000000.0,
+          "estimated_value_eur": 292682.93,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-8e29f82e60ef/2020",
+          "title": "Supply of heating oil",
+          "procuring_entity": "Municipal elementary school Cyril and Methodius",
+          "winner": "Pucko Petrol uvoz-izvoz DOOEL Plasnica",
+          "estimated_value_mkd": 17713353.0,
+          "estimated_value_eur": 288022.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-6fa97004bbc5/2020",
+          "title": "Heating oil",
+          "procuring_entity": "Customs administration of the Republic of Macedonia",
+          "winner": "Drustvo za proizvodstvo, trgovija i uslugi PUCKO PETROL uvoz-izvoz DOOEL s.Plasnica Plasnica",
+          "estimated_value_mkd": 16949152.54,
+          "estimated_value_eur": 275595.98,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-7ea6230f0fed/8197",
+          "title": "Loživo ulje ekstra lako El-1.",
+          "procuring_entity": "Specijalna bolnica za ortopediju i traumatologiju „Sv Erazmo” – Ohrid",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 16500019.5,
+          "estimated_value_eur": 268293.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-24dfee8bcc98/2020",
+          "title": "Extra light heating oil - 1 (EL-1)",
+          "procuring_entity": "Municipality of Gevgelija",
+          "winner": "DPTU PUCKO PETROL Dooel Plasnica",
+          "estimated_value_mkd": 15720322.5,
+          "estimated_value_eur": 255615.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-e0c4037d4651/2020",
+          "title": "Petroleum and Petroleum Destillates",
+          "procuring_entity": "Public Enterprise Macedonian Railways Infrastructure — Skopje",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 15000000.0,
+          "estimated_value_eur": 243902.44,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-ee102956b3b7/2020",
+          "title": "Purchase of extra light heating oil EL1 for the necessity of municipality Gjorce Petrov,primary schools and kindergarten.",
+          "procuring_entity": "Municipality Gjorce Petrov",
+          "winner": "DPTU Pucko Petrol DOOEL s.Plasnica",
+          "estimated_value_mkd": 13928704.5,
+          "estimated_value_eur": 226483.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-1e262a8c569d/2020",
+          "title": "Ekstra light fuel (EL-1).",
+          "procuring_entity": "PHI Gerontology Institute 13 November — Skopje",
+          "winner": "Company for production, trade and services Pucko Petrol import-export DOO (Ltd) s. Plasnica",
+          "estimated_value_mkd": 13000000.0,
+          "estimated_value_eur": 211382.11,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-efb30092cf56/2020",
+          "title": "Procurement of Motor Gasoline, Diesel Fuel and Liquified Petroleum Gas",
+          "procuring_entity": "Joint Stock Company for water management of the Republic of Macedonia state owned – Skopje",
+          "winner": "Drustvo za proizvodstvo, trgovija i uslugi Pucko petrol uvoz izvoz DOOEL s.Plasnica ul.Bulevar parti",
+          "estimated_value_mkd": 12798280.0,
+          "estimated_value_eur": 208102.11,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-197f465fd129/9851",
+          "title": "Poziv na nadmetanje - Lozivo ulje ekstra lako - EL-1",
+          "procuring_entity": "Specijalizirana bolnica za ortopediju i traumatologiju \"Sv Erazmo\" - Ohrid, R. Makedonija",
+          "winner": "Pucko Petrol DOOEL s.Plasnica",
+          "estimated_value_mkd": 12440000.0,
+          "estimated_value_eur": 202276.42,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-cbc44aab8280/2020",
+          "title": "Poziv na nadmetanje – Loživo ulje ekstra lako - EL-1",
+          "procuring_entity": "Specijalizirana bolnica za ortopediju i traumatologiju „Sv Erazmo\" – Ohrid, R. Makedonija",
+          "winner": "PUCKO PETROL DOOEL S.PLASNICA",
+          "estimated_value_mkd": 12397000.0,
+          "estimated_value_eur": 201577.24,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-606c36f1cd34/9671",
+          "title": "Procurement of goods- light oil for heating/ extra light oil for heating households/ 1(EL-1) for period of 1 year.",
+          "procuring_entity": "PHI Gerontology Institute 13 November — Skopje",
+          "winner": "Company for production, trade and services Pucko Petrol export-import DOOEL Plasnica",
+          "estimated_value_mkd": 12000000.0,
+          "estimated_value_eur": 195121.95,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-688cc7ea2a3a/2020",
+          "title": "Purchase of fuel oil — extra light (EL-1) for the 2014/2015 season for the needs of primary and secondary schools, the public library and kindergarten",
+          "procuring_entity": "SOU Ljupco Santov Kocani",
+          "winner": "Pucko Petrol DOOEL",
+          "estimated_value_mkd": 11600000.0,
+          "estimated_value_eur": 188617.89,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-81210b572621/2020",
+          "title": "Extra light oil",
+          "procuring_entity": "Public Health Institute Hospital Strumica",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 11500000.0,
+          "estimated_value_eur": 186991.87,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-e193bba58a15/2020",
+          "title": "Extra Light oil for Consumption-1 (EL-1)",
+          "procuring_entity": "Public Health Institute Hospital Strumica",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 11500000.0,
+          "estimated_value_eur": 186991.87,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-0000730aac69/2020",
+          "title": "01-244/2018 Light Derivatives for the Gas Stations Owned by Branches of AD ELEM (BS Eurodiesel (DE-V) and Eurosuper BS 95)",
+          "procuring_entity": "AD Elektrani na Makedonija — Skopje",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 10738000.0,
+          "estimated_value_eur": 174601.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-d1f1e637a253/2020",
+          "title": "Lozivo ulje ekstra lako - EL-1",
+          "procuring_entity": "JZU Specijalna bolnica za ortopedija i traumatologija \"Sv.erazmo\"-Ohrid,R.Macedonia",
+          "winner": "Pucko Petrol DOO s.Plasnica Skoplje",
+          "estimated_value_mkd": 10677866.0,
+          "estimated_value_eur": 173623.84,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-91f928545bbd/2020",
+          "title": "Loživo ulje ekstra lako – EL-1",
+          "procuring_entity": "JZU Specijalna bolnica za ortopedija i traumatologija „Sv. Erazmo” Ohrid",
+          "winner": "Pucko Petrol Dooel s. Plasnica",
+          "estimated_value_mkd": 10677000.0,
+          "estimated_value_eur": 173609.76,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-2da5e5c72481/9138",
+          "title": "Procurement — the purchase of Extra Light Heating Oil.",
+          "procuring_entity": "Local Government Unit Prilep",
+          "winner": "DPTU Pucko Petrol DOOEL",
+          "estimated_value_mkd": 10659241.0,
+          "estimated_value_eur": 173320.99,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-0d7c6d8fed6c/2020",
+          "title": "Supply of Heating Oil",
+          "procuring_entity": "University “Goce Delcev” – Stip",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 10000000.0,
+          "estimated_value_eur": 162601.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-6828a5ba99b9/2020",
+          "title": "Supply of heating oil.",
+          "procuring_entity": "University ‘Goce Delcev’ — Stip",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 10000000.0,
+          "estimated_value_eur": 162601.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-68773d8542fb/2020",
+          "title": "Extra Light Oil for Consumption — 1",
+          "procuring_entity": "Public Health Institute Hospital Strumica",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 10000000.0,
+          "estimated_value_eur": 162601.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-6f2ce230ab0d/2020",
+          "title": "Supply of heating oil.",
+          "procuring_entity": "University ‘Goce Delcev’ — Stip",
+          "winner": "Pucko Petrol DOOEL",
+          "estimated_value_mkd": 10000000.0,
+          "estimated_value_eur": 162601.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-8ac6711f37e2/2020",
+          "title": "Supply of heating oil",
+          "procuring_entity": "University “Goce Delcev” – Stip",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 10000000.0,
+          "estimated_value_eur": 162601.63,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-b0a4c747f62e/2020",
+          "title": "Purchase of Extra Light Heating Oil EL1 for the Necessity of Municipality Gjorce Petrov, Primary Schools and Kindergarten",
+          "procuring_entity": "Municipality Gjorce Petrov",
+          "winner": "Drustvo za proizvodstvo,trgovija i uslugi Pucko Petrol uvoz-izvoz DOOEL s.Plasnica",
+          "estimated_value_mkd": 9882619.5,
+          "estimated_value_eur": 160693.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-bd54edeb1aab/2020",
+          "title": "Purchase of extra light heating oil EL1 for the necessity of municipality Gjorce Petrov,primary schools and kindergarten",
+          "procuring_entity": "Municipality Gjorce Petrov / OOU Mirce Acev",
+          "winner": "Drustvo za proizvodstvo,trgovija i ulugi PUCKO PETROL uvoz-izvoz DOOEL s.Plasnica",
+          "estimated_value_mkd": 9834649.5,
+          "estimated_value_eur": 159913.0,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-fefa1ed134d4/2020",
+          "title": "Procurement of extra light household oil-1 (EL-1).",
+          "procuring_entity": "MES Dimkata Angelov Gaberot Kavadarci",
+          "winner": "Pucko Petrol DOOEL Plasnica",
+          "estimated_value_mkd": 9449153.0,
+          "estimated_value_eur": 153644.76,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-37ecee78725c/2020",
+          "title": "Petroleum and Petroleum Distillates",
+          "procuring_entity": "Public Enterprise for Railway Infrastructure Railways of Republic of North Macedonia — Skopje",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 6290000.0,
+          "estimated_value_eur": 102276.42,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        },
+        {
+          "tender_id": "OT-57a0ac9482ed/2020",
+          "title": "Heating Oil",
+          "procuring_entity": "Health Insurance Fund of Macedonia",
+          "winner": "Pucko Petrol",
+          "estimated_value_mkd": 4720000.0,
+          "estimated_value_eur": 76747.97,
+          "match_confidence": "high",
+          "match_reasons": [
+            "Winner linked to sanctioned entity: Pucko Petrol"
+          ],
+          "sanctioned_entity": "Pucko Petrol"
+        }
+      ],
+      "total_matches": 50,
+      "total_value_eur": 63994471.720000036
+    }
+  ],
+  "summary": {
+    "total_cases_analyzed": 7,
+    "cases_with_matches": 7,
+    "total_matched_tenders": 215,
+    "total_value_matched_eur": 629551184.63
+  }
+}

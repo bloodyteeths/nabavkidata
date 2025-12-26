@@ -1,0 +1,144 @@
+{
+  "accuracy": 0.9833333333333333,
+  "precision": 1.0,
+  "recall": 0.9666666666666667,
+  "f1": 0.9830508474576272,
+  "roc_auc": 1.0,
+  "average_precision": 1.0,
+  "cv_mean": 1.0,
+  "cv_std": 0.0,
+  "optimal_threshold": 0.4338403679653679,
+  "confusion_matrix": [
+    [
+      30,
+      0
+    ],
+    [
+      1,
+      29
+    ]
+  ],
+  "top_features": [
+    {
+      "name": "tender_very_recent",
+      "importance": 0.11148934916006646
+    },
+    {
+      "name": "scrape_count",
+      "importance": 0.08106815565923668
+    },
+    {
+      "name": "tender_age_days",
+      "importance": 0.0691551333700196
+    },
+    {
+      "name": "tender_recent",
+      "importance": 0.06643583081822728
+    },
+    {
+      "name": "status_awarded",
+      "importance": 0.06621082469245197
+    },
+    {
+      "name": "rescraped",
+      "importance": 0.06538467827688046
+    },
+    {
+      "name": "tender_old",
+      "importance": 0.05399519517191688
+    },
+    {
+      "name": "time_to_award_days",
+      "importance": 0.053608989615594266
+    },
+    {
+      "name": "winner_rank",
+      "importance": 0.05123868816917676
+    },
+    {
+      "name": "deadline_days",
+      "importance": 0.03839518685393627
+    },
+    {
+      "name": "num_documents",
+      "importance": 0.03739965761341493
+    },
+    {
+      "name": "num_docs_extracted",
+      "importance": 0.03022310703570771
+    },
+    {
+      "name": "actual_value_mkd",
+      "importance": 0.029258181177923996
+    },
+    {
+      "name": "doc_extraction_success_rate",
+      "importance": 0.026700189284065912
+    },
+    {
+      "name": "price_vs_estimate_ratio",
+      "importance": 0.022863610683166627
+    },
+    {
+      "name": "has_documents",
+      "importance": 0.021075059904386313
+    },
+    {
+      "name": "total_doc_content_length",
+      "importance": 0.018387207580966854
+    },
+    {
+      "name": "deadline_normal",
+      "importance": 0.014504071340282405
+    },
+    {
+      "name": "institution_avg_bidders",
+      "importance": 0.014238676221457334
+    },
+    {
+      "name": "has_actual_value",
+      "importance": 0.013158360531114592
+    },
+    {
+      "name": "avg_doc_content_length",
+      "importance": 0.012368564271347993
+    },
+    {
+      "name": "bidders_vs_institution_avg",
+      "importance": 0.011574978316072628
+    },
+    {
+      "name": "price_deviation_from_estimate",
+      "importance": 0.010816558286035427
+    },
+    {
+      "name": "winner_total_wins",
+      "importance": 0.008695835996567201
+    },
+    {
+      "name": "winner_num_institutions",
+      "importance": 0.00650287610554189
+    },
+    {
+      "name": "institution_total_tenders",
+      "importance": 0.006004506519739182
+    },
+    {
+      "name": "pub_month",
+      "importance": 0.005316434530560973
+    },
+    {
+      "name": "bidders_vs_category_avg",
+      "importance": 0.004951300619427935
+    },
+    {
+      "name": "pub_end_of_year",
+      "importance": 0.004649413624052842
+    },
+    {
+      "name": "estimated_value_mkd",
+      "importance": 0.0043968140366425525
+    }
+  ],
+  "training_completed_at": "2025-12-26T04:29:02.450558"
+}

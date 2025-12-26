@@ -15,7 +15,7 @@ import os
 from database import init_db, close_db, get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion
 # Note: report_campaigns commented out - missing weasyprint on server
 # from api import report_campaigns
 from middleware.fraud import FraudPreventionMiddleware
@@ -100,6 +100,8 @@ app.include_router(briefings.router, prefix="/api")  # Daily briefings (Phase 6.
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])  # Push notifications (Phase 6.5)
 app.include_router(corruption.router)  # Corruption detection & risk analysis
 app.include_router(risk.router)  # Risk investigation (corruption research orchestrator)
+app.include_router(explainability.router)  # ML explainability (SHAP/LIME)
+app.include_router(collusion.router)  # Collusion detection & network analysis
 app.include_router(api_keys.router, prefix="/api")  # API key management (Enterprise tier)
 # app.include_router(report_campaigns.router)  # Report-first outreach campaigns (disabled - missing weasyprint)
 app.include_router(contact.router, prefix="/api")  # Contact form submissions

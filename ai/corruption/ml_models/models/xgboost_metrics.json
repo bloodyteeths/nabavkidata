@@ -1,0 +1,97 @@
+{
+  "accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "roc_auc": 1.0,
+  "average_precision": 1.0,
+  "confusion_matrix": [
+    [
+      30,
+      0
+    ],
+    [
+      0,
+      30
+    ]
+  ],
+  "classification_report": "              precision    recall  f1-score   support\n\n       Clean       1.00      1.00      1.00        30\n     Flagged       1.00      1.00      1.00        30\n\n    accuracy                           1.00        60\n   macro avg       1.00      1.00      1.00        60\nweighted avg       1.00      1.00      1.00        60\n",
+  "cv_scores": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "cv_mean": 1.0,
+  "cv_std": 0.0,
+  "best_iteration": 0,
+  "cv_results": {
+    "accuracy": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9791666666666666
+      ],
+      "mean": 0.9958333333333333,
+      "std": 0.008333333333333349
+    },
+    "precision": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.96
+      ],
+      "mean": 0.992,
+      "std": 0.016000000000000014
+    },
+    "recall": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "mean": 1.0,
+      "std": 0.0
+    },
+    "f1": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9795918367346939
+      ],
+      "mean": 0.9959183673469388,
+      "std": 0.008163265306122458
+    },
+    "roc_auc": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "mean": 1.0,
+      "std": 0.0
+    },
+    "confusion_matrix": [
+      [
+        119,
+        1
+      ],
+      [
+        0,
+        120
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n       Clean       1.00      0.99      1.00       120\n     Flagged       0.99      1.00      1.00       120\n\n    accuracy                           1.00       240\n   macro avg       1.00      1.00      1.00       240\nweighted avg       1.00      1.00      1.00       240\n"
+  }
+}
