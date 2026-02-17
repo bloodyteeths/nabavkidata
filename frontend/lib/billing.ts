@@ -197,11 +197,11 @@ class BillingService {
         price_yearly_eur: 1990,
         price_monthly_id: 'price_1Si1UNHkVI5icjTlJrHnLL7K',
         price_yearly_id: 'price_1Si1UOHkVI5icjTlhmTPVZSv',
-        daily_queries: -1, // Unlimited
+        daily_queries: 1000,
         trial_days: 7,
         allow_vpn: true,
         features: [
-          'Неограничени AI прашања',
+          '1000 AI прашања дневно',
           'Неограничени известувања',
           'Неограничен CSV извоз',
           'Анализа на ризик',

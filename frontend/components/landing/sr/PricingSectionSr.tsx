@@ -73,7 +73,7 @@ const plans = [
         },
         description: "Za timove i odeljenja sa naprednim potrebama.",
         features: [
-            "Neograničena AI pitanja",
+            "1000 AI pitanja dnevno",
             "Neograničena obaveštenja",
             "API pristup",
             "Do 10 članova tima",

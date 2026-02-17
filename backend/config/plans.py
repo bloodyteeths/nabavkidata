@@ -330,7 +330,7 @@ TEAM_PLAN = PlanDefinition(
         ModuleName.TEAM_MANAGEMENT: AccessLevel.FULL,
     },
     limits={
-        "rag_queries": UsageLimit(daily=None, monthly=None),  # Unlimited
+        "rag_queries": UsageLimit(daily=1000, monthly=None),
         "alerts": UsageLimit(daily=None, monthly=None),
         "exports": UsageLimit(daily=None, monthly=None),
         "document_extractions": UsageLimit(daily=None, monthly=None),
@@ -339,7 +339,7 @@ TEAM_PLAN = PlanDefinition(
         "api_calls": UsageLimit(daily=100, monthly=None),
     },
     features=[
-        "Unlimited AI queries",
+        "1000 AI queries per day",
         "Unlimited alerts",
         "Unlimited exports",
         "Full analytics & risk analysis",
@@ -348,7 +348,7 @@ TEAM_PLAN = PlanDefinition(
         "Priority support",
     ],
     features_mk=[
-        "Неограничени AI прашања",
+        "1000 AI прашања дневно",
         "Неограничени известувања",
         "Неограничен извоз",
         "Целосна аналитика и анализа на ризик",
@@ -381,9 +381,12 @@ ENTERPRISE_PLAN = PlanDefinition(
         ModuleName.CUSTOM_INTEGRATIONS: AccessLevel.FULL,
         ModuleName.DEDICATED_SUPPORT: AccessLevel.FULL,
     },
-    limits={},  # No limits
+    limits={
+        "rag_queries": UsageLimit(daily=1000, monthly=None),
+    },
     features=[
         "Everything in Team",
+        "1000 AI queries per day",
         "Unlimited team members",
         "Unlimited API access",
         "Custom integrations",
@@ -393,6 +396,7 @@ ENTERPRISE_PLAN = PlanDefinition(
     ],
     features_mk=[
         "Се од Team пакетот",
+        "1000 AI прашања дневно",
         "Неограничен број членови на тим",
         "Неограничен API пристап",
         "Прилагодени интеграции",

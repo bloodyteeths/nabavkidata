@@ -112,7 +112,7 @@ export default function ContactPage() {
               <div className="bg-primary/10 border border-primary/30 rounded-xl p-6">
                 <h3 className="text-white font-semibold mb-3">Enterprise вклучува:</h3>
                 <ul className="space-y-2 text-gray-300 text-sm">
-                  <li>• Неограничени AI прашања</li>
+                  <li>• 1000 AI прашања дневно</li>
                   <li>• API пристап</li>
                   <li>• До 10 членови на тим</li>
                   <li>• Посветен менаџер</li>

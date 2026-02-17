@@ -1037,10 +1037,10 @@ export default function SettingsPage() {
           price_yearly_eur: 1990,
           price_monthly_id: 'price_1Si1UNHkVI5icjTlJrHnLL7K',
           price_yearly_id: 'price_1Si1UOHkVI5icjTlhmTPVZSv',
-          daily_queries: -1,
+          daily_queries: 1000,
           trial_days: 0,
           allow_vpn: true,
-          features: ['Неограничени AI прашања', 'До 5 членови', 'API пристап', 'Приоритетна поддршка']
+          features: ['1000 AI прашања дневно', 'До 5 членови', 'API пристап', 'Приоритетна поддршка']
         }
       ];
       setPlans(hardcodedPlans);

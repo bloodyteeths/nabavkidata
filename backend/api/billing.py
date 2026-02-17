@@ -149,7 +149,7 @@ SUBSCRIPTION_PLANS = {
         "price_yearly_eur": 1990,
         "stripe_price_id": PRICE_IDS.get("enterprise", {}).get("monthly"),
         "features": [
-            "Неограничени AI прашања",
+            "1000 AI прашања дневно",
             "Неограничени известувања",
             "Неограничен CSV извоз",
             "Анализа на ризик",
@@ -158,7 +158,7 @@ SUBSCRIPTION_PLANS = {
             "Неограничени конкуренти"
         ],
         "limits": {
-            "rag_queries_per_day": -1,  # unlimited
+            "rag_queries_per_day": 1000,
             "saved_alerts": -1,  # unlimited
             "export_results": True,
             "doc_extractions_per_day": -1,

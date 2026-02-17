@@ -173,7 +173,7 @@ function MacedonianTerms() {
             <p className="text-muted-foreground mb-2"><strong>Карактеристики:</strong></p>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
               <li>Сè од Про пакетот</li>
-              <li>Неограничени AI пребарувања</li>
+              <li>1000 AI пребарувања дневно</li>
               <li>API пристап</li>
               <li>White-label</li>
               <li>24/7 поддршка</li>
