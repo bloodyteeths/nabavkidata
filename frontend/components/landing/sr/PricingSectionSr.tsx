@@ -22,8 +22,8 @@ const plans = [
         features: [
             "Pregled liste tendera",
             "Osnovna pretraga",
-            "3 AI pitanja dnevno",
-            "1 sačuvano obaveštenje"
+            "2 AI pitanja dnevno",
+            "Bez obaveštenja i izvoza"
         ],
         cta: "Započni besplatno"
     },
@@ -37,14 +37,13 @@ const plans = [
         },
         description: "Za frilensere i mala preduzeća.",
         features: [
-            "15 AI pitanja dnevno",
+            "5 AI pitanja dnevno",
             "AI rezimei tendera",
-            "Analitika i trendovi",
             "Profili dobavljača",
             "Sadržaj dokumenata",
-            "CSV izvoz",
-            "10 sačuvanih obaveštenja",
-            "5 obaveštenja za konkurente"
+            "CSV izvoz (2/dan)",
+            "3 sačuvana obaveštenja",
+            "2 obaveštenja za konkurente"
         ],
         cta: "Započni"
     },
@@ -59,14 +58,14 @@ const plans = [
         popular: true,
         description: "Za rastuće kompanije koje žele konkurentsku prednost.",
         features: [
-            "50 AI pitanja dnevno",
+            "25 AI pitanja dnevno",
             "Analiza rizika i korupcije",
             "AI saveti za ponude",
-            "Cenovna inteligencija",
+            "Cenovna inteligencija i trendovi",
             "Poređenje tendera",
-            "CSV i PDF izvoz",
-            "50 sačuvanih obaveštenja",
-            "20 obaveštenja za konkurente"
+            "CSV i PDF izvoz (10/dan)",
+            "15 sačuvanih obaveštenja",
+            "10 obaveštenja za konkurente"
         ],
         cta: "Najpopularniji izbor"
     },
@@ -81,10 +80,10 @@ const plans = [
         description: "Za timove i odeljenja sa naprednim potrebama.",
         features: [
             "Sve iz Pro plana",
-            "1000 AI pitanja dnevno",
+            "100 AI pitanja dnevno",
             "API pristup (100 poziva/dan)",
             "Do 5 članova tima",
-            "Neograničena obaveštenja",
+            "Neograničena obaveštenja i izvoz",
             "Prioritetna podrška"
         ],
         cta: "Započni"
@@ -170,7 +169,7 @@ export default function PricingSectionSr() {
                         <Sparkles className="w-5 h-5 text-primary" />
                         <div className="text-left">
                             <p className="text-white font-semibold">7-dnevna besplatna proba Pro plana</p>
-                            <p className="text-gray-400 text-sm">50 AI poruka • 15 ekstrakcija • 5 izvoza</p>
+                            <p className="text-gray-400 text-sm">25 AI poruka • 10 ekstrakcija • 10 izvoza</p>
                         </div>
                         <Button
                             onClick={handleStartTrial}

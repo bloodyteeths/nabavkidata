@@ -12,7 +12,7 @@ from datetime import datetime, date, timedelta
 from database import get_db
 from models import Tender, ProcuringEntity
 from middleware.entitlements import require_module
-from config.plans import ModuleName
+from config.plans import ModuleName, AccessLevel
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -199,7 +199,7 @@ async def get_entity_stats(
 # TRENDS
 # ============================================================================
 
-@router.get("/trends", response_model=TrendsResponse, dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
+@router.get("/trends", response_model=TrendsResponse, dependencies=[Depends(require_module(ModuleName.ANALYTICS, AccessLevel.FULL))])
 async def get_trends(
     period: str = Query("30d", description="Period: 7d, 30d, 90d, 1y"),
     group_by: str = Query("day", description="Group by: day, week, month"),

@@ -57,12 +57,12 @@ SUBSCRIPTION_PLANS = {
         "features": [
             "Преглед на листа тендери",
             "Основно пребарување",
-            "3 AI прашања дневно",
-            "1 зачувано известување"
+            "2 AI прашања дневно",
+            "Без извоз и известувања"
         ],
         "limits": {
-            "rag_queries_per_day": 3,
-            "saved_alerts": 1,
+            "rag_queries_per_day": 2,
+            "saved_alerts": 0,
             "export_results": False,
             "doc_extractions_per_day": 0,
             "competitor_alerts": 0,
@@ -100,21 +100,21 @@ SUBSCRIPTION_PLANS = {
         "price_yearly_eur": 390,
         "stripe_price_id": PRICE_IDS.get("starter", {}).get("monthly"),
         "features": [
-            "15 AI прашања дневно",
+            "5 AI прашања дневно",
             "AI резимеа на тендери",
-            "Аналитика и трендови",
+            "Основна аналитика",
             "Профили на добавувачи",
             "Содржина на документи",
-            "CSV извоз",
-            "10 зачувани известувања",
-            "5 известувања за конкуренти"
+            "CSV извоз (2/ден)",
+            "3 зачувани известувања",
+            "2 известувања за конкуренти/месец"
         ],
         "limits": {
-            "rag_queries_per_day": 15,
-            "saved_alerts": 10,
+            "rag_queries_per_day": 5,
+            "saved_alerts": 3,
             "export_results": True,
-            "doc_extractions_per_day": 5,
-            "competitor_alerts": 5,
+            "doc_extractions_per_day": 2,
+            "competitor_alerts": 2,
             "ai_summary": True,
             "risk_analysis": False,
             "team_members": 1
@@ -128,21 +128,21 @@ SUBSCRIPTION_PLANS = {
         "price_yearly_eur": 990,
         "stripe_price_id": PRICE_IDS.get("professional", {}).get("monthly"),
         "features": [
-            "50 AI прашања дневно",
+            "25 AI прашања дневно",
             "Анализа на ризик и корупција",
             "AI совети за понуди",
-            "Ценовна интелигенција",
+            "Ценовна интелигенција и трендови",
             "Споредба на тендери",
-            "CSV и PDF извоз",
-            "50 зачувани известувања",
-            "20 известувања за конкуренти"
+            "CSV и PDF извоз (10/ден)",
+            "15 зачувани известувања",
+            "10 известувања за конкуренти/месец"
         ],
         "limits": {
-            "rag_queries_per_day": 50,
-            "saved_alerts": 50,
+            "rag_queries_per_day": 25,
+            "saved_alerts": 15,
             "export_results": True,
-            "doc_extractions_per_day": 20,
-            "competitor_alerts": 20,
+            "doc_extractions_per_day": 10,
+            "competitor_alerts": 10,
             "ai_summary": True,
             "risk_analysis": True,
             "team_members": 1
@@ -157,14 +157,14 @@ SUBSCRIPTION_PLANS = {
         "stripe_price_id": PRICE_IDS.get("enterprise", {}).get("monthly"),
         "features": [
             "Сè од Про планот",
-            "1000 AI прашања дневно",
+            "100 AI прашања дневно",
             "API пристап (100 повици/ден)",
             "До 5 членови на тим",
-            "Неограничени известувања",
+            "Неограничени известувања и извоз",
             "Приоритетна поддршка"
         ],
         "limits": {
-            "rag_queries_per_day": 1000,
+            "rag_queries_per_day": 100,
             "saved_alerts": -1,  # unlimited
             "export_results": True,
             "doc_extractions_per_day": -1,

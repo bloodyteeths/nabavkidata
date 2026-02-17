@@ -92,7 +92,7 @@ export default function InsightsPage() {
     setCpvOptions([]);
   };
 
-  // Tier gate: Insights/Trends requires Start+
+  // Tier gate: Insights/Trends requires Pro+
   if (!authChecked) {
     return (
       <div className="p-6 flex justify-center items-center min-h-[400px]">
@@ -101,7 +101,7 @@ export default function InsightsPage() {
     );
   }
 
-  if (!isLoggedIn || tier === "free") {
+  if (!isLoggedIn || !["pro", "professional", "team", "enterprise"].includes(tier)) {
     return (
       <div className="p-6 space-y-6">
         <div>
@@ -121,7 +121,7 @@ export default function InsightsPage() {
             <div>
               <h2 className="text-xl font-semibold">Премиум функција</h2>
               <p className="text-muted-foreground mt-1 max-w-md">
-                Увидите и трендовите се достапни за корисници со Стартуј план или повисок.
+                Увидите и трендовите се достапни за корисници со Про план или повисок.
                 {!isLoggedIn && " Најавете се за да продолжите."}
               </p>
             </div>

@@ -140,13 +140,14 @@ class BillingService {
         price_yearly_mkd: 0,
         price_monthly_id: '',
         price_yearly_id: '',
-        daily_queries: 3,
+        daily_queries: 2,
         trial_days: 7,
         allow_vpn: false,
         features: [
-          '3 AI прашања дневно',
+          'Преглед на листа тендери',
           'Основно пребарување',
-          'Преглед на тендери'
+          '2 AI прашања дневно',
+          'Без извоз и известувања'
         ]
       },
       {
@@ -158,14 +159,16 @@ class BillingService {
         price_yearly_eur: 390,
         price_monthly_id: 'price_1Si1UMHkVI5icjTlgX63qyG6',
         price_yearly_id: 'price_1Si1UMHkVI5icjTlrze0oUdX',
-        daily_queries: 15,
+        daily_queries: 5,
         trial_days: 7,
         allow_vpn: true,
         features: [
-          '15 AI прашања дневно',
-          '10 зачувани известувања',
-          'CSV извоз',
-          '5 известувања за конкуренти'
+          '5 AI прашања дневно',
+          'AI резимеа на тендери',
+          'Основна аналитика',
+          'Профили на добавувачи',
+          'CSV извоз (2/ден)',
+          '3 зачувани известувања'
         ]
       },
       {
@@ -177,15 +180,16 @@ class BillingService {
         price_yearly_eur: 990,
         price_monthly_id: 'price_1Si1UNHkVI5icjTlaKDnWZuE',
         price_yearly_id: 'price_1Si1UNHkVI5icjTlRiW5safT',
-        daily_queries: 50,
+        daily_queries: 25,
         trial_days: 7,
         allow_vpn: true,
         features: [
-          '50 AI прашања дневно',
-          '50 зачувани известувања',
-          'CSV извоз',
-          'Анализа на ризик',
-          '20 известувања за конкуренти'
+          '25 AI прашања дневно',
+          'Анализа на ризик и корупција',
+          'AI совети за понуди',
+          'Ценовна интелигенција и трендови',
+          'CSV и PDF извоз (10/ден)',
+          '15 зачувани известувања'
         ]
       },
       {
@@ -197,17 +201,16 @@ class BillingService {
         price_yearly_eur: 1990,
         price_monthly_id: 'price_1Si1UNHkVI5icjTlJrHnLL7K',
         price_yearly_id: 'price_1Si1UOHkVI5icjTlhmTPVZSv',
-        daily_queries: 1000,
+        daily_queries: 100,
         trial_days: 7,
         allow_vpn: true,
         features: [
-          '1000 AI прашања дневно',
-          'Неограничени известувања',
-          'Неограничен CSV извоз',
-          'Анализа на ризик',
-          'API пристап',
-          'До 10 членови на тим',
-          'Неограничени конкуренти'
+          'Сè од Про планот',
+          '100 AI прашања дневно',
+          'API пристап (100 повици/ден)',
+          'До 5 членови на тим',
+          'Неограничени известувања и извоз',
+          'Приоритетна поддршка'
         ]
       }
     ];

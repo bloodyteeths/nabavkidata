@@ -995,10 +995,10 @@ export default function SettingsPage() {
           price_yearly_mkd: 0,
           price_monthly_id: '',
           price_yearly_id: '',
-          daily_queries: 50,
+          daily_queries: 25,
           trial_days: 7,
           allow_vpn: true,
-          features: ['50 AI пораки', '15 екстракции', '5 извози', '20 конкурентски известувања']
+          features: ['25 AI пораки', '10 екстракции', '5 извози', '10 конкурентски известувања']
         },
         {
           tier: 'starter',
@@ -1009,10 +1009,10 @@ export default function SettingsPage() {
           price_yearly_eur: 390,
           price_monthly_id: 'price_1Si1UMHkVI5icjTlgX63qyG6',
           price_yearly_id: 'price_1Si1UMHkVI5icjTlrze0oUdX',
-          daily_queries: 15,
+          daily_queries: 5,
           trial_days: 0,
           allow_vpn: true,
-          features: ['15 AI прашања дневно', '10 известувања', 'CSV извоз', 'Основна аналитика']
+          features: ['5 AI прашања дневно', 'AI резимеа', 'CSV извоз (2/ден)', '3 известувања']
         },
         {
           tier: 'professional',
@@ -1023,10 +1023,10 @@ export default function SettingsPage() {
           price_yearly_eur: 990,
           price_monthly_id: 'price_1Si1UNHkVI5icjTlaKDnWZuE',
           price_yearly_id: 'price_1Si1UNHkVI5icjTlRiW5safT',
-          daily_queries: 50,
+          daily_queries: 25,
           trial_days: 0,
           allow_vpn: true,
-          features: ['50 AI прашања дневно', 'Анализа на ризик', 'PDF извоз', 'Приоритетна поддршка']
+          features: ['25 AI прашања дневно', 'Анализа на ризик', 'Трендови', 'PDF извоз']
         },
         {
           tier: 'enterprise',
@@ -1037,10 +1037,10 @@ export default function SettingsPage() {
           price_yearly_eur: 1990,
           price_monthly_id: 'price_1Si1UNHkVI5icjTlJrHnLL7K',
           price_yearly_id: 'price_1Si1UOHkVI5icjTlhmTPVZSv',
-          daily_queries: 1000,
+          daily_queries: 100,
           trial_days: 0,
           allow_vpn: true,
-          features: ['1000 AI прашања дневно', 'До 5 членови', 'API пристап', 'Приоритетна поддршка']
+          features: ['100 AI прашања дневно', 'До 5 членови', 'API пристап', 'Приоритетна поддршка']
         }
       ];
       setPlans(hardcodedPlans);
