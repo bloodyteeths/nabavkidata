@@ -14,7 +14,6 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isHydrated, setIsHydrated] = useState(false);
   const { user } = useAuth();
 
   // Onboarding state
@@ -25,16 +24,11 @@ export default function DashboardPage() {
     hasSetPreferences: false,
   });
 
-  // Track hydration to prevent client-side navigation errors
   useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isHydrated || !user) return;
+    if (!user) return;
     loadDashboard();
     loadOnboardingStatus();
-  }, [isHydrated, user]);
+  }, [user]);
 
   async function loadOnboardingStatus() {
     try {
@@ -96,7 +90,7 @@ export default function DashboardPage() {
     }
   }
 
-  if (!isHydrated || loading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

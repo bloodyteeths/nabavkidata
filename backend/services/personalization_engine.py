@@ -273,33 +273,25 @@ class InsightGenerator:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def generate_insights(self, user_id: str) -> List[PersonalizedInsight]:
-        """Generate AI insights for user"""
+    async def generate_insights(self, user_id: str, prefs: Optional[UserPreferences] = None) -> List[PersonalizedInsight]:
+        """Generate AI insights for user. Accepts pre-fetched prefs to avoid redundant DB queries."""
+        import asyncio
 
-        insights = []
+        if prefs is None:
+            prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
+            result = await self.db.execute(prefs_query)
+            prefs = result.scalar_one_or_none()
 
-        # Insight 1: Trending sectors
-        trend = await self._trending_sector_insight(user_id)
-        if trend:
-            insights.append(trend)
+        # Run all 3 insight queries in parallel
+        trend, opportunity, alert = await asyncio.gather(
+            self._trending_sector_insight(prefs),
+            self._budget_opportunity_insight(prefs),
+            self._closing_soon_insight(prefs),
+        )
 
-        # Insight 2: Budget opportunities
-        opportunity = await self._budget_opportunity_insight(user_id)
-        if opportunity:
-            insights.append(opportunity)
+        return [i for i in (trend, opportunity, alert) if i is not None]
 
-        # Insight 3: Closing soon alert
-        alert = await self._closing_soon_insight(user_id)
-        if alert:
-            insights.append(alert)
-
-        return insights
-
-    async def _trending_sector_insight(self, user_id: str) -> Optional[PersonalizedInsight]:
-        prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
-        result = await self.db.execute(prefs_query)
-        prefs = result.scalar_one_or_none()
-
+    async def _trending_sector_insight(self, prefs: Optional[UserPreferences]) -> Optional[PersonalizedInsight]:
         if not prefs or not prefs.sectors:
             return None
 
@@ -321,11 +313,7 @@ class InsightGenerator:
             )
         return None
 
-    async def _budget_opportunity_insight(self, user_id: str) -> Optional[PersonalizedInsight]:
-        prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
-        result = await self.db.execute(prefs_query)
-        prefs = result.scalar_one_or_none()
-
+    async def _budget_opportunity_insight(self, prefs: Optional[UserPreferences]) -> Optional[PersonalizedInsight]:
         if not prefs or not prefs.min_budget:
             return None
 
@@ -347,12 +335,8 @@ class InsightGenerator:
             )
         return None
 
-    async def _closing_soon_insight(self, user_id: str) -> Optional[PersonalizedInsight]:
+    async def _closing_soon_insight(self, prefs: Optional[UserPreferences]) -> Optional[PersonalizedInsight]:
         cutoff = datetime.utcnow() + timedelta(days=7)
-
-        prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
-        result = await self.db.execute(prefs_query)
-        prefs = result.scalar_one_or_none()
 
         filters = [Tender.status == 'open', Tender.closing_date <= cutoff]
         if prefs and prefs.sectors:
@@ -377,12 +361,13 @@ class CompetitorTracker:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_competitor_activity(self, user_id: str, limit: int = 10) -> List[CompetitorActivity]:
+    async def get_competitor_activity(self, user_id: str, limit: int = 10, prefs: Optional[UserPreferences] = None) -> List[CompetitorActivity]:
         """Get tenders where competitors are involved - optimized single query"""
 
-        prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
-        result = await self.db.execute(prefs_query)
-        prefs = result.scalar_one_or_none()
+        if prefs is None:
+            prefs_query = select(UserPreferences).where(UserPreferences.user_id == user_id)
+            result = await self.db.execute(prefs_query)
+            prefs = result.scalar_one_or_none()
 
         if not prefs or not prefs.competitor_companies:
             return []

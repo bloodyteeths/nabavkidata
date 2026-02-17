@@ -8,6 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel
 from cachetools import TTLCache
+import asyncio
 import time
 
 from database import get_db
@@ -313,13 +314,14 @@ async def get_personalized_dashboard(
             match_reasons=match_reasons
         ))
 
-    # Competitor activity
+    # Run competitor activity and insights in parallel (they're independent)
     competitor_tracker = CompetitorTracker(db)
-    competitor_activity = await competitor_tracker.get_competitor_activity(user_id, limit=10)
-
-    # Insights
     insight_generator = InsightGenerator(db)
-    insights = await insight_generator.generate_insights(user_id)
+
+    competitor_activity, insights = await asyncio.gather(
+        competitor_tracker.get_competitor_activity(user_id, limit=10, prefs=user_prefs),
+        insight_generator.generate_insights(user_id, prefs=user_prefs),
+    )
 
     # Stats
     stats = {
