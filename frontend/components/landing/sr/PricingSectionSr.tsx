@@ -18,11 +18,11 @@ const plans = [
             mkd: { monthly: 0, yearly: 0 },
             eur: { monthly: 0, yearly: 0 }
         },
-        description: "Započnite bez rizika. Idealno za istraživanje.",
+        description: "Osnovni pregled tendera.",
         features: [
-            "Pregled svih tendera",
-            "3 AI pitanja dnevno",
+            "Pregled liste tendera",
             "Osnovna pretraga",
+            "3 AI pitanja dnevno",
             "1 sačuvano obaveštenje"
         ],
         cta: "Započni besplatno"
@@ -38,8 +38,12 @@ const plans = [
         description: "Za frilensere i mala preduzeća.",
         features: [
             "15 AI pitanja dnevno",
-            "10 sačuvanih obaveštenja",
+            "AI rezimei tendera",
+            "Analitika i trendovi",
+            "Profili dobavljača",
+            "Sadržaj dokumenata",
             "CSV izvoz",
+            "10 sačuvanih obaveštenja",
             "5 obaveštenja za konkurente"
         ],
         cta: "Započni"
@@ -56,9 +60,12 @@ const plans = [
         description: "Za rastuće kompanije koje žele konkurentsku prednost.",
         features: [
             "50 AI pitanja dnevno",
+            "Analiza rizika i korupcije",
+            "AI saveti za ponude",
+            "Cenovna inteligencija",
+            "Poređenje tendera",
+            "CSV i PDF izvoz",
             "50 sačuvanih obaveštenja",
-            "CSV izvoz",
-            "Analiza rizika",
             "20 obaveštenja za konkurente"
         ],
         cta: "Najpopularniji izbor"
@@ -73,11 +80,12 @@ const plans = [
         },
         description: "Za timove i odeljenja sa naprednim potrebama.",
         features: [
+            "Sve iz Pro plana",
             "1000 AI pitanja dnevno",
+            "API pristup (100 poziva/dan)",
+            "Do 5 članova tima",
             "Neograničena obaveštenja",
-            "API pristup",
-            "Do 10 članova tima",
-            "Neograničeni konkurenti"
+            "Prioritetna podrška"
         ],
         cta: "Započni"
     }
