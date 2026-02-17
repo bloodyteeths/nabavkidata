@@ -169,6 +169,10 @@ const PATTERN_LABELS: Record<string, string> = {
 };
 
 export default function RiskAnalysisPage() {
+  const [tier, setTier] = useState<string>("free");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
   const [mode, setMode] = useState<string>("flagged");
   const [riskyTenders, setRiskyTenders] = useState<RiskyTender[]>([]);
   const [loading, setLoading] = useState(true);
@@ -230,8 +234,26 @@ export default function RiskAnalysisPage() {
   // ML Explanation for individual tenders
   const [showMLExplanation, setShowMLExplanation] = useState<string | null>(null);
 
+  // Check subscription tier
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const status = await api.getSubscriptionStatus();
+        setTier(status.tier || "free");
+        setIsLoggedIn(true);
+      } catch {
+        setTier("free");
+        setIsLoggedIn(false);
+      } finally {
+        setAuthChecked(true);
+      }
+    }
+    checkAuth();
+  }, []);
+
   // Load stats separately (cached)
   useEffect(() => {
+    if (!authChecked || !isLoggedIn || !["pro", "team", "enterprise"].includes(tier)) return;
     async function loadStats() {
       try {
         const res = await fetch(`${API_URL}/api/corruption/stats`);
@@ -250,7 +272,7 @@ export default function RiskAnalysisPage() {
       }
     }
     loadStats();
-  }, []);
+  }, [authChecked, isLoggedIn, tier]);
 
   // Load flagged tenders with pagination
   useEffect(() => {
@@ -618,6 +640,61 @@ export default function RiskAnalysisPage() {
         <span className="text-sm text-muted-foreground ml-4">
           {((currentPage - 1) * PAGE_SIZE) + 1}-{Math.min(currentPage * PAGE_SIZE, totalItems)} од {totalItems.toLocaleString()}
         </span>
+      </div>
+    );
+  }
+
+  // Tier gate: Risk analysis requires Pro+
+  if (!authChecked) {
+    return (
+      <div className="p-6 flex justify-center items-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isLoggedIn || !["pro", "team", "enterprise"].includes(tier)) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Shield className="h-6 w-6 text-primary" />
+            AI Систем за Детекција на Корупција
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Напредна анализа со машинско учење
+          </p>
+        </div>
+        <Card className="border-2 border-dashed">
+          <CardContent className="py-12 flex flex-col items-center text-center space-y-4">
+            <div className="p-4 bg-muted rounded-full">
+              <Shield className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold">Премиум функција</h2>
+              <p className="text-muted-foreground mt-1 max-w-md">
+                Анализата на ризик и детекцијата на корупција е достапна за корисници со Pro план или повисок.
+                {!isLoggedIn && " Најавете се за да продолжите."}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              {!isLoggedIn ? (
+                <>
+                  <Link href="/auth/login">
+                    <Button>Најава</Button>
+                  </Link>
+                  <Link href="/auth/register">
+                    <Button variant="outline">Регистрација</Button>
+                  </Link>
+                </>
+              ) : (
+                <Link href="/settings">
+                  <Button>Надоградете план</Button>
+                </Link>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

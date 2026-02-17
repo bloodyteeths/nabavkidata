@@ -14,6 +14,8 @@ from database import get_db
 from api.auth import get_current_user
 from models import User
 from utils.transliteration import get_search_variants
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 from schemas import (
     EPazarTenderResponse,
     EPazarTenderListResponse,
@@ -740,7 +742,7 @@ async def get_epazar_documents(
 # EVALUATION DATA ENDPOINTS (GOLD data from PDF evaluation reports)
 # ============================================================================
 
-@router.get("/tenders/{tender_id}/evaluation")
+@router.get("/tenders/{tender_id}/evaluation", dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def get_epazar_evaluation(
     tender_id: str,
     db: AsyncSession = Depends(get_db),
@@ -859,7 +861,7 @@ async def get_epazar_evaluation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/tenders/{tender_id}/price-hints")
+@router.get("/tenders/{tender_id}/price-hints", dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def get_price_hints_for_tender(
     tender_id: str,
     db: AsyncSession = Depends(get_db),
@@ -1177,7 +1179,7 @@ async def get_epazar_stats(
 # AI SUMMARIZATION ENDPOINTS
 # ============================================================================
 
-@router.post("/tenders/{tender_id}/summarize")
+@router.post("/tenders/{tender_id}/summarize", dependencies=[Depends(require_module(ModuleName.RAG_SEARCH))])
 async def summarize_tender(
     tender_id: str,
     db: AsyncSession = Depends(get_db),
@@ -1281,7 +1283,7 @@ async def summarize_tender(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/suppliers/{supplier_id}/analyze")
+@router.post("/suppliers/{supplier_id}/analyze", dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
 async def analyze_supplier(
     supplier_id: str,
     db: AsyncSession = Depends(get_db),
@@ -2211,7 +2213,7 @@ async def get_epazar_supplier_stats(
 # PRICE SEARCH - Returns matching products for autocomplete
 # ============================================================================
 
-@router.get("/price-search")
+@router.get("/price-search", dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def search_products_for_price(
     q: str = Query(..., min_length=2, description="Search query"),
     db: AsyncSession = Depends(get_db),
@@ -2274,7 +2276,7 @@ async def search_products_for_price(
 # PRICE INTELLIGENCE ENDPOINT
 # ============================================================================
 
-@router.get("/price-intelligence")
+@router.get("/price-intelligence", dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def get_price_intelligence(
     search: str = Query(..., description="Item name to search"),
     category: Optional[str] = Query(None, description="Optional category filter"),
@@ -2536,7 +2538,7 @@ async def get_price_intelligence(
 # SUPPLIER RANKINGS ENDPOINT
 # ============================================================================
 
-@router.get("/supplier-rankings")
+@router.get("/supplier-rankings", dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
 async def get_supplier_rankings(
     category: Optional[str] = Query(None, description="Filter by category"),
     limit: int = Query(20, ge=1, le=100, description="Number of results (default 20)"),

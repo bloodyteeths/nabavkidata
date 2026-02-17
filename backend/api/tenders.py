@@ -17,6 +17,8 @@ from models import Tender, TenderBidder, TenderLot, Supplier, Document, User, Pr
 from api.auth import get_current_user
 from utils.timezone import get_ai_date_context
 from utils.transliteration import get_search_variants
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 from schemas import (
     TenderCreate,
     TenderUpdate,
@@ -203,7 +205,7 @@ async def get_recent_tenders(
     }
 
 
-@router.get("/compare")
+@router.get("/compare", dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def compare_tenders(
     ids: str = Query(..., description="Comma-separated tender IDs"),
     db: AsyncSession = Depends(get_db)
@@ -266,7 +268,7 @@ async def compare_tenders(
     }
 
 
-@router.get("/price_history")
+@router.get("/price_history", dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def get_price_history(
     cpv_code: str = Query(None, description="Filter by CPV code prefix"),
     category: str = Query(None, description="Filter by tender category"),
@@ -628,7 +630,7 @@ async def search_tenders(
 # EXPORT ENDPOINTS (Starter+ tiers only)
 # ============================================================================
 
-@router.post("/export")
+@router.post("/export", dependencies=[Depends(require_module(ModuleName.EXPORT_CSV))])
 async def export_tenders(
     search: TenderSearchRequest,
     format: str = Query("csv", regex="^(csv|json)$", description="Export format: csv or json"),
@@ -881,7 +883,7 @@ async def get_cpv_codes(
 # TENDER PRICE HISTORY (Per-Tender)
 # ============================================================================
 
-@router.get("/{number}/{year:int}/price_history")
+@router.get("/{number}/{year:int}/price_history", dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def get_tender_price_history(
     number: str,
     year: int,
@@ -1002,7 +1004,7 @@ async def get_tender_price_history(
 # TENDER AI SUMMARY
 # ============================================================================
 
-@router.get("/{number}/{year:int}/ai_summary")
+@router.get("/{number}/{year:int}/ai_summary", dependencies=[Depends(require_module(ModuleName.RAG_SEARCH))])
 async def get_tender_ai_summary(
     number: str,
     year: int,
@@ -1739,7 +1741,7 @@ async def get_tender_suppliers(number: str, year: int, db: AsyncSession = Depend
 # These must be BEFORE the catch-all route
 # ============================================================================
 
-@router.get("/by-id/{tender_id:path}/ai_summary")
+@router.get("/by-id/{tender_id:path}/ai_summary", dependencies=[Depends(require_module(ModuleName.RAG_SEARCH))])
 async def get_tender_ai_summary_by_id(
     tender_id: str,
     db: AsyncSession = Depends(get_db)
@@ -1984,7 +1986,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
     }
 
 
-@router.get("/by-id/{tender_id:path}/bid-advice")
+@router.get("/by-id/{tender_id:path}/bid-advice", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_tender_bid_advice_by_id(
     tender_id: str,
     db: AsyncSession = Depends(get_db)
@@ -2180,7 +2182,7 @@ async def get_tender_bid_advice_by_id(
     }
 
 
-@router.get("/by-id/{tender_id:path}/price_history")
+@router.get("/by-id/{tender_id:path}/price_history", dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def get_tender_price_history_by_id(
     tender_id: str,
     db: AsyncSession = Depends(get_db)
@@ -2302,7 +2304,7 @@ async def get_tender_bidders_by_id(
     }
 
 
-@router.get("/by-id/{tender_id:path}/ai-products")
+@router.get("/by-id/{tender_id:path}/ai-products", dependencies=[Depends(require_module(ModuleName.RAG_SEARCH))])
 async def get_ai_products_by_id(
     tender_id: str,
     db: AsyncSession = Depends(get_db)

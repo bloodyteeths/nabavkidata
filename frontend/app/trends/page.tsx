@@ -14,7 +14,8 @@ import {
   TrendingUp,
   Target,
   Lightbulb,
-  Loader2
+  Loader2,
+  Lock
 } from "lucide-react";
 import {
   UpcomingOpportunities,
@@ -23,8 +24,12 @@ import {
   SeasonalPatterns,
 } from "@/components/insights";
 import { api } from "@/lib/api";
+import Link from "next/link";
 
 export default function InsightsPage() {
+  const [tier, setTier] = useState<string>("free");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [cpvFilter, setCpvFilter] = useState("");
   const [appliedCpv, setAppliedCpv] = useState<string | undefined>(undefined);
 
@@ -32,6 +37,23 @@ export default function InsightsPage() {
   const [cpvOptions, setCpvOptions] = useState<Array<{ code: string; name: string; name_mk: string }>>([]);
   const [cpvLoading, setCpvLoading] = useState(false);
   const [showCpvDropdown, setShowCpvDropdown] = useState(false);
+
+  // Check subscription tier
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const status = await api.getSubscriptionStatus();
+        setTier(status.tier || "free");
+        setIsLoggedIn(true);
+      } catch {
+        setTier("free");
+        setIsLoggedIn(false);
+      } finally {
+        setAuthChecked(true);
+      }
+    }
+    checkAuth();
+  }, []);
 
   // CPV search with debounce
   const searchCPV = useCallback(async (search: string) => {
@@ -69,6 +91,61 @@ export default function InsightsPage() {
     setAppliedCpv(undefined);
     setCpvOptions([]);
   };
+
+  // Tier gate: Insights/Trends requires Start+
+  if (!authChecked) {
+    return (
+      <div className="p-6 flex justify-center items-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isLoggedIn || tier === "free") {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <TrendingUp className="h-6 w-6 text-primary" />
+            Бизнис Анализа
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Корисни информации за да ги добиете тендерите
+          </p>
+        </div>
+        <Card className="border-2 border-dashed">
+          <CardContent className="py-12 flex flex-col items-center text-center space-y-4">
+            <div className="p-4 bg-muted rounded-full">
+              <Lock className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold">Премиум функција</h2>
+              <p className="text-muted-foreground mt-1 max-w-md">
+                Увидите и трендовите се достапни за корисници со Стартуј план или повисок.
+                {!isLoggedIn && " Најавете се за да продолжите."}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              {!isLoggedIn ? (
+                <>
+                  <Link href="/auth/login">
+                    <Button>Најава</Button>
+                  </Link>
+                  <Link href="/auth/register">
+                    <Button variant="outline">Регистрација</Button>
+                  </Link>
+                </>
+              ) : (
+                <Link href="/settings">
+                  <Button>Надоградете план</Button>
+                </Link>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-3 md:p-6 lg:p-8 space-y-6">

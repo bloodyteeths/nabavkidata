@@ -19,6 +19,8 @@ Features:
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from uuid import UUID
@@ -290,7 +292,7 @@ def build_bilingual_search_condition(field: str, search_term: str, param_num: in
 # FLAGGED TENDERS ENDPOINTS
 # ============================================================================
 
-@router.get("/flagged-tenders", response_model=FlaggedTendersResponse)
+@router.get("/flagged-tenders", response_model=FlaggedTendersResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_flagged_tenders(
     severity: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
     flag_type: Optional[str] = None,
@@ -431,7 +433,7 @@ async def get_flagged_tenders(
 # TENDER RISK ANALYSIS ENDPOINTS
 # ============================================================================
 
-@router.get("/tender/{tender_id}/analysis", response_model=TenderRiskAnalysis)
+@router.get("/tender/{tender_id}/analysis", response_model=TenderRiskAnalysis, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_tender_analysis(tender_id: str):
     """
     Get detailed corruption risk analysis for a specific tender
@@ -521,7 +523,7 @@ async def get_tender_analysis(tender_id: str):
 # INSTITUTION RISK ENDPOINTS
 # ============================================================================
 
-@router.get("/institutions/risk", response_model=InstitutionsRiskResponse)
+@router.get("/institutions/risk", response_model=InstitutionsRiskResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_institutions_risk(
     min_tenders: int = Query(5, ge=1),
     limit: int = Query(50, ge=1, le=100)
@@ -610,7 +612,7 @@ async def get_institutions_risk(
 # SUSPICIOUS COMPANIES ENDPOINTS
 # ============================================================================
 
-@router.get("/companies/suspicious", response_model=SuspiciousCompaniesResponse)
+@router.get("/companies/suspicious", response_model=SuspiciousCompaniesResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_suspicious_companies(
     min_wins: int = Query(3, ge=1),
     limit: int = Query(50, ge=1, le=100)
@@ -750,7 +752,7 @@ async def review_flag(
 # STATISTICS ENDPOINTS
 # ============================================================================
 
-@router.get("/stats", response_model=CorruptionStats)
+@router.get("/stats", response_model=CorruptionStats, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_corruption_stats():
     """
     Get corruption detection statistics (uses materialized view for speed)
@@ -845,3 +847,703 @@ async def trigger_analysis(
         message="Analysis triggered",
         detail=f"Analyzing {len(tender_ids) if tender_ids else 'all recent'} tenders"
     )
+
+
+# ============================================================================
+# ML PREDICTION SCHEMAS
+# ============================================================================
+
+class MLPredictionRequest(BaseModel):
+    """Request for ML prediction"""
+    update_db: bool = Field(True, description="Whether to store prediction in database")
+
+
+class BatchPredictionRequest(BaseModel):
+    """Request for batch ML prediction"""
+    tender_ids: List[str] = Field(..., min_length=1, max_length=100, description="List of tender IDs to predict")
+    update_db: bool = Field(True, description="Whether to store predictions in database")
+
+
+class FeatureContribution(BaseModel):
+    """Individual feature contribution to prediction"""
+    feature_name: str
+    value: float
+    contribution: float
+    description: Optional[str] = None
+    category: Optional[str] = None
+
+
+class MLPredictionDetail(BaseModel):
+    """Detailed ML prediction result"""
+    tender_id: str
+    risk_score: float = Field(..., ge=0, le=100)
+    risk_level: str
+    confidence: float = Field(..., ge=0, le=1)
+    model_scores: Dict[str, float]
+    top_features: Optional[List[FeatureContribution]] = None
+    predicted_at: datetime
+    model_version: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class MLPredictionResponse(BaseModel):
+    """Response for single ML prediction"""
+    prediction: MLPredictionDetail
+    tender_info: Optional[Dict[str, Any]] = None
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+class MLPredictionsListResponse(BaseModel):
+    """Response for listing predictions"""
+    total: int
+    skip: int
+    limit: int
+    predictions: List[MLPredictionDetail]
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+class BatchPredictionResponse(BaseModel):
+    """Response for batch prediction"""
+    batch_id: str
+    total_requested: int
+    total_processed: int
+    high_risk_count: int
+    critical_count: int
+    failed_count: int
+    predictions: List[MLPredictionDetail]
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+# ============================================================================
+# ML PREDICTION HELPER FUNCTIONS
+# ============================================================================
+
+# Model version - update when models are retrained
+ML_MODEL_VERSION = "v1.0.0"
+
+
+async def _get_or_create_predictor():
+    """
+    Get or create the ML predictor instance.
+    Lazy-loaded to avoid import issues if ML deps not installed.
+    """
+    try:
+        from ai.corruption.ml_models import CorruptionPredictor, PredictionResult
+        from pathlib import Path
+
+        models_dir = Path(__file__).parent.parent.parent / "ai" / "corruption" / "ml_models" / "models"
+        predictor = CorruptionPredictor(
+            models_dir=str(models_dir),
+            db_url=DATABASE_URL
+        )
+        await predictor.initialize()
+        return predictor
+    except ImportError as e:
+        logger.error(f"ML dependencies not available: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="ML prediction models not available. Install required dependencies."
+        )
+    except Exception as e:
+        logger.error(f"Failed to initialize predictor: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to initialize ML predictor: {str(e)}"
+        )
+
+
+async def _store_prediction(
+    conn: asyncpg.Connection,
+    tender_id: str,
+    risk_score: float,
+    risk_level: str,
+    confidence: float,
+    model_scores: Dict[str, float],
+    top_features: Optional[List[Dict[str, Any]]] = None,
+    feature_importance: Optional[Dict[str, float]] = None
+) -> int:
+    """Store ML prediction in database"""
+    import json
+
+    result = await conn.fetchval("""
+        INSERT INTO ml_predictions (
+            tender_id, risk_score, risk_level, confidence,
+            model_scores, top_features, feature_importance,
+            model_version, predicted_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        ON CONFLICT (tender_id, model_version)
+        DO UPDATE SET
+            risk_score = EXCLUDED.risk_score,
+            risk_level = EXCLUDED.risk_level,
+            confidence = EXCLUDED.confidence,
+            model_scores = EXCLUDED.model_scores,
+            top_features = EXCLUDED.top_features,
+            feature_importance = EXCLUDED.feature_importance,
+            updated_at = NOW()
+        RETURNING id
+    """,
+        tender_id,
+        round(risk_score, 2),
+        risk_level,
+        round(confidence, 3),
+        json.dumps(model_scores),
+        json.dumps(top_features) if top_features else None,
+        json.dumps(feature_importance) if feature_importance else None,
+        ML_MODEL_VERSION
+    )
+    return result
+
+
+def _build_feature_contributions(
+    top_features: Optional[List[Dict[str, Any]]]
+) -> Optional[List[FeatureContribution]]:
+    """Convert top features to FeatureContribution objects"""
+    if not top_features:
+        return None
+
+    return [
+        FeatureContribution(
+            feature_name=f.get('feature_name', 'unknown'),
+            value=float(f.get('feature_value', 0)),
+            contribution=float(f.get('contribution', 0)),
+            description=f.get('description'),
+            category=f.get('category')
+        )
+        for f in top_features[:10]  # Limit to top 10
+    ]
+
+
+# ============================================================================
+# ML PREDICTION ENDPOINTS
+# ============================================================================
+
+@router.post("/predict/{tender_id}", response_model=MLPredictionResponse)
+async def predict_tender(
+    tender_id: str,
+    request: Optional[MLPredictionRequest] = None
+):
+    """
+    Run ML prediction on a single tender.
+
+    This endpoint uses the ensemble model (Random Forest + XGBoost + Neural Network)
+    to generate a corruption risk score for the specified tender.
+
+    Path Parameters:
+    - tender_id: The tender ID to analyze
+
+    Request Body (optional):
+    - update_db: Whether to store the prediction in the database (default: True)
+
+    Returns:
+    - Prediction with risk score (0-100), risk level, confidence, and feature importance
+    """
+    update_db = request.update_db if request else True
+
+    conn = await get_db_connection()
+    try:
+        # First verify tender exists
+        tender = await conn.fetchrow("""
+            SELECT tender_id, title, procuring_entity, winner,
+                   estimated_value_mkd, status
+            FROM tenders
+            WHERE tender_id = $1
+        """, tender_id)
+
+        if not tender:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tender {tender_id} not found"
+            )
+
+        # Try to use ML predictor
+        try:
+            predictor = await _get_or_create_predictor()
+            result = await predictor.predict_single(tender_id, update_db=False)
+            await predictor.cleanup()
+
+            if not result:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Could not extract features for tender {tender_id}"
+                )
+
+            # Store prediction if requested
+            if update_db:
+                await _store_prediction(
+                    conn,
+                    tender_id=tender_id,
+                    risk_score=result.risk_score,
+                    risk_level=result.risk_level,
+                    confidence=result.confidence,
+                    model_scores=result.model_scores,
+                    top_features=None,  # Would need explainer for this
+                    feature_importance=result.feature_contributions
+                )
+
+            prediction = MLPredictionDetail(
+                tender_id=tender_id,
+                risk_score=round(result.risk_score, 2),
+                risk_level=result.risk_level,
+                confidence=round(result.confidence, 3),
+                model_scores={k: round(v, 2) for k, v in result.model_scores.items()},
+                top_features=None,
+                predicted_at=datetime.utcnow(),
+                model_version=ML_MODEL_VERSION
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"ML prediction failed, using fallback: {e}")
+            # Fallback: use existing corruption flags to calculate score
+            flags = await conn.fetch("""
+                SELECT score FROM corruption_flags
+                WHERE tender_id = $1 AND false_positive = FALSE
+            """, tender_id)
+
+            if flags:
+                risk_score = min(100, sum(f['score'] for f in flags))
+                risk_level = calculate_risk_level(risk_score)
+            else:
+                risk_score = 0
+                risk_level = "minimal"
+
+            prediction = MLPredictionDetail(
+                tender_id=tender_id,
+                risk_score=float(risk_score),
+                risk_level=risk_level,
+                confidence=0.5,  # Lower confidence for fallback
+                model_scores={"fallback": float(risk_score)},
+                top_features=None,
+                predicted_at=datetime.utcnow(),
+                model_version="fallback"
+            )
+
+        tender_info = {
+            "title": tender['title'],
+            "procuring_entity": tender['procuring_entity'],
+            "winner": tender['winner'],
+            "estimated_value_mkd": float(tender['estimated_value_mkd']) if tender['estimated_value_mkd'] else None,
+            "status": tender['status']
+        }
+
+        return MLPredictionResponse(
+            prediction=prediction,
+            tender_info=tender_info
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error predicting tender {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate prediction: {str(e)}"
+        )
+    finally:
+        await conn.close()
+
+
+@router.get("/predictions", response_model=MLPredictionsListResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def list_predictions(
+    min_score: float = Query(0, ge=0, le=100, description="Minimum risk score"),
+    risk_level: Optional[str] = Query(None, pattern="^(minimal|low|medium|high|critical)$"),
+    institution: Optional[str] = None,
+    winner: Optional[str] = None,
+    days: int = Query(30, ge=1, le=365, description="Predictions from last N days"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100)
+):
+    """
+    List recent ML predictions with filtering.
+
+    Query Parameters:
+    - min_score: Minimum risk score (0-100, default 0)
+    - risk_level: Filter by risk level (minimal/low/medium/high/critical)
+    - institution: Filter by procuring entity name (supports bilingual search)
+    - winner: Filter by winner name (supports bilingual search)
+    - days: Predictions from last N days (default 30)
+    - skip: Pagination offset
+    - limit: Results per page (max 100)
+
+    Returns paginated list of predictions with tender details.
+    """
+    conn = await get_db_connection()
+    try:
+        query = """
+        SELECT
+            mp.id,
+            mp.tender_id,
+            mp.risk_score,
+            mp.risk_level,
+            mp.confidence,
+            mp.model_scores,
+            mp.top_features,
+            mp.predicted_at,
+            mp.model_version,
+            t.title,
+            t.procuring_entity,
+            t.winner,
+            t.estimated_value_mkd
+        FROM ml_predictions mp
+        JOIN tenders t ON mp.tender_id = t.tender_id
+        WHERE mp.risk_score >= $1
+          AND mp.predicted_at > NOW() - INTERVAL '1 day' * $2
+        """
+        params = [min_score, days]
+        param_count = 2
+
+        if risk_level:
+            param_count += 1
+            query += f" AND mp.risk_level = ${param_count}"
+            params.append(risk_level)
+
+        if institution:
+            condition, search_params = build_bilingual_search_condition(
+                't.procuring_entity', institution, param_count + 1
+            )
+            query += f" AND {condition}"
+            params.extend(search_params)
+            param_count += len(search_params)
+
+        if winner:
+            condition, search_params = build_bilingual_search_condition(
+                't.winner', winner, param_count + 1
+            )
+            query += f" AND {condition}"
+            params.extend(search_params)
+            param_count += len(search_params)
+
+        # Count query
+        count_query = query.replace(
+            "SELECT\n            mp.id,",
+            "SELECT COUNT(*) FROM ("
+        ) + ") subq"
+        # Simpler count approach
+        count_params = params.copy()
+
+        # Get total count
+        count_result = await conn.fetchval(f"""
+            SELECT COUNT(*) FROM ml_predictions mp
+            JOIN tenders t ON mp.tender_id = t.tender_id
+            WHERE mp.risk_score >= $1
+              AND mp.predicted_at > NOW() - INTERVAL '1 day' * $2
+              {f"AND mp.risk_level = ${3}" if risk_level else ""}
+        """, *params[:3] if risk_level else params[:2])
+
+        # Add ordering and pagination
+        query += f" ORDER BY mp.risk_score DESC, mp.predicted_at DESC LIMIT ${param_count + 1} OFFSET ${param_count + 2}"
+        params.extend([limit, skip])
+
+        rows = await conn.fetch(query, *params)
+
+        predictions = []
+        for row in rows:
+            # Parse JSONB fields
+            model_scores_raw = row['model_scores']
+            if isinstance(model_scores_raw, str):
+                import json
+                model_scores = json.loads(model_scores_raw) if model_scores_raw else {}
+            else:
+                model_scores = model_scores_raw or {}
+
+            top_features_raw = row['top_features']
+            if isinstance(top_features_raw, str):
+                import json
+                top_features_data = json.loads(top_features_raw) if top_features_raw else None
+            else:
+                top_features_data = top_features_raw
+
+            predictions.append(MLPredictionDetail(
+                tender_id=row['tender_id'],
+                risk_score=float(row['risk_score']),
+                risk_level=row['risk_level'],
+                confidence=float(row['confidence']) if row['confidence'] else 0.5,
+                model_scores={k: float(v) for k, v in model_scores.items()},
+                top_features=_build_feature_contributions(top_features_data),
+                predicted_at=row['predicted_at'],
+                model_version=row['model_version']
+            ))
+
+        return MLPredictionsListResponse(
+            total=count_result or 0,
+            skip=skip,
+            limit=limit,
+            predictions=predictions
+        )
+
+    except Exception as e:
+        logger.error(f"Error listing predictions: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list predictions: {str(e)}"
+        )
+    finally:
+        await conn.close()
+
+
+@router.get("/predictions/{tender_id}", response_model=MLPredictionResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_prediction(tender_id: str):
+    """
+    Get the latest ML prediction for a specific tender.
+
+    Path Parameters:
+    - tender_id: The tender ID
+
+    Returns:
+    - Most recent prediction with risk score, confidence, model scores, and feature importance
+    - Returns 404 if no prediction exists for this tender
+    """
+    conn = await get_db_connection()
+    try:
+        # Get tender info
+        tender = await conn.fetchrow("""
+            SELECT tender_id, title, procuring_entity, winner,
+                   estimated_value_mkd, status
+            FROM tenders
+            WHERE tender_id = $1
+        """, tender_id)
+
+        if not tender:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tender {tender_id} not found"
+            )
+
+        # Get latest prediction
+        prediction_row = await conn.fetchrow("""
+            SELECT
+                tender_id, risk_score, risk_level, confidence,
+                model_scores, top_features, feature_importance,
+                predicted_at, model_version
+            FROM ml_predictions
+            WHERE tender_id = $1
+            ORDER BY predicted_at DESC
+            LIMIT 1
+        """, tender_id)
+
+        if not prediction_row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No ML prediction found for tender {tender_id}. Use POST /api/corruption/predict/{tender_id} to generate one."
+            )
+
+        # Parse JSONB fields
+        import json
+        model_scores_raw = prediction_row['model_scores']
+        if isinstance(model_scores_raw, str):
+            model_scores = json.loads(model_scores_raw) if model_scores_raw else {}
+        else:
+            model_scores = model_scores_raw or {}
+
+        top_features_raw = prediction_row['top_features']
+        if isinstance(top_features_raw, str):
+            top_features_data = json.loads(top_features_raw) if top_features_raw else None
+        else:
+            top_features_data = top_features_raw
+
+        prediction = MLPredictionDetail(
+            tender_id=prediction_row['tender_id'],
+            risk_score=float(prediction_row['risk_score']),
+            risk_level=prediction_row['risk_level'],
+            confidence=float(prediction_row['confidence']) if prediction_row['confidence'] else 0.5,
+            model_scores={k: float(v) for k, v in model_scores.items()},
+            top_features=_build_feature_contributions(top_features_data),
+            predicted_at=prediction_row['predicted_at'],
+            model_version=prediction_row['model_version']
+        )
+
+        tender_info = {
+            "title": tender['title'],
+            "procuring_entity": tender['procuring_entity'],
+            "winner": tender['winner'],
+            "estimated_value_mkd": float(tender['estimated_value_mkd']) if tender['estimated_value_mkd'] else None,
+            "status": tender['status']
+        }
+
+        return MLPredictionResponse(
+            prediction=prediction,
+            tender_info=tender_info
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting prediction for {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get prediction: {str(e)}"
+        )
+    finally:
+        await conn.close()
+
+
+@router.post("/batch-predict", response_model=BatchPredictionResponse)
+async def batch_predict(
+    request: BatchPredictionRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Run ML predictions on multiple tenders.
+
+    This endpoint processes multiple tenders in a single batch, which is more
+    efficient than calling the single prediction endpoint multiple times.
+
+    Request Body:
+    - tender_ids: List of tender IDs to analyze (max 100)
+    - update_db: Whether to store predictions in database (default: True)
+
+    Returns:
+    - Batch summary with predictions for each tender
+    - Failed tenders are noted separately
+
+    Note: For large batches (>100), consider using the background prediction pipeline.
+    """
+    import uuid
+    batch_id = str(uuid.uuid4())
+
+    conn = await get_db_connection()
+    try:
+        # Verify all tenders exist
+        tender_ids = request.tender_ids
+        existing = await conn.fetch("""
+            SELECT tender_id FROM tenders
+            WHERE tender_id = ANY($1::varchar[])
+        """, tender_ids)
+
+        existing_ids = {r['tender_id'] for r in existing}
+        missing_ids = set(tender_ids) - existing_ids
+
+        if len(missing_ids) == len(tender_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="None of the specified tenders were found"
+            )
+
+        predictions = []
+        failed_ids = list(missing_ids)
+        high_risk_count = 0
+        critical_count = 0
+
+        # Try to use ML predictor for batch prediction
+        try:
+            predictor = await _get_or_create_predictor()
+            valid_ids = list(existing_ids)
+
+            # Process in batches of 50
+            batch_size = 50
+            for i in range(0, len(valid_ids), batch_size):
+                batch_ids = valid_ids[i:i + batch_size]
+                results = await predictor.predict_batch(batch_ids)
+
+                for result in results:
+                    # Store prediction if requested
+                    if request.update_db:
+                        try:
+                            await _store_prediction(
+                                conn,
+                                tender_id=result.tender_id,
+                                risk_score=result.risk_score,
+                                risk_level=result.risk_level,
+                                confidence=result.confidence,
+                                model_scores=result.model_scores
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to store prediction for {result.tender_id}: {e}")
+
+                    prediction = MLPredictionDetail(
+                        tender_id=result.tender_id,
+                        risk_score=round(result.risk_score, 2),
+                        risk_level=result.risk_level,
+                        confidence=round(result.confidence, 3),
+                        model_scores={k: round(v, 2) for k, v in result.model_scores.items()},
+                        top_features=None,
+                        predicted_at=datetime.utcnow(),
+                        model_version=ML_MODEL_VERSION
+                    )
+                    predictions.append(prediction)
+
+                    if result.risk_level == 'critical':
+                        critical_count += 1
+                    elif result.risk_level == 'high':
+                        high_risk_count += 1
+
+            await predictor.cleanup()
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"ML batch prediction failed, using fallback: {e}")
+            # Fallback: use existing flags
+            for tid in existing_ids:
+                flags = await conn.fetch("""
+                    SELECT score FROM corruption_flags
+                    WHERE tender_id = $1 AND false_positive = FALSE
+                """, tid)
+
+                if flags:
+                    risk_score = min(100, sum(f['score'] for f in flags))
+                    risk_level = calculate_risk_level(risk_score)
+                else:
+                    risk_score = 0
+                    risk_level = "minimal"
+
+                prediction = MLPredictionDetail(
+                    tender_id=tid,
+                    risk_score=float(risk_score),
+                    risk_level=risk_level,
+                    confidence=0.5,
+                    model_scores={"fallback": float(risk_score)},
+                    top_features=None,
+                    predicted_at=datetime.utcnow(),
+                    model_version="fallback"
+                )
+                predictions.append(prediction)
+
+                if risk_level == 'critical':
+                    critical_count += 1
+                elif risk_level == 'high':
+                    high_risk_count += 1
+
+        # Store batch record
+        try:
+            await conn.execute("""
+                INSERT INTO ml_prediction_batches (
+                    batch_id, started_at, completed_at, status,
+                    total_tenders, processed_count, high_risk_count, critical_count,
+                    failed_tender_ids, model_version
+                ) VALUES ($1, NOW(), NOW(), 'completed', $2, $3, $4, $5, $6, $7)
+            """,
+                uuid.UUID(batch_id),
+                len(tender_ids),
+                len(predictions),
+                high_risk_count,
+                critical_count,
+                failed_ids if failed_ids else None,
+                ML_MODEL_VERSION
+            )
+        except Exception as e:
+            logger.warning(f"Failed to store batch record: {e}")
+
+        return BatchPredictionResponse(
+            batch_id=batch_id,
+            total_requested=len(tender_ids),
+            total_processed=len(predictions),
+            high_risk_count=high_risk_count,
+            critical_count=critical_count,
+            failed_count=len(failed_ids),
+            predictions=predictions
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in batch prediction: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to run batch prediction: {str(e)}"
+        )
+    finally:
+        await conn.close()

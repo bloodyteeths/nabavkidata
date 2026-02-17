@@ -12,6 +12,8 @@ from decimal import Decimal
 
 from database import get_db
 from utils.transliteration import get_search_variants
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
 router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 
@@ -187,7 +189,7 @@ class SupplierStatsResponse(BaseModel):
     average_win_rate: Optional[float]
 
 
-@router.get("/stats", response_model=SupplierStatsResponse)
+@router.get("/stats", response_model=SupplierStatsResponse, dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def get_supplier_stats(db: AsyncSession = Depends(get_db)):
     """Get aggregate statistics for all suppliers"""
     query = text("""
@@ -214,7 +216,7 @@ async def get_supplier_stats(db: AsyncSession = Depends(get_db)):
 # IMPORTANT: Must be defined BEFORE /{supplier_id} to avoid route conflict
 # ============================================================================
 
-@router.get("/winners")
+@router.get("/winners", dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def get_known_winners(
     search: str = Query(None, description="Optional search filter"),
     limit: int = Query(50, ge=1, le=200),
@@ -322,7 +324,7 @@ async def get_known_winners(
 # IMPORTANT: Must be defined BEFORE /{supplier_id} to avoid route conflict
 # ============================================================================
 
-@router.get("/search/{company_name}", response_model=List[SupplierResponse])
+@router.get("/search/{company_name}", response_model=List[SupplierResponse], dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
 async def search_suppliers_by_name(
     company_name: str,
     limit: int = Query(10, ge=1, le=50),
@@ -386,7 +388,7 @@ async def search_suppliers_by_name(
 # GET SUPPLIER BY ID
 # ============================================================================
 
-@router.get("/{supplier_id}", response_model=SupplierDetailResponse)
+@router.get("/{supplier_id}", response_model=SupplierDetailResponse, dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
 async def get_supplier(
     supplier_id: str,
     include_participations: bool = Query(True, description="Include recent tender participations"),

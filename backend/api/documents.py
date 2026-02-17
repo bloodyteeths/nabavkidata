@@ -22,6 +22,8 @@ from database import get_db
 from models import Document, Tender, User
 from schemas import DocumentResponse, DocumentListResponse, DocumentCreate, MessageResponse, DocumentContentResponse
 from middleware.rbac import get_current_user, require_admin
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -274,7 +276,7 @@ async def delete_document(
     return MessageResponse(message="Document deleted successfully")
 
 
-@router.get("/{doc_id}/content", response_model=DocumentContentResponse)
+@router.get("/{doc_id}/content", response_model=DocumentContentResponse, dependencies=[Depends(require_module(ModuleName.DOCUMENT_EXTRACTION))])
 async def get_document_content(
     doc_id: UUID,
     generate_ai_summary: bool = Query(True, description="Generate AI summary if not cached"),
