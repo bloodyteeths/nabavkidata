@@ -55,7 +55,7 @@ export function TopWinners() {
     } else if (value >= 1_000) {
       return `${(value / 1_000).toFixed(0)} илј`;
     }
-    return value.toLocaleString();
+    return value.toString();
   };
 
   const getRankBadgeVariant = (rank: number) => {
@@ -105,7 +105,7 @@ export function TopWinners() {
           {data && (
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Вкупно победници</p>
-              <p className="text-2xl font-bold">{data.total?.toLocaleString() || 0}</p>
+              <p className="text-2xl font-bold">{data.total || 0}</p>
             </div>
           )}
         </div>
@@ -195,7 +195,7 @@ export function TopWinners() {
                           <div className="flex items-center justify-center gap-2">
                             <TrendingUp className="h-4 w-4 text-green-600" />
                             <span className="font-bold text-green-600">
-                              {winner.win_count?.toLocaleString() || 0}
+                              {winner.win_count || 0}
                             </span>
                           </div>
                           {/* Progress bar showing relative win count */}

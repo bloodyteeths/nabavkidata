@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { api, BriefingHistoryItem } from "@/lib/api";
 import Link from "next/link";
+import { formatDate as formatDateUtil, formatDateTime } from "@/lib/utils";
 
 export function BriefingHistory() {
   const [history, setHistory] = useState<BriefingHistoryItem[]>([]);
@@ -40,27 +41,8 @@ export function BriefingHistory() {
 
   const formatDate = (dateStr: string) => {
     try {
-      const date = new Date(dateStr);
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      // Check if it's today
-      if (date.toDateString() === today.toDateString()) {
-        return "Денес";
-      }
-
-      // Check if it's yesterday
-      if (date.toDateString() === yesterday.toDateString()) {
-        return "Вчера";
-      }
-
-      // Otherwise format normally
-      return date.toLocaleDateString('mk-MK', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-      });
+      // Use deterministic formatter from utils (timezone-safe)
+      return formatDateUtil(dateStr, { month: 'short', day: 'numeric' });
     } catch {
       return dateStr;
     }
@@ -163,7 +145,7 @@ function HistoryItem({ item, formatDate }: HistoryItemProps) {
       {/* Generation Time */}
       {item.generated_at && (
         <p className="text-xs text-muted-foreground mt-2">
-          Генериран на {new Date(item.generated_at).toLocaleString('mk-MK', {
+          Генериран на {formatDateTime(item.generated_at, {
             hour: '2-digit',
             minute: '2-digit',
           })}

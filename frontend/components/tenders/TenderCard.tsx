@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,8 +38,13 @@ function getEffectiveStatus(status?: string, closingDate?: string): string {
 }
 
 export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
-  // Compute effective status based on closing_date
-  const effectiveStatus = getEffectiveStatus(tender.status, tender.closing_date);
+  // Defer date-based status computation to after hydration to avoid
+  // server/client timezone mismatch (React error #425)
+  const [effectiveStatus, setEffectiveStatus] = useState(tender.status || 'open');
+
+  useEffect(() => {
+    setEffectiveStatus(getEffectiveStatus(tender.status, tender.closing_date));
+  }, [tender.status, tender.closing_date]);
 
   const getStatusVariant = (status?: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (status?.toLowerCase()) {

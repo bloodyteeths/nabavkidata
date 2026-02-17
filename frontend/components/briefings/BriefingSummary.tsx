@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, TrendingUp, Target, Users } from "lucide-react";
 import { DailyBriefing } from "@/lib/api";
+import { formatDateTime } from "@/lib/utils";
 
 interface BriefingSummaryProps {
   briefing: DailyBriefing | null;
@@ -105,7 +106,7 @@ export function BriefingSummary({ briefing }: BriefingSummaryProps) {
         {/* Generation timestamp */}
         {briefing.generated_at && (
           <p className="text-xs text-muted-foreground text-center">
-            Генериран на {new Date(briefing.generated_at).toLocaleString('mk-MK', {
+            Генериран на {formatDateTime(briefing.generated_at, {
               hour: '2-digit',
               minute: '2-digit',
             })}

@@ -44,7 +44,7 @@ export default function LiveUserCounterSr() {
                     transition={{ duration: 0.5 }}
                     className="font-semibold notranslate"
                 >
-                    {count.toLocaleString('sr-RS')}+
+                    {count.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}+
                 </motion.span>
                 {" "}kompanija već koristi Nabavkidata
             </span>

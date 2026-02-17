@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { BriefingTenderMatch } from "@/lib/api";
 import Link from "next/link";
+import { formatCurrency as formatCurrencyUtil, formatDate as formatDateUtil } from "@/lib/utils";
 
 interface AllMatchesProps {
   matches?: BriefingTenderMatch[];
@@ -166,23 +167,12 @@ function MatchRow({ match }: MatchRowProps) {
 
   const formatCurrency = (value?: number) => {
     if (!value) return "Нема податок";
-    return new Intl.NumberFormat('mk-MK', {
-      style: 'decimal',
-      maximumFractionDigits: 0,
-    }).format(value) + ' МКД';
+    return formatCurrencyUtil(value);
   };
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return null;
-    try {
-      return new Date(dateStr).toLocaleDateString('mk-MK', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
+    return formatDateUtil(dateStr);
   };
 
   return (

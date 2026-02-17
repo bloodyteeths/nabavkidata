@@ -20,7 +20,7 @@ export function TenderStats({ total, open, closed, awarded, cancelled = 0 }: Ten
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{total.toLocaleString()}</div>
+          <div className="text-2xl font-bold">{total}</div>
           <p className="text-xs text-muted-foreground">Тендери</p>
         </CardContent>
       </Card>
@@ -33,7 +33,7 @@ export function TenderStats({ total, open, closed, awarded, cancelled = 0 }: Ten
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{open.toLocaleString()}</div>
+          <div className="text-2xl font-bold">{open}</div>
           <p className="text-xs text-muted-foreground">Активни</p>
         </CardContent>
       </Card>
@@ -46,7 +46,7 @@ export function TenderStats({ total, open, closed, awarded, cancelled = 0 }: Ten
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{closed.toLocaleString()}</div>
+          <div className="text-2xl font-bold">{closed}</div>
           <p className="text-xs text-muted-foreground">Истечени</p>
         </CardContent>
       </Card>
@@ -59,7 +59,7 @@ export function TenderStats({ total, open, closed, awarded, cancelled = 0 }: Ten
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{awarded.toLocaleString()}</div>
+          <div className="text-2xl font-bold">{awarded}</div>
           <p className="text-xs text-muted-foreground">Завршени</p>
         </CardContent>
       </Card>
@@ -72,7 +72,7 @@ export function TenderStats({ total, open, closed, awarded, cancelled = 0 }: Ten
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{cancelled.toLocaleString()}</div>
+          <div className="text-2xl font-bold">{cancelled}</div>
           <p className="text-xs text-muted-foreground">Поништени</p>
         </CardContent>
       </Card>

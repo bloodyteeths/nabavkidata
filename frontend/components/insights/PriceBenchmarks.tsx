@@ -236,7 +236,7 @@ export function PriceBenchmarks() {
                             </div>
                             <div className="flex items-center gap-4 mt-1">
                               <span className="text-xs text-muted-foreground">
-                                {cpv.tender_count?.toLocaleString() || 0} тендери
+                                {cpv.tender_count || 0} тендери
                               </span>
                               <Progress
                                 value={((cpv.avg_value || 0) / maxBenchmarkValue) * 100}

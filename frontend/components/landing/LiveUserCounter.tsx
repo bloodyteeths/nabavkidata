@@ -4,6 +4,11 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users } from "lucide-react";
 
+// Deterministic number formatter (always uses period as thousands separator for mk-MK)
+function formatCount(n: number): string {
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 export default function LiveUserCounter() {
     const [count, setCount] = useState(4365);
     const [increment, setIncrement] = useState<number | null>(null);
@@ -44,7 +49,7 @@ export default function LiveUserCounter() {
                     transition={{ duration: 0.5 }}
                     className="font-semibold notranslate"
                 >
-                    {count.toLocaleString('mk-MK')}+
+                    {formatCount(count)}+
                 </motion.span>
                 {" "}компании веќе користат Nabavkidata
             </span>

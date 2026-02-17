@@ -94,7 +94,7 @@ export default function PricingSectionSr() {
         if (curr === "eur") {
             return `€${amount}`;
         }
-        return amount.toLocaleString("sr-RS");
+        return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     };
 
     const handleSelectPlan = async (planId: string) => {

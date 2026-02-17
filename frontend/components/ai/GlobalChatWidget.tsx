@@ -202,10 +202,10 @@ export function GlobalChatWidget() {
   };
 
   const formatTime = (date: Date) => {
-    return new Intl.DateTimeFormat("mk-MK", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
+    // Deterministic formatter - avoids server/client timezone mismatch
+    const h = date.getHours().toString().padStart(2, "0");
+    const m = date.getMinutes().toString().padStart(2, "0");
+    return `${h}:${m}`;
   };
 
   const goToFullChat = () => {
