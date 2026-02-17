@@ -100,7 +100,7 @@ export function GlobalChatWidget() {
   const loadUsageStatus = async () => {
     try {
       const status = await api.getSubscriptionStatus();
-      const remaining = Math.max(0, status.daily_queries_limit - status.daily_queries_used);
+      const remaining = status.daily_queries_limit === -1 ? 999 : Math.max(0, status.daily_queries_limit - status.daily_queries_used);
       setRemainingQueries(remaining);
     } catch (error) {
       console.error("Failed to load usage status:", error);

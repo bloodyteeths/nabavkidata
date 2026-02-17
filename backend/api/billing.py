@@ -595,7 +595,7 @@ async def get_billing_status(
     usage = await get_usage_stats(db, str(current_user.user_id), period_start)
 
     # Check trial status from users table (new trial system)
-    tier = current_user.subscription_tier or "free"
+    tier = (current_user.subscription_tier or "free").lower()
     in_trial = False
     trial_days_remaining = 0
     trial_ends_at = None

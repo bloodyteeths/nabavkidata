@@ -113,7 +113,7 @@ export default function ChatPage() {
       return;
     }
 
-    if (usageStatus && usageStatus.daily_queries_used >= usageStatus.daily_queries_limit) {
+    if (usageStatus && usageStatus.daily_queries_limit !== -1 && usageStatus.daily_queries_used >= usageStatus.daily_queries_limit) {
       return;
     }
 
@@ -173,7 +173,7 @@ export default function ChatPage() {
     handleSendMessage(question);
   };
 
-  const isLimitReached = usageStatus && usageStatus.daily_queries_used >= usageStatus.daily_queries_limit;
+  const isLimitReached = usageStatus && usageStatus.daily_queries_limit !== -1 && usageStatus.daily_queries_used >= usageStatus.daily_queries_limit;
   const isBlocked = usageStatus?.is_blocked || usageStatus?.is_trial_expired;
   const remainingQueries = usageStatus ? Math.max(0, usageStatus.daily_queries_limit - usageStatus.daily_queries_used) : 0;
   const currentTier = usageStatus?.tier?.toLowerCase() || "free";
