@@ -98,20 +98,21 @@ export default function UserTable({
   const getSubscriptionBadge = (subscription: string) => {
     const colors: Record<string, string> = {
       free: 'bg-gray-500 text-white',
-      standard: 'bg-blue-600 text-white',
-      pro: 'bg-purple-600 text-white',
+      starter: 'bg-blue-600 text-white',
+      professional: 'bg-purple-600 text-white',
       enterprise: 'bg-amber-600 text-white',
+    };
+
+    const labels: Record<string, string> = {
+      free: 'Free',
+      starter: 'Starter',
+      professional: 'Pro',
+      enterprise: 'Enterprise',
     };
 
     return (
       <Badge className={colors[subscription] || 'bg-gray-500 text-white'}>
-        {subscription === 'free'
-          ? 'Бесплатен'
-          : subscription === 'standard'
-          ? 'Стандард'
-          : subscription === 'pro'
-          ? 'Про'
-          : 'Ентерпрајз'}
+        {labels[subscription] || subscription}
       </Badge>
     );
   };

@@ -83,8 +83,8 @@ class InvestigationRateLimiter:
         # Define tier limits (requests per hour)
         tier_limits = {
             "free": 10,
-            "basic": 50,
-            "pro": 200,
+            "starter": 50,
+            "professional": 200,
             "enterprise": 1000
         }
 
@@ -119,8 +119,8 @@ class InvestigationRateLimiter:
         """Get number of remaining requests for user"""
         tier_limits = {
             "free": 10,
-            "basic": 50,
-            "pro": 200,
+            "starter": 50,
+            "professional": 200,
             "enterprise": 1000
         }
 
@@ -500,8 +500,8 @@ async def get_investigation_limits(
 
     tier_limits = {
         "free": 10,
-        "basic": 50,
-        "pro": 200,
+        "starter": 50,
+        "professional": 200,
         "enterprise": 1000
     }
 

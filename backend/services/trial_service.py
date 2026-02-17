@@ -321,7 +321,7 @@ class TrialService:
             }
 
         # Already on a paid plan
-        if tier and tier.lower() in ("start", "pro", "team", "enterprise"):
+        if tier and tier.lower() in ("starter", "professional", "enterprise"):
             return {
                 "eligible": False,
                 "reason": "Веќе имате платен план",

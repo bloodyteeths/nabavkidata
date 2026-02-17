@@ -3,15 +3,15 @@ Stripe Subscription Integration for nabavkidata.com
 Supports dual currency: MKD (card only) and EUR (card + SEPA)
 
 Pricing:
-- Start: 1,990 MKD / €39 per month
-- Pro: 5,990 MKD / €99 per month
-- Team: 12,990 MKD / €199 per month
+- Starter: 1,990 MKD / €39 per month
+- Professional: 5,990 MKD / €99 per month
+- Enterprise: 12,990 MKD / €199 per month
 
 Environment Variables:
 - STRIPE_SECRET_KEY: Stripe secret API key
 - STRIPE_WEBHOOK_SECRET: Webhook signing secret
-- STRIPE_MKD_START_MONTHLY: Price ID for Start plan in MKD
-- STRIPE_EUR_PRO_YEARLY: Price ID for Pro plan yearly in EUR
+- STRIPE_MKD_STARTER_MONTHLY: Price ID for Starter plan in MKD
+- STRIPE_EUR_PROFESSIONAL_YEARLY: Price ID for Professional plan yearly in EUR
 - etc.
 """
 import os
@@ -25,8 +25,8 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 # Legacy price IDs (backward compatibility)
 PRICES = {
-    "standard": os.getenv("STRIPE_PRICE_STANDARD", "price_standard"),
-    "pro": os.getenv("STRIPE_PRICE_PRO", "price_pro"),
+    "starter": os.getenv("STRIPE_PRICE_STANDARD", "price_standard"),
+    "professional": os.getenv("STRIPE_PRICE_PRO", "price_pro"),
     "enterprise": os.getenv("STRIPE_PRICE_ENTERPRISE", "price_enterprise")
 }
 
@@ -34,31 +34,31 @@ PRICES = {
 # Format: STRIPE_{CURRENCY}_{TIER}_{INTERVAL}
 PRICE_IDS = {
     "mkd": {
-        "start": {
-            "monthly": os.getenv("STRIPE_MKD_START_MONTHLY"),
-            "yearly": os.getenv("STRIPE_MKD_START_YEARLY"),
+        "starter": {
+            "monthly": os.getenv("STRIPE_MKD_STARTER_MONTHLY"),
+            "yearly": os.getenv("STRIPE_MKD_STARTER_YEARLY"),
         },
-        "pro": {
-            "monthly": os.getenv("STRIPE_MKD_PRO_MONTHLY"),
-            "yearly": os.getenv("STRIPE_MKD_PRO_YEARLY"),
+        "professional": {
+            "monthly": os.getenv("STRIPE_MKD_PROFESSIONAL_MONTHLY"),
+            "yearly": os.getenv("STRIPE_MKD_PROFESSIONAL_YEARLY"),
         },
-        "team": {
-            "monthly": os.getenv("STRIPE_MKD_TEAM_MONTHLY"),
-            "yearly": os.getenv("STRIPE_MKD_TEAM_YEARLY"),
+        "enterprise": {
+            "monthly": os.getenv("STRIPE_MKD_ENTERPRISE_MONTHLY"),
+            "yearly": os.getenv("STRIPE_MKD_ENTERPRISE_YEARLY"),
         },
     },
     "eur": {
-        "start": {
-            "monthly": os.getenv("STRIPE_EUR_START_MONTHLY"),
-            "yearly": os.getenv("STRIPE_EUR_START_YEARLY"),
+        "starter": {
+            "monthly": os.getenv("STRIPE_EUR_STARTER_MONTHLY"),
+            "yearly": os.getenv("STRIPE_EUR_STARTER_YEARLY"),
         },
-        "pro": {
-            "monthly": os.getenv("STRIPE_EUR_PRO_MONTHLY"),
-            "yearly": os.getenv("STRIPE_EUR_PRO_YEARLY"),
+        "professional": {
+            "monthly": os.getenv("STRIPE_EUR_PROFESSIONAL_MONTHLY"),
+            "yearly": os.getenv("STRIPE_EUR_PROFESSIONAL_YEARLY"),
         },
-        "team": {
-            "monthly": os.getenv("STRIPE_EUR_TEAM_MONTHLY"),
-            "yearly": os.getenv("STRIPE_EUR_TEAM_YEARLY"),
+        "enterprise": {
+            "monthly": os.getenv("STRIPE_EUR_ENTERPRISE_MONTHLY"),
+            "yearly": os.getenv("STRIPE_EUR_ENTERPRISE_YEARLY"),
         },
     },
 }
@@ -92,7 +92,7 @@ def create_checkout_session(
     Args:
         user_id: User's UUID
         email: User's email
-        tier: Subscription tier (start, pro, team)
+        tier: Subscription tier (starter, professional, enterprise)
         currency: Payment currency (mkd or eur)
         interval: Billing interval (monthly or yearly)
         trial_days: Number of trial days (0 = no trial)

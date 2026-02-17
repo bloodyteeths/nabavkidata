@@ -140,7 +140,7 @@ async def show_stats():
             # Paid subscribers
             paid = await conn.fetchval("""
                 SELECT COUNT(*) FROM users
-                WHERE subscription_tier IN ('start', 'pro', 'team', 'enterprise')
+                WHERE subscription_tier IN ('starter', 'professional', 'enterprise')
             """)
 
             # Usage counters today

@@ -123,14 +123,14 @@ class EntitlementChecker:
     def _get_upgrade_message(self, current_tier: str, module: ModuleName) -> str:
         """Generate upgrade suggestion message"""
         module_to_tier = {
-            ModuleName.ANALYTICS: "start",
-            ModuleName.RISK_ANALYSIS: "pro",
-            ModuleName.COMPETITOR_TRACKING: "start",
-            ModuleName.EXPORT_PDF: "pro",
-            ModuleName.API_ACCESS: "team",
-            ModuleName.TEAM_MANAGEMENT: "team",
+            ModuleName.ANALYTICS: "starter",
+            ModuleName.RISK_ANALYSIS: "professional",
+            ModuleName.COMPETITOR_TRACKING: "starter",
+            ModuleName.EXPORT_PDF: "professional",
+            ModuleName.API_ACCESS: "enterprise",
+            ModuleName.TEAM_MANAGEMENT: "enterprise",
         }
-        suggested_tier = module_to_tier.get(module, "pro")
+        suggested_tier = module_to_tier.get(module, "professional")
         return f"Оваа функција бара {suggested_tier.upper()} план. Надградете го вашиот план за пристап."
 
 

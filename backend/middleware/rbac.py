@@ -213,7 +213,6 @@ def get_user_role(user: User) -> UserRole:
         "admin": UserRole.ADMIN,
         "enterprise": UserRole.ENTERPRISE,
         "professional": UserRole.PROFESSIONAL,
-        "pro": UserRole.PROFESSIONAL,
         "starter": UserRole.STARTER,
         "free": UserRole.FREE,
     }

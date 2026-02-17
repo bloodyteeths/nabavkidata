@@ -253,7 +253,7 @@ export default function RiskAnalysisPage() {
 
   // Load stats separately (cached)
   useEffect(() => {
-    if (!authChecked || !isLoggedIn || !["pro", "team", "enterprise"].includes(tier)) return;
+    if (!authChecked || !isLoggedIn || !["professional", "enterprise"].includes(tier)) return;
     async function loadStats() {
       try {
         const res = await fetch(`${API_URL}/api/corruption/stats`);
@@ -653,7 +653,7 @@ export default function RiskAnalysisPage() {
     );
   }
 
-  if (!isLoggedIn || !["pro", "team", "enterprise"].includes(tier)) {
+  if (!isLoggedIn || !["professional", "enterprise"].includes(tier)) {
     return (
       <div className="p-6 space-y-6">
         <div>

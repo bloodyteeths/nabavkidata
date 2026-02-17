@@ -97,30 +97,71 @@ class NabavkiSpider(scrapy.Spider):
 
     # Custom settings to ensure proper request processing
     custom_settings = {
-        "DOWNLOAD_DELAY": 0.25,
-        "CONCURRENT_REQUESTS": 1,
-        "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
-        "PLAYWRIGHT_MAX_PAGES_PER_CONTEXT": 1,
-        "PLAYWRIGHT_MAX_CONTEXTS": 1,
+        "DOWNLOAD_DELAY": 0.1,
+        "CONCURRENT_REQUESTS": 8,
+        "CONCURRENT_REQUESTS_PER_DOMAIN": 4,
+        "PLAYWRIGHT_MAX_PAGES_PER_CONTEXT": 4,
+        "PLAYWRIGHT_MAX_CONTEXTS": 2,
         "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
         "DUPEFILTER_CLASS": "scrapy.dupefilters.BaseDupeFilter",
         "AUTOTHROTTLE_ENABLED": True,
-        "AUTOTHROTTLE_START_DELAY": 0.5,
-        "AUTOTHROTTLE_MAX_DELAY": 2.0,
+        "AUTOTHROTTLE_START_DELAY": 0.1,
+        "AUTOTHROTTLE_MAX_DELAY": 0.5,
     }
 
-    def __init__(self, category='active', mode='scrape', *args, **kwargs):
+    def __init__(self, category='active', mode='scrape', year=None, start_page=1,
+                 max_listing_pages=None, reverse=False, year_filter=None,
+                 date_from=None, date_to=None, force_full_scan=False, *args, **kwargs):
         """
-        Initialize spider with category and mode parameters.
+        Initialize spider with category, mode, and pagination parameters.
 
         Args:
             category: One of 'active', 'awarded', 'cancelled', 'historical', 'all'
             mode: 'scrape' (default), 'discover' (probe URLs), 'incremental' (only new/changed),
                   or 'full' (alias for scrape)
+            year: Archive year to scrape (2008-2021). If None or 'current', uses current period.
+            start_page: Starting page number for pagination (default: 1)
+            max_listing_pages: Maximum listing pages to scrape (default: None = unlimited)
+            reverse: If True, paginate in reverse order (last page first)
+            year_filter: Filter to only save tenders from specific years.
+                        Format: "2024" (single year), "2022-2024" (range), or "2022,2023,2024" (list)
+                        Tenders outside this range will be skipped after extraction.
+            date_from: Start date for server-side filtering (format: YYYY-MM-DD).
+                      Works with archive years to target specific date ranges.
+            date_to: End date for server-side filtering (format: YYYY-MM-DD).
+            force_full_scan: If True, continue pagination through ALL pages even when hitting
+                            duplicate links. Use for historical backfills to ensure complete data.
         """
         super().__init__(*args, **kwargs)
         self.category = category.lower()
         self.mode = mode.lower()
+
+        # Parse year parameter (for archive selection)
+        if year is None or str(year).lower() in ('none', 'current', ''):
+            self.year = None  # Current period
+        else:
+            self.year = int(year)
+
+        # Parse year_filter parameter (for filtering extracted tenders)
+        self.year_filter = self._parse_year_filter(year_filter)
+
+        # Parse date_from and date_to for server-side date filtering
+        self.date_from = self._parse_date(date_from)
+        self.date_to = self._parse_date(date_to)
+
+        # Force full scan - continue through ALL pages even with duplicates
+        self.force_full_scan = str(force_full_scan).lower() in ('true', '1', 'yes')
+
+        # Pagination parameters
+        self.start_page = int(start_page)
+        self.max_listing_pages = int(max_listing_pages) if max_listing_pages else None
+
+        # Table ID for DataTable - will be detected dynamically
+        # Different pages use different table IDs:
+        # - notices-grid: for public notices/tenders
+        # - contracts-grid: for contracts/awarded
+        self.table_id = None
+        self.reverse = str(reverse).lower() in ('true', '1', 'yes')
 
         # Normalize mode aliases
         if self.mode == 'full':
@@ -136,6 +177,135 @@ class NabavkiSpider(scrapy.Spider):
             'categories_discovered': [],
             'categories_failed': [],
         }
+
+        # Log parameters
+        date_info = f", date_from={self.date_from}, date_to={self.date_to}" if self.date_from or self.date_to else ""
+        full_scan_info = ", force_full_scan=True" if self.force_full_scan else ""
+        logger.warning(f"Spider initialized: category={self.category}, year={self.year}, "
+                      f"start_page={self.start_page}, max_listing_pages={self.max_listing_pages}, "
+                      f"reverse={self.reverse}, year_filter={self.year_filter}{date_info}{full_scan_info}")
+
+    def _parse_year_filter(self, year_filter):
+        """
+        Parse year_filter parameter into a set of years to include.
+
+        Args:
+            year_filter: String like "2024", "2022-2024", or "2022,2023,2024"
+
+        Returns:
+            Set of years to include, or None if no filter
+        """
+        if not year_filter or str(year_filter).lower() in ('none', ''):
+            return None
+
+        years = set()
+        year_filter = str(year_filter).strip()
+
+        # Handle range format: "2022-2024"
+        if '-' in year_filter and ',' not in year_filter:
+            parts = year_filter.split('-')
+            if len(parts) == 2:
+                try:
+                    start_year = int(parts[0].strip())
+                    end_year = int(parts[1].strip())
+                    years = set(range(start_year, end_year + 1))
+                except ValueError:
+                    logger.warning(f"Invalid year_filter range: {year_filter}")
+                    return None
+
+        # Handle comma-separated format: "2022,2023,2024"
+        elif ',' in year_filter:
+            for part in year_filter.split(','):
+                try:
+                    years.add(int(part.strip()))
+                except ValueError:
+                    pass
+
+        # Handle single year: "2024"
+        else:
+            try:
+                years.add(int(year_filter))
+            except ValueError:
+                logger.warning(f"Invalid year_filter: {year_filter}")
+                return None
+
+        if years:
+            logger.info(f"Year filter active: will only save tenders from years {sorted(years)}")
+            return years
+        return None
+
+    def _parse_date(self, date_str):
+        """
+        Parse date string into a date object.
+
+        Args:
+            date_str: Date string in YYYY-MM-DD format, or None
+
+        Returns:
+            datetime.date object, or None if invalid/empty
+        """
+        if not date_str or str(date_str).lower() in ('none', ''):
+            return None
+
+        try:
+            from datetime import datetime as dt
+            # Support multiple formats
+            date_str = str(date_str).strip()
+            for fmt in ('%Y-%m-%d', '%d.%m.%Y', '%d/%m/%Y'):
+                try:
+                    parsed = dt.strptime(date_str, fmt).date()
+                    logger.info(f"Parsed date '{date_str}' -> {parsed} (type: {type(parsed).__name__})")
+                    return parsed
+                except ValueError:
+                    continue
+            logger.warning(f"Invalid date format: {date_str} (use YYYY-MM-DD)")
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to parse date '{date_str}': {e}")
+            return None
+
+    def _tender_passes_year_filter(self, tender):
+        """
+        Check if a tender passes the year filter.
+
+        Args:
+            tender: Tender dict with publication_date or opening_date
+
+        Returns:
+            True if tender should be saved, False if it should be skipped
+        """
+        if not self.year_filter:
+            return True  # No filter, save all
+
+        # Try to get year from various date fields
+        tender_year = None
+
+        for date_field in ['publication_date', 'opening_date', 'closing_date', 'contract_signing_date']:
+            date_val = tender.get(date_field)
+            if date_val:
+                try:
+                    if hasattr(date_val, 'year'):
+                        tender_year = date_val.year
+                    elif isinstance(date_val, str) and len(date_val) >= 4:
+                        # Try to extract year from date string
+                        import re
+                        year_match = re.search(r'20[0-2][0-9]', date_val)
+                        if year_match:
+                            tender_year = int(year_match.group())
+                    if tender_year:
+                        break
+                except Exception:
+                    pass
+
+        if tender_year is None:
+            # If we can't determine year, let it through (better to include than exclude)
+            logger.debug(f"Could not determine year for tender {tender.get('tender_id')}, including it")
+            return True
+
+        passes = tender_year in self.year_filter
+        if not passes:
+            logger.debug(f"Skipping tender {tender.get('tender_id')} - year {tender_year} not in filter {self.year_filter}")
+        return passes
 
     def start_requests(self):
         """
@@ -169,8 +339,8 @@ class NabavkiSpider(scrapy.Spider):
                                 'playwright': True,
                                 'playwright_include_page': True,
                                 'playwright_page_goto_kwargs': {
-                                    'wait_until': 'networkidle',
-                                    'timeout': 30000,
+                                    'wait_until': 'domcontentloaded',
+                                    'timeout': 20000,
                                 },
                                 'category': category,
                                 'route': route,
@@ -191,8 +361,8 @@ class NabavkiSpider(scrapy.Spider):
                             'playwright': True,
                             'playwright_include_page': True,
                             'playwright_page_goto_kwargs': {
-                                'wait_until': 'networkidle',
-                                'timeout': 30000,
+                                'wait_until': 'domcontentloaded',
+                                'timeout': 20000,
                             },
                             'category': cat,
                             'route': url.split('#')[-1] if '#' in url else url,
@@ -232,8 +402,8 @@ class NabavkiSpider(scrapy.Spider):
                         'playwright': True,
                         'playwright_include_page': True,
                         'playwright_page_goto_kwargs': {
-                            'wait_until': 'networkidle',
-                            'timeout': 60000,
+                            'wait_until': 'domcontentloaded',
+                            'timeout': 20000,
                         },
                         'category': cat,
                     },
@@ -255,7 +425,7 @@ class NabavkiSpider(scrapy.Spider):
         if page:
             try:
                 # Wait for potential tender table to load
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(500)
 
                 # Check for tender rows using various selectors
                 selectors_to_check = [
@@ -276,7 +446,8 @@ class NabavkiSpider(scrapy.Spider):
                             tender_count = len(elements)
                             url_works = True
                             break
-                    except:
+                    except Exception as e:
+                        logger.error(f"Error checking selector {selector} during discovery: {e}")
                         continue
 
                 # Check for direct tender links (dossie/dossie-acpp)
@@ -301,8 +472,8 @@ class NabavkiSpider(scrapy.Spider):
             finally:
                 try:
                     await page.close()
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error closing discovery page: {e}")
 
         if url_works:
             logger.warning(f"✅ FOUND: {category} at {route} - {tender_count} items")
@@ -330,54 +501,225 @@ class NabavkiSpider(scrapy.Spider):
         """
         Parse tender listings page (Angular DataTable)
         Extracts tender links from table#notices-grid
+
+        Supports:
+        - year: Archive year selection (2008-2021)
+        - start_page: Start pagination from specific page
+        - max_listing_pages: Limit number of pages to scrape
+        - reverse: Paginate in reverse order (last page first)
         """
         page = response.meta.get('playwright_page')
         source_category = response.meta.get('category', 'active')
 
         if page:
             try:
-                # Wait for Angular DataTable to load
-                # Increased timeout from 15s to 30s for slow e-nabavki.gov.mk responses
-                await page.wait_for_selector('table#notices-grid tbody tr', timeout=30000)
-                await page.wait_for_timeout(2000)  # Extra wait for data binding
-                logger.info(f"✓ Angular DataTable loaded successfully for category: {source_category}")
+                # Wait for Angular DataTable to load - try both common table IDs
+                # contracts-grid is used for awarded/contracts pages
+                # notices-grid is used for public notices pages
+                try:
+                    await page.wait_for_selector('table.dataTable tbody tr', timeout=30000)
+                except Exception as e:
+                    logger.error(f"Error waiting for DataTable generic selector, trying specific selectors: {e}")
+                    await page.wait_for_selector('table#contracts-grid tbody tr, table#notices-grid tbody tr', timeout=15000)
+                await page.wait_for_timeout(500)  # Extra wait for data binding
+
+                # Detect the actual table ID being used
+                await self._detect_table_id(page)
+                logger.info(f"✓ Angular DataTable loaded successfully for category: {source_category} (table: {self.table_id})")
             except Exception as e:
                 logger.error(f"Failed to wait for DataTable: {e}")
+
+            # STEP 1: Select archive year if specified (2008-2021)
+            if self.year and 2008 <= self.year <= 2021:
+                logger.warning(f"Selecting archive year {self.year}...")
+                year_selected = await self._select_archive_year(page, self.year)
+                if not year_selected:
+                    logger.error(f"FAILED to select archive year {self.year} - aborting scrape")
+                    await page.close()
+                    return
+                logger.warning(f"✓ Archive year {self.year} selected successfully")
+
+            # STEP 1b: Apply date filter if date_from/date_to or year_filter is set
+            # This filters at server level - MUCH faster than scanning through pages
+            # date_from/date_to work WITH archive years to target specific date ranges
+            if self.date_from or self.date_to:
+                # Use explicit date range (works with archive years too)
+                logger.warning(f"Applying server-side date filter: {self.date_from} to {self.date_to}...")
+                filter_applied = await self._apply_date_range_filter(page, self.date_from, self.date_to)
+                if not filter_applied:
+                    logger.warning("Date filter may not have applied - continuing anyway")
+            elif self.year_filter and not self.year:  # year_filter only for current period (not archives)
+                years = sorted(self.year_filter)
+                year_start = min(years)
+                year_end = max(years)
+                logger.warning(f"Applying server-side date filter for years {year_start}-{year_end}...")
+                filter_applied = await self._apply_date_filter(page, year_start, year_end)
+                if not filter_applied:
+                    logger.warning("Date filter may not have applied - continuing anyway")
 
         logger.info(f"Parsing listing page ({source_category}): {response.url}")
 
         tender_links = []
-        # For full historical scrape: ~109K awarded contracts / 10 per page = ~11K pages
-        # Set high limit but with safety check for same-page detection
-        max_pages_to_scrape = 15000  # Allow scraping all historical data
+        # Use max_listing_pages parameter if set, otherwise use high default
+        max_pages_to_scrape = self.max_listing_pages if self.max_listing_pages else 15000
 
         # Prefer Playwright anchors to support dossie-acpp pages (contracts/awards)
         # Also handle pagination - collect links from multiple pages
         if page:
-            current_page = 1
+            # STEP 2: Handle reverse pagination
+            if self.reverse:
+                logger.warning("Reverse pagination mode: navigating to last page...")
+                await self._go_to_last_page(page)
+                await page.wait_for_timeout(1000)
+
+            # STEP 3: Navigate to start_page if greater than 1 (and not reverse mode)
+            elif self.start_page > 1:
+                logger.warning(f"Navigating to start page {self.start_page}...")
+                await self._go_to_page(page, self.start_page)
+                await page.wait_for_timeout(1000)
+
+            current_page = 1  # Counter for pages scraped (not absolute page number)
             consecutive_zero_new = 0  # Track consecutive pages with no new links
             last_link_count = 0
 
+            skipped_by_year_filter = 0
+
+            archive_recovery_attempts = 0
+            max_archive_recoveries = 5  # Maximum times to try recovering from table corruption
+            last_successful_page = 0
+
             while current_page <= max_pages_to_scrape:
                 try:
+                    # Check if table has become empty (filter state lost - archive year OR date filter)
+                    table_info = await page.evaluate(
+                        "() => document.querySelector('.dataTables_info')?.innerText || ''"
+                    )
+                    if 'од вкупно 0 записи' in table_info or 'of 0 entries' in table_info.lower():
+                        archive_recovery_attempts += 1
+                        if archive_recovery_attempts > max_archive_recoveries:
+                            logger.error(f"Filter state lost too many times ({archive_recovery_attempts}), stopping")
+                            break
+
+                        filter_type = "archive year" if self.year else "date filter" if self.year_filter else "unknown"
+                        logger.warning(f"Filter state lost ({filter_type}, showing 0 records), attempting recovery #{archive_recovery_attempts}...")
+
+                        # Re-navigate to page
+                        await page.goto(response.url, wait_until='networkidle', timeout=60000)
+                        await page.wait_for_timeout(3000)
+                        await self._detect_table_id(page)
+
+                        # Re-apply the appropriate filter
+                        if self.year:
+                            # Archive year recovery
+                            year_selected = await self._select_archive_year(page, self.year)
+                            if not year_selected:
+                                logger.error(f"Failed to re-select archive year {self.year}")
+                                break
+                            logger.warning(f"✓ Archive year {self.year} recovered")
+                        elif self.year_filter:
+                            # Date filter recovery
+                            years = sorted(self.year_filter)
+                            year_start = min(years)
+                            year_end = max(years)
+                            filter_applied = await self._apply_date_filter(page, year_start, year_end)
+                            if not filter_applied:
+                                logger.error(f"Failed to re-apply date filter {year_start}-{year_end}")
+                                break
+                            logger.warning(f"✓ Date filter {year_start}-{year_end} recovered")
+                        elif self.date_from or self.date_to:
+                            # Explicit date range recovery
+                            filter_applied = await self._apply_date_range_filter(page, self.date_from, self.date_to)
+                            if not filter_applied:
+                                logger.error(f"Failed to re-apply date range filter")
+                                break
+                            logger.warning(f"✓ Date range filter recovered")
+
+                        # Jump to last successful page
+                        if last_successful_page > 1:
+                            logger.info(f"Jumping back to page {last_successful_page}...")
+                            await self._go_to_page(page, last_successful_page)
+                            await page.wait_for_timeout(2000)
+
+                        logger.warning(f"✓ Filter recovered, continuing from page {last_successful_page}")
+                        continue  # Retry current page
+
                     # Extract links from current page
                     link_elems = await page.query_selector_all("a[href*='dossie']")
                     page_links = []
+                    page_skipped = 0
+                    links_found_on_page = 0  # Track total links found (before filtering)
                     for elem in link_elems:
                         href = await elem.get_attribute('href')
                         if href and href not in tender_links:
+                            links_found_on_page += 1  # Count new links before filtering
+                            # OPTIMIZATION: If year_filter is set, check tender_id year from link text
+                            # Link text format: "19810/2025" - we can filter BEFORE visiting detail page
+                            if self.year_filter:
+                                link_text = await elem.inner_text()
+                                # Extract year from tender_id (e.g., "19810/2025" -> 2025)
+                                import re
+                                year_match = re.search(r'/(\d{4})$', link_text.strip())
+                                if year_match:
+                                    tender_year = int(year_match.group(1))
+                                    if tender_year not in self.year_filter:
+                                        page_skipped += 1
+                                        skipped_by_year_filter += 1
+                                        continue  # Skip this tender - wrong year
+
+                            # Add to both lists (after year filter passes or if no filter)
                             page_links.append(href)
-                            tender_links.append(href)
+                            tender_links.append(href)  # Track for deduplication
 
                     new_links_count = len(page_links)
-                    logger.info(f"Page {current_page}: Found {new_links_count} new tender links (total: {len(tender_links)})")
+                    year_info = f" (year={self.year})" if self.year else ""
+                    filter_info = f", skipped {page_skipped} (year filter)" if page_skipped > 0 else ""
+                    logger.info(f"Page {current_page}{year_info}: Found {new_links_count} new tender links (total: {len(tender_links)}){filter_info}")
 
-                    # Safety check: if 3 consecutive pages have no new links, pagination is stuck
-                    if new_links_count == 0:
+                    # INCREMENTAL PROCESSING: Yield requests immediately for this page's links
+                    # This prevents losing progress if scraper crashes - each page's tenders are queued immediately
+                    for link in page_links:
+                        # Construct absolute URL
+                        if link.startswith('#'):
+                            full_url = 'https://e-nabavki.gov.mk/PublicAccess/home.aspx' + link
+                        elif link.startswith('/'):
+                            full_url = 'https://e-nabavki.gov.mk' + link
+                        elif not link.startswith('http'):
+                            full_url = 'https://e-nabavki.gov.mk/PublicAccess/home.aspx' + link
+                        else:
+                            full_url = link
+
+                        yield scrapy.Request(
+                            url=full_url,
+                            callback=self.parse_tender_detail,
+                            meta={
+                                'playwright': True,
+                                'playwright_include_page': True,
+                                'playwright_page_goto_kwargs': {
+                                    'wait_until': 'domcontentloaded',
+                                    'timeout': 20000,
+                                },
+                                'source_category': source_category,
+                            },
+                            errback=self.errback_playwright,
+                            dont_filter=True
+                        )
+
+                    # Track last page with successful link extraction (for archive recovery)
+                    if links_found_on_page > 0 or new_links_count > 0:
+                        last_successful_page = current_page
+                        archive_recovery_attempts = 0  # Reset recovery counter on success
+
+                    # Safety check: if 3 consecutive pages have no new links BEFORE filtering, pagination is stuck
+                    # NOTE: We check links_found_on_page (before year filter) not new_links_count (after filter)
+                    # This allows scraper to continue through pages of filtered-out tenders
+                    # SKIP this check if force_full_scan is enabled (for historical backfills)
+                    if links_found_on_page == 0:
                         consecutive_zero_new += 1
-                        if consecutive_zero_new >= 3:
+                        if consecutive_zero_new >= 3 and not self.force_full_scan:
                             logger.warning(f"Pagination stuck: {consecutive_zero_new} consecutive pages with no new links")
                             break
+                        elif consecutive_zero_new >= 3 and self.force_full_scan:
+                            logger.info(f"Force full scan: continuing despite {consecutive_zero_new} pages with no new links")
                     else:
                         consecutive_zero_new = 0
 
@@ -386,34 +728,69 @@ class NabavkiSpider(scrapy.Spider):
                         logger.info(f"Reached max pages limit ({max_pages_to_scrape})")
                         break
 
-                    # Try to click Next button
-                    has_next = await self._click_next_page(page)
-                    if not has_next:
+                    # Navigate to next/previous page based on mode
+                    if self.reverse:
+                        has_more = await self._click_previous_page(page)
+                    else:
+                        has_more = await self._click_next_page(page)
+
+                    if not has_more:
                         logger.info("No more pages available")
                         break
 
                     current_page += 1
 
-                    # Log progress every 100 pages
-                    if current_page % 100 == 0:
-                        logger.warning(f"Progress: Page {current_page}, Total links: {len(tender_links)}")
+                    # Log progress every 50 pages
+                    if current_page % 50 == 0:
+                        logger.warning(f"Progress: Page {current_page}/{max_pages_to_scrape}, Total links: {len(tender_links)}{year_info}")
 
                 except Exception as e:
                     logger.warning(f"Error on page {current_page}: {e}")
+                    # Close Playwright page before breaking to prevent page leak
+                    try:
+                        await page.close()
+                        page = None  # Prevent double-close in cleanup below
+                    except Exception as close_err:
+                        logger.error(f"Error closing page after pagination error: {close_err}")
                     break
 
         # Fallback to HTML selectors if no links found via Playwright
+        # (Links are now yielded inline, but we still need fallback for non-Playwright mode)
         if not tender_links:
-            tender_links = response.css('table#notices-grid tbody tr td:first-child a[href*=\"/dossie/\"]::attr(href)').getall()
+            fallback_links = response.css('table#notices-grid tbody tr td:first-child a[href*=\"/dossie/\"]::attr(href)').getall()
+            if not fallback_links:
+                fallback_links = response.css('table tbody tr td a[target=\"_blank\"]::attr(href)').getall()
 
-        if not tender_links:
-            tender_links = response.css('table tbody tr td a[target=\"_blank\"]::attr(href)').getall()
+            # Yield fallback links (only if Playwright didn't find any)
+            for link in fallback_links:
+                if link.startswith('#'):
+                    full_url = 'https://e-nabavki.gov.mk/PublicAccess/home.aspx' + link
+                elif link.startswith('/'):
+                    full_url = 'https://e-nabavki.gov.mk' + link
+                elif not link.startswith('http'):
+                    full_url = 'https://e-nabavki.gov.mk/PublicAccess/home.aspx' + link
+                else:
+                    full_url = link
 
-        # Deduplicate
-        tender_links = list(set(tender_links))
+                yield scrapy.Request(
+                    url=full_url,
+                    callback=self.parse_tender_detail,
+                    meta={
+                        'playwright': True,
+                        'playwright_include_page': True,
+                        'playwright_page_goto_kwargs': {
+                            'wait_until': 'domcontentloaded',
+                            'timeout': 20000,
+                        },
+                        'source_category': source_category,
+                    },
+                    errback=self.errback_playwright,
+                    dont_filter=True
+                )
+            tender_links = fallback_links
 
         self.stats['tenders_found'] += len(tender_links)
-        logger.warning(f"✓ Total unique tender links found in {source_category}: {len(tender_links)}")
+        logger.warning(f"✓ Total unique tender links found in {source_category}: {len(tender_links)} (yielded incrementally)")
 
         # CRITICAL: Close listing page's Playwright page to free up context for detail pages
         if page:
@@ -423,39 +800,65 @@ class NabavkiSpider(scrapy.Spider):
             except Exception as e:
                 logger.warning(f"Failed to close listing page: {e}")
 
-        # Follow each tender link
-        for link in tender_links:
-            # Construct absolute URL
-            if link.startswith('#'):
-                full_url = 'https://e-nabavki.gov.mk/PublicAccess/home.aspx' + link
-            elif link.startswith('/'):
-                full_url = 'https://e-nabavki.gov.mk' + link
-            elif not link.startswith('http'):
-                full_url = 'https://e-nabavki.gov.mk/PublicAccess/home.aspx' + link
-            else:
-                full_url = link
+        logger.info("✓ Pagination complete - tenders yielded incrementally per-page")
 
-            logger.info(f"Following tender ({source_category}): {full_url}")
+    async def _detect_table_id(self, page) -> str:
+        """
+        Detect the DataTable's table ID dynamically.
+        Different pages use different table IDs:
+        - notices-grid: for public notices/tenders
+        - contracts-grid: for contracts/awarded
 
-            # Force Playwright and disable dupefilter for hash-based URLs
-            yield scrapy.Request(
-                url=full_url,
-                callback=self.parse_tender_detail,
-                meta={
-                    'playwright': True,
-                    'playwright_include_page': True,
-                    'playwright_page_goto_kwargs': {
-                        'wait_until': 'networkidle',
-                        'timeout': 60000,
-                    },
-                    'source_category': source_category,
-                },
-                errback=self.errback_playwright,
-                dont_filter=True
-            )
+        Returns:
+            The detected table ID, or 'notices-grid' as fallback
+        """
+        if self.table_id:
+            return self.table_id
 
-        # Pagination is now handled in the main loop above - all links collected before closing page
-        logger.info("Pagination: All pages processed within single page context")
+        try:
+            # Try to find the DataTable by looking for common table IDs
+            table_ids = ['notices-grid', 'contracts-grid', 'DataTables_Table_0']
+
+            for table_id in table_ids:
+                has_table = await page.evaluate(f'''() => {{
+                    var table = document.getElementById('{table_id}');
+                    return table && table.classList.contains('dataTable');
+                }}''')
+                if has_table:
+                    self.table_id = table_id
+                    logger.info(f"Detected DataTable ID: {table_id}")
+                    return table_id
+
+            # Fallback: find any table with dataTable class
+            detected = await page.evaluate('''() => {
+                var tables = document.querySelectorAll('table.dataTable');
+                if (tables.length > 0 && tables[0].id) {
+                    return tables[0].id;
+                }
+                return null;
+            }''')
+
+            if detected:
+                self.table_id = detected
+                logger.info(f"Detected DataTable ID via class: {detected}")
+                return detected
+
+            # Default fallback
+            self.table_id = 'notices-grid'
+            logger.warning("Could not detect table ID, using default: notices-grid")
+            return self.table_id
+
+        except Exception as e:
+            logger.warning(f"Error detecting table ID: {e}, using default: notices-grid")
+            self.table_id = 'notices-grid'
+            return self.table_id
+
+    def _get_table_selector(self, suffix: str = '') -> str:
+        """Get the correct selector for the DataTable elements."""
+        table_id = self.table_id or 'notices-grid'
+        if suffix:
+            return f'#{table_id}_{suffix}'
+        return f'#{table_id}'
 
     async def _click_next_page(self, page) -> bool:
         """
@@ -463,67 +866,87 @@ class NabavkiSpider(scrapy.Spider):
         Returns True if successfully clicked and page changed, False if no more pages.
         """
         try:
+            # Make sure we have the table ID
+            if not self.table_id:
+                await self._detect_table_id(page)
+
             # Get current page info BEFORE clicking
             old_page_info = ""
+            info_selector = f'.dataTables_info, {self._get_table_selector("info")}'
             try:
-                info_elem = await page.query_selector('.dataTables_info, #notices-grid_info')
+                info_elem = await page.query_selector(info_selector)
                 if info_elem:
                     old_page_info = await info_elem.inner_text()
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Error reading current page info before pagination: {e}")
 
             # DataTables pagination selectors - try multiple approaches
             # The key insight: DataTables uses #tableid_next as the Next button ID
+            # Use dynamic table ID to build selectors
             next_selectors = [
-                '#notices-grid_next',  # DataTables standard ID-based selector
+                self._get_table_selector('next'),  # DataTables standard ID-based selector (e.g., #contracts-grid_next)
                 'a.paginate_button.next',  # Class-based selector
                 '.dataTables_paginate .next',
                 'a[data-dt-idx="next"]',
                 'li.next a',
             ]
 
-            for selector in next_selectors:
-                try:
-                    next_btn = await page.query_selector(selector)
-                    if next_btn:
-                        # Check if disabled
-                        class_attr = await next_btn.get_attribute('class') or ''
-                        if 'disabled' in class_attr:
-                            logger.info(f"Next button disabled: {selector}")
-                            continue
+            # Retry entire process up to 3 times if page doesn't change
+            for retry_attempt in range(3):
+                for selector in next_selectors:
+                    try:
+                        next_btn = await page.query_selector(selector)
+                        if next_btn:
+                            # Check if disabled
+                            class_attr = await next_btn.get_attribute('class') or ''
+                            if 'disabled' in class_attr:
+                                logger.info(f"Next button disabled: {selector}")
+                                continue
 
-                        # Get position and scroll into view
-                        await next_btn.scroll_into_view_if_needed()
-                        await page.wait_for_timeout(500)
+                            # Get position and scroll into view
+                            await next_btn.scroll_into_view_if_needed()
+                            await page.wait_for_timeout(500)
 
-                        # Click using JavaScript for more reliable interaction
-                        await page.evaluate('(el) => el.click()', next_btn)
-                        logger.info(f"Clicked Next button via JS: {selector}")
+                            # Click using JavaScript for more reliable interaction
+                            await page.evaluate('(el) => el.click()', next_btn)
+                            logger.info(f"Clicked Next button via JS: {selector}")
 
-                        # Wait for table to update - check for loading indicator or row change
-                        await page.wait_for_timeout(3000)
+                            # Wait for table to update - longer wait for archive mode
+                            # Archive year queries may take longer to fetch data
+                            wait_time = 3000 if self.year else 2000  # Longer wait for archive years
+                            await page.wait_for_timeout(wait_time)
 
-                        # Verify page actually changed by checking pagination info
-                        try:
-                            new_info_elem = await page.query_selector('.dataTables_info, #notices-grid_info')
-                            if new_info_elem:
-                                new_page_info = await new_info_elem.inner_text()
-                                if new_page_info != old_page_info:
-                                    logger.info(f"Page changed: {old_page_info} -> {new_page_info}")
-                                    return True
-                                else:
-                                    logger.warning(f"Page info unchanged after click: {new_page_info}")
-                                    # Try clicking again with force
-                                    continue
-                        except:
-                            pass
+                            # Verify page actually changed by checking pagination info
+                            try:
+                                new_info_elem = await page.query_selector(info_selector)
+                                if new_info_elem:
+                                    new_page_info = await new_info_elem.inner_text()
+                                    if new_page_info != old_page_info:
+                                        logger.info(f"Page changed: {old_page_info} -> {new_page_info}")
+                                        return True
+                                    else:
+                                        # Wait a bit longer and check again (archive mode can be slow)
+                                        await page.wait_for_timeout(2000)
+                                        new_page_info = await new_info_elem.inner_text()
+                                        if new_page_info != old_page_info:
+                                            logger.info(f"Page changed (after retry): {old_page_info} -> {new_page_info}")
+                                            return True
+                                        logger.warning(f"Page info unchanged after click: {new_page_info}")
+                                        continue
+                            except Exception as e:
+                                logger.error(f"Error verifying page change after Next click: {e}")
 
-                        # Even if we can't verify, assume success if we clicked
-                        return True
+                            # Even if we can't verify, assume success if we clicked
+                            return True
 
-                except Exception as e:
-                    logger.debug(f"Selector {selector} failed: {e}")
-                    continue
+                    except Exception as e:
+                        logger.debug(f"Selector {selector} failed: {e}")
+                        continue
+
+                # If all selectors failed, wait before retry
+                if retry_attempt < 2:
+                    logger.warning(f"All pagination selectors failed, retry {retry_attempt + 1}/3...")
+                    await page.wait_for_timeout(3000)
 
             # If no selector worked, try clicking page numbers directly
             try:
@@ -538,7 +961,7 @@ class NabavkiSpider(scrapy.Spider):
                     next_page_btn = await page.query_selector(f'.paginate_button:has-text("{next_num}")')
                     if next_page_btn:
                         await page.evaluate('(el) => el.click()', next_page_btn)
-                        await page.wait_for_timeout(3000)
+                        await page.wait_for_timeout(2000)
                         logger.info(f"Clicked page number {next_num}")
                         return True
             except Exception as e:
@@ -550,6 +973,616 @@ class NabavkiSpider(scrapy.Spider):
             logger.warning(f"Error clicking next page: {e}")
             return False
 
+    async def _select_archive_year(self, page, year: int) -> bool:
+        """
+        Select an archive year (2008-2021) using the archive year selector modal.
+        Uses JavaScript click to bypass modal overlay interception.
+
+        Args:
+            page: Playwright page object
+            year: Year to select (2008-2021)
+
+        Returns:
+            True if year was successfully selected, False otherwise
+        """
+        logger.info(f"Selecting archive year: {year}")
+
+        try:
+            # Step 1: Wait for and click the archive button
+            archive_btn_selector = 'a[ng-controller="archiveYearController"]'
+            try:
+                await page.wait_for_selector(archive_btn_selector, timeout=15000)
+            except Exception as e:
+                logger.error(f"Archive button not found: {e}")
+                return False
+
+            archive_btn = await page.query_selector(archive_btn_selector)
+            if not archive_btn:
+                logger.error("Archive button selector returned None")
+                return False
+
+            await archive_btn.click()
+            logger.info("Clicked archive button")
+
+            # Step 2: Wait for modal to appear
+            await page.wait_for_timeout(2000)  # Wait for modal animation
+            modal_check = await page.query_selector('.modal-dialog, .modal-content, .modal-body')
+            if not modal_check:
+                logger.error("Archive modal did not appear")
+                return False
+
+            logger.info("Archive modal opened")
+
+            # Step 3: Select year using JavaScript (bypasses overlay interception)
+            js_select_year = f"""
+            () => {{
+                // Method 1: Find by label text and click associated radio button
+                const labels = document.querySelectorAll('.modal label, .modal-body label');
+                for (const label of labels) {{
+                    if (label.textContent.trim() === '{year}') {{
+                        // Try to find input radio inside or before the label
+                        const radio = label.querySelector('input[type="radio"]') ||
+                                      label.previousElementSibling;
+                        if (radio && radio.type === 'radio') {{
+                            radio.click();
+                            radio.checked = true;
+                            return 'clicked_radio';
+                        }}
+                        // Fallback: click the label itself
+                        label.click();
+                        return 'clicked_label';
+                    }}
+                }}
+
+                // Method 2: Find any element with exact year text
+                const allElements = document.querySelectorAll('.modal *');
+                for (const el of allElements) {{
+                    if (el.textContent.trim() === '{year}' &&
+                        el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE') {{
+                        el.click();
+                        return 'clicked_element';
+                    }}
+                }}
+
+                return 'not_found';
+            }}
+            """
+
+            result = await page.evaluate(js_select_year)
+            logger.info(f"Year selection result: {result}")
+
+            if result == 'not_found':
+                logger.error(f"Year {year} not found in modal")
+                # Debug: log modal content
+                try:
+                    modal_text = await page.evaluate(
+                        "() => document.querySelector('.modal-body, .modal-content')?.innerText || 'no modal'"
+                    )
+                    logger.info(f"Modal content preview: {modal_text[:200]}...")
+                except Exception as e:
+                    logger.error(f"Error reading modal content for debugging: {e}")
+                return False
+
+            await page.wait_for_timeout(1000)
+
+            # Step 4: Click confirm button using JavaScript
+            js_confirm = """
+            () => {
+                const buttons = document.querySelectorAll('.modal button, .modal-footer button');
+                for (const btn of buttons) {
+                    const text = btn.textContent.trim().toLowerCase();
+                    // Macedonian: "Потврди" = Confirm, "Откажи" = Cancel
+                    if (text.includes('потврди') || text.includes('confirm') || text === 'ok') {
+                        btn.click();
+                        return 'confirmed';
+                    }
+                }
+                // Try clicking any primary/success button
+                const primary = document.querySelector('.modal .btn-primary, .modal .btn-success');
+                if (primary) {
+                    primary.click();
+                    return 'clicked_primary';
+                }
+                return 'no_confirm_button';
+            }
+            """
+
+            confirm_result = await page.evaluate(js_confirm)
+            logger.info(f"Confirm button result: {confirm_result}")
+
+            if confirm_result == 'no_confirm_button':
+                logger.error("Could not find confirm button in modal")
+                return False
+
+            # Step 5: Wait for page to reload with new year's data
+            await page.wait_for_timeout(3000)
+
+            # Verify modal is closed
+            modal_still_open = await page.query_selector('.modal-dialog')
+            if modal_still_open:
+                # Try clicking outside the modal to close it
+                await page.keyboard.press('Escape')
+                await page.wait_for_timeout(1000)
+
+            # Wait for DataTable to load with new data
+            # Use generic selector that works for any DataTable
+            try:
+                await page.wait_for_selector('table.dataTable tbody tr', timeout=15000)
+            except Exception as e:
+                logger.warning(f"Table might not have loaded after year selection: {e}")
+
+            # Re-detect table ID after archive year selection (table may be recreated)
+            self.table_id = None  # Reset to force re-detection
+            await self._detect_table_id(page)
+
+            # Step 6: Verify selection by checking page content
+            info_text = ""
+            try:
+                info_elem = await page.query_selector(f'.dataTables_info, {self._get_table_selector("info")}')
+                if info_elem:
+                    info_text = await info_elem.inner_text()
+                    logger.warning(f"Archive year {year} loaded: {info_text}")
+            except Exception as e:
+                logger.error(f"Error verifying archive year selection: {e}")
+
+            logger.warning(f"Successfully selected archive year {year}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to select archive year {year}: {e}")
+            return False
+
+    async def _apply_date_filter(self, page, year_start: int, year_end: int = None) -> bool:
+        """
+        Apply date filter using Angular scope to filter tenders by publication period.
+        This is MUCH faster than scanning through pages - filters at server level.
+
+        Args:
+            page: Playwright page object
+            year_start: Start year (e.g., 2024)
+            year_end: End year (optional, defaults to year_start)
+
+        Returns:
+            True if filter was successfully applied, False otherwise
+        """
+        if year_end is None:
+            year_end = year_start
+
+        logger.info(f"Applying date filter: {year_start} - {year_end}")
+
+        try:
+            # Get record count before filtering
+            info_before = await page.evaluate(
+                "() => document.querySelector('.dataTables_info')?.innerText || ''"
+            )
+            logger.info(f"Before filter: {info_before}")
+
+            # Use JavaScript to find Angular scope, set date range, and call filter
+            js_apply_filter = f"""
+            (function() {{
+                // Find the scope with searchModel
+                var scope = null;
+                var all = document.querySelectorAll('*');
+                for (var i = 0; i < all.length; i++) {{
+                    try {{
+                        var s = angular.element(all[i]).scope();
+                        if (s && s.searchModel) {{
+                            scope = s;
+                            break;
+                        }}
+                    }} catch(e) {{}}
+                }}
+
+                if (!scope || !scope.searchModel) {{
+                    return {{error: 'No searchModel found in Angular scope'}};
+                }}
+
+                // Set date range (PeriodFrom/PeriodTo for publication period)
+                var fromDate = new Date({year_start}, 0, 1);  // Jan 1
+                var toDate = new Date({year_end}, 11, 31);    // Dec 31
+
+                scope.searchModel.PeriodFrom = fromDate;
+                scope.searchModel.PeriodTo = toDate;
+
+                // Apply scope changes first, then call filter
+                scope.$apply(function() {{
+                    if (scope.filter && typeof scope.filter === 'function') {{
+                        scope.filter();
+                    }}
+                }});
+
+                return {{
+                    status: 'success',
+                    periodFrom: fromDate.toISOString(),
+                    periodTo: toDate.toISOString()
+                }};
+            }})()
+            """
+
+            result = await page.evaluate(js_apply_filter)
+            logger.info(f"Date filter result: {result}")
+
+            if result.get('error'):
+                logger.error(f"Failed to apply date filter: {result['error']}")
+                return False
+
+            # Wait for table to reload with filtered data
+            await page.wait_for_timeout(5000)
+
+            # Verify filter was applied by checking record count changed
+            info_after = await page.evaluate(
+                "() => document.querySelector('.dataTables_info')?.innerText || ''"
+            )
+            logger.warning(f"After date filter ({year_start}-{year_end}): {info_after}")
+
+            # Wait for table to be stable
+            # Use generic selector that works for any DataTable
+            try:
+                await page.wait_for_selector('table.dataTable tbody tr', timeout=15000)
+            except Exception as e:
+                logger.warning(f"Table may still be loading after date filter: {e}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to apply date filter: {e}")
+            return False
+
+    async def _apply_date_range_filter(self, page, date_from=None, date_to=None) -> bool:
+        """
+        Apply date range filter using Angular scope with specific dates.
+        Works with archive years to target specific date ranges within the archive.
+
+        Args:
+            page: Playwright page object
+            date_from: Start date (datetime.date object, string, or None)
+            date_to: End date (datetime.date object, string, or None)
+
+        Returns:
+            True if filter was successfully applied, False otherwise
+        """
+        from datetime import date as date_type
+
+        # Helper to convert to date object if needed
+        def ensure_date(d):
+            if d is None:
+                return None
+            if isinstance(d, date_type):
+                return d
+            if isinstance(d, str):
+                # Parse string to date
+                from datetime import datetime as dt
+                for fmt in ('%Y-%m-%d', '%d.%m.%Y', '%d/%m/%Y'):
+                    try:
+                        return dt.strptime(d.strip(), fmt).date()
+                    except ValueError:
+                        continue
+            logger.warning(f"Could not convert to date: {d} (type: {type(d).__name__})")
+            return None
+
+        date_from = ensure_date(date_from)
+        date_to = ensure_date(date_to)
+
+        # Build JavaScript date constructors
+        if date_from:
+            # JavaScript months are 0-indexed
+            from_js = f"new Date({date_from.year}, {date_from.month - 1}, {date_from.day})"
+        else:
+            from_js = "null"
+
+        if date_to:
+            # JavaScript months are 0-indexed
+            to_js = f"new Date({date_to.year}, {date_to.month - 1}, {date_to.day})"
+        else:
+            to_js = "null"
+
+        logger.info(f"Applying date range filter: {date_from} to {date_to}")
+
+        try:
+            # Get record count before filtering
+            info_before = await page.evaluate(
+                "() => document.querySelector('.dataTables_info')?.innerText || ''"
+            )
+            logger.info(f"Before date range filter: {info_before}")
+
+            # Use JavaScript to find Angular scope, set date range, and call filter
+            js_apply_filter = f"""
+            (function() {{
+                // Find the scope with searchModel
+                var scope = null;
+                var all = document.querySelectorAll('*');
+                for (var i = 0; i < all.length; i++) {{
+                    try {{
+                        var s = angular.element(all[i]).scope();
+                        if (s && s.searchModel) {{
+                            scope = s;
+                            break;
+                        }}
+                    }} catch(e) {{}}
+                }}
+
+                if (!scope || !scope.searchModel) {{
+                    return {{error: 'No searchModel found in Angular scope'}};
+                }}
+
+                // Set date range (PeriodFrom/PeriodTo for publication period)
+                var fromDate = {from_js};
+                var toDate = {to_js};
+
+                if (fromDate) scope.searchModel.PeriodFrom = fromDate;
+                if (toDate) scope.searchModel.PeriodTo = toDate;
+
+                // Apply scope changes first, then call filter
+                scope.$apply(function() {{
+                    if (scope.filter && typeof scope.filter === 'function') {{
+                        scope.filter();
+                    }}
+                }});
+
+                return {{
+                    status: 'success',
+                    periodFrom: fromDate ? fromDate.toISOString() : null,
+                    periodTo: toDate ? toDate.toISOString() : null
+                }};
+            }})()
+            """
+
+            result = await page.evaluate(js_apply_filter)
+            logger.info(f"Date range filter result: {result}")
+
+            if result.get('error'):
+                logger.error(f"Failed to apply date range filter: {result['error']}")
+                return False
+
+            # Wait for table to reload with filtered data
+            await page.wait_for_timeout(5000)
+
+            # Verify filter was applied by checking record count changed
+            info_after = await page.evaluate(
+                "() => document.querySelector('.dataTables_info')?.innerText || ''"
+            )
+            logger.warning(f"After date range filter ({date_from} to {date_to}): {info_after}")
+
+            # Wait for table to be stable
+            try:
+                await page.wait_for_selector('table.dataTable tbody tr', timeout=15000)
+            except Exception as e:
+                logger.warning(f"Table may still be loading after date range filter: {e}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to apply date range filter: {e}")
+            return False
+
+    async def _go_to_page(self, page, target_page: int) -> bool:
+        """
+        Navigate to a specific page number using DataTables API for direct jump.
+
+        Args:
+            page: Playwright page object
+            target_page: Target page number to navigate to (1-indexed)
+
+        Returns:
+            True if successfully navigated, False otherwise
+        """
+        if target_page <= 1:
+            return True  # Already on first page
+
+        logger.info(f"Navigating directly to page {target_page} using DataTables API...")
+
+        try:
+            # Get current page info before navigation
+            info_before = await page.evaluate(
+                "() => document.querySelector('.dataTables_info')?.innerText || ''"
+            )
+
+            # Use DataTables API to jump directly to page (0-indexed internally)
+            # Try different table IDs that e-nabavki might use
+            js_jump = f"""
+            () => {{
+                // Try to find the DataTable instance
+                const tableIds = ['contracts-grid', 'notices-grid', 'DataTables_Table_0', 'tbl'];
+
+                for (const id of tableIds) {{
+                    const table = document.getElementById(id);
+                    if (table && $.fn.DataTable.isDataTable('#' + id)) {{
+                        const dt = $('#' + id).DataTable();
+                        const totalPages = dt.page.info().pages;
+                        const targetIdx = {target_page - 1};  // DataTables uses 0-indexed pages
+
+                        if (targetIdx < totalPages) {{
+                            dt.page(targetIdx).draw('page');
+                            return {{ success: true, tableId: id, page: targetIdx + 1, totalPages: totalPages }};
+                        }} else {{
+                            return {{ success: false, error: 'Page ' + {target_page} + ' exceeds total ' + totalPages }};
+                        }}
+                    }}
+                }}
+
+                // Fallback: try to find any DataTable
+                const tables = $.fn.dataTable.tables();
+                if (tables.length > 0) {{
+                    const dt = $(tables[0]).DataTable();
+                    const totalPages = dt.page.info().pages;
+                    const targetIdx = {target_page - 1};
+
+                    if (targetIdx < totalPages) {{
+                        dt.page(targetIdx).draw('page');
+                        return {{ success: true, tableId: 'auto', page: targetIdx + 1, totalPages: totalPages }};
+                    }}
+                }}
+
+                return {{ success: false, error: 'No DataTable found' }};
+            }}
+            """
+
+            result = await page.evaluate(js_jump)
+            logger.info(f"DataTables jump result: {result}")
+
+            if result.get('success'):
+                # Wait for table to redraw
+                await page.wait_for_timeout(2000)
+
+                # Verify page changed
+                info_after = await page.evaluate(
+                    "() => document.querySelector('.dataTables_info')?.innerText || ''"
+                )
+
+                if info_before != info_after:
+                    logger.info(f"Successfully jumped to page {target_page} (total: {result.get('totalPages')})")
+                    return True
+                else:
+                    logger.warning(f"Page info unchanged after jump attempt")
+
+            # Fallback to clicking if DataTables API didn't work
+            logger.warning(f"DataTables API jump failed, falling back to click navigation...")
+            return await self._go_to_page_by_clicking(page, target_page)
+
+        except Exception as e:
+            logger.error(f"Error navigating to page {target_page}: {e}")
+            return await self._go_to_page_by_clicking(page, target_page)
+
+    async def _go_to_page_by_clicking(self, page, target_page: int) -> bool:
+        """
+        Fallback: Navigate to a specific page by clicking next repeatedly.
+        Only used if DataTables API jump fails.
+        """
+        logger.info(f"Clicking through to page {target_page}...")
+
+        try:
+            current_num = 1
+
+            while current_num < target_page:
+                has_next = await self._click_next_page(page)
+                if not has_next:
+                    logger.warning(f"Could not navigate beyond page {current_num}")
+                    return False
+
+                current_num += 1
+
+                # Log progress every 50 pages
+                if current_num % 50 == 0:
+                    logger.info(f"Navigation progress: page {current_num}/{target_page}")
+
+            logger.info(f"Successfully navigated to page {target_page}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error clicking to page {target_page}: {e}")
+            return False
+
+    async def _go_to_last_page(self, page) -> bool:
+        """
+        Navigate to the last page for reverse pagination.
+
+        Returns:
+            True if successfully navigated, False otherwise
+        """
+        logger.info("Navigating to last page for reverse pagination...")
+
+        try:
+            # Make sure we have the table ID
+            if not self.table_id:
+                await self._detect_table_id(page)
+
+            # Try clicking "Last" button if available
+            # Use dynamic table ID for the first selector
+            last_selectors = [
+                f'{self._get_table_selector("last")}:not(.disabled)',  # e.g., #contracts-grid_last
+                'a.paginate_button.last:not(.disabled)',
+                '.dataTables_paginate .last:not(.disabled)',
+            ]
+
+            for selector in last_selectors:
+                try:
+                    last_btn = await page.query_selector(selector)
+                    if last_btn:
+                        class_attr = await last_btn.get_attribute('class') or ''
+                        if 'disabled' not in class_attr:
+                            await page.evaluate('(el) => el.click()', last_btn)
+                            await page.wait_for_timeout(2000)
+                            logger.info(f"Clicked Last button: {selector}")
+                            return True
+                except Exception as e:
+                    logger.error(f"Error clicking Last button with selector {selector}: {e}")
+                    continue
+
+            # If no Last button, try to find total pages and click highest
+            try:
+                page_buttons = await page.query_selector_all('.paginate_button:not(.previous):not(.next):not(.last):not(.first)')
+                if page_buttons:
+                    # Find the highest page number
+                    max_page = 1
+                    max_btn = None
+                    for btn in page_buttons:
+                        try:
+                            text = await btn.inner_text()
+                            num = int(text.strip())
+                            if num > max_page:
+                                max_page = num
+                                max_btn = btn
+                        except Exception as e:
+                            logger.error(f"Error parsing page button number: {e}")
+                            continue
+
+                    if max_btn:
+                        await page.evaluate('(el) => el.click()', max_btn)
+                        await page.wait_for_timeout(2000)
+                        logger.info(f"Clicked highest visible page: {max_page}")
+                        return True
+            except Exception as e:
+                logger.debug(f"Error finding page buttons: {e}")
+
+            logger.warning("Could not navigate to last page")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error navigating to last page: {e}")
+            return False
+
+    async def _click_previous_page(self, page) -> bool:
+        """
+        Click the Previous button in pagination for reverse navigation.
+
+        Returns:
+            True if successfully clicked and page changed, False if no more pages.
+        """
+        try:
+            # Make sure we have the table ID
+            if not self.table_id:
+                await self._detect_table_id(page)
+
+            prev_selectors = [
+                f'{self._get_table_selector("previous")}:not(.disabled)',  # e.g., #contracts-grid_previous
+                'a.paginate_button.previous:not(.disabled)',
+                '.dataTables_paginate .previous:not(.disabled)',
+                'a[data-dt-idx="previous"]:not(.disabled)',
+            ]
+
+            for selector in prev_selectors:
+                try:
+                    prev_btn = await page.query_selector(selector)
+                    if prev_btn:
+                        class_attr = await prev_btn.get_attribute('class') or ''
+                        if 'disabled' in class_attr:
+                            continue
+
+                        await page.evaluate('(el) => el.click()', prev_btn)
+                        await page.wait_for_timeout(1000)
+                        logger.info(f"Clicked Previous button: {selector}")
+                        return True
+                except Exception as e:
+                    logger.error(f"Error clicking Previous button with selector {selector}: {e}")
+                    continue
+
+            logger.info("No Previous button found or first page reached")
+            return False
+
+        except Exception as e:
+            logger.warning(f"Error clicking previous page: {e}")
+            return False
+
     async def _handle_pagination(self, page, source_category: str) -> Optional[str]:
         """
         Handle pagination for the listing page.
@@ -557,10 +1590,14 @@ class NabavkiSpider(scrapy.Spider):
         Returns None if no more pages.
         """
         try:
+            # Make sure we have the table ID
+            if not self.table_id:
+                await self._detect_table_id(page)
+
             # Look for pagination info to see total pages
             page_info_selectors = [
                 '.dataTables_info',
-                '#notices-grid_info',
+                self._get_table_selector('info'),  # e.g., #contracts-grid_info
                 '.pagination-info',
             ]
 
@@ -571,17 +1608,19 @@ class NabavkiSpider(scrapy.Spider):
                         info_text = await info_elem.inner_text()
                         logger.info(f"Pagination info: {info_text}")
                         break
-                except:
+                except Exception as e:
+                    logger.error(f"Error reading pagination info with selector {selector}: {e}")
                     continue
 
             # Look for Next button in DataTables pagination
+            # Use dynamic table ID for ID-based selector
             next_selectors = [
                 'a.paginate_button.next:not(.disabled)',
                 'li.next:not(.disabled) a',
                 'a:has-text("Следна"):not(.disabled)',
                 'a:has-text("Next"):not(.disabled)',
                 'button:has-text("Следна"):not([disabled])',
-                '#notices-grid_next:not(.disabled)',
+                f'{self._get_table_selector("next")}:not(.disabled)',  # e.g., #contracts-grid_next
             ]
 
             for selector in next_selectors:
@@ -598,13 +1637,13 @@ class NabavkiSpider(scrapy.Spider):
 
                         # Click and wait for table to refresh
                         await next_btn.click()
-                        await page.wait_for_timeout(3000)  # Wait for data to load
+                        await page.wait_for_timeout(1000)  # Wait for data to load
 
                         # Try to wait for table refresh
                         try:
                             await page.wait_for_selector('table tbody tr', timeout=20000)
-                        except:
-                            pass
+                        except Exception as e:
+                            logger.error(f"Error waiting for table refresh after Next click: {e}")
 
                         # Return current URL (will be re-parsed with new data)
                         current_url = page.url
@@ -631,6 +1670,10 @@ class NabavkiSpider(scrapy.Spider):
             return None
 
         try:
+            # Make sure we have the table ID
+            if not self.table_id:
+                await self._detect_table_id(page)
+
             # DataTables pagination: look for "Next" button
             next_selectors = [
                 'a.paginate_button.next:not(.disabled)',
@@ -655,8 +1698,9 @@ class NabavkiSpider(scrapy.Spider):
 
                         # Click the button and wait for navigation/update
                         await button.click()
-                        await page.wait_for_timeout(2000)  # Wait for DataTable to update
-                        await page.wait_for_selector('table#notices-grid tbody tr', timeout=20000)
+                        await page.wait_for_timeout(500)  # Wait for DataTable to update
+                        # Use generic table selector that works for any DataTable
+                        await page.wait_for_selector('table.dataTable tbody tr', timeout=20000)
 
                         # Return current URL to re-parse the page with new data
                         current_url = page.url
@@ -689,7 +1733,7 @@ class NabavkiSpider(scrapy.Spider):
                 # Wait for Angular to render content
                 # Increased timeout from 20s to 30s for slow pages
                 await page.wait_for_selector('label.dosie-value', timeout=30000)
-                await page.wait_for_timeout(1500)
+                await page.wait_for_timeout(500)
                 logger.info("✓ Tender detail page loaded")
 
                 # Get main page HTML first
@@ -716,7 +1760,7 @@ class NabavkiSpider(scrapy.Spider):
                             doc_tab = await page.query_selector(selector)
                             if doc_tab:
                                 await doc_tab.click()
-                                await page.wait_for_timeout(2000)  # Wait for tab content to load
+                                await page.wait_for_timeout(500)  # Wait for tab content to load
                                 logger.info(f"✓ Clicked documents tab using selector: {selector}")
                                 doc_tab_clicked = True
                                 break
@@ -780,6 +1824,16 @@ class NabavkiSpider(scrapy.Spider):
         tender['closing_date'] = self._extract_date(response, 'closing_date')
         tender['contract_signing_date'] = self._extract_date(response, 'contract_signing_date')
         tender['bureau_delivery_date'] = self._extract_date(response, 'bureau_delivery_date')
+
+        # Fallback: derive publication_date from other dates if not found
+        # For awarded/historical tenders, use contract_signing_date or opening_date
+        if not tender['publication_date']:
+            if tender['contract_signing_date']:
+                tender['publication_date'] = tender['contract_signing_date']
+                logger.debug(f"Using contract_signing_date as publication_date fallback")
+            elif tender['opening_date']:
+                tender['publication_date'] = tender['opening_date']
+                logger.debug(f"Using opening_date as publication_date fallback")
 
         # Extract values
         tender['estimated_value_mkd'] = self._extract_currency(response, 'estimated_value_mkd')
@@ -851,6 +1905,12 @@ class NabavkiSpider(scrapy.Spider):
 
         tender['status'] = self._detect_status(tender)
 
+        # Check year filter BEFORE extracting/yielding documents
+        if not self._tender_passes_year_filter(tender):
+            self.stats['tenders_skipped'] += 1
+            logger.info(f"⏭️ Skipping tender {tender.get('tender_id')} (year filter)")
+            return
+
         # Extract documents and yield DocumentItems for pipeline processing
         documents = self._extract_documents(response, tender.get('tender_id', 'unknown'))
         tender['documents_data'] = documents
@@ -877,6 +1937,7 @@ class NabavkiSpider(scrapy.Spider):
 
         # Log extraction statistics
         self._log_extraction_stats(tender)
+
         self.stats['tenders_scraped'] += 1
 
         logger.warning(f"✅ Successfully extracted tender: {tender.get('tender_id')}")
@@ -930,6 +1991,15 @@ class NabavkiSpider(scrapy.Spider):
             'category': [
                 '//label[@label-for="TYPE OF PROCUREMENT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[@label-for="TYPE OF CONTRACT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="TYPE OF PROCUREMENT DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="TYPE OF CONTRACT DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels
+                '//label[contains(text(), "Вид на набавка")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Вид на договор")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Предмет на договорот за набавка")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # General contains
+                '//label[contains(@label-for, "TYPE OF PROCUREMENT")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "TYPE OF CONTRACT")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'cpv_code': [
                 # PRIMARY: Extract any 8-digit CPV code pattern from the page
@@ -944,6 +2014,15 @@ class NabavkiSpider(scrapy.Spider):
             'procedure_type': [
                 '//label[@label-for="TYPE OF CALL:"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[@label-for="PROCEDURE TYPE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PROCEDURE TYPE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="TYPE OF CALL DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels
+                '//label[contains(text(), "Вид на постапка")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Тип на постапка")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Вид на оглас")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # General contains
+                '//label[contains(@label-for, "PROCEDURE TYPE")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "TYPE OF CALL")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'contracting_entity_category': [
                 '//label[@label-for="CATEGORY OF CONTRACTING INSTITUTION AND ITS MAIN ROLE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
@@ -955,12 +2034,32 @@ class NabavkiSpider(scrapy.Spider):
             'contract_duration': [
                 '//label[@label-for="PERIOD IN MONTHS"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[@label-for="CONTRACT DURATION DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="CONTRACT DURATION DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="PERIOD IN MONTHS DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels
+                '//label[contains(text(), "Период во месеци")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Траење на договорот")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Рок на траење")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # General contains
+                '//label[contains(@label-for, "PERIOD IN MONTHS")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "CONTRACT DURATION")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'winner': [
                 # Winner name (contractor who won the tender)
                 '//label[@label-for="NAME OF CONTACT OF PROCUREMENT DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[@label-for="WINNER NAME DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[@label-for="SELECTED BIDDER DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="NAME OF CONTACT OF PROCUREMENT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="WINNER NAME DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="SELECTED BIDDER DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels
+                '//label[contains(text(), "Избран понудувач")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Назив на носителот")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Договорна страна")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Име на понудувач")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # General contains
+                '//label[contains(@label-for, "WINNER")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "SELECTED BIDDER")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'contact_person': [
                 '//label[@label-for="CONTRACTING INSTITUTION CONTACT PERSON DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
@@ -994,21 +2093,60 @@ class NabavkiSpider(scrapy.Spider):
             'evaluation_method': [
                 '//label[@label-for="CRITERION FOR ASSIGNMENT OF CONTRACT DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[@label-for="AWARD CRITERIA DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="CRITERION FOR ASSIGNMENT OF CONTRACT DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels for evaluation/award criteria
+                '//label[contains(text(), "Критериум за доделување")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Критериум за избор")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Критериум")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # General contains for CRITERION/AWARD in label-for
+                '//label[contains(@label-for, "CRITERION")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "AWARD CRITERIA")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'delivery_location': [
                 '//label[@label-for="DELIVERY OF GOODS LOCATION OF WORKS DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="DELIVERY OF GOODS LOCATION OF WORKS DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="DELIVERY LOCATION DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels
+                '//label[contains(text(), "Место на испорака")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Место на извршување")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Локација")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # General contains for DELIVERY/LOCATION
+                '//label[contains(@label-for, "DELIVERY")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'num_bidders': [
                 '//label[@label-for="NUMBER OF OFFERS DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="NUMBER OF OFFERS DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="NUMBER OF BIDS DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian labels
+                '//label[contains(text(), "Број на понуди")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Број на примени понуди")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # General contains
+                '//label[contains(@label-for, "NUMBER OF OFFERS")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "NUMBER OF BIDS")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'highest_bid': [
                 '//label[@label-for="HIGEST OFFER VALUE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="HIGHEST OFFER VALUE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="HIGEST OFFER VALUE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian
+                '//label[contains(text(), "Највисока понуда")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "HIGEST OFFER")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "HIGHEST OFFER")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'lowest_bid': [
                 '//label[@label-for="LOWEST OFFER VALUE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="LOWEST OFFER VALUE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian
+                '//label[contains(text(), "Најниска понуда")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(@label-for, "LOWEST OFFER")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'has_lots': [
                 '//label[@label-for="CAN BE DIVEDED ON LOTS DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="CAN BE DIVIDED ON LOTS DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="CAN BE DIVEDED ON LOTS DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian
+                '//label[contains(text(), "Може да се дели на лотови")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "лотови")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
         }
 
@@ -1093,6 +2231,15 @@ class NabavkiSpider(scrapy.Spider):
             'publication_date': [
                 '//label[@label-for="ANNOUNCEMENT DATE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
                 '//label[@label-for="PUBLICATION DATE DOSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # For awarded/historical contracts - announcement date variants
+                '//label[@label-for="DATE WHEN NOTICE WAS PUBLISHED DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="NOTICE PUBLICATION DATE DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="DATE OF ANNOUNCEMENT DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[@label-for="ANNOUNCEMENT OF CONTRACT DOSSIE"]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                # Macedonian text-based fallbacks
+                '//label[contains(text(), "Датум на објавување")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "Датум на објава")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
+                '//label[contains(text(), "датум на известувањето")]/following-sibling::label[contains(@class, "dosie-value")][1]/text()',
             ],
             'opening_date': [
                 # PRIMARY: Exact label-for from live page analysis (active tenders)
@@ -1283,8 +2430,8 @@ class NabavkiSpider(scrapy.Spider):
             try:
                 number_str = percentage_match.group(1).replace(',', '.')
                 return Decimal(number_str)
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Error parsing bracketed percentage from '{value_string}': {e}")
 
         # Also try pattern without brackets: "15.00 %" or "15,00%"
         percentage_match = re.search(r'(\d+(?:[.,]\d+)?)\s*%', value_string)
@@ -1292,8 +2439,8 @@ class NabavkiSpider(scrapy.Spider):
             try:
                 number_str = percentage_match.group(1).replace(',', '.')
                 return Decimal(number_str)
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Error parsing percentage from '{value_string}': {e}")
 
         return None
 
@@ -1316,7 +2463,8 @@ class NabavkiSpider(scrapy.Spider):
                 number_str = number_str.replace(',', '.')
 
             return Decimal(number_str)
-        except:
+        except Exception as e:
+            logger.error(f"Error parsing currency from '{value_string}': {e}")
             return None
 
     def _categorize_document(self, filename: str, doc_type: str) -> str:
@@ -1806,8 +2954,8 @@ class NabavkiSpider(scrapy.Spider):
                 close_dt = datetime.strptime(closing_date, '%Y-%m-%d')
                 if close_dt < datetime.now():
                     return 'closed'
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Error parsing closing date '{closing_date}': {e}")
 
         # Default status for active tenders
         return 'open'

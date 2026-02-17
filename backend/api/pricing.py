@@ -125,8 +125,8 @@ async def get_price_history(
     time_trunc = 'month' if group_by == 'month' else 'quarter'
 
     # Query for aggregated price history
-    # Note: We use string formatting for INTERVAL because PostgreSQL doesn't support bind parameters there
-    query = text(f"""
+    # Note: We use make_interval() to safely parameterize the INTERVAL value
+    query = text("""
         WITH price_data AS (
             SELECT
                 DATE_TRUNC(:time_trunc, publication_date) as period,
@@ -141,7 +141,7 @@ async def get_price_history(
                 AVG(num_bidders) as avg_bidders
             FROM tenders
             WHERE cpv_code LIKE :cpv_prefix
-              AND publication_date > NOW() - INTERVAL '{int(months)} months'
+              AND publication_date > NOW() - make_interval(months => :months)
               AND publication_date IS NOT NULL
               AND status IN ('awarded', 'completed', 'active')
             GROUP BY DATE_TRUNC(:time_trunc, publication_date)
@@ -163,7 +163,8 @@ async def get_price_history(
             query,
             {
                 "time_trunc": time_trunc,
-                "cpv_prefix": f"{cpv_code}%"
+                "cpv_prefix": f"{cpv_code}%",
+                "months": months
             }
         )
         rows = result.fetchall()

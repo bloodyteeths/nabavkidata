@@ -101,7 +101,7 @@ export default function InsightsPage() {
     );
   }
 
-  if (!isLoggedIn || !["pro", "professional", "team", "enterprise"].includes(tier)) {
+  if (!isLoggedIn || !["professional", "enterprise"].includes(tier)) {
     return (
       <div className="p-6 space-y-6">
         <div>

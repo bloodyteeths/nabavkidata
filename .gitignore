@@ -38,12 +38,7 @@ out/
 .cache/
 
 # Environment
-.env
-.env.local
-.env.production
-.env.*.local
-.env.prod
-*.env.prod
+.env*
 
 # IDE
 .vscode/

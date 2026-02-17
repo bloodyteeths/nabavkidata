@@ -3,10 +3,9 @@ Plan Configuration - Single source of truth for all subscription tiers
 NabavkiData Macedonian Tender Intelligence Platform
 
 Pricing:
-- Start: 1,990 MKD / €39 per month
-- Pro: 5,990 MKD / €99 per month
-- Team: 12,990 MKD / €199 per month
-- Enterprise: Custom pricing
+- Starter: 1,990 MKD / €39 per month
+- Professional: 5,990 MKD / €99 per month
+- Enterprise: 12,990 MKD / €199 per month
 
 Payment Methods:
 - MKD: Card only
@@ -22,10 +21,9 @@ class PlanTier(str, Enum):
     """Subscription tier identifiers"""
     FREE = "free"
     TRIAL = "trial"  # 7-day Pro trial with credits
-    START = "start"
-    PRO = "pro"
-    TEAM = "team"
-    ENTERPRISE = "enterprise"
+    START = "starter"
+    PRO = "professional"
+    TEAM = "enterprise"
 
 
 class ModuleName(str, Enum):
@@ -363,7 +361,7 @@ TEAM_PLAN = PlanDefinition(
 )
 
 ENTERPRISE_PLAN = PlanDefinition(
-    tier=PlanTier.ENTERPRISE,
+    tier=PlanTier.TEAM,  # Custom enterprise uses same tier; negotiated separately
     name="Enterprise",
     name_mk="Претпријатие",
     description="Custom solution for large organizations",
@@ -423,7 +421,6 @@ PLANS: Dict[PlanTier, PlanDefinition] = {
     PlanTier.START: START_PLAN,
     PlanTier.PRO: PRO_PLAN,
     PlanTier.TEAM: TEAM_PLAN,
-    PlanTier.ENTERPRISE: ENTERPRISE_PLAN,
 }
 
 # String-based lookup for compatibility
@@ -452,11 +449,11 @@ def get_stripe_price_ids() -> Dict[str, Dict[str, Dict[str, Optional[str]]]]:
     Structure: {currency: {tier: {interval: price_id}}}
 
     Environment variables format:
-    - STRIPE_MKD_START_MONTHLY=price_xxx
-    - STRIPE_EUR_PRO_YEARLY=price_yyy
+    - STRIPE_MKD_STARTER_MONTHLY=price_xxx
+    - STRIPE_EUR_PROFESSIONAL_YEARLY=price_yyy
     """
     currencies = ["mkd", "eur"]
-    tiers = ["start", "pro", "team"]
+    tiers = ["starter", "professional", "enterprise"]
     intervals = ["monthly", "yearly"]
 
     price_ids: Dict[str, Dict[str, Dict[str, Optional[str]]]] = {}
@@ -571,12 +568,12 @@ def get_pricing_display(tier: str, currency: str = "mkd") -> str:
 
 def get_all_paid_plans() -> List[PlanDefinition]:
     """Get all paid plan definitions (for pricing page)"""
-    return [START_PLAN, PRO_PLAN, TEAM_PLAN, ENTERPRISE_PLAN]
+    return [START_PLAN, PRO_PLAN, TEAM_PLAN]
 
 
 def can_upgrade_to(current_tier: str, target_tier: str) -> bool:
     """Check if upgrade from current tier to target is valid"""
-    tier_order = ["free", "trial", "start", "pro", "team", "enterprise"]
+    tier_order = ["free", "trial", "starter", "professional", "enterprise"]
     try:
         current_idx = tier_order.index(current_tier.lower())
         target_idx = tier_order.index(target_tier.lower())

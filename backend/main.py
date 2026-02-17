@@ -20,6 +20,9 @@ from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, 
 # from api import report_campaigns
 from middleware.fraud import FraudPreventionMiddleware
 from middleware.rate_limit import RateLimitMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 app = FastAPI(
     title="nabavkidata.com API",
@@ -47,7 +50,19 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Device-Fingerprint", "X-Requested-With", "X-CSRF-Token", "Accept", "Accept-Language", "Content-Language", "X-API-Key", "X-Auth-Token"],
 )
 
-# Security Middlewares
+# Security Headers Middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
 # Rate Limiting - applied to all endpoints
 app.add_middleware(RateLimitMiddleware)
 
@@ -174,24 +189,16 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 @app.get("/api/health")
 async def api_health(db: AsyncSession = Depends(get_db)):
     """
-    Detailed health check endpoint for internal monitoring.
-    TODO: Consider adding authentication for production to prevent information disclosure.
+    Health check - minimal public info only.
     """
-    db_status, tender_count, doc_count, category_counts = await _database_health(db)
-    scraper_health = _read_scraper_health()
-    cron_status = "unknown"
-    if scraper_health:
-        cron_status = f"last run {scraper_health.get('finished_at')} status {scraper_health.get('status')}"
+    try:
+        await db.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception:
+        db_status = "error"
+
     return {
         "status": "healthy" if db_status == "ok" else "degraded",
-        "timestamp": datetime.utcnow().isoformat(),
-        "database": {
-            "status": db_status,
-            "tenders": tender_count,
-            "documents": doc_count,
-            "tenders_by_category": category_counts,
-        },
-        "scraper": scraper_health,
-        "cron": cron_status,
-        "rag": "enabled" if os.getenv('GEMINI_API_KEY') else "disabled"
+        "service": "backend-api",
+        "timestamp": datetime.utcnow().isoformat()
     }

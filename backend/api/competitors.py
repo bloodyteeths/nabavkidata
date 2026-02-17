@@ -295,9 +295,9 @@ async def get_bidding_patterns(
     # 1. BASIC STATISTICS
     # ========================================================================
 
-    basic_stats_query = text(f"""
+    basic_stats_query = text("""
         WITH date_threshold AS (
-            SELECT NOW() - INTERVAL '{analysis_months} months' as cutoff
+            SELECT NOW() - make_interval(months => :analysis_months) as cutoff
         )
         SELECT
             COUNT(DISTINCT tb.bidder_id) as total_bids,
@@ -315,7 +315,8 @@ async def get_bidding_patterns(
     """)
 
     result = await db.execute(basic_stats_query, {
-        "company_name": company_name
+        "company_name": company_name,
+        "analysis_months": analysis_months
     })
     stats = result.fetchone()
 
@@ -333,9 +334,9 @@ async def get_bidding_patterns(
     # 2. PRICING PATTERN ANALYSIS
     # ========================================================================
 
-    pricing_query = text(f"""
+    pricing_query = text("""
         WITH date_threshold AS (
-            SELECT NOW() - INTERVAL '{analysis_months} months' as cutoff
+            SELECT NOW() - make_interval(months => :analysis_months) as cutoff
         ),
         bid_analysis AS (
             SELECT
@@ -366,7 +367,8 @@ async def get_bidding_patterns(
     """)
 
     pricing_result = await db.execute(pricing_query, {
-        "company_name": company_name
+        "company_name": company_name,
+        "analysis_months": analysis_months
     })
     pricing_row = pricing_result.fetchone()
 
@@ -392,9 +394,9 @@ async def get_bidding_patterns(
     # 3. CATEGORY PREFERENCES (Top 5 CPV codes)
     # ========================================================================
 
-    category_query = text(f"""
+    category_query = text("""
         WITH date_threshold AS (
-            SELECT NOW() - INTERVAL '{analysis_months} months' as cutoff
+            SELECT NOW() - make_interval(months => :analysis_months) as cutoff
         )
         SELECT
             t.cpv_code,
@@ -418,7 +420,8 @@ async def get_bidding_patterns(
     """)
 
     category_result = await db.execute(category_query, {
-        "company_name": company_name
+        "company_name": company_name,
+        "analysis_months": analysis_months
     })
     category_rows = category_result.fetchall()
 
@@ -436,9 +439,9 @@ async def get_bidding_patterns(
     # 4. SIZE PREFERENCES (Small/Medium/Large tenders)
     # ========================================================================
 
-    size_query = text(f"""
+    size_query = text("""
         WITH date_threshold AS (
-            SELECT NOW() - INTERVAL '{analysis_months} months' as cutoff
+            SELECT NOW() - make_interval(months => :analysis_months) as cutoff
         ),
         size_categorized AS (
             SELECT
@@ -484,7 +487,8 @@ async def get_bidding_patterns(
     """)
 
     size_result = await db.execute(size_query, {
-        "company_name": company_name
+        "company_name": company_name,
+        "analysis_months": analysis_months
     })
     size_rows = size_result.fetchall()
 
@@ -507,9 +511,9 @@ async def get_bidding_patterns(
     # 5. SEASONAL ACTIVITY (Monthly bid frequency)
     # ========================================================================
 
-    seasonal_query = text(f"""
+    seasonal_query = text("""
         WITH date_threshold AS (
-            SELECT NOW() - INTERVAL '{analysis_months} months' as cutoff
+            SELECT NOW() - make_interval(months => :analysis_months) as cutoff
         )
         SELECT
             TO_CHAR(t.closing_date, 'Month') as month,
@@ -526,7 +530,8 @@ async def get_bidding_patterns(
     """)
 
     seasonal_result = await db.execute(seasonal_query, {
-        "company_name": company_name
+        "company_name": company_name,
+        "analysis_months": analysis_months
     })
     seasonal_rows = seasonal_result.fetchall()
 
@@ -543,9 +548,9 @@ async def get_bidding_patterns(
     # 6. TOP COMPETITORS (Companies they frequently compete against)
     # ========================================================================
 
-    competitors_query = text(f"""
+    competitors_query = text("""
         WITH date_threshold AS (
-            SELECT NOW() - INTERVAL '{analysis_months} months' as cutoff
+            SELECT NOW() - make_interval(months => :analysis_months) as cutoff
         ),
         company_tenders AS (
             -- Get all tenders where target company participated
@@ -581,7 +586,8 @@ async def get_bidding_patterns(
     """)
 
     competitors_result = await db.execute(competitors_query, {
-        "company_name": company_name
+        "company_name": company_name,
+        "analysis_months": analysis_months
     })
     competitors_rows = competitors_result.fetchall()
 
@@ -625,9 +631,9 @@ async def get_bidding_patterns(
     ]
 
     # Success rate by entity type
-    entity_type_query = text(f"""
+    entity_type_query = text("""
         WITH date_threshold AS (
-            SELECT NOW() - INTERVAL '{analysis_months} months' as cutoff
+            SELECT NOW() - make_interval(months => :analysis_months) as cutoff
         )
         SELECT
             t.contracting_entity_category,
@@ -651,7 +657,8 @@ async def get_bidding_patterns(
     """)
 
     entity_type_result = await db.execute(entity_type_query, {
-        "company_name": company_name
+        "company_name": company_name,
+        "analysis_months": analysis_months
     })
     entity_type_rows = entity_type_result.fetchall()
 
