@@ -501,7 +501,7 @@ async def get_flagged_tenders(
 # TENDER RISK ANALYSIS ENDPOINTS
 # ============================================================================
 
-@router.get("/tender/{tender_id}/analysis", response_model=TenderRiskAnalysis, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+@router.get("/tender/{tender_id:path}/analysis", response_model=TenderRiskAnalysis, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_tender_analysis(tender_id: str):
     """
     Get detailed corruption risk analysis for a specific tender
@@ -1119,7 +1119,7 @@ def _build_feature_contributions(
 # ML PREDICTION ENDPOINTS
 # ============================================================================
 
-@router.post("/predict/{tender_id}", response_model=MLPredictionResponse)
+@router.post("/predict/{tender_id:path}", response_model=MLPredictionResponse)
 async def predict_tender(
     tender_id: str,
     request: Optional[MLPredictionRequest] = None
@@ -1386,7 +1386,7 @@ async def list_predictions(
         await pool.release(conn)
 
 
-@router.get("/predictions/{tender_id}", response_model=MLPredictionResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+@router.get("/predictions/{tender_id:path}", response_model=MLPredictionResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_prediction(tender_id: str):
     """
     Get the latest ML prediction for a specific tender.

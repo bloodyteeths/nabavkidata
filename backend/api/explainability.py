@@ -156,7 +156,7 @@ def load_feature_importance() -> List[FeatureImportance]:
     return features
 
 
-@router.get("/explain/{tender_id}", response_model=TenderExplanation)
+@router.get("/explain/{tender_id:path}", response_model=TenderExplanation)
 async def get_tender_explanation(
     tender_id: str,
     method: str = Query("combined", regex="^(shap|lime|combined|flags)$")
