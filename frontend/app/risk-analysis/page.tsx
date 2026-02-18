@@ -133,6 +133,7 @@ interface RiskyTender {
   procuring_entity: string;
   estimated_value_mkd: number;
   winner: string;
+  has_winner: boolean;
   risk_score: number;
   risk_level: string;
   flag_count: number;
@@ -406,6 +407,7 @@ export default function RiskAnalysisPage() {
         procuring_entity: t.procuring_entity || "",
         estimated_value_mkd: parseFloat(t.estimated_value_mkd) || 0,
         winner: t.winner || "",
+        has_winner: t.has_winner !== false,
         risk_score: t.risk_score || 0,
         risk_level: t.risk_level || "medium",
         flag_count: t.total_flags || 0,
@@ -1030,6 +1032,11 @@ export default function RiskAnalysisPage() {
                         <div className="flex items-center justify-between pt-3 border-t">
                           <div className="flex items-center gap-2 min-w-0">
                             <Badge variant="outline" className="text-[10px] font-mono shrink-0">{tender.tender_id}</Badge>
+                            {!tender.has_winner && (
+                              <Badge variant="outline" className="text-[10px] shrink-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
+                                <Info className="h-3 w-3 mr-0.5" />Нецелосни податоци
+                              </Badge>
+                            )}
                             {tender.estimated_value_mkd > 0 && (
                               <span className="text-xs font-medium text-primary truncate">
                                 {formatCurrency(tender.estimated_value_mkd)}
@@ -1043,10 +1050,15 @@ export default function RiskAnalysisPage() {
 
                         {isOpen && (
                           <div className="mt-4 pt-4 border-t space-y-3">
-                            {tender.winner && (
+                            {tender.winner ? (
                               <div>
                                 <p className="text-xs text-muted-foreground">Победник:</p>
                                 <p className="text-sm font-medium">{tender.winner}</p>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md p-2">
+                                <Info className="h-4 w-4 shrink-0" />
+                                <p className="text-xs">Нема податоци за победник — анализата се базира само на структурни индикатори</p>
                               </div>
                             )}
 

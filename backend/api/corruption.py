@@ -144,6 +144,7 @@ class TenderFlag(BaseModel):
     winner: Optional[str]
     estimated_value_mkd: Optional[Decimal] = None
     status: Optional[str]
+    has_winner: bool = True
     total_flags: int
     risk_score: int  # 0-100
     risk_level: str  # critical, high, medium, low
@@ -449,6 +450,7 @@ async def get_flagged_tenders(
             winner,
             estimated_value_mkd,
             status,
+            COALESCE(has_winner, winner IS NOT NULL) as has_winner,
             total_flags,
             risk_score,
             max_severity,
@@ -472,6 +474,7 @@ async def get_flagged_tenders(
                 winner=row['winner'],
                 estimated_value_mkd=row['estimated_value_mkd'],
                 status=row['status'],
+                has_winner=row.get('has_winner', row['winner'] is not None),
                 total_flags=row['total_flags'],
                 risk_score=row['risk_score'] or 0,
                 risk_level=risk_level,
