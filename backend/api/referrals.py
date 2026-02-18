@@ -262,6 +262,7 @@ async def start_connect_onboarding(
                 country="MK",
                 email=current_user.email,
                 capabilities={"transfers": {"requested": True}},
+                tos_acceptance={"service_agreement": "recipient"},
                 metadata={"user_id": user_id, "platform": "nabavkidata"},
             )
             connect_id = account.id
