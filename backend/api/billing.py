@@ -22,6 +22,7 @@ from database import get_db
 from models import User, Subscription, UsageTracking, AuditLog
 from api.auth import get_current_user, get_current_active_user
 from services.billing_service import billing_service, PLAN_LIMITS, PRICE_IDS
+from sqlalchemy import text as sa_text
 
 # ============================================================================
 # CONFIGURATION
@@ -1378,6 +1379,8 @@ async def handle_stripe_webhook(
             await handle_payment_succeeded(db, event.data.object)
         elif event.type == "invoice.payment_failed":
             await handle_payment_failed(db, event.data.object)
+        elif event.type == "account.updated":
+            await _handle_connect_account_updated(db, event.data.object)
         else:
             logger.info(f"Unhandled webhook event type: {event.type}")
 
@@ -1562,6 +1565,95 @@ async def handle_payment_succeeded(db: AsyncSession, invoice_obj: Dict[str, Any]
             },
             None
         )
+        # Process referral commission (20% to referrer)
+        await _process_referral_commission(db, user, invoice_obj)
+
+
+async def _process_referral_commission(db: AsyncSession, user: User, invoice_obj: Dict[str, Any]):
+    """Credit 20% commission to referrer if this user was referred and has an active conversion."""
+    try:
+        invoice_id = invoice_obj["id"]
+        amount_paid_cents = invoice_obj["amount_paid"]
+        currency = invoice_obj["currency"].upper()
+
+        if amount_paid_cents <= 0:
+            return
+
+        # Idempotency check
+        existing = await db.execute(
+            sa_text("SELECT 1 FROM referral_earnings WHERE invoice_id = :inv"),
+            {"inv": invoice_id}
+        )
+        if existing.fetchone():
+            return
+
+        # Check for active referral conversion
+        conv_result = await db.execute(
+            sa_text("""
+                SELECT conversion_id, referrer_id
+                FROM referral_conversions
+                WHERE referred_user_id = :uid AND status = 'active'
+            """),
+            {"uid": str(user.user_id)}
+        )
+        conv = conv_result.fetchone()
+        if not conv:
+            return
+
+        conversion_id, referrer_id = conv[0], conv[1]
+        commission_cents = amount_paid_cents * 20 // 100
+        if commission_cents <= 0:
+            return
+
+        await db.execute(
+            sa_text("""
+                INSERT INTO referral_earnings
+                    (referrer_id, referred_user_id, conversion_id, invoice_id, amount_cents, currency)
+                VALUES (:referrer, :referred, :conv, :inv, :amount, :currency)
+            """),
+            {
+                "referrer": str(referrer_id),
+                "referred": str(user.user_id),
+                "conv": str(conversion_id),
+                "inv": invoice_id,
+                "amount": commission_cents,
+                "currency": currency,
+            }
+        )
+        await db.commit()
+        logger.info(f"Referral commission: {commission_cents} cents {currency} to {referrer_id} from {user.user_id}")
+    except Exception as e:
+        logger.error(f"Error processing referral commission: {e}", exc_info=True)
+
+
+async def _handle_connect_account_updated(db: AsyncSession, account_obj: Dict[str, Any]):
+    """Handle account.updated event for Stripe Connect accounts."""
+    try:
+        account_id = account_obj["id"]
+        charges_enabled = account_obj.get("charges_enabled", False)
+        payouts_enabled = account_obj.get("payouts_enabled", False)
+        requirements = account_obj.get("requirements", {})
+        currently_due = requirements.get("currently_due", [])
+
+        if charges_enabled and payouts_enabled:
+            new_status = "active"
+        elif currently_due:
+            new_status = "restricted"
+        else:
+            new_status = "pending"
+
+        result = await db.execute(
+            sa_text("UPDATE users SET stripe_connect_status = :st WHERE stripe_connect_id = :cid RETURNING user_id"),
+            {"st": new_status, "cid": account_id}
+        )
+        row = result.fetchone()
+        if row:
+            await db.commit()
+            logger.info(f"Connect account {account_id} status -> '{new_status}' (user {row[0]})")
+        else:
+            logger.warning(f"No user found for Connect account {account_id}")
+    except Exception as e:
+        logger.error(f"Error handling account.updated: {e}", exc_info=True)
 
 
 async def handle_payment_failed(db: AsyncSession, invoice_obj: Dict[str, Any]):
