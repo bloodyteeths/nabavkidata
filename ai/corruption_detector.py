@@ -1925,11 +1925,15 @@ class CorruptionScorer:
         """
         Calculate Corruption Risk Index (CRI) for a tender.
 
-        Uses a weighted indicator-based approach: each distinct flag type present
-        contributes its weight to the CRI. This replaces the old sum-based approach.
+        Uses weighted average of flag scores with multi-indicator bonus.
+        Base = weighted average of individual flag scores (preserves severity).
+        Bonus = +8 per additional distinct indicator type (rewards breadth).
 
-        Args:
-            flags: List of CorruptionFlag objects for one tender
+        This produces meaningful scores:
+        - 1 flag (score 40) → CRI 40 (medium)
+        - 2 flags avg 45 → CRI 53 (medium)
+        - 3 flags avg 50 → CRI 66 (high)
+        - 5+ flags → CRI 80+ (critical)
 
         Returns:
             Tuple of (cri_score 0-100, risk_level)
@@ -1937,27 +1941,28 @@ class CorruptionScorer:
         if not flags:
             return 0, 'minimal'
 
-        # Get distinct flag types present
-        distinct_types = set(flag.flag_type for flag in flags)
+        # Group flags by type, take max score per type
+        type_scores: Dict[str, int] = {}
+        for flag in flags:
+            existing = type_scores.get(flag.flag_type, 0)
+            if flag.score > existing:
+                type_scores[flag.flag_type] = flag.score
 
-        # Sum weights of present indicator types
-        weighted_count = sum(
-            CorruptionScorer.WEIGHTS.get(ft, 1.0)
-            for ft in distinct_types
-        )
+        # Weighted average of per-type max scores
+        total_weighted_score = 0.0
+        total_weight = 0.0
+        for ft, score in type_scores.items():
+            w = CorruptionScorer.WEIGHTS.get(ft, 1.0)
+            total_weighted_score += score * w
+            total_weight += w
 
-        # CRI = weighted presence / max possible * 100
-        cri = int((weighted_count / CorruptionScorer.MAX_WEIGHTED) * 100)
+        base_score = total_weighted_score / total_weight if total_weight > 0 else 0
 
-        # Boost: if max individual score among flags is very high, ensure CRI
-        # reflects severity even with few flag types
-        max_flag_score = max(flag.score for flag in flags)
-        if max_flag_score >= 80 and cri < 40:
-            cri = max(cri, 35)
-        elif max_flag_score >= 70 and cri < 30:
-            cri = max(cri, 25)
+        # Multi-indicator bonus: +8 per additional distinct type (diminishing)
+        num_types = len(type_scores)
+        bonus = 8 * (num_types - 1) if num_types > 1 else 0
 
-        cri = min(100, cri)
+        cri = min(100, int(base_score + bonus))
 
         # Determine risk level
         if cri >= 80:

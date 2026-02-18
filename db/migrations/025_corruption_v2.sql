@@ -6,6 +6,7 @@
 --   contract_value_growth, bid_rotation, threshold_manipulation, late_amendment
 --
 -- Changes:
+--   0. Update CHECK constraint to allow all 15 flag types
 --   1. Add index on corruption_flags(flag_type) for faster filtering
 --   2. Drop and recreate mv_corruption_stats to include all 15 flag types
 --   3. Drop and recreate mv_flagged_tenders (same logic, but ensures clean state)
@@ -15,6 +16,17 @@
 -- ============================================================================
 -- STEP 1: Add index on corruption_flags(flag_type)
 -- ============================================================================
+
+-- Step 0: Update CHECK constraint to allow all 15 flag types
+ALTER TABLE corruption_flags DROP CONSTRAINT IF EXISTS corruption_flags_flag_type_check;
+ALTER TABLE corruption_flags ADD CONSTRAINT corruption_flags_flag_type_check
+CHECK (flag_type IN (
+    'single_bidder', 'repeat_winner', 'price_anomaly', 'bid_clustering', 'short_deadline',
+    'high_amendments', 'spec_rigging', 'related_companies',
+    'procedure_type', 'identical_bids', 'professional_loser', 'contract_splitting',
+    'short_decision', 'strategic_disqualification', 'contract_value_growth',
+    'bid_rotation', 'threshold_manipulation', 'late_amendment'
+));
 
 CREATE INDEX IF NOT EXISTS idx_corruption_flags_flag_type
     ON corruption_flags(flag_type);

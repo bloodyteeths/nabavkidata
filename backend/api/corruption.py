@@ -537,7 +537,7 @@ async def get_tender_analysis(tender_id: str):
         """, tender_id)
 
         flags = []
-        cri_weight_sum = 0.0
+        type_max_scores = {}  # {flag_type: (max_score, weight)}
         max_severity = 'low'
         severity_order = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1}
 
@@ -561,13 +561,25 @@ async def get_tender_analysis(tender_id: str):
             ))
             # Only non-false-positive flags contribute to CRI score
             if not is_false_positive:
-                cri_weight_sum += CRI_WEIGHTS.get(flag_type, 1.0)
+                ft = row['flag_type']
+                w = CRI_WEIGHTS.get(ft, 1.0)
+                s = row['score'] or 0
+                # Track max score per type (weighted)
+                existing = type_max_scores.get(ft, (0, 0))
+                if s > existing[0]:
+                    type_max_scores[ft] = (s, w)
                 if severity_order.get(row['severity'], 0) > severity_order.get(max_severity, 0):
                     max_severity = row['severity']
 
-        # CRI formula: (sum of weights for present non-FP flag types) / (sum of all possible weights) * 100
-        risk_score = round(cri_weight_sum / CRI_MAX_WEIGHT * 100) if CRI_MAX_WEIGHT > 0 else 0
-        risk_score = min(100, risk_score)
+        # CRI formula: weighted average of per-type max scores + multi-indicator bonus
+        if type_max_scores:
+            total_ws = sum(s * w for s, w in type_max_scores.values())
+            total_w = sum(w for _, w in type_max_scores.values())
+            base_score = total_ws / total_w if total_w > 0 else 0
+            bonus = 8 * (len(type_max_scores) - 1) if len(type_max_scores) > 1 else 0
+            risk_score = min(100, round(base_score + bonus))
+        else:
+            risk_score = 0
         risk_level = calculate_risk_level(risk_score)
 
         return TenderRiskAnalysis(
