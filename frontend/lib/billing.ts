@@ -106,6 +106,13 @@ export interface ReferralEarning {
   created_at: string;
 }
 
+export interface ConnectStatus {
+  connected: boolean;
+  status: string | null;  // null, 'pending', 'active', 'restricted'
+  charges_enabled: boolean;
+  payouts_enabled: boolean;
+}
+
 class BillingService {
   private baseURL: string;
 
@@ -330,11 +337,20 @@ class BillingService {
     return this.request(`/api/referrals/earnings?skip=${skip}&limit=${limit}`);
   }
 
-  async requestPayout(data: { bank_name: string; account_holder: string; iban: string }): Promise<{ message: string }> {
+  async requestPayout(data: { bank_name?: string; account_holder?: string; iban?: string }): Promise<{ message: string }> {
     return this.request('/api/referrals/request-payout', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // Stripe Connect
+  async startConnectOnboarding(): Promise<{ url: string }> {
+    return this.request('/api/referrals/connect/onboard', { method: 'POST' });
+  }
+
+  async getConnectStatus(): Promise<ConnectStatus> {
+    return this.request('/api/referrals/connect/status');
   }
 }
 

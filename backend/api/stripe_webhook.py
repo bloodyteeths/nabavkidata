@@ -602,6 +602,45 @@ async def handle_subscription_trial_will_end(db: AsyncSession, subscription_obj:
 
 
 # ============================================================================
+# STRIPE CONNECT ACCOUNT UPDATES
+# ============================================================================
+
+async def handle_account_updated(db: AsyncSession, account_obj: Dict[str, Any]):
+    """Handle account.updated event for Stripe Connect accounts."""
+    try:
+        account_id = account_obj["id"]
+        charges_enabled = account_obj.get("charges_enabled", False)
+        payouts_enabled = account_obj.get("payouts_enabled", False)
+        requirements = account_obj.get("requirements", {})
+        currently_due = requirements.get("currently_due", [])
+
+        logger.info(f"Connect account.updated: {account_id} charges={charges_enabled} payouts={payouts_enabled}")
+
+        # Determine new status
+        if charges_enabled and payouts_enabled:
+            new_status = "active"
+        elif currently_due:
+            new_status = "restricted"
+        else:
+            new_status = "pending"
+
+        # Update user's connect status
+        result = await db.execute(
+            text("UPDATE users SET stripe_connect_status = :st WHERE stripe_connect_id = :cid RETURNING user_id"),
+            {"st": new_status, "cid": account_id}
+        )
+        row = result.fetchone()
+        if row:
+            await db.commit()
+            logger.info(f"Updated Connect status to '{new_status}' for account {account_id} (user {row[0]})")
+        else:
+            logger.warning(f"No user found for Connect account {account_id}")
+
+    except Exception as e:
+        logger.error(f"Error handling account.updated: {e}", exc_info=True)
+
+
+# ============================================================================
 # WEBHOOK ENDPOINT
 # ============================================================================
 
@@ -692,6 +731,9 @@ async def stripe_webhook_handler(
 
         elif event.type == "customer.subscription.trial_will_end":
             await handle_subscription_trial_will_end(db, event.data.object)
+
+        elif event.type == "account.updated":
+            await handle_account_updated(db, event.data.object)
 
         else:
             # Log unhandled event types for future implementation

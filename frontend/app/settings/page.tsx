@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { api, UserPreferences } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { billing, BillingPlan, UserSubscriptionStatus, TrialCredits, ReferralStats, ReferralEarning } from "@/lib/billing";
+import { billing, BillingPlan, UserSubscriptionStatus, TrialCredits, ReferralStats, ReferralEarning, ConnectStatus } from "@/lib/billing";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -916,6 +916,8 @@ export default function SettingsPage() {
   const [payoutForm, setPayoutForm] = useState({ bank_name: "", account_holder: "", iban: "" });
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
+  const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
+  const [connectLoading, setConnectLoading] = useState(false);
 
   // Hydration guard to prevent client-side errors
   const [isHydrated, setIsHydrated] = useState(false);
@@ -963,15 +965,17 @@ export default function SettingsPage() {
 
   const loadReferralData = async () => {
     try {
-      const [codeData, statsData, earningsData] = await Promise.all([
+      const [codeData, statsData, earningsData, connectData] = await Promise.all([
         billing.getReferralCode(),
         billing.getReferralStats(),
         billing.getReferralEarnings(0, 10),
+        billing.getConnectStatus(),
       ]);
       setReferralCode(codeData.code);
       setReferralUrl(codeData.referral_url);
       setReferralStats(statsData);
       setReferralEarnings(earningsData.earnings);
+      setConnectStatus(connectData);
     } catch (err) {
       console.error("Failed to load referral data:", err);
     }
@@ -998,6 +1002,30 @@ export default function SettingsPage() {
       loadReferralData();
     } catch (err: any) {
       toast.error(err.message || "Грешка при испраќање на барањето");
+    } finally {
+      setPayoutLoading(false);
+    }
+  };
+
+  const startConnectOnboarding = async () => {
+    setConnectLoading(true);
+    try {
+      const result = await billing.startConnectOnboarding();
+      window.location.href = result.url;
+    } catch (err: any) {
+      toast.error(err.message || "Грешка при поврзување со Stripe");
+      setConnectLoading(false);
+    }
+  };
+
+  const requestStripePayout = async () => {
+    setPayoutLoading(true);
+    try {
+      const result = await billing.requestPayout({});
+      toast.success(result.message);
+      loadReferralData();
+    } catch (err: any) {
+      toast.error(err.message || "Грешка при исплата");
     } finally {
       setPayoutLoading(false);
     }
@@ -1661,43 +1689,86 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Payout Request */}
-              {referralStats && referralStats.pending_balance_cents >= 500 && !showPayoutForm && (
-                <div className="border-t pt-4">
-                  <Button onClick={() => setShowPayoutForm(true)} size="sm">
-                    Побарај исплата ({formatEur(referralStats.pending_balance_cents)})
-                  </Button>
-                </div>
-              )}
-
-              {showPayoutForm && (
-                <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
-                  <h4 className="font-medium text-sm">Банкарски податоци за исплата</h4>
-                  <Input
-                    placeholder="Име и презиме (носител на сметка)"
-                    value={payoutForm.account_holder}
-                    onChange={(e) => setPayoutForm({ ...payoutForm, account_holder: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Име на банка"
-                    value={payoutForm.bank_name}
-                    onChange={(e) => setPayoutForm({ ...payoutForm, bank_name: e.target.value })}
-                  />
-                  <Input
-                    placeholder="IBAN (MK07 ...)"
-                    value={payoutForm.iban}
-                    onChange={(e) => setPayoutForm({ ...payoutForm, iban: e.target.value })}
-                  />
-                  <div className="flex gap-2">
-                    <Button onClick={submitPayoutRequest} disabled={payoutLoading} size="sm">
-                      {payoutLoading ? "Се испраќа..." : "Испрати барање"}
-                    </Button>
-                    <Button variant="outline" onClick={() => setShowPayoutForm(false)} size="sm">
-                      Откажи
+              {/* Stripe Connect + Payout */}
+              <div className="border-t pt-4 space-y-3">
+                {/* Connect Status */}
+                {connectStatus?.status === 'active' ? (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-green-100 text-green-800">Stripe поврзан</Badge>
+                    <span className="text-xs text-muted-foreground">Исплатите се автоматски</span>
+                  </div>
+                ) : connectStatus?.status === 'pending' ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-yellow-100 text-yellow-800">Верификација во тек</Badge>
+                    </div>
+                    <Button onClick={startConnectOnboarding} disabled={connectLoading} size="sm" variant="outline">
+                      {connectLoading ? "Се вчитува..." : "Продолжи со верификација"}
                     </Button>
                   </div>
-                </div>
-              )}
+                ) : connectStatus?.status === 'restricted' ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-orange-100 text-orange-800">Потребна верификација</Badge>
+                    </div>
+                    <Button onClick={startConnectOnboarding} disabled={connectLoading} size="sm" variant="outline">
+                      {connectLoading ? "Се вчитува..." : "Ажурирај податоци"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Поврзете Stripe сметка за автоматски исплати</p>
+                    <Button onClick={startConnectOnboarding} disabled={connectLoading} size="sm">
+                      {connectLoading ? "Се вчитува..." : "Поврзи Stripe сметка"}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Payout button (Stripe Connect - instant) */}
+                {connectStatus?.status === 'active' && referralStats && referralStats.pending_balance_cents >= 500 && (
+                  <Button onClick={requestStripePayout} disabled={payoutLoading} size="sm">
+                    {payoutLoading ? "Се исплаќа..." : `Исплати ${formatEur(referralStats.pending_balance_cents)}`}
+                  </Button>
+                )}
+
+                {/* Manual bank transfer fallback (only if no Connect) */}
+                {(!connectStatus || !connectStatus.connected) && referralStats && referralStats.pending_balance_cents >= 500 && !showPayoutForm && (
+                  <div>
+                    <button onClick={() => setShowPayoutForm(true)} className="text-xs text-muted-foreground underline">
+                      Или побарајте мануелна исплата преку банка
+                    </button>
+                  </div>
+                )}
+
+                {showPayoutForm && (
+                  <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                    <h4 className="font-medium text-sm">Банкарски податоци за исплата</h4>
+                    <Input
+                      placeholder="Име и презиме (носител на сметка)"
+                      value={payoutForm.account_holder}
+                      onChange={(e) => setPayoutForm({ ...payoutForm, account_holder: e.target.value })}
+                    />
+                    <Input
+                      placeholder="Име на банка"
+                      value={payoutForm.bank_name}
+                      onChange={(e) => setPayoutForm({ ...payoutForm, bank_name: e.target.value })}
+                    />
+                    <Input
+                      placeholder="IBAN (MK07 ...)"
+                      value={payoutForm.iban}
+                      onChange={(e) => setPayoutForm({ ...payoutForm, iban: e.target.value })}
+                    />
+                    <div className="flex gap-2">
+                      <Button onClick={submitPayoutRequest} disabled={payoutLoading} size="sm">
+                        {payoutLoading ? "Се испраќа..." : "Испрати барање"}
+                      </Button>
+                      <Button variant="outline" onClick={() => setShowPayoutForm(false)} size="sm">
+                        Откажи
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* How it works */}
               {referralStats && referralStats.total_referrals === 0 && (
@@ -1705,7 +1776,7 @@ export default function SettingsPage() {
                   <p className="font-medium">Како функционира?</p>
                   <p>1. Споделете го вашиот линк со колеги и партнери</p>
                   <p>2. Кога тие ќе се регистрираат и претплатат, вие добивате 20% од секоја нивна уплата</p>
-                  <p>3. Побарајте исплата кога ќе акумулирате мин. 5 EUR</p>
+                  <p>3. Поврзете Stripe сметка и побарајте автоматска исплата (мин. 5 EUR)</p>
                 </div>
               )}
             </CardContent>
