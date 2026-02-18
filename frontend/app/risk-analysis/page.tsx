@@ -286,7 +286,11 @@ export default function RiskAnalysisPage() {
     if (!authChecked || !isLoggedIn || !["professional", "enterprise"].includes(tier)) return;
     async function loadStats() {
       try {
-        const res = await fetch(`${API_URL}/api/corruption/stats`);
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch(`${API_URL}/api/corruption/stats`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include',
+        });
         if (res.ok) {
           const data = await res.json();
           setStats({
@@ -386,7 +390,11 @@ export default function RiskAnalysisPage() {
       if (debouncedSearch) params.append("institution", debouncedSearch);
       if (debouncedWinner) params.append("winner", debouncedWinner);
 
-      const res = await fetch(`${API_URL}/api/corruption/flagged-tenders?${params}`);
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_URL}/api/corruption/flagged-tenders?${params}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error("API error");
 
       const data = await res.json();
@@ -503,7 +511,11 @@ export default function RiskAnalysisPage() {
     if (!detailedAnalysis[id]) {
       setLoadingDetail(id);
       try {
-        const res = await fetch(`${API_URL}/api/corruption/tender/${encodeURIComponent(id)}/analysis`);
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch(`${API_URL}/api/corruption/tender/${encodeURIComponent(id)}/analysis`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include',
+        });
         if (res.ok) {
           const data = await res.json();
           setDetailedAnalysis(prev => ({ ...prev, [id]: data }));
@@ -524,9 +536,14 @@ export default function RiskAnalysisPage() {
 
     setSubmittingReview(true);
     try {
+      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${API_URL}/api/corruption/flags/${flagId}/review`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
         body: JSON.stringify({
           false_positive: isFalsePositive,
           review_notes: reviewNotes
