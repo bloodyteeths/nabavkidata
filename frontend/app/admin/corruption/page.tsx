@@ -78,8 +78,8 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 const FLAG_TYPE_LABELS: Record<string, string> = {
   // Original 5
-  single_bidder: 'Еден понудувач',
-  repeat_winner: 'Повторлив победник',
+  single_bidder: '1 понудувач',
+  repeat_winner: 'Повторен победник',
   price_anomaly: 'Ценовна аномалија',
   bid_clustering: 'Кластер понуди',
   short_deadline: 'Краток рок',
@@ -113,6 +113,8 @@ const FLAG_TYPE_COLORS: Record<string, string> = {
   threshold_manipulation: '#14b8a6',
   late_amendment: '#d97706',
 };
+
+const TOTAL_INDICATORS = Object.keys(FLAG_TYPE_LABELS).length;
 
 export default function CorruptionDashboard() {
   const [stats, setStats] = useState<CorruptionStats | null>(null);
@@ -209,7 +211,7 @@ export default function CorruptionDashboard() {
   };
 
   const formatValue = (value: number | null) => {
-    if (!value) return 'N/A';
+    if (!value) return 'Н/Д';
     return new Intl.NumberFormat('mk-MK', {
       style: 'currency',
       currency: 'MKD',
@@ -229,7 +231,7 @@ export default function CorruptionDashboard() {
   const typeChartData = stats
     ? Object.entries(stats.by_type)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 15)
+        .slice(0, TOTAL_INDICATORS)
         .map(([type, count]) => ({
           name: FLAG_TYPE_LABELS[type] || type,
           count,
@@ -330,7 +332,7 @@ export default function CorruptionDashboard() {
             <div className="text-2xl font-bold">
               {stats?.total_value_at_risk_mkd
                 ? `${(stats.total_value_at_risk_mkd / 1000000).toFixed(1)}M`
-                : 'N/A'}
+                : 'Н/Д'}
             </div>
             <p className="text-xs text-muted-foreground">
               МКД вкупно
@@ -378,7 +380,7 @@ export default function CorruptionDashboard() {
         {/* Flag Types */}
         <Card>
           <CardHeader>
-            <CardTitle>Типови на Знамиња (15 индикатори)</CardTitle>
+            <CardTitle>Типови на Знамиња ({TOTAL_INDICATORS} индикатори)</CardTitle>
           </CardHeader>
           <CardContent>
             {typeChartData.length > 0 ? (
@@ -433,7 +435,7 @@ export default function CorruptionDashboard() {
                   <TableRow key={tender.tender_id}>
                     <TableCell>
                       <div className="max-w-[300px]">
-                        <p className="font-medium truncate" title={tender.title || 'N/A'}>
+                        <p className="font-medium truncate" title={tender.title || 'Без наслов'}>
                           {tender.title || 'Без наслов'}
                         </p>
                         <p className="text-xs text-muted-foreground">
@@ -443,7 +445,7 @@ export default function CorruptionDashboard() {
                     </TableCell>
                     <TableCell>
                       <p className="truncate max-w-[200px]" title={tender.procuring_entity || ''}>
-                        {tender.procuring_entity || 'N/A'}
+                        {tender.procuring_entity || 'Н/Д'}
                       </p>
                     </TableCell>
                     <TableCell className="text-right">
@@ -457,7 +459,7 @@ export default function CorruptionDashboard() {
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex flex-wrap gap-1 justify-center">
-                        <Badge variant="outline">{tender.total_flags}/15</Badge>
+                        <Badge variant="outline">{tender.total_flags}/{TOTAL_INDICATORS}</Badge>
                         {tender.flag_types?.slice(0, 3).map((ft: string) => (
                           <Badge key={ft} variant="secondary" className="text-[9px]">
                             {FLAG_TYPE_LABELS[ft] || ft}

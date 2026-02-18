@@ -43,7 +43,6 @@ import {
   Scale,
   ClipboardCheck,
   Download,
-  Printer,
   ChevronsLeft,
   ChevronsRight,
   Network,
@@ -110,13 +109,13 @@ const FLAG_TYPES: Record<string, { icon: typeof Users; label: string; descriptio
   related_companies: { icon: Building2, label: "Поврзани компании", description: "Понудувачи со заедничко власништво", color: "text-purple-500 bg-purple-50 dark:bg-purple-900/20" }
 };
 
-// CRI Score color and label based on 0-100 range
+// CRI Score color and label based on 0-100 range (aligned with RISK_LEVELS)
 function getCRIConfig(score: number): { color: string; bg: string; label: string } {
-  if (score >= 80) return { color: "text-red-600", bg: "bg-red-500", label: "Критичен" };
-  if (score >= 60) return { color: "text-orange-600", bg: "bg-orange-500", label: "Висок" };
-  if (score >= 40) return { color: "text-yellow-600", bg: "bg-yellow-500", label: "Среден" };
-  if (score >= 20) return { color: "text-blue-600", bg: "bg-blue-500", label: "Низок" };
-  return { color: "text-green-600", bg: "bg-green-500", label: "Минимален" };
+  if (score >= 80) return { color: "text-red-700", bg: "bg-red-500", label: "Критичен" };
+  if (score >= 60) return { color: "text-orange-700", bg: "bg-orange-500", label: "Висок" };
+  if (score >= 40) return { color: "text-yellow-700", bg: "bg-yellow-500", label: "Среден" };
+  if (score >= 20) return { color: "text-blue-700", bg: "bg-blue-500", label: "Низок" };
+  return { color: "text-green-700", bg: "bg-green-500", label: "Минимален" };
 }
 
 interface RiskFlag {
@@ -189,6 +188,16 @@ interface CompanyRisk {
 }
 
 const PAGE_SIZE = 24;
+const LEGACY_FLAG_TYPES = new Set(["high_amendments", "spec_rigging", "related_companies"]);
+const ACTIVE_FLAG_COUNT = Object.keys(FLAG_TYPES).filter(k => !LEGACY_FLAG_TYPES.has(k)).length;
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "Активен",
+  awarded: "Доделен",
+  cancelled: "Откажан",
+  completed: "Завршен",
+  planned: "Планиран",
+};
 
 const PATTERN_LABELS: Record<string, string> = {
   bid_clustering: "Групирање понуди",
@@ -235,7 +244,6 @@ export default function RiskAnalysisPage() {
   // Investigation workflow
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<string>("");
-  const [reviewStatus, setReviewStatus] = useState<Record<string, { status: string; notes: string }>>({});
   const [submittingReview, setSubmittingReview] = useState(false);
 
   // Search mode
@@ -260,7 +268,6 @@ export default function RiskAnalysisPage() {
   const [collusionClusters, setCollusionClusters] = useState<CollusionCluster[]>([]);
   const [companyRisks, setCompanyRisks] = useState<CompanyRisk[]>([]);
   const [selectedCluster, setSelectedCluster] = useState<CollusionCluster | null>(null);
-  const [clusterCompanySearch, setClusterCompanySearch] = useState("");
 
   // ML Explanation for individual tenders
   const [showMLExplanation, setShowMLExplanation] = useState<string | null>(null);
@@ -323,10 +330,10 @@ export default function RiskAnalysisPage() {
 
   // Trigger search when page or filter changes (for search tab)
   useEffect(() => {
-    if (mode === "search" && searchQuery && searchResults.length > 0) {
+    if (mode === "search" && searchQuery) {
       searchTenders();
     }
-  }, [searchPage, searchStatusFilter]);
+  }, [searchPage, searchStatusFilter, searchQuery]);
 
   // Load ML data when tab is selected
   useEffect(() => {
@@ -553,13 +560,6 @@ export default function RiskAnalysisPage() {
       });
 
       if (res.ok) {
-        setReviewStatus(prev => ({
-          ...prev,
-          [tenderId]: {
-            status: isFalsePositive ? "dismissed" : "confirmed",
-            notes: reviewNotes
-          }
-        }));
         setReviewingId(null);
         setReviewNotes("");
         loadFlaggedTenders();
@@ -770,7 +770,7 @@ export default function RiskAnalysisPage() {
             <Lightbulb className="h-3 w-3 mr-1" /> SHAP/LIME објаснувања
           </Badge>
           <Badge variant="outline" className="text-[10px]">
-            <Gauge className="h-3 w-3 mr-1" /> CRI (15 индикатори)
+            <Gauge className="h-3 w-3 mr-1" /> CRI ({ACTIVE_FLAG_COUNT} индикатори)
           </Badge>
         </div>
       </div>
@@ -883,7 +883,7 @@ export default function RiskAnalysisPage() {
             </div>
 
             <Select value={riskFilter} onValueChange={(val) => setRiskFilter(val)}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full sm:w-[150px]">
                 <SelectValue placeholder="Ниво на ризик" />
               </SelectTrigger>
               <SelectContent>
@@ -896,13 +896,13 @@ export default function RiskAnalysisPage() {
             </Select>
 
             <Select value={flagFilter} onValueChange={(val) => setFlagFilter(val)}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full sm:w-[200px]">
                 <SelectValue placeholder="Тип на ризик" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Сите типови (15)</SelectItem>
+                <SelectItem value="all">Сите типови ({ACTIVE_FLAG_COUNT})</SelectItem>
                 {Object.entries(FLAG_TYPES)
-                  .filter(([key]) => !["high_amendments", "spec_rigging", "related_companies"].includes(key))
+                  .filter(([key]) => !LEGACY_FLAG_TYPES.has(key))
                   .map(([key, val]) => {
                     const FIcon = val.icon;
                     return (
@@ -924,9 +924,9 @@ export default function RiskAnalysisPage() {
 
             <div className="flex-1" />
 
-            <Button variant="outline" onClick={exportToCSV} disabled={riskyTenders.length === 0}>
+            <Button variant="outline" onClick={exportToCSV} disabled={riskyTenders.length === 0} title={`Извези ги прикажаните ${riskyTenders.length} тендери`}>
               <Download className="h-4 w-4 mr-2" />
-              CSV
+              CSV ({riskyTenders.length})
             </Button>
           </div>
 
@@ -937,25 +937,33 @@ export default function RiskAnalysisPage() {
               {riskFilter !== "all" && (
                 <Badge variant="secondary" className="gap-1">
                   {RISK_LEVELS[riskFilter]?.label}
-                  <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setRiskFilter("all")} />
+                  <button type="button" aria-label="Отстрани филтер" onClick={() => setRiskFilter("all")} className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-full">
+                    <XCircle className="h-3 w-3" />
+                  </button>
                 </Badge>
               )}
               {flagFilter !== "all" && (
                 <Badge variant="secondary" className="gap-1">
                   {FLAG_TYPES[flagFilter]?.label}
-                  <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setFlagFilter("all")} />
+                  <button type="button" aria-label="Отстрани филтер" onClick={() => setFlagFilter("all")} className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-full">
+                    <XCircle className="h-3 w-3" />
+                  </button>
                 </Badge>
               )}
               {searchInput && (
                 <Badge variant="secondary" className="gap-1">
-                  Институција: "{searchInput}"
-                  <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setSearchInput("")} />
+                  Институција: &quot;{searchInput}&quot;
+                  <button type="button" aria-label="Отстрани филтер" onClick={() => setSearchInput("")} className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-full">
+                    <XCircle className="h-3 w-3" />
+                  </button>
                 </Badge>
               )}
               {winnerInput && (
                 <Badge variant="secondary" className="gap-1">
-                  Компанија: "{winnerInput}"
-                  <XCircle className="h-3 w-3 cursor-pointer" onClick={() => setWinnerInput("")} />
+                  Компанија: &quot;{winnerInput}&quot;
+                  <button type="button" aria-label="Отстрани филтер" onClick={() => setWinnerInput("")} className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-full">
+                    <XCircle className="h-3 w-3" />
+                  </button>
                 </Badge>
               )}
               <Button variant="ghost" size="sm" onClick={() => { setRiskFilter("all"); setFlagFilter("all"); setSearchInput(""); setWinnerInput(""); }}>
@@ -1001,8 +1009,12 @@ export default function RiskAnalysisPage() {
                       <div className={`h-1 ${cfg.bg}`} />
                       <CardContent className="p-4">
                         <div
-                          className="flex items-start gap-3 mb-3 cursor-pointer hover:bg-muted/50 -m-1 p-1 rounded transition-colors"
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={isOpen}
+                          className="flex items-start gap-3 mb-3 cursor-pointer hover:bg-muted/50 -m-1 p-1 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                           onClick={() => handleExpand(tender.tender_id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(tender.tender_id); } }}
                         >
                           <div className="relative w-12 h-12 flex-shrink-0">
                             <svg className="transform -rotate-90 w-12 h-12">
@@ -1044,7 +1056,7 @@ export default function RiskAnalysisPage() {
                             )}
                           </div>
                           <span className="text-[10px] text-muted-foreground shrink-0">
-                            {tender.flag_count}/15 индикатори
+                            {tender.flag_count}/{ACTIVE_FLAG_COUNT} индикатори
                           </span>
                         </div>
 
@@ -1069,7 +1081,7 @@ export default function RiskAnalysisPage() {
                               </div>
                             ) : detailedAnalysis[tender.tender_id]?.flags?.length > 0 ? (
                               <div>
-                                <p className="text-xs text-muted-foreground mb-2">Детални ризици ({detailedAnalysis[tender.tender_id].flags.length}/15):</p>
+                                <p className="text-xs text-muted-foreground mb-2">Детални ризици ({detailedAnalysis[tender.tender_id].flags.length}/{ACTIVE_FLAG_COUNT}):</p>
                                 {detailedAnalysis[tender.tender_id].flags.slice(0, 5).map((flag: any, i: number) => {
                                   const flagCfg = FLAG_TYPES[flag.flag_type] || { icon: AlertTriangle, label: flag.flag_type, color: "text-muted-foreground bg-muted" };
                                   const FlagIcon = flagCfg.icon;
@@ -1093,7 +1105,7 @@ export default function RiskAnalysisPage() {
                               </div>
                             ) : tender.flags.length > 0 && (
                               <div>
-                                <p className="text-xs text-muted-foreground mb-2">Ризици ({tender.flags.length}/15):</p>
+                                <p className="text-xs text-muted-foreground mb-2">Ризици ({tender.flags.length}/{ACTIVE_FLAG_COUNT}):</p>
                                 {tender.flags.map((flag, i) => {
                                   const flagCfg = FLAG_TYPES[flag.flag_type] || { icon: AlertTriangle, label: flag.flag_type, color: "text-muted-foreground bg-muted" };
                                   const FlagIcon = flagCfg.icon;
@@ -1217,7 +1229,7 @@ export default function RiskAnalysisPage() {
                         <h3 className="font-medium text-sm line-clamp-2 flex-1">{t.title}</h3>
                         {t.status && (
                           <Badge variant={t.status === 'active' ? 'default' : t.status === 'awarded' ? 'secondary' : 'outline'} className="text-[9px] shrink-0">
-                            {t.status}
+                            {STATUS_LABELS[t.status] || t.status}
                           </Badge>
                         )}
                       </div>
@@ -1231,7 +1243,7 @@ export default function RiskAnalysisPage() {
                         <p className="text-xs font-medium text-primary mb-2">{formatCurrency(t.estimated_value_mkd)}</p>
                       )}
                       <div className="flex gap-2">
-                        <Button size="sm" onClick={() => analyzeTender(t.tender_id)} disabled={analyzingId !== null} className="flex-1">
+                        <Button size="sm" onClick={() => analyzeTender(t.tender_id)} disabled={analyzingId === t.tender_id} className="flex-1">
                           {analyzingId === t.tender_id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
                           Анализирај
                         </Button>

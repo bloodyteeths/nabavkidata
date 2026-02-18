@@ -56,6 +56,14 @@ const RISK_COLORS: Record<string, string> = {
   minimal: 'bg-green-500',
 };
 
+const RISK_TEXT_COLORS: Record<string, string> = {
+  critical: '#ef4444',
+  high: '#f97316',
+  medium: '#eab308',
+  low: '#3b82f6',
+  minimal: '#22c55e',
+};
+
 const RISK_LABELS: Record<string, string> = {
   critical: 'Критичен',
   high: 'Висок',
@@ -118,7 +126,7 @@ export function TenderExplanation({
           </div>
           <Button variant="outline" size="sm" className="mt-4" onClick={fetchExplanation}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Retry
+            Обиди се повторно
           </Button>
         </CardContent>
       </Card>
@@ -153,7 +161,7 @@ export function TenderExplanation({
             <Badge className={`${RISK_COLORS[data.risk.level]} text-white`}>
               {RISK_LABELS[data.risk.level] || data.risk.level}
             </Badge>
-            <span className="text-2xl font-bold" style={{ color: data.risk.color }}>
+            <span className="text-2xl font-bold" style={{ color: data.risk.color || RISK_TEXT_COLORS[data.risk.level] || '#6b7280' }}>
               {(data.risk.probability * 100).toFixed(0)}%
             </span>
           </div>
@@ -204,6 +212,11 @@ export function TenderExplanation({
                       color="red"
                     />
                   ))}
+                  {increasingFactors.length > 7 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Прикажани 7 од {increasingFactors.length} фактори
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -224,6 +237,11 @@ export function TenderExplanation({
                       color="green"
                     />
                   ))}
+                  {decreasingFactors.length > 5 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Прикажани 5 од {decreasingFactors.length} фактори
+                    </p>
+                  )}
                 </div>
               </div>
             )}
