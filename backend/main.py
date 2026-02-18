@@ -76,13 +76,37 @@ app.add_middleware(FraudPreventionMiddleware)
 async def startup():
     """Initialize database connection on startup"""
     await init_db()
-    await get_asyncpg_pool()
+    pool = await get_asyncpg_pool()
     print("✓ Database connection pools initialized")
+
+    # Initialize GNN inference service (non-blocking, gracefully degrades)
+    try:
+        import sys
+        from pathlib import Path as _Path
+        _ai_root = _Path(__file__).parent.parent / "ai" / "corruption" / "ml_models"
+        if str(_ai_root.parent.parent.parent) not in sys.path:
+            sys.path.insert(0, str(_ai_root.parent.parent.parent))
+
+        from ai.corruption.ml_models.gnn_inference import GNNInferenceService
+        gnn_service = GNNInferenceService.get_instance()
+        await gnn_service.initialize(pool=pool)
+        print(f"✓ GNN Inference Service initialized (mode={gnn_service.mode})")
+    except Exception as e:
+        print(f"⚠ GNN Inference Service not available: {e}")
 
 
 @app.on_event("shutdown")
 async def shutdown():
     """Close database connections on shutdown"""
+    # Cleanup GNN inference service
+    try:
+        from ai.corruption.ml_models.gnn_inference import GNNInferenceService
+        service = GNNInferenceService.get_instance()
+        service.cleanup()
+        print("✓ GNN Inference Service cleaned up")
+    except Exception:
+        pass
+
     await close_db()
     await close_asyncpg_pool()
     print("✓ Database connections closed")

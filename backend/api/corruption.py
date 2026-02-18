@@ -31,6 +31,18 @@ import asyncpg
 
 from db_pool import get_asyncpg_pool
 from utils.risk_levels import calculate_risk_level
+from utils.confidence import bootstrap_cri_confidence, compute_data_completeness, classify_uncertainty
+from utils.weight_calibration import (
+    get_current_weights as get_db_weights,
+    compute_updated_weights,
+    apply_weight_update,
+    get_weight_history as fetch_weight_history,
+    DEFAULT_CRI_WEIGHTS,
+)
+from utils.active_sampler import (
+    get_queue_items,
+    refresh_active_queue,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +101,20 @@ CRI_WEIGHTS = {
 
 # Sum of all possible weights (used as denominator in CRI formula)
 CRI_MAX_WEIGHT = sum(CRI_WEIGHTS.values())
+
+
+async def get_effective_cri_weights() -> Dict[str, float]:
+    """
+    Get CRI weights, checking DB for calibrated weights first.
+    Falls back to hardcoded CRI_WEIGHTS if no DB weights are available.
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        return await get_db_weights(pool)
+    except Exception as e:
+        logger.debug(f"Using hardcoded CRI_WEIGHTS (DB lookup failed: {e})")
+        return dict(CRI_WEIGHTS)
+
 
 # Human-readable labels in Macedonian
 FLAG_TYPE_LABELS = {
@@ -174,6 +200,9 @@ class TenderRiskAnalysis(BaseModel):
     status: Optional[str]
     risk_score: int
     risk_level: str
+    confidence_interval: Optional[List[float]] = None  # [lower, upper] on 0-100 scale
+    uncertainty: Optional[str] = None  # 'low', 'medium', 'high'
+    data_completeness: Optional[float] = None  # 0.0-1.0 fraction of ML features present
     flags: List[FlagDetail]
     analyzed_at: datetime
     disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
@@ -505,13 +534,21 @@ async def get_flagged_tenders(
 # ============================================================================
 
 @router.get("/tender/{tender_id:path}/analysis", response_model=TenderRiskAnalysis, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
-async def get_tender_analysis(tender_id: str):
+async def get_tender_analysis(
+    tender_id: str,
+    include_ci: bool = Query(True, description="Include bootstrap confidence interval (adds ~20ms)")
+):
     """
     Get detailed corruption risk analysis for a specific tender
 
+    Query Parameters:
+    - include_ci: Whether to compute bootstrap confidence interval (default: true).
+                  Set to false for faster responses when CI is not needed.
+
     Returns:
     - All corruption flags with evidence
-    - Risk score and level
+    - Risk score and level with optional confidence interval
+    - Uncertainty classification and data completeness
     - Detailed risk factors
     """
     conn = await get_db_connection()
@@ -539,6 +576,9 @@ async def get_tender_analysis(tender_id: str):
             ORDER BY score DESC, detected_at DESC
         """, tender_id)
 
+        # Load effective CRI weights (DB-calibrated or hardcoded fallback)
+        effective_weights = await get_effective_cri_weights()
+
         flags = []
         type_max_scores = {}  # {flag_type: (max_score, weight)}
         max_severity = 'low'
@@ -554,7 +594,7 @@ async def get_tender_analysis(tender_id: str):
                 flag_label=FLAG_TYPE_LABELS.get(flag_type),
                 severity=row['severity'],
                 score=row['score'] or 0,
-                weight=CRI_WEIGHTS.get(flag_type, 1.0),
+                weight=effective_weights.get(flag_type, 1.0),
                 evidence=row['evidence'],
                 description=row['description'],
                 detected_at=row['detected_at'],
@@ -565,7 +605,7 @@ async def get_tender_analysis(tender_id: str):
             # Only non-false-positive flags contribute to CRI score
             if not is_false_positive:
                 ft = row['flag_type']
-                w = CRI_WEIGHTS.get(ft, 1.0)
+                w = effective_weights.get(ft, 1.0)
                 s = row['score'] or 0
                 # Track max score per type (weighted)
                 existing = type_max_scores.get(ft, (0, 0))
@@ -585,6 +625,53 @@ async def get_tender_analysis(tender_id: str):
             risk_score = 0
         risk_level = calculate_risk_level(risk_score)
 
+        # --- Confidence interval and uncertainty quantification ---
+        ci_lower_val = None
+        ci_upper_val = None
+        uncertainty_val = None
+        data_completeness_val = None
+
+        if include_ci and type_max_scores:
+            # Build flag_scores dict: {flag_type: max_score}
+            flag_scores_for_ci = {ft: s for ft, (s, _w) in type_max_scores.items()}
+
+            _cri, ci_lower_val, ci_upper_val = bootstrap_cri_confidence(
+                flag_scores=flag_scores_for_ci,
+                cri_weights=effective_weights,
+                n_bootstrap=1000,
+                confidence_level=0.90,
+            )
+
+            # Data completeness: check how many fields the tender has populated
+            # Use tender metadata + flag evidence as a proxy for ML feature availability
+            feature_proxy: Dict[str, Any] = {
+                'title': tender['title'],
+                'procuring_entity': tender['procuring_entity'],
+                'winner': tender['winner'],
+                'estimated_value_mkd': float(tender['estimated_value_mkd']) if tender['estimated_value_mkd'] else None,
+                'status': tender['status'],
+            }
+            # Each flag type detected counts as evidence for ~7 features (112 / 15 types ~ 7)
+            for ft, (s, _w) in type_max_scores.items():
+                feature_proxy[f'flag_{ft}_score'] = s
+            # Query additional tender fields for completeness estimate
+            extra_fields = await conn.fetchrow("""
+                SELECT
+                    publication_date, closing_date, opening_date,
+                    actual_value_mkd, num_bidders, cpv_code,
+                    category, description, amendment_count,
+                    has_lots, num_lots, evaluation_method
+                FROM tenders WHERE tender_id = $1
+            """, tender_id)
+            if extra_fields:
+                for col in extra_fields.keys():
+                    feature_proxy[col] = extra_fields[col]
+
+            data_completeness_val = round(compute_data_completeness(feature_proxy, total_features=112), 2)
+
+            ci_width = ci_upper_val - ci_lower_val
+            uncertainty_val = classify_uncertainty(ci_width, data_completeness_val)
+
         return TenderRiskAnalysis(
             tender_id=tender['tender_id'],
             title=tender['title'],
@@ -594,6 +681,9 @@ async def get_tender_analysis(tender_id: str):
             status=tender['status'],
             risk_score=risk_score,
             risk_level=risk_level,
+            confidence_interval=[ci_lower_val, ci_upper_val] if ci_lower_val is not None else None,
+            uncertainty=uncertainty_val,
+            data_completeness=data_completeness_val,
             flags=flags,
             analyzed_at=datetime.utcnow()
         )
@@ -1654,3 +1744,341 @@ async def batch_predict(
     finally:
         pool = await get_asyncpg_pool()
         await pool.release(conn)
+
+
+# ============================================================================
+# ACTIVE LEARNING SCHEMAS
+# ============================================================================
+
+class ReviewSubmission(BaseModel):
+    """Submit an analyst review for a flagged tender."""
+    tender_id: str = Field(..., description="Tender ID being reviewed")
+    flag_id: Optional[int] = Field(None, description="Specific flag ID (optional)")
+    analyst_verdict: str = Field(
+        ...,
+        pattern="^(confirmed_fraud|likely_fraud|uncertain|false_positive|not_reviewed)$",
+        description="Analyst verdict"
+    )
+    confidence: int = Field(..., ge=1, le=5, description="Confidence level 1-5")
+    evidence_notes: Optional[str] = Field(None, max_length=5000, description="Notes and evidence")
+    review_source: str = Field(
+        "manual",
+        pattern="^(manual|active_learning|bulk_review)$",
+        description="Source of review"
+    )
+
+
+class ReviewResponse(BaseModel):
+    """Response after submitting a review."""
+    review_id: int
+    tender_id: str
+    analyst_verdict: str
+    confidence: int
+    reviewed_at: datetime
+
+
+class ReviewQueueItem(BaseModel):
+    """Item in the active learning review queue."""
+    queue_id: int
+    tender_id: str
+    priority_score: float
+    selection_reason: str
+    selected_at: Optional[str] = None
+    title: Optional[str] = None
+    procuring_entity: Optional[str] = None
+    winner: Optional[str] = None
+    estimated_value_mkd: Optional[float] = None
+    status: Optional[str] = None
+    risk_score: Optional[int] = None
+    total_flags: Optional[int] = None
+    flag_types: Optional[List[str]] = None
+    max_severity: Optional[str] = None
+
+
+class ReviewQueueResponse(BaseModel):
+    """Response for the review queue endpoint."""
+    total: int
+    items: List[ReviewQueueItem]
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција."
+
+
+class WeightHistoryItem(BaseModel):
+    """A single CRI weight calibration history entry."""
+    history_id: int
+    weights: Dict[str, float]
+    num_reviews_used: Optional[int] = None
+    avg_agreement_rate: Optional[float] = None
+    computed_at: Optional[str] = None
+    applied: bool = False
+    notes: Optional[str] = None
+
+
+class WeightHistoryResponse(BaseModel):
+    """Response for weight history endpoint."""
+    current_weights: Dict[str, float]
+    history: List[WeightHistoryItem]
+
+
+class CalibrationResult(BaseModel):
+    """Response for weight calibration trigger."""
+    success: bool
+    message: str
+    new_weights: Optional[Dict[str, float]] = None
+    num_reviews_used: Optional[int] = None
+    avg_agreement_rate: Optional[float] = None
+    error: Optional[str] = None
+
+
+# ============================================================================
+# ACTIVE LEARNING & REVIEW ENDPOINTS
+# ============================================================================
+
+@router.get("/review-queue", response_model=ReviewQueueResponse, dependencies=[Depends(require_admin)])
+async def get_review_queue(
+    limit: int = Query(20, ge=1, le=100, description="Number of items to return")
+):
+    """
+    Get top-N tenders from the active learning queue for analyst review.
+
+    The queue is populated by the active learning sampler which selects
+    the most informative tenders to label, using three strategies:
+    - **boundary**: tenders near the CRI decision boundary (~50 risk score)
+    - **disagreement**: tenders where rule-based CRI and ML predictions disagree
+    - **novel**: tenders with rare flag combinations not seen before
+
+    Returns items sorted by priority score (highest first).
+    """
+    pool = await get_asyncpg_pool()
+    try:
+        items = await get_queue_items(pool, limit=limit, include_tender_info=True)
+
+        queue_items = [
+            ReviewQueueItem(**item)
+            for item in items
+        ]
+
+        return ReviewQueueResponse(
+            total=len(queue_items),
+            items=queue_items,
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching review queue: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch review queue: {str(e)}"
+        )
+
+
+@router.post("/reviews", response_model=ReviewResponse, dependencies=[Depends(require_admin)])
+async def submit_review(review: ReviewSubmission):
+    """
+    Submit an analyst review for a flagged tender.
+
+    This is the core active learning feedback loop:
+    1. Analyst reviews a tender from the review queue
+    2. Their verdict is stored in corruption_reviews
+    3. The corresponding active_learning_queue item is marked as reviewed
+    4. When enough reviews accumulate (50+), weight calibration can be triggered
+
+    Verdicts:
+    - **confirmed_fraud**: analyst confirms corruption indicators are real
+    - **likely_fraud**: analyst thinks corruption is likely but not certain
+    - **uncertain**: not enough evidence to decide
+    - **false_positive**: the flags are incorrect / not indicative of corruption
+    - **not_reviewed**: placeholder, should not normally be submitted
+    """
+    conn = await get_db_connection()
+    try:
+        # Verify tender exists
+        tender = await conn.fetchval(
+            "SELECT tender_id FROM tenders WHERE tender_id = $1",
+            review.tender_id,
+        )
+        if not tender:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tender {review.tender_id} not found"
+            )
+
+        # Insert the review
+        result = await conn.fetchrow("""
+            INSERT INTO corruption_reviews
+                (tender_id, flag_id, analyst_verdict, confidence,
+                 evidence_notes, review_source)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING review_id, tender_id, analyst_verdict, confidence, reviewed_at
+        """,
+            review.tender_id,
+            review.flag_id,
+            review.analyst_verdict,
+            review.confidence,
+            review.evidence_notes,
+            review.review_source,
+        )
+
+        # Also update the original corruption_flags reviewed status
+        # if a false_positive verdict was given
+        if review.analyst_verdict == 'false_positive':
+            if review.flag_id:
+                await conn.execute("""
+                    UPDATE corruption_flags
+                    SET reviewed = TRUE, false_positive = TRUE,
+                        review_notes = $2, reviewed_at = NOW()
+                    WHERE flag_id = $1::integer::uuid
+                """, review.flag_id, review.evidence_notes or 'Marked as false positive via active learning')
+            else:
+                # Mark all flags for this tender as false positive
+                await conn.execute("""
+                    UPDATE corruption_flags
+                    SET reviewed = TRUE, false_positive = TRUE,
+                        review_notes = $2, reviewed_at = NOW()
+                    WHERE tender_id = $1 AND false_positive = FALSE
+                """, review.tender_id, review.evidence_notes or 'Marked as false positive via active learning')
+
+        # Mark the active learning queue item as reviewed
+        await conn.execute("""
+            UPDATE active_learning_queue
+            SET reviewed = TRUE
+            WHERE tender_id = $1
+        """, review.tender_id)
+
+        return ReviewResponse(
+            review_id=result['review_id'],
+            tender_id=result['tender_id'],
+            analyst_verdict=result['analyst_verdict'],
+            confidence=result['confidence'],
+            reviewed_at=result['reviewed_at'],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error submitting review: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to submit review: {str(e)}"
+        )
+    finally:
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
+
+
+@router.get("/weight-history", response_model=WeightHistoryResponse, dependencies=[Depends(require_admin)])
+async def get_weight_history_endpoint(
+    limit: int = Query(20, ge=1, le=100, description="Number of history entries")
+):
+    """
+    Get CRI weight adjustment history.
+
+    Shows the current active weights and a history of all calibration runs,
+    including the number of reviews used, agreement rate, and whether the
+    weights were applied.
+    """
+    pool = await get_asyncpg_pool()
+    try:
+        current = await get_effective_cri_weights()
+        history_rows = await fetch_weight_history(pool, limit=limit)
+
+        history_items = [
+            WeightHistoryItem(**row)
+            for row in history_rows
+        ]
+
+        return WeightHistoryResponse(
+            current_weights=current,
+            history=history_items,
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching weight history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch weight history: {str(e)}"
+        )
+
+
+@router.post("/calibrate-weights", response_model=CalibrationResult, dependencies=[Depends(require_admin)])
+async def trigger_weight_calibration():
+    """
+    Admin-only: trigger CRI weight recalculation from accumulated reviews.
+
+    This runs logistic regression on all analyst reviews to learn which flag
+    types are most predictive of actual corruption. Requirements:
+    - At least 50 reviews with both fraud and non-fraud verdicts
+    - Weight changes are capped at +/-20% per cycle for stability
+    - New weights are stored in cri_weight_history and marked as applied
+
+    The calibrated weights will immediately be used by the tender analysis
+    endpoint for CRI score calculation.
+    """
+    pool = await get_asyncpg_pool()
+    try:
+        result = await compute_updated_weights(pool)
+
+        if result.get('error') or result.get('weights') is None:
+            return CalibrationResult(
+                success=False,
+                message="Calibration could not be completed",
+                num_reviews_used=result.get('num_reviews', 0),
+                error=result.get('error', 'Unknown error'),
+            )
+
+        # Apply the new weights
+        applied = await apply_weight_update(
+            pool,
+            new_weights=result['weights'],
+            num_reviews=result['num_reviews'],
+            avg_agreement_rate=result['avg_agreement_rate'],
+            notes="Triggered via admin API endpoint",
+        )
+
+        if not applied:
+            return CalibrationResult(
+                success=False,
+                message="Weights computed but failed to apply",
+                new_weights=result['weights'],
+                num_reviews_used=result['num_reviews'],
+                avg_agreement_rate=result['avg_agreement_rate'],
+                error="Database update failed",
+            )
+
+        return CalibrationResult(
+            success=True,
+            message=f"CRI weights calibrated from {result['num_reviews']} reviews "
+                    f"(agreement rate: {result['avg_agreement_rate']:.1%})",
+            new_weights=result['weights'],
+            num_reviews_used=result['num_reviews'],
+            avg_agreement_rate=result['avg_agreement_rate'],
+        )
+
+    except Exception as e:
+        logger.error(f"Error during weight calibration: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to calibrate weights: {str(e)}"
+        )
+
+
+@router.post("/refresh-review-queue", response_model=MessageResponse, dependencies=[Depends(require_admin)])
+async def trigger_queue_refresh():
+    """
+    Admin-only: refresh the active learning review queue.
+
+    Rebuilds the queue by selecting the most informative tenders for review
+    using boundary, disagreement, and novelty strategies.
+    Normally called by weekly cron, but can be triggered manually.
+    """
+    pool = await get_asyncpg_pool()
+    try:
+        count = await refresh_active_queue(pool)
+        return MessageResponse(
+            message=f"Active learning queue refreshed with {count} items",
+            detail=f"Selected {count} tenders for review using boundary, disagreement, and novelty strategies"
+        )
+    except Exception as e:
+        logger.error(f"Error refreshing review queue: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to refresh review queue: {str(e)}"
+        )
