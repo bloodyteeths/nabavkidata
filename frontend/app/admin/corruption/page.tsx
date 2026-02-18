@@ -77,11 +77,41 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const FLAG_TYPE_LABELS: Record<string, string> = {
+  // Original 5
   single_bidder: 'Еден понудувач',
   repeat_winner: 'Повторлив победник',
   price_anomaly: 'Ценовна аномалија',
   bid_clustering: 'Кластер понуди',
   short_deadline: 'Краток рок',
+  // New 10
+  procedure_type: 'Ризична постапка',
+  identical_bids: 'Идентични понуди',
+  professional_loser: 'Покривач понудувач',
+  contract_splitting: 'Делење договори',
+  short_decision: 'Брза одлука',
+  strategic_disqualification: 'Стратешка дисквалификација',
+  contract_value_growth: 'Раст на вредност',
+  bid_rotation: 'Ротација понуди',
+  threshold_manipulation: 'Манипулација на праг',
+  late_amendment: 'Доцен амандман',
+};
+
+const FLAG_TYPE_COLORS: Record<string, string> = {
+  single_bidder: '#f59e0b',
+  repeat_winner: '#ef4444',
+  price_anomaly: '#a855f7',
+  bid_clustering: '#6366f1',
+  short_deadline: '#ca8a04',
+  procedure_type: '#64748b',
+  identical_bids: '#e11d48',
+  professional_loser: '#71717a',
+  contract_splitting: '#059669',
+  short_decision: '#06b6d4',
+  strategic_disqualification: '#dc2626',
+  contract_value_growth: '#ea580c',
+  bid_rotation: '#8b5cf6',
+  threshold_manipulation: '#14b8a6',
+  late_amendment: '#d97706',
 };
 
 export default function CorruptionDashboard() {
@@ -199,10 +229,12 @@ export default function CorruptionDashboard() {
   const typeChartData = stats
     ? Object.entries(stats.by_type)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
+        .slice(0, 15)
         .map(([type, count]) => ({
           name: FLAG_TYPE_LABELS[type] || type,
           count,
+          type,
+          color: FLAG_TYPE_COLORS[type] || '#f97316',
         }))
     : [];
 
@@ -346,17 +378,21 @@ export default function CorruptionDashboard() {
         {/* Flag Types */}
         <Card>
           <CardHeader>
-            <CardTitle>Типови на Знамиња</CardTitle>
+            <CardTitle>Типови на Знамиња (15 индикатори)</CardTitle>
           </CardHeader>
           <CardContent>
             {typeChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={Math.max(250, typeChartData.length * 28)}>
                 <BarChart data={typeChartData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 12 }} />
+                  <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 11 }} />
                   <Tooltip />
-                  <Bar dataKey="count" fill="#f97316" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                    {typeChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -387,7 +423,7 @@ export default function CorruptionDashboard() {
                   <TableHead>Тендер</TableHead>
                   <TableHead>Институција</TableHead>
                   <TableHead className="text-right">Вредност</TableHead>
-                  <TableHead className="text-center">Ризик</TableHead>
+                  <TableHead className="text-center">CRI</TableHead>
                   <TableHead className="text-center">Знамиња</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -420,7 +456,17 @@ export default function CorruptionDashboard() {
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline">{tender.total_flags}</Badge>
+                      <div className="flex flex-wrap gap-1 justify-center">
+                        <Badge variant="outline">{tender.total_flags}/15</Badge>
+                        {tender.flag_types?.slice(0, 3).map((ft: string) => (
+                          <Badge key={ft} variant="secondary" className="text-[9px]">
+                            {FLAG_TYPE_LABELS[ft] || ft}
+                          </Badge>
+                        ))}
+                        {tender.flag_types && tender.flag_types.length > 3 && (
+                          <Badge variant="outline" className="text-[9px]">+{tender.flag_types.length - 3}</Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Button

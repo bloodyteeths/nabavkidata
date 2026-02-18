@@ -54,7 +54,15 @@ import {
   Target,
   Lightbulb,
   Cpu,
-  Gauge
+  Gauge,
+  User,
+  Trophy,
+  Clock,
+  Copy,
+  UserMinus,
+  Scissors,
+  UserX,
+  FileEdit
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
@@ -78,16 +86,38 @@ const RISK_LEVELS: Record<string, { bg: string; light: string; text: string; lab
   minimal: { bg: "bg-green-500", light: "bg-green-100", text: "text-green-700", label: "Минимален" }
 };
 
-const FLAG_TYPES: Record<string, { icon: typeof Users; label: string; description: string }> = {
-  single_bidder: { icon: Users, label: "1 понудувач", description: "Само една компанија поднела понуда" },
-  repeat_winner: { icon: Repeat, label: "Повторен победник", description: "Истата компанија често добива" },
-  price_anomaly: { icon: DollarSign, label: "Ценовна аномалија", description: "Невообичаена цена" },
-  bid_clustering: { icon: Link2, label: "Кластер понуди", description: "Сомнително координирани понуди" },
-  short_deadline: { icon: Timer, label: "Краток рок", description: "Невообичаено кус рок за понуди" },
-  high_amendments: { icon: FileWarning, label: "Многу измени", description: "Премногу амандмани" },
-  spec_rigging: { icon: FileText, label: "Наместени спецификации", description: "Спецификации кои фаворизираат" },
-  related_companies: { icon: Building2, label: "Поврзани компании", description: "Понудувачи со заедничко власништво" }
+const FLAG_TYPES: Record<string, { icon: typeof Users; label: string; description: string; color: string }> = {
+  // Original 5 indicators
+  single_bidder: { icon: User, label: "1 понудувач", description: "Само една компанија поднела понуда", color: "text-amber-500 bg-amber-50 dark:bg-amber-900/20" },
+  repeat_winner: { icon: Trophy, label: "Повторен победник", description: "Истата компанија често добива", color: "text-red-500 bg-red-50 dark:bg-red-900/20" },
+  price_anomaly: { icon: TrendingDown, label: "Ценовна аномалија", description: "Невообичаена цена", color: "text-purple-500 bg-purple-50 dark:bg-purple-900/20" },
+  bid_clustering: { icon: Users, label: "Кластер понуди", description: "Сомнително координирани понуди", color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20" },
+  short_deadline: { icon: Clock, label: "Краток рок", description: "Невообичаено кус рок за понуди", color: "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20" },
+  // New 10 indicators
+  procedure_type: { icon: FileWarning, label: "Ризична постапка", description: "Необично избрана постапка за набавка", color: "text-slate-500 bg-slate-50 dark:bg-slate-900/20" },
+  identical_bids: { icon: Copy, label: "Идентични понуди", description: "Понуди со сомнително слични вредности", color: "text-rose-600 bg-rose-50 dark:bg-rose-900/20" },
+  professional_loser: { icon: UserMinus, label: "Покривач понудувач", description: "Компанија која систематски губи понуди", color: "text-zinc-500 bg-zinc-50 dark:bg-zinc-900/20" },
+  contract_splitting: { icon: Scissors, label: "Делење договори", description: "Поделба на набавки за избегнување прагови", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20" },
+  short_decision: { icon: Zap, label: "Брза одлука", description: "Невообичаено брзо донесување одлука", color: "text-cyan-500 bg-cyan-50 dark:bg-cyan-900/20" },
+  strategic_disqualification: { icon: UserX, label: "Стратешка дисквалификација", description: "Систематско елиминирање на конкуренти", color: "text-red-600 bg-red-50 dark:bg-red-900/20" },
+  contract_value_growth: { icon: TrendingUp, label: "Раст на вредност", description: "Значително зголемување на договорна вредност", color: "text-orange-600 bg-orange-50 dark:bg-orange-900/20" },
+  bid_rotation: { icon: RefreshCw, label: "Ротација понуди", description: "Компании наизменично добиваат тендери", color: "text-violet-500 bg-violet-50 dark:bg-violet-900/20" },
+  threshold_manipulation: { icon: Target, label: "Манипулација на праг", description: "Вредности блиску до прагови за друга постапка", color: "text-teal-500 bg-teal-50 dark:bg-teal-900/20" },
+  late_amendment: { icon: FileEdit, label: "Доцен амандман", description: "Измени во последен момент пред затворање", color: "text-amber-600 bg-amber-50 dark:bg-amber-900/20" },
+  // Legacy types (kept for backward compat)
+  high_amendments: { icon: FileWarning, label: "Многу измени", description: "Премногу амандмани", color: "text-orange-500 bg-orange-50 dark:bg-orange-900/20" },
+  spec_rigging: { icon: FileText, label: "Наместени спецификации", description: "Спецификации кои фаворизираат", color: "text-red-500 bg-red-50 dark:bg-red-900/20" },
+  related_companies: { icon: Building2, label: "Поврзани компании", description: "Понудувачи со заедничко власништво", color: "text-purple-500 bg-purple-50 dark:bg-purple-900/20" }
 };
+
+// CRI Score color and label based on 0-100 range
+function getCRIConfig(score: number): { color: string; bg: string; label: string } {
+  if (score >= 80) return { color: "text-red-600", bg: "bg-red-500", label: "Критичен" };
+  if (score >= 60) return { color: "text-orange-600", bg: "bg-orange-500", label: "Висок" };
+  if (score >= 40) return { color: "text-yellow-600", bg: "bg-yellow-500", label: "Среден" };
+  if (score >= 20) return { color: "text-blue-600", bg: "bg-blue-500", label: "Низок" };
+  return { color: "text-green-600", bg: "bg-green-500", label: "Минимален" };
+}
 
 interface RiskFlag {
   flag_type: string;
@@ -720,6 +750,9 @@ export default function RiskAnalysisPage() {
           <Badge variant="outline" className="text-[10px]">
             <Lightbulb className="h-3 w-3 mr-1" /> SHAP/LIME објаснувања
           </Badge>
+          <Badge variant="outline" className="text-[10px]">
+            <Gauge className="h-3 w-3 mr-1" /> CRI (15 индикатори)
+          </Badge>
         </div>
       </div>
 
@@ -844,14 +877,24 @@ export default function RiskAnalysisPage() {
             </Select>
 
             <Select value={flagFilter} onValueChange={(val) => setFlagFilter(val)}>
-              <SelectTrigger className="w-[170px]">
+              <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Тип на ризик" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Сите типови</SelectItem>
-                {Object.entries(FLAG_TYPES).map(([key, val]) => (
-                  <SelectItem key={key} value={key}>{val.label}</SelectItem>
-                ))}
+                <SelectItem value="all">Сите типови (15)</SelectItem>
+                {Object.entries(FLAG_TYPES)
+                  .filter(([key]) => !["high_amendments", "spec_rigging", "related_companies"].includes(key))
+                  .map(([key, val]) => {
+                    const FIcon = val.icon;
+                    return (
+                      <SelectItem key={key} value={key}>
+                        <span className="flex items-center gap-2">
+                          <FIcon className={`h-3.5 w-3.5 ${val.color.split(" ")[0]}`} />
+                          {val.label}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
               </SelectContent>
             </Select>
 
@@ -947,7 +990,7 @@ export default function RiskAnalysisPage() {
                               <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted" />
                               <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none"
                                 strokeDasharray={`${(Math.min(tender.risk_score, 100) / 100) * 125} 125`}
-                                className={cfg.bg.replace("bg-", "text-")}
+                                className={getCRIConfig(tender.risk_score).bg.replace("bg-", "text-")}
                               />
                             </svg>
                             <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
@@ -955,7 +998,10 @@ export default function RiskAnalysisPage() {
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <Badge className={`${cfg.light} ${cfg.text} border-0 mb-1`}>{cfg.label}</Badge>
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <Badge className={`${cfg.light} ${cfg.text} border-0`}>{cfg.label}</Badge>
+                              <span className={`text-[10px] font-semibold ${getCRIConfig(tender.risk_score).color}`}>CRI</span>
+                            </div>
                             <h3 className="font-medium text-sm line-clamp-2">{tender.title}</h3>
                             <p className="text-xs text-muted-foreground truncate">{tender.procuring_entity}</p>
                           </div>
@@ -973,6 +1019,9 @@ export default function RiskAnalysisPage() {
                               </span>
                             )}
                           </div>
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {tender.flag_count}/15 индикатори
+                          </span>
                         </div>
 
                         {isOpen && (
@@ -991,33 +1040,39 @@ export default function RiskAnalysisPage() {
                               </div>
                             ) : detailedAnalysis[tender.tender_id]?.flags?.length > 0 ? (
                               <div>
-                                <p className="text-xs text-muted-foreground mb-2">Детални ризици:</p>
-                                {detailedAnalysis[tender.tender_id].flags.slice(0, 3).map((flag: any, i: number) => {
-                                  const flagCfg = FLAG_TYPES[flag.flag_type] || { icon: AlertTriangle, label: flag.flag_type };
+                                <p className="text-xs text-muted-foreground mb-2">Детални ризици ({detailedAnalysis[tender.tender_id].flags.length}/15):</p>
+                                {detailedAnalysis[tender.tender_id].flags.slice(0, 5).map((flag: any, i: number) => {
+                                  const flagCfg = FLAG_TYPES[flag.flag_type] || { icon: AlertTriangle, label: flag.flag_type, color: "text-muted-foreground bg-muted" };
                                   const FlagIcon = flagCfg.icon;
-                                  const severityCfg = RISK_LEVELS[flag.severity] || RISK_LEVELS.medium;
+                                  const flagColor = flagCfg.color || "";
 
                                   return (
-                                    <div key={i} className={`p-2 rounded mb-2 ${severityCfg.light}`}>
+                                    <div key={i} className={`p-2 rounded mb-2 ${flagColor.split(" ").slice(1).join(" ")}`}>
                                       <div className="flex items-center gap-2">
-                                        <FlagIcon className={`h-4 w-4 ${severityCfg.text}`} />
+                                        <FlagIcon className={`h-4 w-4 ${flagColor.split(" ")[0]}`} />
                                         <span className="text-sm font-medium">{flagCfg.label}</span>
                                         <span className="ml-auto text-xs font-mono">{flag.score} pts</span>
                                       </div>
                                     </div>
                                   );
                                 })}
+                                {detailedAnalysis[tender.tender_id].flags.length > 5 && (
+                                  <p className="text-xs text-muted-foreground text-center">
+                                    + уште {detailedAnalysis[tender.tender_id].flags.length - 5} индикатори
+                                  </p>
+                                )}
                               </div>
                             ) : tender.flags.length > 0 && (
                               <div>
-                                <p className="text-xs text-muted-foreground mb-2">Ризици:</p>
+                                <p className="text-xs text-muted-foreground mb-2">Ризици ({tender.flags.length}/15):</p>
                                 {tender.flags.map((flag, i) => {
-                                  const flagCfg = FLAG_TYPES[flag.flag_type] || { icon: AlertTriangle, label: flag.flag_type };
+                                  const flagCfg = FLAG_TYPES[flag.flag_type] || { icon: AlertTriangle, label: flag.flag_type, color: "text-muted-foreground bg-muted" };
                                   const FlagIcon = flagCfg.icon;
+                                  const flagColor = flagCfg.color || "";
                                   return (
-                                    <div key={i} className="p-2 rounded mb-1 bg-muted/50">
+                                    <div key={i} className={`p-2 rounded mb-1 ${flagColor.split(" ").slice(1).join(" ")}`}>
                                       <div className="flex items-center gap-2">
-                                        <FlagIcon className="h-4 w-4 text-muted-foreground" />
+                                        <FlagIcon className={`h-4 w-4 ${flagColor.split(" ")[0]}`} />
                                         <span className="text-sm">{flagCfg.label}</span>
                                       </div>
                                     </div>
@@ -1224,7 +1279,11 @@ export default function RiskAnalysisPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="text-3xl font-bold">{Math.min(analysisResult.risk_score, 100)}<span className="text-lg text-muted-foreground">/100</span></div>
+                  <div>
+                    <span className={`text-3xl font-bold ${getCRIConfig(analysisResult.risk_score).color}`}>{Math.min(analysisResult.risk_score, 100)}</span>
+                    <span className="text-lg text-muted-foreground">/100</span>
+                    <span className={`ml-2 text-sm font-semibold ${getCRIConfig(analysisResult.risk_score).color}`}>CRI</span>
+                  </div>
                   <Badge className={`${getRiskConfig(analysisResult.risk_level).light} ${getRiskConfig(analysisResult.risk_level).text}`}>
                     {getRiskConfig(analysisResult.risk_level).label} ризик
                   </Badge>

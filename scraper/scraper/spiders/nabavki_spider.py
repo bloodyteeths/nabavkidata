@@ -1897,9 +1897,16 @@ class NabavkiSpider(scrapy.Spider):
         tender['bidders_data'] = json.dumps(bidders_list, ensure_ascii=False) if bidders_list else None
         tender['lots_data'] = json.dumps(lots_list, ensure_ascii=False) if lots_list else None
 
-        # Override num_bidders if we have a list (fallback)
-        if tender.get('num_bidders') is None and bidders_list:
+        # Override num_bidders from extracted bidders list (more reliable than label)
+        if bidders_list:
             tender['num_bidders'] = len(bidders_list)
+
+        # Fallback: extract winner from bidders list if not found from label
+        if not tender.get('winner') and bidders_list:
+            for bidder in bidders_list:
+                if bidder.get('is_winner'):
+                    tender['winner'] = bidder.get('company_name')
+                    break
 
         tender['num_lots'] = len(lots_list) if lots_list else 0
 

@@ -46,6 +46,74 @@ router = APIRouter(
 
 
 # ============================================================================
+# FLAG TYPE CONSTANTS
+# ============================================================================
+
+# All 15 corruption indicator flag types
+ALL_FLAG_TYPES = [
+    'single_bidder',
+    'repeat_winner',
+    'price_anomaly',
+    'bid_clustering',
+    'short_deadline',
+    'procedure_type',
+    'identical_bids',
+    'professional_loser',
+    'contract_splitting',
+    'short_decision',
+    'strategic_disqualification',
+    'contract_value_growth',
+    'bid_rotation',
+    'threshold_manipulation',
+    'late_amendment',
+]
+
+# Corruption Risk Index (CRI) weights per flag type
+CRI_WEIGHTS = {
+    'single_bidder': 1.0,
+    'procedure_type': 1.2,
+    'contract_splitting': 1.3,
+    'identical_bids': 1.5,
+    'strategic_disqualification': 1.4,
+    'bid_rotation': 1.2,
+    'professional_loser': 0.8,
+    'short_deadline': 0.9,
+    'short_decision': 1.0,
+    'contract_value_growth': 1.0,
+    'late_amendment': 0.9,
+    'threshold_manipulation': 0.8,
+    'repeat_winner': 1.1,
+    'price_anomaly': 1.1,
+    'bid_clustering': 1.2,
+}
+
+# Sum of all possible weights (used as denominator in CRI formula)
+CRI_MAX_WEIGHT = sum(CRI_WEIGHTS.values())
+
+# Human-readable labels in Macedonian
+FLAG_TYPE_LABELS = {
+    'single_bidder': 'Единствен понудувач',
+    'repeat_winner': 'Повторен победник',
+    'price_anomaly': 'Ценовна аномалија',
+    'bid_clustering': 'Кластер на понудувачи',
+    'short_deadline': 'Краток рок',
+    'procedure_type': 'Ризична постапка',
+    'identical_bids': 'Идентични понуди',
+    'professional_loser': 'Професионален губитник',
+    'contract_splitting': 'Делење на договори',
+    'short_decision': 'Брза одлука',
+    'strategic_disqualification': 'Стратешка дисквалификација',
+    'contract_value_growth': 'Раст на вредност',
+    'bid_rotation': 'Ротација на победници',
+    'threshold_manipulation': 'Манипулација со прагови',
+    'late_amendment': 'Доцен амандман',
+}
+
+# Valid flag_type values for query parameter validation
+VALID_FLAG_TYPES = set(ALL_FLAG_TYPES)
+
+
+# ============================================================================
 # RESPONSE SCHEMAS
 # ============================================================================
 
@@ -53,8 +121,10 @@ class FlagDetail(BaseModel):
     """Individual corruption flag detail"""
     flag_id: str
     flag_type: str
+    flag_label: Optional[str] = None  # Human-readable label in Macedonian
     severity: str  # critical, high, medium, low
     score: int  # 0-100
+    weight: Optional[float] = None  # CRI weight for this flag type
     evidence: Optional[Dict[str, Any]] = None
     description: Optional[str] = None
     detected_at: datetime
@@ -332,7 +402,7 @@ def _build_flagged_tenders_where(
 @router.get("/flagged-tenders", response_model=FlaggedTendersResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_flagged_tenders(
     severity: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
-    flag_type: Optional[str] = None,
+    flag_type: Optional[str] = Query(None, description="Filter by flag type (one of 15 corruption indicators)"),
     institution: Optional[str] = None,
     winner: Optional[str] = None,
     min_score: int = Query(0, ge=0, le=100),
@@ -353,6 +423,13 @@ async def get_flagged_tenders(
 
     Returns list of tenders with corruption flags and risk scores.
     """
+    # Validate flag_type against the canonical list of 15 types
+    if flag_type and flag_type not in VALID_FLAG_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid flag_type '{flag_type}'. Valid types: {', '.join(sorted(VALID_FLAG_TYPES))}"
+        )
+
     conn = await get_db_connection()
     try:
         where, params, param_count = _build_flagged_tenders_where(
@@ -460,33 +537,36 @@ async def get_tender_analysis(tender_id: str):
         """, tender_id)
 
         flags = []
-        total_score = 0
-        flag_count = 0
+        cri_weight_sum = 0.0
         max_severity = 'low'
         severity_order = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1}
 
         for row in flags_rows:
+            flag_type = row['flag_type']
+            is_false_positive = row['false_positive'] or False
+
             flags.append(FlagDetail(
                 flag_id=str(row['flag_id']),
-                flag_type=row['flag_type'],
+                flag_type=flag_type,
+                flag_label=FLAG_TYPE_LABELS.get(flag_type),
                 severity=row['severity'],
                 score=row['score'] or 0,
+                weight=CRI_WEIGHTS.get(flag_type, 1.0),
                 evidence=row['evidence'],
                 description=row['description'],
                 detected_at=row['detected_at'],
                 reviewed=row['reviewed'] or False,
-                false_positive=row['false_positive'] or False,
+                false_positive=is_false_positive,
                 review_notes=row['review_notes']
             ))
-            # Only non-false-positive flags contribute to risk score
-            if not (row['false_positive'] or False):
-                total_score += row['score'] or 0
-                flag_count += 1
+            # Only non-false-positive flags contribute to CRI score
+            if not is_false_positive:
+                cri_weight_sum += CRI_WEIGHTS.get(flag_type, 1.0)
                 if severity_order.get(row['severity'], 0) > severity_order.get(max_severity, 0):
                     max_severity = row['severity']
 
-        # Use AVG to match DB function update_tender_risk_score()
-        risk_score = round(total_score / flag_count) if flag_count > 0 else 0
+        # CRI formula: (sum of weights for present non-FP flag types) / (sum of all possible weights) * 100
+        risk_score = round(cri_weight_sum / CRI_MAX_WEIGHT * 100) if CRI_MAX_WEIGHT > 0 else 0
         risk_score = min(100, risk_score)
         risk_level = calculate_risk_level(risk_score)
 
@@ -802,6 +882,11 @@ async def get_corruption_stats():
             total_flags = 0
             total_tenders_flagged = 0
             total_value_at_risk = Decimal(0)
+
+        # Ensure all 15 flag types are present in by_type, defaulting to 0
+        for ft in ALL_FLAG_TYPES:
+            if ft not in by_type:
+                by_type[ft] = 0
 
         # Last analysis run (from tender_risk_scores if exists)
         last_analysis_run = await conn.fetchval("""

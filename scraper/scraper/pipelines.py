@@ -14,12 +14,14 @@ import os
 import hashlib
 import logging
 import json
+import re
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from itemadapter import ItemAdapter
 from scrapy.utils.defer import deferred_from_coro
 from scrapy.exceptions import DropItem
-from scraper.items import DocumentItem, LotAwardItem
+from scraper.items import DocumentItem, LotAwardItem, CompanyWallItem
 import aiofiles
 import fitz  # PyMuPDF
 from yarl import URL
@@ -483,6 +485,40 @@ class DatabasePipeline:
     def close_spider(self, spider):
         return deferred_from_coro(self._close_spider_async(spider))
 
+    # Procedure type normalization map (Cyrillic & variant labels → canonical)
+    PROCEDURE_TYPE_MAP = {
+        'отворена постапка': 'Open',
+        'open procedure': 'Open',
+        'open': 'Open',
+        'pt_open': 'Open',
+        'поедноставена отворена постапка': 'SimplifiedOpenProcedure',
+        'simplified open procedure': 'SimplifiedOpenProcedure',
+        'набавки од мала вредност': 'LowEstimatedValueProcedure',
+        'low estimated value procedure': 'LowEstimatedValueProcedure',
+        'барање за прибирање на понуди': 'RequestForProposal',
+        'request for proposal': 'RequestForProposal',
+        'постапка со преговарање со претходно објавување': 'NegotiatedWithPublication',
+        'negotiated procedure with prior publication': 'NegotiatedWithPublication',
+        'постапка со преговарање без претходно објавување': 'NegotiatedWithoutPublication',
+        'negotiated procedure without prior publication': 'NegotiatedWithoutPublication',
+        'квалификационен систем': 'QualificationSystem',
+        'qualification system': 'QualificationSystem',
+        'конкурс за избор на идејно решение': 'BidForChoosingIdealSolution',
+    }
+
+    @staticmethod
+    def _normalize_procedure_type(raw: str) -> str:
+        """Normalize procedure type to canonical English name."""
+        if not raw:
+            return raw
+        cleaned = raw.strip().lower()
+        # Try direct map
+        for key, canonical in DatabasePipeline.PROCEDURE_TYPE_MAP.items():
+            if key in cleaned:
+                return canonical
+        # Return original with title case if no match
+        return raw.strip()
+
     def _compute_content_hash(self, adapter) -> str:
         """Compute SHA-256 hash of tender content for change detection."""
         # Fields to include in hash (core tender data that indicates changes)
@@ -706,8 +742,17 @@ class DatabasePipeline:
             change_result: 'new', 'updated', or 'unchanged'
             conn: asyncpg connection (acquired from pool)
         """
-        # For unchanged tenders, update scrape_count, scraped_at, and backfill estimated values
+        # For unchanged tenders, update scrape_count, scraped_at, and backfill estimated values + EUR
         if change_result == 'unchanged':
+            # Calculate EUR if MKD available
+            MKD_TO_EUR = Decimal('61.5')
+            _est_mkd = item.get('estimated_value_mkd')
+            _est_eur = item.get('estimated_value_eur')
+            if _est_mkd and not _est_eur:
+                try:
+                    _est_eur = (Decimal(str(_est_mkd)) / MKD_TO_EUR).quantize(Decimal('0.01'))
+                except Exception:
+                    _est_eur = None
             await conn.execute("""
                 UPDATE tenders
                 SET scrape_count = scrape_count + 1,
@@ -715,7 +760,7 @@ class DatabasePipeline:
                     estimated_value_mkd = COALESCE($2, estimated_value_mkd),
                     estimated_value_eur = COALESCE($3, estimated_value_eur)
                 WHERE tender_id = $1
-            """, item.get('tender_id'), item.get('estimated_value_mkd'), item.get('estimated_value_eur'))
+            """, item.get('tender_id'), item.get('estimated_value_mkd'), _est_eur)
             logger.info(f"Tender {item.get('tender_id')} unchanged, updated scrape_count")
             return
 
@@ -747,6 +792,23 @@ class DatabasePipeline:
         num_lots = item.get('num_lots')
         amendment_count = item.get('amendment_count', 0)  # Default to 0
 
+        # Auto-calculate EUR values from MKD (1 EUR ≈ 61.5 MKD)
+        MKD_TO_EUR = Decimal('61.5')
+        est_mkd = item.get('estimated_value_mkd')
+        act_mkd = item.get('actual_value_mkd')
+        est_eur = item.get('estimated_value_eur')
+        act_eur = item.get('actual_value_eur')
+        if est_mkd and not est_eur:
+            try:
+                est_eur = (Decimal(str(est_mkd)) / MKD_TO_EUR).quantize(Decimal('0.01'))
+            except Exception:
+                est_eur = None
+        if act_mkd and not act_eur:
+            try:
+                act_eur = (Decimal(str(act_mkd)) / MKD_TO_EUR).quantize(Decimal('0.01'))
+            except Exception:
+                act_eur = None
+
         # Phase 5 fields - Incremental scraping
         content_hash = item.get('content_hash')
         source_category = item.get('source_category')
@@ -769,7 +831,7 @@ class DatabasePipeline:
             'status': status,
             'winner': item.get('winner'),
             'source_url': item.get('source_url'),
-            'procedure_type': item.get('procedure_type'),
+            'procedure_type': self._normalize_procedure_type(item.get('procedure_type')),
             'contract_signing_date': item.get('contract_signing_date'),
             'contract_duration': item.get('contract_duration'),
             'contracting_entity_category': item.get('contracting_entity_category'),
@@ -821,8 +883,8 @@ class DatabasePipeline:
                 winner = EXCLUDED.winner,
                 estimated_value_mkd = COALESCE(EXCLUDED.estimated_value_mkd, tenders.estimated_value_mkd),
                 estimated_value_eur = COALESCE(EXCLUDED.estimated_value_eur, tenders.estimated_value_eur),
-                actual_value_mkd = EXCLUDED.actual_value_mkd,
-                actual_value_eur = EXCLUDED.actual_value_eur,
+                actual_value_mkd = COALESCE(EXCLUDED.actual_value_mkd, tenders.actual_value_mkd),
+                actual_value_eur = COALESCE(EXCLUDED.actual_value_eur, tenders.actual_value_eur),
                 procedure_type = EXCLUDED.procedure_type,
                 opening_date = COALESCE(EXCLUDED.opening_date, tenders.opening_date),
                 closing_date = COALESCE(EXCLUDED.closing_date, tenders.closing_date),
@@ -861,9 +923,9 @@ class DatabasePipeline:
             closing_date,
             publication_date,
             item.get('estimated_value_mkd'),
-            item.get('estimated_value_eur'),
+            est_eur,
             item.get('actual_value_mkd'),
-            item.get('actual_value_eur'),
+            act_eur,
             item.get('cpv_code'),
             status,
             item.get('winner'),
@@ -1624,3 +1686,335 @@ class EPazarDatabasePipeline:
 
         except Exception as e:
             logger.error(f"Error inserting offer for {tender_id}: {e}")
+
+
+# ============================================================================
+# COMPANYWALL PIPELINES
+# ============================================================================
+
+class CompanyWallValidationPipeline:
+    """Validate CompanyWall company data before database insertion."""
+
+    def process_item(self, item, spider):
+        if not isinstance(item, CompanyWallItem):
+            return item
+
+        adapter = ItemAdapter(item)
+
+        # Must have a name
+        name = adapter.get('name')
+        if not name or len(name.strip()) < 2:
+            raise DropItem(f"Missing company name: {adapter.get('source_url')}")
+
+        # Must have at least one identifier
+        if not any([adapter.get('embs'), adapter.get('edb'), adapter.get('companywall_id')]):
+            raise DropItem(f"No identifier for company: {name}")
+
+        # Validate EMBS format (5-8 digits)
+        embs = adapter.get('embs')
+        if embs and not re.match(r'^\d{5,8}$', str(embs)):
+            logger.warning(f"Invalid EMBS format: {embs} for {name}")
+            adapter['embs'] = None
+
+        # Validate EDB format (10-15 digits)
+        edb = adapter.get('edb')
+        if edb and not re.match(r'^\d{10,15}$', str(edb)):
+            logger.warning(f"Invalid EDB format: {edb} for {name}")
+            adapter['edb'] = None
+
+        return item
+
+
+class CompanyWallDatabasePipeline:
+    """
+    Insert/update CompanyWall companies into mk_companies table.
+
+    Matching hierarchy:
+    1. companywall_id (exact)
+    2. EMBS (exact)
+    3. EDB (exact)
+    4. Normalized name + city (fuzzy)
+    """
+
+    def __init__(self):
+        self.pool = None
+        self._pool_creating = False
+        self.stats = {'new': 0, 'updated': 0, 'errors': 0}
+
+    def open_spider(self, spider):
+        logger.info("CompanyWallDatabasePipeline: Ready")
+
+    async def _ensure_pool(self):
+        if self.pool is not None:
+            return True
+
+        # Simple flag to prevent concurrent pool creation
+        if self._pool_creating:
+            # Wait for the other coroutine to finish creating the pool
+            import asyncio
+            for _ in range(50):  # Wait up to 5 seconds
+                await asyncio.sleep(0.1)
+                if self.pool is not None:
+                    return True
+            return False
+
+        self._pool_creating = True
+
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            logger.error("DATABASE_URL not set!")
+            self._pool_creating = False
+            return False
+
+        database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://')
+
+        try:
+            self.pool = await asyncpg.create_pool(
+                database_url, min_size=1, max_size=3, command_timeout=60
+            )
+            logger.info("CompanyWallDatabasePipeline: Connection pool created")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create connection pool: {e}")
+            self._pool_creating = False
+            return False
+
+    async def _close_spider_async(self, spider):
+        if self.pool:
+            await self.pool.close()
+            logger.info(f"CompanyWallDatabasePipeline closed. Stats: {self.stats}")
+
+    def close_spider(self, spider):
+        return deferred_from_coro(self._close_spider_async(spider))
+
+    async def process_item(self, item, spider):
+        if not isinstance(item, CompanyWallItem):
+            return item
+
+        if not await self._ensure_pool():
+            return item
+
+        adapter = ItemAdapter(item)
+
+        try:
+            async with self.pool.acquire() as conn:
+                company_id = await self._find_existing(adapter, conn)
+
+                if company_id:
+                    await self._update_company(conn, company_id, adapter)
+                    self.stats['updated'] += 1
+                else:
+                    await self._insert_company(conn, adapter)
+                    self.stats['new'] += 1
+
+                if (self.stats['new'] + self.stats['updated']) % 500 == 0:
+                    logger.info(
+                        f"CompanyWall DB stats: "
+                        f"{self.stats['new']} new, "
+                        f"{self.stats['updated']} updated, "
+                        f"{self.stats['errors']} errors"
+                    )
+
+        except Exception as e:
+            logger.error(f"DB error for {adapter.get('name', '?')}: {e}")
+            self.stats['errors'] += 1
+
+        return item
+
+    async def _find_existing(self, adapter, conn):
+        """Three-level match to find existing company."""
+        # 1. Match by CompanyWall ID
+        cw_id = adapter.get('companywall_id')
+        if cw_id:
+            result = await conn.fetchval(
+                "SELECT company_id FROM mk_companies WHERE companywall_id = $1", cw_id
+            )
+            if result:
+                return result
+
+        # 2. Match by EMBS
+        embs = adapter.get('embs')
+        if embs:
+            result = await conn.fetchval(
+                "SELECT company_id FROM mk_companies WHERE embs = $1", embs
+            )
+            if result:
+                return result
+
+        # 3. Match by EDB
+        edb = adapter.get('edb')
+        if edb:
+            result = await conn.fetchval(
+                "SELECT company_id FROM mk_companies WHERE edb = $1", edb
+            )
+            if result:
+                return result
+
+        # 4. Match by normalized name + city
+        name = adapter.get('name')
+        city = adapter.get('city')
+        if name and city:
+            result = await conn.fetchval(
+                """SELECT company_id FROM mk_companies
+                   WHERE UPPER(TRIM(name)) = UPPER(TRIM($1))
+                     AND UPPER(TRIM(city_mk)) = UPPER(TRIM($2))""",
+                name, city
+            )
+            if result:
+                return result
+
+        return None
+
+    async def _update_company(self, conn, company_id, adapter):
+        """Update existing company. COALESCE preserves existing data."""
+        await conn.execute("""
+            UPDATE mk_companies SET
+                embs = COALESCE($2, embs),
+                edb = COALESCE($3, edb),
+                companywall_id = COALESCE($4, companywall_id),
+                status = COALESCE($5, status),
+                legal_form = COALESCE($6, legal_form),
+                founding_date = COALESCE($7, founding_date),
+                address = COALESCE($8, address),
+                city_mk = COALESCE($9, city_mk),
+                municipality = COALESCE($10, municipality),
+                postal_code = COALESCE($11, postal_code),
+                region = COALESCE($12, region),
+                phone = COALESCE($13, phone),
+                email = COALESCE($14, email),
+                website = COALESCE($15, website),
+                nace_code = COALESCE($16, nace_code),
+                nace_description = COALESCE($17, nace_description),
+                owners = COALESCE($18::jsonb, owners),
+                directors = COALESCE($19::jsonb, directors),
+                revenue = COALESCE($20, revenue),
+                profit = COALESCE($21, profit),
+                num_employees = COALESCE($22, num_employees),
+                financial_year = COALESCE($23, financial_year),
+                avg_salary = COALESCE($24, avg_salary),
+                tax_debtor = COALESCE($25, tax_debtor),
+                court_proceedings = COALESCE($26, court_proceedings),
+                bank_blocked = COALESCE($27, bank_blocked),
+                credit_rating = COALESCE($28, credit_rating),
+                source_url = $29,
+                companywall_scraped_at = NOW(),
+                raw_data_json = COALESCE($30::jsonb, raw_data_json),
+                updated_at = NOW()
+            WHERE company_id = $1
+        """,
+            company_id,
+            adapter.get('embs'),
+            adapter.get('edb'),
+            adapter.get('companywall_id'),
+            adapter.get('status'),
+            adapter.get('legal_form'),
+            self._parse_date(adapter.get('founding_date')),
+            adapter.get('address'),
+            adapter.get('city'),
+            adapter.get('municipality'),
+            adapter.get('postal_code'),
+            adapter.get('region'),
+            adapter.get('phone'),
+            adapter.get('email'),
+            adapter.get('website'),
+            adapter.get('nace_code'),
+            adapter.get('nace_description'),
+            adapter.get('owners'),
+            adapter.get('directors'),
+            self._to_float(adapter.get('revenue')),
+            self._to_float(adapter.get('profit')),
+            self._to_int(adapter.get('num_employees')),
+            self._to_int(adapter.get('financial_year')),
+            self._to_float(adapter.get('avg_salary')),
+            adapter.get('tax_debtor'),
+            adapter.get('court_proceedings'),
+            adapter.get('bank_blocked'),
+            adapter.get('credit_rating'),
+            adapter.get('source_url'),
+            adapter.get('raw_data_json'),
+        )
+
+    async def _insert_company(self, conn, adapter):
+        """Insert new company record."""
+        await conn.execute("""
+            INSERT INTO mk_companies (
+                name, embs, edb, companywall_id, status, legal_form,
+                founding_date, address, city_mk, municipality,
+                postal_code, region, phone, email, website,
+                nace_code, nace_description, owners, directors,
+                revenue, profit, num_employees, financial_year, avg_salary,
+                tax_debtor, court_proceedings, bank_blocked, credit_rating,
+                source_url, companywall_scraped_at, email_source,
+                raw_data_json, category_mk
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6,
+                $7, $8, $9, $10,
+                $11, $12, $13, $14, $15,
+                $16, $17, $18::jsonb, $19::jsonb,
+                $20, $21, $22, $23, $24,
+                $25, $26, $27, $28,
+                $29, NOW(), 'companywall',
+                $30::jsonb, $31
+            )
+        """,
+            adapter.get('name'),
+            adapter.get('embs'),
+            adapter.get('edb'),
+            adapter.get('companywall_id'),
+            adapter.get('status'),
+            adapter.get('legal_form'),
+            self._parse_date(adapter.get('founding_date')),
+            adapter.get('address'),
+            adapter.get('city'),
+            adapter.get('municipality'),
+            adapter.get('postal_code'),
+            adapter.get('region'),
+            adapter.get('phone'),
+            adapter.get('email'),
+            adapter.get('website'),
+            adapter.get('nace_code'),
+            adapter.get('nace_description'),
+            adapter.get('owners'),
+            adapter.get('directors'),
+            self._to_float(adapter.get('revenue')),
+            self._to_float(adapter.get('profit')),
+            self._to_int(adapter.get('num_employees')),
+            self._to_int(adapter.get('financial_year')),
+            self._to_float(adapter.get('avg_salary')),
+            adapter.get('tax_debtor'),
+            adapter.get('court_proceedings'),
+            adapter.get('bank_blocked'),
+            adapter.get('credit_rating'),
+            adapter.get('source_url'),
+            adapter.get('raw_data_json'),
+            adapter.get('nace_description'),  # category_mk = NACE description
+        )
+
+    def _parse_date(self, date_str):
+        """Convert YYYY-MM-DD string to date object."""
+        if not date_str:
+            return None
+        try:
+            from datetime import date as date_type
+            parts = date_str.split('-')
+            if len(parts) == 3:
+                return date_type(int(parts[0]), int(parts[1]), int(parts[2]))
+        except (ValueError, IndexError):
+            pass
+        return None
+
+    def _to_float(self, val):
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+
+    def _to_int(self, val):
+        if val is None:
+            return None
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return None
