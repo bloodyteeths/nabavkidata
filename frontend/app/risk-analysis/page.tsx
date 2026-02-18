@@ -374,7 +374,7 @@ export default function RiskAnalysisPage() {
         flags: (t.flag_types || []).map((type: string) => ({
           flag_type: type,
           severity: t.max_severity || "medium",
-          score: Math.round((t.risk_score || 0) / (t.total_flags || 1)),
+          score: t.risk_score || 0,
           description: FLAG_TYPES[type]?.description || ""
         }))
       }));

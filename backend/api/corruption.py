@@ -20,6 +20,7 @@ Features:
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from middleware.entitlements import require_module
+from middleware.rbac import require_admin
 from config.plans import ModuleName
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -27,12 +28,11 @@ from uuid import UUID
 from decimal import Decimal
 from pydantic import BaseModel, Field
 import asyncpg
-import os
+
+from db_pool import get_asyncpg_pool
+from utils.risk_levels import calculate_risk_level
 
 logger = logging.getLogger(__name__)
-
-# Database connection
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 # ============================================================================
@@ -194,22 +194,9 @@ class MessageResponse(BaseModel):
 # ============================================================================
 
 async def get_db_connection():
-    """Get database connection"""
-    return await asyncpg.connect(DATABASE_URL)
-
-
-def calculate_risk_level(score: int) -> str:
-    """Calculate risk level from score"""
-    if score >= 80:
-        return "critical"
-    elif score >= 60:
-        return "high"
-    elif score >= 40:
-        return "medium"
-    elif score >= 20:
-        return "low"
-    else:
-        return "minimal"
+    """Get a connection from the shared pool."""
+    pool = await get_asyncpg_pool()
+    return await pool.acquire()
 
 
 def latin_to_cyrillic(text: str) -> str:
@@ -293,6 +280,55 @@ def build_bilingual_search_condition(field: str, search_term: str, param_num: in
 # FLAGGED TENDERS ENDPOINTS
 # ============================================================================
 
+def _build_flagged_tenders_where(
+    severity: Optional[str],
+    flag_type: Optional[str],
+    institution: Optional[str],
+    winner: Optional[str],
+    min_score: int,
+) -> tuple[str, list, int]:
+    """
+    Build the WHERE clause, params list, and final param_count for
+    mv_flagged_tenders queries (used by both the data query and count query).
+
+    Returns:
+        (where_clause, params, param_count)
+        where_clause starts with "WHERE risk_score >= $1" and includes all
+        applicable filters.
+    """
+    where = "WHERE risk_score >= $1"
+    params: list = [min_score]
+    param_count = 1
+
+    if severity:
+        param_count += 1
+        where += f" AND max_severity = ${param_count}"
+        params.append(severity)
+
+    if flag_type:
+        param_count += 1
+        where += f" AND ${param_count} = ANY(flag_types)"
+        params.append(flag_type)
+
+    if institution:
+        condition, search_params = build_bilingual_search_condition(
+            'procuring_entity', institution, param_count + 1
+        )
+        where += f" AND {condition}"
+        params.extend(search_params)
+        param_count += len(search_params)
+
+    if winner:
+        condition, search_params = build_bilingual_search_condition(
+            'winner', winner, param_count + 1
+        )
+        where += f" AND {condition}"
+        params.extend(search_params)
+        param_count += len(search_params)
+
+    return where, params, param_count
+
+
 @router.get("/flagged-tenders", response_model=FlaggedTendersResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_flagged_tenders(
     severity: Optional[str] = Query(None, pattern="^(critical|high|medium|low)$"),
@@ -319,8 +355,16 @@ async def get_flagged_tenders(
     """
     conn = await get_db_connection()
     try:
+        where, params, param_count = _build_flagged_tenders_where(
+            severity, flag_type, institution, winner, min_score
+        )
+
+        # Count query using materialized view (fast)
+        count_query = f"SELECT COUNT(*) FROM mv_flagged_tenders {where}"
+        total = await conn.fetchval(count_query, *params)
+
         # Use materialized view for fast queries (1000x faster than CTE)
-        query = """
+        query = f"""
         SELECT
             tender_id,
             title,
@@ -333,65 +377,10 @@ async def get_flagged_tenders(
             max_severity,
             flag_types
         FROM mv_flagged_tenders
-        WHERE risk_score >= $1
+        {where}
+        ORDER BY risk_score DESC, total_flags DESC
+        LIMIT ${param_count + 1} OFFSET ${param_count + 2}
         """
-        params = [min_score]
-        param_count = 1
-
-        if severity:
-            param_count += 1
-            query += f" AND max_severity = ${param_count}"
-            params.append(severity)
-
-        if flag_type:
-            param_count += 1
-            query += f" AND ${param_count} = ANY(flag_types)"
-            params.append(flag_type)
-
-        if institution:
-            # Use bilingual search for institution names
-            condition, search_params = build_bilingual_search_condition('procuring_entity', institution, param_count + 1)
-            query += f" AND {condition}"
-            params.extend(search_params)
-            param_count += len(search_params)
-
-        if winner:
-            # Use bilingual search for winner/company names
-            condition, search_params = build_bilingual_search_condition('winner', winner, param_count + 1)
-            query += f" AND {condition}"
-            params.extend(search_params)
-            param_count += len(search_params)
-
-        # Count query using materialized view (fast)
-        count_query = """
-        SELECT COUNT(*)
-        FROM mv_flagged_tenders
-        WHERE risk_score >= $1
-        """
-        count_params_used = 1
-        if severity:
-            count_params_used += 1
-            count_query += f" AND max_severity = ${count_params_used}"
-        if flag_type:
-            count_params_used += 1
-            count_query += f" AND ${count_params_used} = ANY(flag_types)"
-        if institution:
-            # Use bilingual search in count query too
-            condition, search_params = build_bilingual_search_condition('procuring_entity', institution, count_params_used + 1)
-            count_query += f" AND {condition}"
-            count_params_used += len(search_params)
-        if winner:
-            # Use bilingual search in count query too
-            condition, search_params = build_bilingual_search_condition('winner', winner, count_params_used + 1)
-            count_query += f" AND {condition}"
-            count_params_used += len(search_params)
-
-        # Build count params in same order as main query params (excluding limit/offset)
-        count_params = params[:count_params_used]
-        total = await conn.fetchval(count_query, *count_params)
-
-        # Add ordering and pagination
-        query += f" ORDER BY risk_score DESC, total_flags DESC LIMIT ${param_count + 1} OFFSET ${param_count + 2}"
         params.extend([limit, skip])
 
         rows = await conn.fetch(query, *params)
@@ -427,7 +416,8 @@ async def get_flagged_tenders(
             detail=f"Failed to fetch flagged tenders: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
 
 
 # ============================================================================
@@ -471,14 +461,11 @@ async def get_tender_analysis(tender_id: str):
 
         flags = []
         total_score = 0
+        flag_count = 0
         max_severity = 'low'
         severity_order = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1}
 
         for row in flags_rows:
-            total_score += row['score'] or 0
-            if severity_order.get(row['severity'], 0) > severity_order.get(max_severity, 0):
-                max_severity = row['severity']
-
             flags.append(FlagDetail(
                 flag_id=str(row['flag_id']),
                 flag_type=row['flag_type'],
@@ -491,8 +478,16 @@ async def get_tender_analysis(tender_id: str):
                 false_positive=row['false_positive'] or False,
                 review_notes=row['review_notes']
             ))
+            # Only non-false-positive flags contribute to risk score
+            if not (row['false_positive'] or False):
+                total_score += row['score'] or 0
+                flag_count += 1
+                if severity_order.get(row['severity'], 0) > severity_order.get(max_severity, 0):
+                    max_severity = row['severity']
 
-        risk_score = min(100, total_score) if flags else 0
+        # Use AVG to match DB function update_tender_risk_score()
+        risk_score = round(total_score / flag_count) if flag_count > 0 else 0
+        risk_score = min(100, risk_score)
         risk_level = calculate_risk_level(risk_score)
 
         return TenderRiskAnalysis(
@@ -517,7 +512,8 @@ async def get_tender_analysis(tender_id: str):
             detail=f"Failed to fetch tender analysis: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
 
 
 # ============================================================================
@@ -606,7 +602,8 @@ async def get_institutions_risk(
             detail=f"Failed to fetch institutions risk: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
 
 
 # ============================================================================
@@ -635,7 +632,7 @@ async def get_suspicious_companies(
                 COUNT(DISTINCT cf.tender_id) as flagged_wins,
                 COUNT(cf.flag_id) as total_flags,
                 SUM(cf.score) as total_risk_score,
-                SUM(t.contract_value_mkd) as total_contract_value,
+                SUM(COALESCE(t.actual_value_mkd, t.estimated_value_mkd)) as total_contract_value,
                 ARRAY_AGG(DISTINCT cf.flag_type) as flag_types,
                 COUNT(DISTINCT t.procuring_entity) as institutions_count
             FROM tenders t
@@ -693,14 +690,15 @@ async def get_suspicious_companies(
             detail=f"Failed to fetch suspicious companies: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
 
 
 # ============================================================================
 # FLAG REVIEW ENDPOINTS
 # ============================================================================
 
-@router.post("/flags/{flag_id}/review", response_model=FlagReviewResponse)
+@router.post("/flags/{flag_id}/review", response_model=FlagReviewResponse, dependencies=[Depends(require_admin)])
 async def review_flag(
     flag_id: str,
     review: FlagReviewRequest
@@ -718,9 +716,10 @@ async def review_flag(
             UPDATE corruption_flags
             SET reviewed = true,
                 false_positive = $2,
-                review_notes = $3
+                review_notes = $3,
+                reviewed_at = NOW()
             WHERE flag_id = $1::uuid
-            RETURNING flag_id, reviewed, false_positive, review_notes
+            RETURNING flag_id, reviewed, false_positive, review_notes, reviewed_at
         """, flag_id, review.false_positive, review.review_notes)
 
         if not result:
@@ -734,7 +733,7 @@ async def review_flag(
             reviewed=result['reviewed'],
             false_positive=result['false_positive'],
             review_notes=result['review_notes'],
-            reviewed_at=datetime.utcnow()
+            reviewed_at=result['reviewed_at']
         )
 
     except HTTPException:
@@ -746,7 +745,8 @@ async def review_flag(
             detail=f"Failed to review flag: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
 
 
 # ============================================================================
@@ -825,14 +825,15 @@ async def get_corruption_stats():
             detail=f"Failed to fetch corruption stats: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
 
 
 # ============================================================================
 # TRIGGER ANALYSIS ENDPOINT
 # ============================================================================
 
-@router.post("/analyze", response_model=MessageResponse)
+@router.post("/analyze", response_model=MessageResponse, dependencies=[Depends(require_admin)])
 async def trigger_analysis(
     tender_ids: Optional[List[str]] = None,
     background_tasks: BackgroundTasks = None
@@ -933,11 +934,12 @@ async def _get_or_create_predictor():
     try:
         from ai.corruption.ml_models import CorruptionPredictor, PredictionResult
         from pathlib import Path
+        import os
 
         models_dir = Path(__file__).parent.parent.parent / "ai" / "corruption" / "ml_models" / "models"
         predictor = CorruptionPredictor(
             models_dir=str(models_dir),
-            db_url=DATABASE_URL
+            db_url=os.getenv("DATABASE_URL")
         )
         await predictor.initialize()
         return predictor
@@ -1144,7 +1146,8 @@ async def predict_tender(
             detail=f"Failed to generate prediction: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
 
 
 @router.get("/predictions", response_model=MLPredictionsListResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
@@ -1282,7 +1285,8 @@ async def list_predictions(
             detail=f"Failed to list predictions: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
 
 
 @router.get("/predictions/{tender_id}", response_model=MLPredictionResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
@@ -1378,10 +1382,11 @@ async def get_prediction(tender_id: str):
             detail=f"Failed to get prediction: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
 
 
-@router.post("/batch-predict", response_model=BatchPredictionResponse)
+@router.post("/batch-predict", response_model=BatchPredictionResponse, dependencies=[Depends(require_admin)])
 async def batch_predict(
     request: BatchPredictionRequest,
     background_tasks: BackgroundTasks
@@ -1547,4 +1552,5 @@ async def batch_predict(
             detail=f"Failed to run batch prediction: {str(e)}"
         )
     finally:
-        await conn.close()
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)

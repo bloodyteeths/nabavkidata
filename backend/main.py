@@ -13,9 +13,10 @@ import json
 import os
 
 from database import init_db, close_db, get_db
+from db_pool import get_asyncpg_pool, close_asyncpg_pool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach
 # Note: report_campaigns commented out - missing weasyprint on server
 # from api import report_campaigns
 from middleware.fraud import FraudPreventionMiddleware
@@ -75,13 +76,15 @@ app.add_middleware(FraudPreventionMiddleware)
 async def startup():
     """Initialize database connection on startup"""
     await init_db()
-    print("✓ Database connection pool initialized")
+    await get_asyncpg_pool()
+    print("✓ Database connection pools initialized")
 
 
 @app.on_event("shutdown")
 async def shutdown():
     """Close database connections on shutdown"""
     await close_db()
+    await close_asyncpg_pool()
     print("✓ Database connections closed")
 
 
@@ -120,6 +123,7 @@ app.include_router(collusion.router)  # Collusion detection & network analysis
 app.include_router(api_keys.router, prefix="/api")  # API key management (Enterprise tier)
 # app.include_router(report_campaigns.router)  # Report-first outreach campaigns (disabled - missing weasyprint)
 app.include_router(contact.router, prefix="/api")  # Contact form submissions
+app.include_router(outreach.router, prefix="/api")  # Outreach campaigns, unsubscribe, Postmark webhook
 
 
 # Root endpoints

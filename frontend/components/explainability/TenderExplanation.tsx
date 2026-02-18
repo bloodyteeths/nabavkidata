@@ -57,11 +57,11 @@ const RISK_COLORS: Record<string, string> = {
 };
 
 const RISK_LABELS: Record<string, string> = {
-  critical: 'Kritichen',
-  high: 'Visok',
-  medium: 'Sreden',
-  low: 'Nizok',
-  minimal: 'Minimalen',
+  critical: 'Критичен',
+  high: 'Висок',
+  medium: 'Среден',
+  low: 'Низок',
+  minimal: 'Минимален',
 };
 
 export function TenderExplanation({
@@ -140,13 +140,13 @@ export function TenderExplanation({
           <div>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5" />
-              ML Analiza na Rizik
+              ML Анализа на Ризик
             </CardTitle>
             <CardDescription>
-              {data.method === 'shap' && 'SHAP vrednosti'}
-              {data.method === 'lime' && 'LIME objasnenija'}
-              {data.method === 'combined' && 'Kombinirana analiza'}
-              {data.method === 'flags' && 'Bazirana na indikatori'}
+              {data.method === 'shap' && 'SHAP вредности'}
+              {data.method === 'lime' && 'LIME објаснувања'}
+              {data.method === 'combined' && 'Комбинирана анализа'}
+              {data.method === 'flags' && 'Базирана на индикатори'}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -176,11 +176,11 @@ export function TenderExplanation({
           >
             {expanded ? (
               <>
-                <ChevronUp className="h-4 w-4 mr-2" /> Collapse
+                <ChevronUp className="h-4 w-4 mr-2" /> Собери
               </>
             ) : (
               <>
-                <ChevronDown className="h-4 w-4 mr-2" /> Show Details
+                <ChevronDown className="h-4 w-4 mr-2" /> Прикажи детали
               </>
             )}
           </Button>
@@ -193,7 +193,7 @@ export function TenderExplanation({
               <div>
                 <h4 className="text-sm font-medium mb-2 flex items-center gap-2 text-red-600">
                   <TrendingUp className="h-4 w-4" />
-                  Faktori sto go zgolemuvaat rizikot
+                  Фактори што го зголемуваат ризикот
                 </h4>
                 <div className="space-y-2">
                   {increasingFactors.slice(0, 7).map((factor) => (
@@ -213,7 +213,7 @@ export function TenderExplanation({
               <div>
                 <h4 className="text-sm font-medium mb-2 flex items-center gap-2 text-green-600">
                   <TrendingDown className="h-4 w-4" />
-                  Faktori sto go namaluvaat rizikot
+                  Фактори што го намалуваат ризикот
                 </h4>
                 <div className="space-y-2">
                   {decreasingFactors.slice(0, 5).map((factor) => (
@@ -233,7 +233,7 @@ export function TenderExplanation({
               <div className="pt-2 border-t">
                 <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
                   <Lightbulb className="h-4 w-4 text-yellow-500" />
-                  Preporaki za istraga
+                  Препораки за истрага
                 </h4>
                 <ul className="space-y-1">
                   {data.recommendations.map((rec, i) => (
@@ -251,7 +251,7 @@ export function TenderExplanation({
               <div className="pt-2 border-t">
                 <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
                   <Info className="h-4 w-4 text-blue-500" />
-                  Sto bi go promenilo rizikot?
+                  Што би го променило ризикот?
                 </h4>
                 <ul className="space-y-1">
                   {data.counterfactuals.map((cf, i) => (
