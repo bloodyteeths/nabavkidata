@@ -429,6 +429,33 @@ async def register(
     await db.commit()
     await db.refresh(new_user)
 
+    # Handle referral code - link referred_by and create pending conversion
+    if user_data.referral_code:
+        try:
+            from sqlalchemy import text as sa_text
+            ref_result = await db.execute(
+                sa_text("SELECT user_id FROM referral_codes WHERE code = :code"),
+                {"code": user_data.referral_code}
+            )
+            ref_row = ref_result.fetchone()
+            if ref_row and str(ref_row[0]) != str(new_user.user_id):
+                referrer_id = str(ref_row[0])
+                await db.execute(
+                    sa_text("UPDATE users SET referred_by = :ref_id WHERE user_id = :uid"),
+                    {"ref_id": referrer_id, "uid": str(new_user.user_id)}
+                )
+                await db.execute(
+                    sa_text("""
+                        INSERT INTO referral_conversions (referrer_id, referred_user_id, status)
+                        VALUES (:ref_id, :uid, 'pending')
+                    """),
+                    {"ref_id": referrer_id, "uid": str(new_user.user_id)}
+                )
+                await db.commit()
+                logger.info(f"Referral linked: {new_user.user_id} referred by {referrer_id}")
+        except Exception as e:
+            logger.warning(f"Failed to process referral code '{user_data.referral_code}': {e}")
+
     # Generate and store verification token
     from services.auth_service import generate_verification_token
     verification_token = generate_verification_token(new_user.user_id, user_data.email)

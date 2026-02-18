@@ -132,7 +132,11 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(formData.email, formData.password);
+      // Pass referral code from localStorage if present
+      const referralCode = localStorage.getItem('referral_code') || undefined;
+      await register(formData.email, formData.password, undefined, referralCode);
+      // Clear referral code after successful registration
+      if (referralCode) localStorage.removeItem('referral_code');
       // Track Google Ads sign-up conversion
       if (typeof window !== 'undefined' && window.gtag) {
         window.gtag('event', 'conversion', {

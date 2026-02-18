@@ -15,7 +15,7 @@ Created: 2025-11-23
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update, and_, text
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import os
@@ -190,6 +190,75 @@ async def update_user_tier(db: AsyncSession, user_id, tier: str):
 
 
 # ============================================================================
+# REFERRAL COMMISSION
+# ============================================================================
+
+async def _process_referral_commission(db: AsyncSession, user: User, invoice_obj: Dict[str, Any]):
+    """Credit 20% commission to referrer if this user was referred and has an active conversion."""
+    try:
+        invoice_id = invoice_obj["id"]
+        amount_paid_cents = invoice_obj["amount_paid"]  # Already in cents from Stripe
+        currency = invoice_obj["currency"].upper()
+
+        if amount_paid_cents <= 0:
+            return
+
+        # Check idempotency - was this invoice already processed?
+        existing = await db.execute(
+            text("SELECT 1 FROM referral_earnings WHERE invoice_id = :inv"),
+            {"inv": invoice_id}
+        )
+        if existing.fetchone():
+            return
+
+        # Check if user has an active referral conversion
+        conv_result = await db.execute(
+            text("""
+                SELECT conversion_id, referrer_id
+                FROM referral_conversions
+                WHERE referred_user_id = :uid AND status = 'active'
+            """),
+            {"uid": str(user.user_id)}
+        )
+        conv = conv_result.fetchone()
+        if not conv:
+            return
+
+        conversion_id, referrer_id = conv[0], conv[1]
+
+        # Calculate 20% commission
+        commission_cents = amount_paid_cents * 20 // 100
+        if commission_cents <= 0:
+            return
+
+        await db.execute(
+            text("""
+                INSERT INTO referral_earnings
+                    (referrer_id, referred_user_id, conversion_id, invoice_id, amount_cents, currency)
+                VALUES (:referrer, :referred, :conv, :inv, :amount, :currency)
+            """),
+            {
+                "referrer": str(referrer_id),
+                "referred": str(user.user_id),
+                "conv": str(conversion_id),
+                "inv": invoice_id,
+                "amount": commission_cents,
+                "currency": currency
+            }
+        )
+        await db.commit()
+
+        logger.info(
+            f"Referral commission: {commission_cents} cents {currency} "
+            f"credited to {referrer_id} from user {user.user_id} (invoice {invoice_id})"
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing referral commission: {e}", exc_info=True)
+        # Don't raise - referral failure shouldn't break payment processing
+
+
+# ============================================================================
 # WEBHOOK EVENT HANDLERS
 # ============================================================================
 
@@ -233,6 +302,18 @@ async def handle_subscription_created(db: AsyncSession, subscription_obj: Dict[s
 
         # Update user's subscription tier
         await update_user_tier(db, user.user_id, tier)
+
+        # Activate pending referral conversion if this is a paid subscription
+        if tier in ("starter", "start", "professional", "pro", "enterprise", "team"):
+            await db.execute(
+                text("""
+                    UPDATE referral_conversions
+                    SET status = 'active', stripe_subscription_id = :sub_id,
+                        converted_at = NOW(), updated_at = NOW()
+                    WHERE referred_user_id = :uid AND status = 'pending'
+                """),
+                {"uid": str(user.user_id), "sub_id": subscription_id}
+            )
 
         await db.commit()
 
@@ -339,6 +420,16 @@ async def handle_subscription_deleted(db: AsyncSession, subscription_obj: Dict[s
         # Downgrade user to free tier
         await update_user_tier(db, subscription.user_id, "free")
 
+        # Deactivate referral conversion so no more commissions accrue
+        await db.execute(
+            text("""
+                UPDATE referral_conversions
+                SET status = 'inactive', updated_at = NOW()
+                WHERE referred_user_id = :uid AND status = 'active'
+            """),
+            {"uid": str(subscription.user_id)}
+        )
+
         await db.commit()
 
         logger.info(f"Successfully deleted subscription {subscription_id} and downgraded user to free tier")
@@ -393,6 +484,9 @@ async def handle_invoice_payment_succeeded(db: AsyncSession, invoice_obj: Dict[s
                 logger.info(f"Payment succeeded for subscription {subscription_id}, ensured active status")
 
         await db.commit()
+
+        # Process referral commission (20% to referrer if applicable)
+        await _process_referral_commission(db, user, invoice_obj)
 
         logger.info(f"Successfully processed payment of {amount_paid} {currency} for user {user.user_id}")
 

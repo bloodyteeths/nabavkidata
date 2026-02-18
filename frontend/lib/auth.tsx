@@ -28,7 +28,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, fullName?: string) => Promise<void>;
+  register: (email: string, password: string, fullName?: string, referralCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
@@ -264,21 +264,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string, fullName?: string) => {
+  const register = async (email: string, password: string, fullName?: string, referralCode?: string) => {
     try {
       setIsLoading(true);
       setError(null);
+
+      const body: Record<string, string | undefined> = {
+        email,
+        password,
+        full_name: fullName,
+      };
+      if (referralCode) body.referral_code = referralCode;
 
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email,
-          password,
-          full_name: fullName,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {

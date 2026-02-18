@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { api, UserPreferences } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { billing, BillingPlan, UserSubscriptionStatus, TrialCredits } from "@/lib/billing";
+import { billing, BillingPlan, UserSubscriptionStatus, TrialCredits, ReferralStats, ReferralEarning } from "@/lib/billing";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Check, Sparkles, CreditCard, Zap, HelpCircle, Search, AlertTriangle, ChevronDown } from "lucide-react";
+import { X, Check, Sparkles, CreditCard, Zap, HelpCircle, Search, AlertTriangle, ChevronDown, Users, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 // Expanded sectors based on common procurement categories in Macedonia
@@ -907,6 +907,16 @@ export default function SettingsPage() {
   const [dailyUsage, setDailyUsage] = useState<{ used: number; limit: number }>({ used: 0, limit: 3 });
   const [hasStripeCustomer, setHasStripeCustomer] = useState<boolean>(false);
 
+  // Referral program state
+  const [referralCode, setReferralCode] = useState<string>("");
+  const [referralUrl, setReferralUrl] = useState<string>("");
+  const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
+  const [referralEarnings, setReferralEarnings] = useState<ReferralEarning[]>([]);
+  const [showPayoutForm, setShowPayoutForm] = useState(false);
+  const [payoutForm, setPayoutForm] = useState({ bank_name: "", account_holder: "", iban: "" });
+  const [payoutLoading, setPayoutLoading] = useState(false);
+  const [referralCopied, setReferralCopied] = useState(false);
+
   // Hydration guard to prevent client-side errors
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -942,6 +952,7 @@ export default function SettingsPage() {
     const init = async () => {
       if (userId) {
         await loadPreferences();
+        loadReferralData();
       } else {
         setLoading(false);
       }
@@ -949,6 +960,52 @@ export default function SettingsPage() {
     };
     init();
   }, [userId]);
+
+  const loadReferralData = async () => {
+    try {
+      const [codeData, statsData, earningsData] = await Promise.all([
+        billing.getReferralCode(),
+        billing.getReferralStats(),
+        billing.getReferralEarnings(0, 10),
+      ]);
+      setReferralCode(codeData.code);
+      setReferralUrl(codeData.referral_url);
+      setReferralStats(statsData);
+      setReferralEarnings(earningsData.earnings);
+    } catch (err) {
+      console.error("Failed to load referral data:", err);
+    }
+  };
+
+  const copyReferralLink = () => {
+    navigator.clipboard.writeText(referralUrl);
+    setReferralCopied(true);
+    toast.success("Линкот е копиран!");
+    setTimeout(() => setReferralCopied(false), 2000);
+  };
+
+  const submitPayoutRequest = async () => {
+    if (!payoutForm.bank_name || !payoutForm.account_holder || !payoutForm.iban) {
+      toast.error("Пополнете ги сите полиња");
+      return;
+    }
+    setPayoutLoading(true);
+    try {
+      const result = await billing.requestPayout(payoutForm);
+      toast.success(result.message);
+      setShowPayoutForm(false);
+      setPayoutForm({ bank_name: "", account_holder: "", iban: "" });
+      loadReferralData();
+    } catch (err: any) {
+      toast.error(err.message || "Грешка при испраќање на барањето");
+    } finally {
+      setPayoutLoading(false);
+    }
+  };
+
+  const formatEur = (cents: number) => {
+    return `€${(cents / 100).toFixed(2)}`;
+  };
 
   // Validate budget whenever it changes
   useEffect(() => {
@@ -1526,6 +1583,134 @@ export default function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Referral Program */}
+        {user && (
+          <Card>
+            <CardHeader className="p-4 md:p-6">
+              <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                Препорачај и заработи
+              </CardTitle>
+              <CardDescription className="text-xs md:text-sm">
+                Споделете го вашиот линк и заработете 20% од секоја уплата на препорачаните корисници
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 md:p-6 pt-0 space-y-5">
+              {/* Referral Link */}
+              <div>
+                <label className="text-sm font-medium mb-1 block">Вашиот линк за препораки</label>
+                <div className="flex gap-2">
+                  <Input
+                    value={referralUrl}
+                    readOnly
+                    className="font-mono text-xs md:text-sm bg-muted"
+                  />
+                  <Button variant="outline" size="sm" onClick={copyReferralLink} className="shrink-0">
+                    {referralCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Stats */}
+              {referralStats && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-xl md:text-2xl font-bold">{referralStats.active_referrals}</div>
+                    <div className="text-[10px] md:text-xs text-muted-foreground">Активни препораки</div>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-xl md:text-2xl font-bold">{formatEur(referralStats.total_earned_cents)}</div>
+                    <div className="text-[10px] md:text-xs text-muted-foreground">Вкупно заработено</div>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-xl md:text-2xl font-bold">{formatEur(referralStats.total_paid_out_cents)}</div>
+                    <div className="text-[10px] md:text-xs text-muted-foreground">Исплатено</div>
+                  </div>
+                  <div className="text-center p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                    <div className="text-xl md:text-2xl font-bold text-green-700 dark:text-green-400">{formatEur(referralStats.pending_balance_cents)}</div>
+                    <div className="text-[10px] md:text-xs text-muted-foreground">За исплата</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Earnings History */}
+              {referralEarnings.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Историја на заработки</h4>
+                  <div className="rounded-md border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Датум</th>
+                          <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Корисник</th>
+                          <th className="text-right py-2 px-3 text-xs font-medium text-muted-foreground">Износ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {referralEarnings.map((e) => (
+                          <tr key={e.earning_id} className="border-b last:border-0">
+                            <td className="py-2 px-3 text-xs">{new Date(e.created_at).toLocaleDateString('mk-MK')}</td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground">{e.referred_email}</td>
+                            <td className="py-2 px-3 text-xs text-right font-medium">{formatEur(e.amount_cents)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Payout Request */}
+              {referralStats && referralStats.pending_balance_cents >= 500 && !showPayoutForm && (
+                <div className="border-t pt-4">
+                  <Button onClick={() => setShowPayoutForm(true)} size="sm">
+                    Побарај исплата ({formatEur(referralStats.pending_balance_cents)})
+                  </Button>
+                </div>
+              )}
+
+              {showPayoutForm && (
+                <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                  <h4 className="font-medium text-sm">Банкарски податоци за исплата</h4>
+                  <Input
+                    placeholder="Име и презиме (носител на сметка)"
+                    value={payoutForm.account_holder}
+                    onChange={(e) => setPayoutForm({ ...payoutForm, account_holder: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Име на банка"
+                    value={payoutForm.bank_name}
+                    onChange={(e) => setPayoutForm({ ...payoutForm, bank_name: e.target.value })}
+                  />
+                  <Input
+                    placeholder="IBAN (MK07 ...)"
+                    value={payoutForm.iban}
+                    onChange={(e) => setPayoutForm({ ...payoutForm, iban: e.target.value })}
+                  />
+                  <div className="flex gap-2">
+                    <Button onClick={submitPayoutRequest} disabled={payoutLoading} size="sm">
+                      {payoutLoading ? "Се испраќа..." : "Испрати барање"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowPayoutForm(false)} size="sm">
+                      Откажи
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* How it works */}
+              {referralStats && referralStats.total_referrals === 0 && (
+                <div className="text-xs text-muted-foreground space-y-1 border-t pt-3">
+                  <p className="font-medium">Како функционира?</p>
+                  <p>1. Споделете го вашиот линк со колеги и партнери</p>
+                  <p>2. Кога тие ќе се регистрираат и претплатат, вие добивате 20% од секоја нивна уплата</p>
+                  <p>3. Побарајте исплата кога ќе акумулирате мин. 5 EUR</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Sectors - Improved with descriptions */}
         <Card>

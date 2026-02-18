@@ -89,6 +89,23 @@ export interface FeatureCheckResult {
   upgrade_url?: string;
 }
 
+export interface ReferralStats {
+  total_referrals: number;
+  active_referrals: number;
+  total_earned_cents: number;
+  total_paid_out_cents: number;
+  pending_balance_cents: number;
+  currency: string;
+}
+
+export interface ReferralEarning {
+  earning_id: string;
+  referred_email: string;
+  amount_cents: number;
+  currency: string;
+  created_at: string;
+}
+
 class BillingService {
   private baseURL: string;
 
@@ -295,6 +312,29 @@ class BillingService {
    */
   async checkFeature(feature: string): Promise<FeatureCheckResult> {
     return this.request<FeatureCheckResult>(`/api/billing/check-feature/${feature}`);
+  }
+
+  // ============================================================================
+  // REFERRAL PROGRAM
+  // ============================================================================
+
+  async getReferralCode(): Promise<{ code: string; referral_url: string }> {
+    return this.request('/api/referrals/my-code');
+  }
+
+  async getReferralStats(): Promise<ReferralStats> {
+    return this.request('/api/referrals/stats');
+  }
+
+  async getReferralEarnings(skip = 0, limit = 20): Promise<{ earnings: ReferralEarning[]; total: number }> {
+    return this.request(`/api/referrals/earnings?skip=${skip}&limit=${limit}`);
+  }
+
+  async requestPayout(data: { bank_name: string; account_holder: string; iban: string }): Promise<{ message: string }> {
+    return this.request('/api/referrals/request-payout', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 
