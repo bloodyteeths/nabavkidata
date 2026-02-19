@@ -17,6 +17,7 @@ Features:
 - Flag review workflow (admin)
 - Statistics and trends
 """
+import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from middleware.entitlements import require_module
@@ -595,7 +596,7 @@ async def get_tender_analysis(
                 severity=row['severity'],
                 score=row['score'] or 0,
                 weight=effective_weights.get(flag_type, 1.0),
-                evidence=row['evidence'],
+                evidence=json.loads(row['evidence']) if isinstance(row['evidence'], str) else (row['evidence'] or None),
                 description=row['description'],
                 detected_at=row['detected_at'],
                 reviewed=row['reviewed'] or False,

@@ -947,8 +947,8 @@ export default function RiskAnalysisPage() {
                                     <div key={i} className={`p-2 rounded mb-2 ${flagColor.split(" ").slice(1).join(" ")}`}>
                                       <div className="flex items-center gap-2">
                                         <FlagIcon className={`h-4 w-4 ${flagColor.split(" ")[0]}`} />
-                                        <span className="text-sm font-medium">{flagCfg.label}</span>
-                                        <span className="ml-auto text-xs font-mono">{flag.score} pts</span>
+                                        <span className={`text-sm font-medium ${flagColor.split(" ")[0]}`}>{flagCfg.label}</span>
+                                        <span className={`ml-auto text-xs font-mono ${flagColor.split(" ")[0]}`}>{flag.score} pts</span>
                                       </div>
                                     </div>
                                   );
@@ -970,7 +970,7 @@ export default function RiskAnalysisPage() {
                                     <div key={i} className={`p-2 rounded mb-1 ${flagColor.split(" ").slice(1).join(" ")}`}>
                                       <div className="flex items-center gap-2">
                                         <FlagIcon className={`h-4 w-4 ${flagColor.split(" ")[0]}`} />
-                                        <span className="text-sm">{flagCfg.label}</span>
+                                        <span className={`text-sm ${flagColor.split(" ")[0]}`}>{flagCfg.label}</span>
                                       </div>
                                     </div>
                                   );
@@ -1034,8 +1034,8 @@ export default function RiskAnalysisPage() {
             <CardContent className="p-4 flex items-center gap-3">
               <Network className="h-6 w-6 text-red-600" />
               <div>
-                <p className="font-medium">Мрежи на поврзани компании</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="font-medium text-red-900 dark:text-red-100">Мрежи на поврзани компании</p>
+                <p className="text-sm text-red-700 dark:text-red-300">
                   AI детекција на групи компании кои можеби координираат понуди
                 </p>
               </div>
