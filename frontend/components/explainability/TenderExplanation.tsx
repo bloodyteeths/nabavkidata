@@ -15,6 +15,8 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
 
 interface FeatureFactor {
@@ -41,12 +43,41 @@ interface TenderExplanationData {
   generated_at: string;
 }
 
+interface CounterfactualChange {
+  feature: string;
+  from: number;
+  to: number;
+  description_en: string;
+  description_mk: string;
+  direction: string;
+  feasibility: number;
+}
+
+interface DiCECounterfactual {
+  counterfactual_score: number;
+  changes: CounterfactualChange[];
+  num_changes: number;
+  feasibility_score: number;
+  distance: number;
+}
+
+interface DiCECounterfactualResponse {
+  tender_id: string;
+  original_score: number;
+  counterfactuals: DiCECounterfactual[];
+  generated_at: string;
+}
+
 interface TenderExplanationProps {
   tenderId: string;
   method?: 'shap' | 'lime' | 'combined';
   compact?: boolean;
   showRecommendations?: boolean;
 }
+
+const API_URL = (typeof window !== 'undefined')
+  ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://api.nabavkidata.com')
+  : 'https://api.nabavkidata.com';
 
 const RISK_COLORS: Record<string, string> = {
   critical: 'bg-red-500',
@@ -82,6 +113,8 @@ export function TenderExplanation({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(!compact);
+  const [diceData, setDiceData] = useState<DiCECounterfactualResponse | null>(null);
+  const [diceLoading, setDiceLoading] = useState(false);
 
   const fetchExplanation = async () => {
     setLoading(true);
@@ -99,6 +132,30 @@ export function TenderExplanation({
   useEffect(() => {
     fetchExplanation();
   }, [tenderId, method]);
+
+  // Fetch DiCE counterfactuals after explanation loads
+  useEffect(() => {
+    if (!data) return;
+    const fetchDiCECounterfactuals = async () => {
+      setDiceLoading(true);
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const encodedId = encodeURIComponent(tenderId);
+        const response = await fetch(`${API_URL}/api/corruption/counterfactuals/${encodedId}/actionable`, { headers });
+        if (response.ok) {
+          const result: DiCECounterfactualResponse = await response.json();
+          setDiceData(result);
+        }
+      } catch {
+        // Silently fail — fall back to basic counterfactuals from data.counterfactuals
+      } finally {
+        setDiceLoading(false);
+      }
+    };
+    fetchDiCECounterfactuals();
+  }, [data, tenderId]);
 
   if (loading) {
     return (
@@ -264,8 +321,79 @@ export function TenderExplanation({
               </div>
             )}
 
-            {/* Counterfactuals */}
-            {data.counterfactuals && data.counterfactuals.length > 0 && (
+            {/* DiCE Counterfactuals */}
+            {(diceData && diceData.counterfactuals.length > 0) ? (
+              <div className="pt-2 border-t">
+                <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-emerald-700">
+                  <Lightbulb className="h-4 w-4 text-emerald-500" />
+                  Како да се намали ризикот?
+                </h4>
+                <div className="space-y-3">
+                  {diceData.counterfactuals.slice(0, 3).map((cf, idx) => (
+                    <div key={idx} className="rounded-lg border border-emerald-200 bg-gradient-to-r from-emerald-50/50 to-blue-50/50 p-3">
+                      {/* Score transition */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-semibold text-red-600">
+                          {diceData.original_score.toFixed(0)}
+                        </span>
+                        <ArrowRight className="h-4 w-4 text-emerald-500" />
+                        <span className="text-sm font-semibold text-emerald-600">
+                          {cf.counterfactual_score.toFixed(0)}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-1">ризик скор</span>
+                        <Badge
+                          variant="outline"
+                          className={`ml-auto text-xs ${
+                            cf.feasibility_score >= 0.7
+                              ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
+                              : cf.feasibility_score >= 0.4
+                              ? 'border-yellow-300 text-yellow-700 bg-yellow-50'
+                              : 'border-red-300 text-red-700 bg-red-50'
+                          }`}
+                        >
+                          {(cf.feasibility_score * 100).toFixed(0)}% изводливо
+                        </Badge>
+                      </div>
+                      {/* Changes list */}
+                      <div className="space-y-1.5">
+                        {cf.changes.map((change, cIdx) => (
+                          <div key={cIdx} className="flex items-start gap-2">
+                            {change.feasibility >= 0.6 ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-foreground">{change.description_mk}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <div className="h-1.5 flex-1 bg-gray-200 rounded-full overflow-hidden max-w-[120px]">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-500 ${
+                                      change.feasibility >= 0.7 ? 'bg-emerald-500' : change.feasibility >= 0.4 ? 'bg-yellow-500' : 'bg-red-400'
+                                    }`}
+                                    style={{ width: `${change.feasibility * 100}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {(change.feasibility * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : diceLoading ? (
+              <div className="pt-2 border-t">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Се вчитуваат контрафактуални објаснувања...
+                </div>
+              </div>
+            ) : data.counterfactuals && data.counterfactuals.length > 0 ? (
               <div className="pt-2 border-t">
                 <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
                   <Info className="h-4 w-4 text-blue-500" />
@@ -280,7 +408,7 @@ export function TenderExplanation({
                   ))}
                 </ul>
               </div>
-            )}
+            ) : null}
 
             {/* Model Fidelity */}
             {data.model_fidelity && (
