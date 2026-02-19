@@ -16,7 +16,7 @@ from database import init_db, close_db, get_db
 from db_pool import get_asyncpg_pool, close_asyncpg_pool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals, whistleblower
 # Note: report_campaigns commented out - missing weasyprint on server
 # from api import report_campaigns
 from middleware.fraud import FraudPreventionMiddleware
@@ -150,6 +150,7 @@ app.include_router(contact.router, prefix="/api")  # Contact form submissions
 app.include_router(outreach.router, prefix="/api")  # Outreach campaigns, unsubscribe, Postmark webhook
 app.include_router(referrals.router, prefix="/api")  # Referral program (user endpoints)
 app.include_router(referrals.admin_router, prefix="/api")  # Referral program (admin payout management)
+app.include_router(whistleblower.router)  # Anonymous whistleblower portal (Phase 4.5)
 
 
 # Root endpoints

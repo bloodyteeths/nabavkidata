@@ -116,6 +116,17 @@ except ImportError as e:
     format_explanation_for_frontend = None
     ExplainerCache = None
 
+# Counterfactual Engine (Phase 4.3)
+_COUNTERFACTUAL_AVAILABLE = False
+try:
+    from ai.corruption.explainability.counterfactual_engine import CounterfactualEngine
+    from ai.corruption.explainability.counterfactual_cache import CounterfactualCache
+    _COUNTERFACTUAL_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Counterfactual engine not available: {e}")
+    CounterfactualEngine = None
+    CounterfactualCache = None
+
 
 def check_explainability_dependencies() -> Dict[str, bool]:
     """
@@ -128,6 +139,7 @@ def check_explainability_dependencies() -> Dict[str, bool]:
         'shap_explainer': _SHAP_AVAILABLE,
         'lime_explainer': _LIME_AVAILABLE,
         'api_helpers': _API_HELPERS_AVAILABLE,
+        'counterfactual_engine': _COUNTERFACTUAL_AVAILABLE,
         'shap_library': False,
         'lime_library': False,
         'matplotlib': False
@@ -323,6 +335,10 @@ __all__ = [
     'batch_explain_tenders',
     'format_explanation_for_frontend',
     'ExplainerCache',
+
+    # Counterfactual (Phase 4.3)
+    'CounterfactualEngine',
+    'CounterfactualCache',
 
     # Combined
     'check_explainability_dependencies',

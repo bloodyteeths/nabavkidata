@@ -5409,3 +5409,2560 @@ async def get_calibration_history(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch calibration history: {str(e)}"
         )
+
+
+# ============================================================================
+# PHASE 4.2: INVESTIGATION CASE MANAGEMENT ENDPOINTS
+# ============================================================================
+
+
+@router.post("/investigations/cases", dependencies=[Depends(require_admin)])
+async def create_investigation_case(body: dict):
+    """
+    Create a new investigation case.
+
+    Body Parameters:
+    - title (str, required): Case title
+    - description (str, optional): Case description
+    - priority (str, optional): low, medium, high, critical (default: medium)
+    - assigned_to (str, optional): Username of assigned analyst
+    - created_by (str, optional): Username of case creator
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        title = body.get("title")
+        if not title or not str(title).strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'title' is required and cannot be empty"
+            )
+
+        case = await manager.create_case(
+            pool=pool,
+            title=str(title).strip(),
+            description=body.get("description"),
+            priority=body.get("priority", "medium"),
+            assigned_to=body.get("assigned_to"),
+            created_by=body.get("created_by"),
+        )
+        return case
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating investigation case: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create investigation case: {str(e)}"
+        )
+
+
+@router.get("/investigations/cases", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def list_investigation_cases(
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by status: open, in_progress, review, closed, archived"),
+    priority: Optional[str] = Query(None, description="Filter by priority: low, medium, high, critical"),
+    assigned_to: Optional[str] = Query(None, description="Filter by assigned analyst"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Results per page"),
+):
+    """
+    List investigation cases with pagination and filters.
+
+    Query Parameters:
+    - status: Filter by case status
+    - priority: Filter by priority level
+    - assigned_to: Filter by assigned analyst
+    - page: Page number (default 1)
+    - page_size: Results per page (default 20, max 100)
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        offset = (page - 1) * page_size
+
+        cases, total = await manager.list_cases(
+            pool=pool,
+            status=status_filter,
+            priority=priority,
+            assigned_to=assigned_to,
+            offset=offset,
+            limit=page_size,
+        )
+
+        return {
+            "cases": cases,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size if page_size > 0 else 0,
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error listing investigation cases: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list investigation cases: {str(e)}"
+        )
+
+
+@router.get("/investigations/dashboard", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_investigations_dashboard():
+    """
+    Get investigation dashboard summary.
+
+    Returns aggregate statistics across all investigation cases:
+    - Total cases and breakdown by status/priority
+    - Open case count
+    - Total attached tenders, entities, evidence items
+    - Assigned analyst workloads
+    - Recent activity feed
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        dashboard = await manager.get_dashboard(pool)
+        return dashboard
+
+    except Exception as e:
+        logger.error(f"Error fetching investigations dashboard: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch investigations dashboard: {str(e)}"
+        )
+
+
+@router.get("/investigations/cases/{case_id}", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_investigation_case(case_id: int):
+    """
+    Get full investigation case details.
+
+    Returns the case with all attached tenders (with risk scores),
+    entities, evidence summary, and recent notes.
+
+    Path Parameters:
+    - case_id: The investigation case ID
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        case = await manager.get_case(pool, case_id)
+        if not case:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Investigation case {case_id} not found"
+            )
+        return case
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching investigation case {case_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch investigation case: {str(e)}"
+        )
+
+
+@router.patch("/investigations/cases/{case_id}", dependencies=[Depends(require_admin)])
+async def update_investigation_case(case_id: int, body: dict):
+    """
+    Update case status, priority, assignment, title, or description.
+
+    Path Parameters:
+    - case_id: The investigation case ID
+
+    Body Parameters (all optional):
+    - status: open, in_progress, review, closed, archived
+    - priority: low, medium, high, critical
+    - assigned_to: Username of analyst
+    - title: Updated case title
+    - description: Updated case description
+    - actor: Username performing the update (for audit trail)
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        actor = body.pop("actor", None)
+
+        case = await manager.update_case(
+            pool=pool,
+            case_id=case_id,
+            updates=body,
+            actor=actor,
+        )
+        return case
+
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating investigation case {case_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update investigation case: {str(e)}"
+        )
+
+
+@router.post("/investigations/cases/{case_id}/tenders", dependencies=[Depends(require_admin)])
+async def add_case_tender(case_id: int, body: dict):
+    """
+    Attach a tender to an investigation case.
+
+    Path Parameters:
+    - case_id: The investigation case ID
+
+    Body Parameters:
+    - tender_id (str, required): The tender ID to attach
+    - role (str, optional): suspect, reference, or control (default: suspect)
+    - notes (str, optional): Notes about this tender's relevance
+    - actor (str, optional): Username performing the action
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        tender_id = body.get("tender_id")
+        if not tender_id or not str(tender_id).strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'tender_id' is required"
+            )
+
+        result = await manager.attach_tender(
+            pool=pool,
+            case_id=case_id,
+            tender_id=str(tender_id).strip(),
+            role=body.get("role", "suspect"),
+            notes=body.get("notes"),
+            actor=body.get("actor"),
+        )
+        return result
+
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg
+            )
+        if "already attached" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=error_msg
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding tender to case {case_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add tender to case: {str(e)}"
+        )
+
+
+@router.delete("/investigations/cases/{case_id}/tenders/{tender_id}", dependencies=[Depends(require_admin)])
+async def remove_case_tender(case_id: int, tender_id: str):
+    """
+    Remove a tender from an investigation case.
+
+    Path Parameters:
+    - case_id: The investigation case ID
+    - tender_id: The tender ID to remove
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        removed = await manager.remove_tender(
+            pool=pool,
+            case_id=case_id,
+            tender_id=tender_id,
+        )
+
+        if not removed:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tender {tender_id} is not attached to case {case_id}"
+            )
+
+        return {"message": f"Tender {tender_id} removed from case {case_id}"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing tender {tender_id} from case {case_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to remove tender from case: {str(e)}"
+        )
+
+
+@router.post("/investigations/cases/{case_id}/entities", dependencies=[Depends(require_admin)])
+async def add_case_entity(case_id: int, body: dict):
+    """
+    Attach an entity (company, institution, person) to an investigation case.
+
+    Path Parameters:
+    - case_id: The investigation case ID
+
+    Body Parameters:
+    - entity_id (str, required): Unique identifier for the entity
+    - entity_type (str, required): company, institution, or person
+    - entity_name (str, optional): Human-readable entity name
+    - role (str, optional): suspect, witness, victim, or reference (default: suspect)
+    - actor (str, optional): Username performing the action
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        entity_id = body.get("entity_id")
+        entity_type = body.get("entity_type")
+        if not entity_id or not str(entity_id).strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'entity_id' is required"
+            )
+        if not entity_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'entity_type' is required (company, institution, or person)"
+            )
+
+        result = await manager.attach_entity(
+            pool=pool,
+            case_id=case_id,
+            entity_id=str(entity_id).strip(),
+            entity_type=entity_type,
+            entity_name=body.get("entity_name"),
+            role=body.get("role", "suspect"),
+            actor=body.get("actor"),
+        )
+        return result
+
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg
+            )
+        if "already attached" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=error_msg
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding entity to case {case_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add entity to case: {str(e)}"
+        )
+
+
+@router.post("/investigations/cases/{case_id}/evidence", dependencies=[Depends(require_admin)])
+async def add_case_evidence(case_id: int, body: dict):
+    """
+    Add evidence to an investigation case.
+
+    Path Parameters:
+    - case_id: The investigation case ID
+
+    Body Parameters:
+    - evidence_type (str, required): flag, anomaly, relationship, document, or manual
+    - description (str, required): Human-readable description of the evidence
+    - source_module (str, optional): Module that produced this (corruption, collusion, temporal, etc.)
+    - source_id (str, optional): ID of the source record
+    - severity (str, optional): low, medium, high, critical (default: medium)
+    - metadata (dict, optional): Additional structured data
+    - actor (str, optional): Username adding the evidence
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        evidence_type = body.get("evidence_type")
+        description = body.get("description")
+        if not evidence_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'evidence_type' is required (flag, anomaly, relationship, document, manual)"
+            )
+        if not description or not str(description).strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'description' is required"
+            )
+
+        result = await manager.add_evidence(
+            pool=pool,
+            case_id=case_id,
+            evidence_type=evidence_type,
+            source_module=body.get("source_module"),
+            source_id=body.get("source_id"),
+            description=str(description).strip(),
+            severity=body.get("severity", "medium"),
+            metadata=body.get("metadata"),
+            actor=body.get("actor"),
+        )
+        return result
+
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding evidence to case {case_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add evidence to case: {str(e)}"
+        )
+
+
+@router.get("/investigations/cases/{case_id}/evidence-chain", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_evidence_chain(case_id: int):
+    """
+    Get the synthesized evidence chain for an investigation case.
+
+    Aggregates evidence from all corruption detection modules:
+    - Corruption flags for attached tenders
+    - Risk scores and levels
+    - Company relationships and collusion indicators
+    - GNN-based collusion predictions
+    - Temporal risk profiles
+    - Manually added evidence items
+
+    Returns a structured chain with an auto-generated narrative summary.
+
+    Path Parameters:
+    - case_id: The investigation case ID
+    """
+    try:
+        from ai.corruption.investigation.evidence_linker import EvidenceLinker
+        linker = EvidenceLinker()
+        pool = await get_asyncpg_pool()
+
+        chain = await linker.build_evidence_chain(pool, case_id)
+        return chain
+
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+    except Exception as e:
+        logger.error(f"Error building evidence chain for case {case_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to build evidence chain: {str(e)}"
+        )
+
+
+@router.post("/investigations/cases/{case_id}/notes", dependencies=[Depends(require_admin)])
+async def add_case_note(case_id: int, body: dict):
+    """
+    Add an analyst note to an investigation case.
+
+    Path Parameters:
+    - case_id: The investigation case ID
+
+    Body Parameters:
+    - author (str, required): Username of the note author
+    - content (str, required): Note content text
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        author = body.get("author")
+        content = body.get("content")
+        if not author or not str(author).strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'author' is required"
+            )
+        if not content or not str(content).strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'content' is required"
+            )
+
+        result = await manager.add_note(
+            pool=pool,
+            case_id=case_id,
+            author=str(author).strip(),
+            content=str(content).strip(),
+        )
+        return result
+
+    except ValueError as e:
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding note to case {case_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add note to case: {str(e)}"
+        )
+
+
+@router.get("/investigations/cases/{case_id}/timeline", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_case_timeline(case_id: int, limit: int = Query(50, ge=1, le=200)):
+    """
+    Get the activity timeline for an investigation case.
+
+    Returns a chronological audit trail of all actions taken on the case:
+    created, status_changed, tender_added, entity_added, evidence_added,
+    note_added, etc.
+
+    Path Parameters:
+    - case_id: The investigation case ID
+
+    Query Parameters:
+    - limit: Maximum number of entries (default 50, max 200)
+    """
+    try:
+        from ai.corruption.investigation.case_manager import CaseManager
+        manager = CaseManager()
+        pool = await get_asyncpg_pool()
+
+        # Verify case exists first
+        async with pool.acquire() as conn:
+            exists = await conn.fetchval(
+                "SELECT 1 FROM investigation_cases WHERE case_id = $1", case_id
+            )
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Investigation case {case_id} not found"
+            )
+
+        timeline = await manager.get_timeline(pool, case_id, limit=limit)
+        return {
+            "case_id": case_id,
+            "entries": timeline,
+            "count": len(timeline),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching timeline for case {case_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch case timeline: {str(e)}"
+        )
+
+
+# ============================================================================
+# PHASE 4.3: COUNTERFACTUAL EXPLANATION ENDPOINTS
+# ============================================================================
+
+
+@router.get(
+    "/counterfactuals/{tender_id:path}",
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_counterfactuals(
+    tender_id: str,
+    top_k: int = Query(default=5, ge=1, le=10),
+):
+    """Get counterfactual explanations for a tender's risk score.
+
+    Returns what would need to change for the tender to not be flagged as
+    high-risk.  Results are cached in PostgreSQL so subsequent requests are
+    instantaneous.
+    """
+    import json as _json
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    pool = await get_asyncpg_pool()
+
+    try:
+        # Lazy imports to avoid import-time dependency on ai.corruption
+        _explainability_dir = str(
+            _Path(__file__).parent.parent.parent / "ai" / "corruption" / "explainability"
+        )
+        if _explainability_dir not in _sys.path:
+            _sys.path.insert(0, _explainability_dir)
+
+        from counterfactual_cache import CounterfactualCache
+        from counterfactual_engine import CounterfactualEngine
+
+        # --- 1. Check cache first ---
+        cached = await CounterfactualCache.get_cached(pool, tender_id)
+        if cached:
+            logger.info(f"Returning {len(cached)} cached counterfactuals for {tender_id}")
+            return {
+                "tender_id": tender_id,
+                "counterfactuals": cached[:top_k],
+                "cached": True,
+                "total": len(cached[:top_k]),
+            }
+
+        # --- 2. Fetch risk score ---
+        async with pool.acquire() as conn:
+            score_row = await conn.fetchrow(
+                "SELECT risk_score FROM tender_risk_scores WHERE tender_id = $1",
+                tender_id,
+            )
+            if not score_row or score_row['risk_score'] is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No risk score found for tender {tender_id}",
+                )
+            risk_score = float(score_row['risk_score'])
+
+            # --- 3. Fetch features from corruption_flags ---
+            flag_rows = await conn.fetch(
+                """
+                SELECT flag_type, MAX(score) AS max_score
+                FROM corruption_flags
+                WHERE tender_id = $1
+                  AND (false_positive IS NULL OR false_positive = false)
+                GROUP BY flag_type
+                """,
+                tender_id,
+            )
+
+            features: Dict[str, Any] = {}
+            for row in flag_rows:
+                ft = row['flag_type']
+                score_val = float(row['max_score']) if row['max_score'] is not None else 0.0
+                feat_def = CounterfactualEngine.FEATURE_DEFS.get(ft, {})
+                if feat_def.get('type') == 'binary':
+                    features[ft] = 1 if score_val > 0 else 0
+                else:
+                    features[ft] = score_val
+
+            # Tender metadata
+            tender_row = await conn.fetchrow(
+                "SELECT num_bidders, estimated_value_mkd FROM tenders WHERE tender_id = $1",
+                tender_id,
+            )
+            if tender_row:
+                features['num_bidders'] = (
+                    int(tender_row['num_bidders']) if tender_row['num_bidders'] else 1
+                )
+                features['estimated_value_mkd'] = (
+                    float(tender_row['estimated_value_mkd'])
+                    if tender_row['estimated_value_mkd']
+                    else 0.0
+                )
+
+        if not features:
+            return {
+                "tender_id": tender_id,
+                "counterfactuals": [],
+                "cached": False,
+                "total": 0,
+                "message": "No corruption flags found for this tender",
+            }
+
+        # --- 4. Generate counterfactuals ---
+        engine = CounterfactualEngine(target_score=30.0)
+        counterfactuals = engine.generate(
+            original_features=features,
+            original_score=risk_score,
+            top_k=top_k,
+        )
+
+        # --- 5. Cache results ---
+        await CounterfactualCache.save(pool, tender_id, risk_score, counterfactuals)
+
+        # --- 6. Return ---
+        return {
+            "tender_id": tender_id,
+            "counterfactuals": counterfactuals,
+            "cached": False,
+            "total": len(counterfactuals),
+            "original_score": risk_score,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating counterfactuals for {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate counterfactual explanations: {str(e)}",
+        )
+
+
+@router.get(
+    "/counterfactuals/{tender_id:path}/actionable",
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_actionable_counterfactuals(tender_id: str):
+    """Get only actionable/feasible counterfactual changes for a tender.
+
+    Filters counterfactuals to those with feasibility > 0.6 and enriches
+    each change with human-readable descriptions and direction metadata.
+    """
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    pool = await get_asyncpg_pool()
+
+    try:
+        _explainability_dir = str(
+            _Path(__file__).parent.parent.parent / "ai" / "corruption" / "explainability"
+        )
+        if _explainability_dir not in _sys.path:
+            _sys.path.insert(0, _explainability_dir)
+
+        from counterfactual_cache import CounterfactualCache
+        from counterfactual_engine import CounterfactualEngine
+
+        # Fetch all counterfactuals (cached or freshly generated)
+        cached = await CounterfactualCache.get_cached(pool, tender_id)
+
+        if not cached:
+            # Generate fresh counterfactuals
+            async with pool.acquire() as conn:
+                score_row = await conn.fetchrow(
+                    "SELECT risk_score FROM tender_risk_scores WHERE tender_id = $1",
+                    tender_id,
+                )
+                if not score_row or score_row['risk_score'] is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"No risk score found for tender {tender_id}",
+                    )
+                risk_score = float(score_row['risk_score'])
+
+                flag_rows = await conn.fetch(
+                    """
+                    SELECT flag_type, MAX(score) AS max_score
+                    FROM corruption_flags
+                    WHERE tender_id = $1
+                      AND (false_positive IS NULL OR false_positive = false)
+                    GROUP BY flag_type
+                    """,
+                    tender_id,
+                )
+
+                features: Dict[str, Any] = {}
+                for row in flag_rows:
+                    ft = row['flag_type']
+                    score_val = float(row['max_score']) if row['max_score'] is not None else 0.0
+                    feat_def = CounterfactualEngine.FEATURE_DEFS.get(ft, {})
+                    if feat_def.get('type') == 'binary':
+                        features[ft] = 1 if score_val > 0 else 0
+                    else:
+                        features[ft] = score_val
+
+                tender_row = await conn.fetchrow(
+                    "SELECT num_bidders, estimated_value_mkd FROM tenders WHERE tender_id = $1",
+                    tender_id,
+                )
+                if tender_row:
+                    features['num_bidders'] = (
+                        int(tender_row['num_bidders']) if tender_row['num_bidders'] else 1
+                    )
+                    features['estimated_value_mkd'] = (
+                        float(tender_row['estimated_value_mkd'])
+                        if tender_row['estimated_value_mkd']
+                        else 0.0
+                    )
+
+            if not features:
+                return {
+                    "tender_id": tender_id,
+                    "actionable_counterfactuals": [],
+                    "total": 0,
+                    "message": "No corruption flags found for this tender",
+                }
+
+            engine = CounterfactualEngine(target_score=30.0)
+            cached = engine.generate(
+                original_features=features,
+                original_score=risk_score,
+                top_k=5,
+            )
+            await CounterfactualCache.save(pool, tender_id, risk_score, cached)
+
+        # Filter to actionable only (feasibility > 0.6)
+        engine = CounterfactualEngine()
+        actionable = engine.get_actionable_changes(cached)
+
+        return {
+            "tender_id": tender_id,
+            "actionable_counterfactuals": actionable,
+            "total": len(actionable),
+            "total_before_filter": len(cached) if cached else 0,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching actionable counterfactuals for {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get actionable counterfactuals: {str(e)}",
+        )
+
+
+@router.post(
+    "/counterfactuals/batch",
+    dependencies=[Depends(require_admin)],
+)
+async def batch_generate_counterfactuals(body: dict):
+    """Batch generate counterfactuals for multiple tenders (admin only).
+
+    Request body:
+        {
+            "tender_ids": ["123/2024", "456/2024", ...],
+            "target_score": 30.0,   // optional, default 30
+            "top_k": 5              // optional, default 5
+        }
+
+    If tender_ids is not provided, processes the top 50 high-risk tenders
+    without cached counterfactuals.
+    """
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    pool = await get_asyncpg_pool()
+
+    try:
+        _explainability_dir = str(
+            _Path(__file__).parent.parent.parent / "ai" / "corruption" / "explainability"
+        )
+        if _explainability_dir not in _sys.path:
+            _sys.path.insert(0, _explainability_dir)
+
+        from counterfactual_cache import CounterfactualCache
+        from counterfactual_engine import CounterfactualEngine
+
+        tender_ids = body.get('tender_ids', [])
+        target_score = float(body.get('target_score', 30.0))
+        top_k_param = int(body.get('top_k', 5))
+
+        # If no specific tenders, auto-select high-risk ones without cached CFs
+        if not tender_ids:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT trs.tender_id
+                    FROM tender_risk_scores trs
+                    WHERE trs.risk_score >= 60
+                      AND NOT EXISTS (
+                          SELECT 1 FROM counterfactual_explanations ce
+                          WHERE ce.tender_id = trs.tender_id
+                      )
+                    ORDER BY trs.risk_score DESC
+                    LIMIT 50
+                    """,
+                )
+                tender_ids = [row['tender_id'] for row in rows]
+
+        if not tender_ids:
+            return {
+                "message": "No tenders to process",
+                "processed": 0,
+                "failed": 0,
+                "total_counterfactuals": 0,
+            }
+
+        engine = CounterfactualEngine(target_score=target_score)
+        processed = 0
+        failed = 0
+        total_cfs = 0
+        results_summary: List[Dict[str, Any]] = []
+
+        for tid in tender_ids:
+            try:
+                async with pool.acquire() as conn:
+                    score_row = await conn.fetchrow(
+                        "SELECT risk_score FROM tender_risk_scores WHERE tender_id = $1",
+                        tid,
+                    )
+                    if not score_row or score_row['risk_score'] is None:
+                        results_summary.append({
+                            "tender_id": tid,
+                            "status": "skipped",
+                            "reason": "no risk score",
+                        })
+                        failed += 1
+                        continue
+
+                    risk_score = float(score_row['risk_score'])
+
+                    flag_rows = await conn.fetch(
+                        """
+                        SELECT flag_type, MAX(score) AS max_score
+                        FROM corruption_flags
+                        WHERE tender_id = $1
+                          AND (false_positive IS NULL OR false_positive = false)
+                        GROUP BY flag_type
+                        """,
+                        tid,
+                    )
+
+                    features: Dict[str, Any] = {}
+                    for row in flag_rows:
+                        ft = row['flag_type']
+                        score_val = float(row['max_score']) if row['max_score'] is not None else 0.0
+                        feat_def = CounterfactualEngine.FEATURE_DEFS.get(ft, {})
+                        if feat_def.get('type') == 'binary':
+                            features[ft] = 1 if score_val > 0 else 0
+                        else:
+                            features[ft] = score_val
+
+                    tender_row = await conn.fetchrow(
+                        "SELECT num_bidders, estimated_value_mkd FROM tenders WHERE tender_id = $1",
+                        tid,
+                    )
+                    if tender_row:
+                        features['num_bidders'] = (
+                            int(tender_row['num_bidders']) if tender_row['num_bidders'] else 1
+                        )
+                        features['estimated_value_mkd'] = (
+                            float(tender_row['estimated_value_mkd'])
+                            if tender_row['estimated_value_mkd']
+                            else 0.0
+                        )
+
+                if not features:
+                    results_summary.append({
+                        "tender_id": tid,
+                        "status": "skipped",
+                        "reason": "no features",
+                    })
+                    failed += 1
+                    continue
+
+                counterfactuals = engine.generate(
+                    original_features=features,
+                    original_score=risk_score,
+                    top_k=top_k_param,
+                )
+
+                if counterfactuals:
+                    await CounterfactualCache.save(pool, tid, risk_score, counterfactuals)
+                    total_cfs += len(counterfactuals)
+
+                processed += 1
+                results_summary.append({
+                    "tender_id": tid,
+                    "status": "ok",
+                    "risk_score": risk_score,
+                    "counterfactuals_generated": len(counterfactuals),
+                })
+
+            except Exception as e:
+                logger.error(f"Batch counterfactual failed for {tid}: {e}")
+                failed += 1
+                results_summary.append({
+                    "tender_id": tid,
+                    "status": "error",
+                    "reason": str(e),
+                })
+
+        return {
+            "message": f"Processed {processed} tenders, {failed} failed",
+            "processed": processed,
+            "failed": failed,
+            "total_counterfactuals": total_cfs,
+            "details": results_summary,
+        }
+
+    except Exception as e:
+        logger.error(f"Batch counterfactual generation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch counterfactual generation failed: {str(e)}",
+        )
+
+
+# ============================================================================
+# PHASE 4.4: CORRUPTION ALERT PIPELINE ENDPOINTS
+# ============================================================================
+# These endpoints manage alert subscriptions and alert delivery for the
+# real-time corruption alert pipeline. They live under the /api/corruption
+# router prefix, so full paths are:
+#   /api/corruption/alerts/subscriptions
+#   /api/corruption/alerts
+#   /api/corruption/alerts/{alert_id}/read
+#   /api/corruption/alerts/evaluate
+#   /api/corruption/alerts/stats
+#   /api/corruption/alerts/rules
+# ============================================================================
+
+
+@router.get("/alerts/rules", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def list_alert_rules():
+    """
+    List all available alert rule types with their metadata.
+
+    Returns a list of rule definitions that users can subscribe to,
+    including rule_type, name, description, and default_severity.
+    """
+    try:
+        from ai.corruption.alerts.alert_rules import list_available_rules
+        rules = list_available_rules()
+        return {"rules": rules, "total": len(rules)}
+    except Exception as e:
+        logger.error(f"Error listing alert rules: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list alert rules: {str(e)}"
+        )
+
+
+@router.get("/alerts/subscriptions", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def list_alert_subscriptions(
+    user_id: str = Query(..., description="User ID to list subscriptions for"),
+    active_only: bool = Query(True, description="Only show active subscriptions"),
+):
+    """
+    List a user's alert subscriptions.
+
+    Query Parameters:
+    - user_id (str, required): The user whose subscriptions to list
+    - active_only (bool, optional): If true, only return active subscriptions (default: true)
+
+    Returns:
+    - subscriptions: List of subscription objects
+    - total: Total count
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            if active_only:
+                rows = await conn.fetch("""
+                    SELECT
+                        subscription_id, user_id, rule_type, rule_config,
+                        severity_filter, active, created_at, updated_at
+                    FROM corruption_alert_subscriptions
+                    WHERE user_id = $1 AND active = TRUE
+                    ORDER BY created_at DESC
+                """, user_id)
+            else:
+                rows = await conn.fetch("""
+                    SELECT
+                        subscription_id, user_id, rule_type, rule_config,
+                        severity_filter, active, created_at, updated_at
+                    FROM corruption_alert_subscriptions
+                    WHERE user_id = $1
+                    ORDER BY created_at DESC
+                """, user_id)
+
+            subscriptions = []
+            for row in rows:
+                sub = dict(row)
+                # Handle JSONB rule_config
+                rc = sub.get('rule_config')
+                if isinstance(rc, str):
+                    import json as _json
+                    try:
+                        sub['rule_config'] = _json.loads(rc) if rc else {}
+                    except (ValueError, TypeError):
+                        sub['rule_config'] = {}
+                elif not isinstance(rc, dict):
+                    sub['rule_config'] = {}
+
+                # Convert datetimes for serialization
+                for dt_field in ('created_at', 'updated_at'):
+                    if isinstance(sub.get(dt_field), datetime):
+                        sub[dt_field] = sub[dt_field].isoformat()
+
+                subscriptions.append(sub)
+
+            return {
+                "subscriptions": subscriptions,
+                "total": len(subscriptions),
+            }
+
+    except Exception as e:
+        logger.error(f"Error listing alert subscriptions for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list alert subscriptions: {str(e)}"
+        )
+
+
+@router.post("/alerts/subscriptions", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def create_alert_subscription(body: dict):
+    """
+    Create a new alert subscription.
+
+    Body Parameters:
+    - user_id (str, required): User ID
+    - rule_type (str, required): One of: high_risk_score, single_bidder_high_value,
+      watched_entity, multiple_flags, repeat_pattern, escalating_risk
+    - rule_config (dict, optional): Rule-specific configuration. Examples:
+        - high_risk_score: {"threshold": 80}
+        - single_bidder_high_value: {"value_threshold": 10000000}
+        - watched_entity: {"watched_entities": ["Company A", "Institution B"]}
+        - multiple_flags: {"flag_threshold": 4}
+        - repeat_pattern: {"repeat_threshold": 5}
+        - escalating_risk: {}
+    - severity_filter (str, optional): Minimum severity to receive alerts
+      (low, medium, high, critical). NULL means all.
+
+    Returns:
+    - The created subscription object with subscription_id
+    """
+    try:
+        import json as _json
+        from ai.corruption.alerts.alert_rules import AVAILABLE_RULES, create_rule
+
+        user_id = body.get("user_id")
+        rule_type = body.get("rule_type")
+        rule_config = body.get("rule_config", {})
+        severity_filter = body.get("severity_filter")
+
+        # Validation
+        if not user_id or not str(user_id).strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'user_id' is required"
+            )
+
+        if not rule_type or rule_type not in AVAILABLE_RULES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Field 'rule_type' must be one of: {list(AVAILABLE_RULES.keys())}"
+            )
+
+        if severity_filter and severity_filter not in ('low', 'medium', 'high', 'critical'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'severity_filter' must be one of: low, medium, high, critical"
+            )
+
+        # Validate rule_config by attempting to create the rule
+        try:
+            create_rule(rule_type, rule_config or {})
+        except ValueError as ve:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid rule_config: {ve}"
+            )
+
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            # Check for duplicate active subscription (same user + rule_type + config)
+            existing = await conn.fetchval("""
+                SELECT subscription_id FROM corruption_alert_subscriptions
+                WHERE user_id = $1 AND rule_type = $2 AND active = TRUE
+                  AND rule_config = $3::jsonb
+            """, str(user_id).strip(), rule_type, _json.dumps(rule_config or {}, default=str))
+
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Active subscription already exists (id={existing}) for this user/rule/config"
+                )
+
+            row = await conn.fetchrow("""
+                INSERT INTO corruption_alert_subscriptions
+                    (user_id, rule_type, rule_config, severity_filter)
+                VALUES ($1, $2, $3::jsonb, $4)
+                RETURNING subscription_id, user_id, rule_type, rule_config,
+                          severity_filter, active, created_at, updated_at
+            """, str(user_id).strip(), rule_type,
+                _json.dumps(rule_config or {}, default=str),
+                severity_filter)
+
+            result = dict(row)
+            rc = result.get('rule_config')
+            if isinstance(rc, str):
+                try:
+                    result['rule_config'] = _json.loads(rc) if rc else {}
+                except (ValueError, TypeError):
+                    result['rule_config'] = {}
+            for dt_field in ('created_at', 'updated_at'):
+                if isinstance(result.get(dt_field), datetime):
+                    result[dt_field] = result[dt_field].isoformat()
+
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating alert subscription: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create alert subscription: {str(e)}"
+        )
+
+
+@router.patch("/alerts/subscriptions/{subscription_id}", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def update_alert_subscription(subscription_id: int, body: dict):
+    """
+    Update an alert subscription (toggle active, change config, severity filter).
+
+    Path Parameters:
+    - subscription_id: The subscription ID to update
+
+    Body Parameters (all optional):
+    - active (bool): Enable/disable the subscription
+    - rule_config (dict): Updated rule configuration
+    - severity_filter (str): Updated minimum severity filter
+    """
+    try:
+        import json as _json
+
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            # Verify subscription exists
+            existing = await conn.fetchrow("""
+                SELECT subscription_id, user_id, rule_type, rule_config,
+                       severity_filter, active
+                FROM corruption_alert_subscriptions
+                WHERE subscription_id = $1
+            """, subscription_id)
+
+            if not existing:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Subscription {subscription_id} not found"
+                )
+
+            # Build update fields
+            updates = []
+            params = []
+            param_idx = 0
+
+            if 'active' in body:
+                param_idx += 1
+                updates.append(f"active = ${param_idx}")
+                params.append(bool(body['active']))
+
+            if 'rule_config' in body:
+                rule_config = body['rule_config']
+                # Validate the new config
+                from ai.corruption.alerts.alert_rules import create_rule as _create_rule
+                try:
+                    _create_rule(existing['rule_type'], rule_config or {})
+                except ValueError as ve:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid rule_config: {ve}"
+                    )
+                param_idx += 1
+                updates.append(f"rule_config = ${param_idx}::jsonb")
+                params.append(_json.dumps(rule_config or {}, default=str))
+
+            if 'severity_filter' in body:
+                sf = body['severity_filter']
+                if sf is not None and sf not in ('low', 'medium', 'high', 'critical'):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="severity_filter must be one of: low, medium, high, critical (or null)"
+                    )
+                param_idx += 1
+                updates.append(f"severity_filter = ${param_idx}")
+                params.append(sf)
+
+            if not updates:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No valid fields to update. Accepted: active, rule_config, severity_filter"
+                )
+
+            updates.append("updated_at = NOW()")
+            param_idx += 1
+            params.append(subscription_id)
+
+            set_clause = ", ".join(updates)
+            row = await conn.fetchrow(f"""
+                UPDATE corruption_alert_subscriptions
+                SET {set_clause}
+                WHERE subscription_id = ${param_idx}
+                RETURNING subscription_id, user_id, rule_type, rule_config,
+                          severity_filter, active, created_at, updated_at
+            """, *params)
+
+            result = dict(row)
+            rc = result.get('rule_config')
+            if isinstance(rc, str):
+                try:
+                    result['rule_config'] = _json.loads(rc) if rc else {}
+                except (ValueError, TypeError):
+                    result['rule_config'] = {}
+            for dt_field in ('created_at', 'updated_at'):
+                if isinstance(result.get(dt_field), datetime):
+                    result[dt_field] = result[dt_field].isoformat()
+
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating alert subscription {subscription_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update alert subscription: {str(e)}"
+        )
+
+
+@router.delete("/alerts/subscriptions/{subscription_id}", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def delete_alert_subscription(subscription_id: int, user_id: str = Query(..., description="User ID for ownership verification")):
+    """
+    Delete (deactivate) an alert subscription.
+
+    Path Parameters:
+    - subscription_id: The subscription ID to delete
+
+    Query Parameters:
+    - user_id: The user ID (must own the subscription)
+
+    Note: This soft-deletes by setting active=FALSE rather than removing the row,
+    preserving the audit trail of historical subscriptions.
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            result = await conn.execute("""
+                UPDATE corruption_alert_subscriptions
+                SET active = FALSE, updated_at = NOW()
+                WHERE subscription_id = $1 AND user_id = $2
+            """, subscription_id, user_id)
+
+            if result == 'UPDATE 0':
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Subscription {subscription_id} not found for user {user_id}"
+                )
+
+            return {
+                "message": f"Subscription {subscription_id} deactivated",
+                "subscription_id": subscription_id,
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting alert subscription {subscription_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete alert subscription: {str(e)}"
+        )
+
+
+@router.get("/alerts", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def list_corruption_alerts(
+    user_id: str = Query(..., description="User ID to list alerts for"),
+    unread_only: bool = Query(False, description="Only show unread alerts"),
+    severity: Optional[str] = Query(None, pattern="^(low|medium|high|critical)$", description="Filter by severity"),
+    rule_type: Optional[str] = Query(None, description="Filter by rule type"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Results per page"),
+):
+    """
+    List corruption alerts for a user with pagination and filters.
+
+    Query Parameters:
+    - user_id (str, required): The user whose alerts to list
+    - unread_only (bool, optional): Only return unread alerts (default: false)
+    - severity (str, optional): Filter by severity level
+    - rule_type (str, optional): Filter by rule type
+    - page (int, optional): Page number (default: 1)
+    - page_size (int, optional): Results per page (default: 20, max: 100)
+
+    Returns:
+    - alerts: List of alert objects
+    - total: Total matching alerts
+    - page, page_size, total_pages: Pagination metadata
+    - unread_count: Total unread alerts for this user
+    """
+    try:
+        import json as _json
+
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            # Build WHERE clause
+            conditions = ["user_id = $1"]
+            params: list = [user_id]
+            param_idx = 1
+
+            if unread_only:
+                conditions.append("read = FALSE")
+
+            if severity:
+                param_idx += 1
+                conditions.append(f"severity = ${param_idx}")
+                params.append(severity)
+
+            if rule_type:
+                param_idx += 1
+                conditions.append(f"rule_type = ${param_idx}")
+                params.append(rule_type)
+
+            where_clause = " AND ".join(conditions)
+
+            # Count total matching
+            total = await conn.fetchval(
+                f"SELECT COUNT(*) FROM corruption_alert_log WHERE {where_clause}",
+                *params
+            )
+
+            # Count unread (always for this user, regardless of filters)
+            unread_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM corruption_alert_log WHERE user_id = $1 AND read = FALSE",
+                user_id
+            )
+
+            # Fetch page
+            offset = (page - 1) * page_size
+            param_idx += 1
+            limit_param = param_idx
+            param_idx += 1
+            offset_param = param_idx
+
+            rows = await conn.fetch(
+                f"""
+                SELECT
+                    alert_id, subscription_id, user_id, tender_id,
+                    rule_type, severity, title, details,
+                    read, read_at, created_at
+                FROM corruption_alert_log
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+                LIMIT ${limit_param} OFFSET ${offset_param}
+                """,
+                *params, page_size, offset
+            )
+
+            alerts = []
+            for row in rows:
+                alert = dict(row)
+                # Handle JSONB details
+                details = alert.get('details')
+                if isinstance(details, str):
+                    try:
+                        alert['details'] = _json.loads(details) if details else {}
+                    except (ValueError, TypeError):
+                        alert['details'] = {}
+                elif not isinstance(details, dict):
+                    alert['details'] = {}
+
+                # Convert datetimes for serialization
+                for dt_field in ('read_at', 'created_at'):
+                    if isinstance(alert.get(dt_field), datetime):
+                        alert[dt_field] = alert[dt_field].isoformat()
+
+                alerts.append(alert)
+
+            return {
+                "alerts": alerts,
+                "total": total or 0,
+                "unread_count": unread_count or 0,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": ((total or 0) + page_size - 1) // page_size if page_size > 0 else 0,
+            }
+
+    except Exception as e:
+        logger.error(f"Error listing corruption alerts for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list corruption alerts: {str(e)}"
+        )
+
+
+@router.patch("/alerts/{alert_id}/read", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def mark_alert_read(
+    alert_id: int,
+    user_id: str = Query(..., description="User ID for ownership verification"),
+):
+    """
+    Mark a corruption alert as read.
+
+    Path Parameters:
+    - alert_id: The alert ID to mark as read
+
+    Query Parameters:
+    - user_id: The user ID (must own the alert)
+
+    Returns:
+    - Success message with updated alert_id
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            result = await conn.execute("""
+                UPDATE corruption_alert_log
+                SET read = TRUE, read_at = NOW()
+                WHERE alert_id = $1 AND user_id = $2 AND read = FALSE
+            """, alert_id, user_id)
+
+            if result == 'UPDATE 0':
+                # Check if alert exists at all
+                exists = await conn.fetchval(
+                    "SELECT 1 FROM corruption_alert_log WHERE alert_id = $1 AND user_id = $2",
+                    alert_id, user_id
+                )
+                if not exists:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Alert {alert_id} not found for user {user_id}"
+                    )
+                # Alert exists but was already read
+                return {
+                    "message": f"Alert {alert_id} was already read",
+                    "alert_id": alert_id,
+                    "already_read": True,
+                }
+
+            return {
+                "message": f"Alert {alert_id} marked as read",
+                "alert_id": alert_id,
+                "already_read": False,
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marking alert {alert_id} as read: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to mark alert as read: {str(e)}"
+        )
+
+
+@router.patch("/alerts/mark-all-read", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def mark_all_alerts_read(
+    user_id: str = Query(..., description="User ID"),
+):
+    """
+    Mark all unread corruption alerts as read for a user.
+
+    Query Parameters:
+    - user_id: The user whose alerts to mark as read
+
+    Returns:
+    - Count of alerts marked as read
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            result = await conn.execute("""
+                UPDATE corruption_alert_log
+                SET read = TRUE, read_at = NOW()
+                WHERE user_id = $1 AND read = FALSE
+            """, user_id)
+
+            # Parse 'UPDATE N' to get count
+            try:
+                count = int(result.split()[-1])
+            except (ValueError, IndexError):
+                count = 0
+
+            return {
+                "message": f"Marked {count} alerts as read",
+                "marked_count": count,
+                "user_id": user_id,
+            }
+
+    except Exception as e:
+        logger.error(f"Error marking all alerts read for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to mark all alerts as read: {str(e)}"
+        )
+
+
+@router.post("/alerts/evaluate", dependencies=[Depends(require_admin)])
+async def trigger_alert_evaluation(background_tasks: BackgroundTasks):
+    """
+    Admin: Manually trigger alert evaluation for new tenders.
+
+    This runs the alert evaluation pipeline which:
+    1. Finds all tenders with risk scores updated since the last evaluation
+    2. Evaluates each tender against all active alert subscriptions
+    3. Generates alerts for matching subscriptions
+    4. Updates the last evaluation timestamp
+
+    The evaluation runs in the background. The response returns immediately
+    with a confirmation message.
+
+    Returns:
+    - message: Confirmation that evaluation has been triggered
+    - note: Information about background execution
+    """
+    try:
+        from ai.corruption.alerts.corruption_alerter import CorruptionAlerter
+
+        pool = await get_asyncpg_pool()
+
+        # Check active subscription count for the response
+        async with pool.acquire() as conn:
+            sub_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM corruption_alert_subscriptions WHERE active = TRUE"
+            )
+            last_eval = await conn.fetchval(
+                "SELECT value FROM corruption_alert_state WHERE key = 'last_evaluation'"
+            )
+
+        if sub_count == 0:
+            return {
+                "message": "No active subscriptions. Evaluation skipped.",
+                "active_subscriptions": 0,
+                "last_evaluation": last_eval,
+            }
+
+        async def _run_evaluation():
+            """Background task to run alert evaluation."""
+            try:
+                alerter = CorruptionAlerter()
+                eval_pool = await get_asyncpg_pool()
+                summary = await alerter.evaluate_new_tenders(eval_pool)
+                logger.info(
+                    f"Alert evaluation complete: {summary['evaluated']} tenders, "
+                    f"{summary['alerts_generated']} alerts generated"
+                )
+            except Exception as exc:
+                logger.error(f"Background alert evaluation failed: {exc}")
+
+        background_tasks.add_task(_run_evaluation)
+
+        return {
+            "message": "Alert evaluation triggered in background",
+            "active_subscriptions": sub_count or 0,
+            "last_evaluation": last_eval,
+            "note": "Evaluation is running asynchronously. Check /api/corruption/alerts/stats for results.",
+        }
+
+    except Exception as e:
+        logger.error(f"Error triggering alert evaluation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to trigger alert evaluation: {str(e)}"
+        )
+
+
+@router.get("/alerts/stats", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_alert_stats(
+    user_id: Optional[str] = Query(None, description="User ID for user-scoped stats. Omit for global stats."),
+):
+    """
+    Get corruption alert statistics.
+
+    Query Parameters:
+    - user_id (str, optional): If provided, returns stats scoped to this user.
+      If omitted, returns global alert statistics.
+
+    Returns:
+    - total_alerts: Total alert count
+    - unread_count: Unread alert count
+    - by_severity: Breakdown by severity level
+    - by_rule_type: Breakdown by rule type
+    - recent_24h: Alerts in last 24 hours
+    - recent_7d: Alerts in last 7 days
+    - subscriptions_count: Active subscription count
+    - last_evaluation: Timestamp of last alert evaluation run
+    """
+    try:
+        from ai.corruption.alerts.corruption_alerter import CorruptionAlerter
+
+        alerter = CorruptionAlerter()
+        pool = await get_asyncpg_pool()
+        stats = await alerter.get_stats(pool, user_id=user_id)
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error fetching alert stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch alert statistics: {str(e)}"
+        )
+
+
+# ============================================================================
+# PHASE 4.1: RELATIONSHIP GRAPH ENDPOINTS
+# ============================================================================
+
+
+@router.get("/graph/stats", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_graph_stats():
+    """
+    Get relationship graph summary statistics.
+
+    Returns node count, edge count, edge type breakdown, community count,
+    and average degree from the cached unified graph data.
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            # Edge statistics by type
+            edge_stats = await conn.fetch("""
+                SELECT
+                    edge_type,
+                    COUNT(*) AS edge_count,
+                    COUNT(DISTINCT source_id) AS unique_sources,
+                    COUNT(DISTINCT target_id) AS unique_targets,
+                    AVG(weight) AS avg_weight,
+                    SUM(tender_count) AS total_tenders,
+                    SUM(total_value) AS total_value
+                FROM unified_edges
+                GROUP BY edge_type
+                ORDER BY edge_count DESC
+            """)
+
+            # Node statistics from centrality cache
+            node_stats = await conn.fetchrow("""
+                SELECT
+                    COUNT(*) AS node_count,
+                    COUNT(DISTINCT community_id) AS community_count,
+                    AVG(degree) AS avg_degree,
+                    MAX(degree) AS max_degree,
+                    AVG(pagerank) AS avg_pagerank,
+                    MAX(pagerank) AS max_pagerank,
+                    AVG(betweenness) AS avg_betweenness,
+                    MAX(betweenness) AS max_betweenness
+                FROM entity_centrality_cache
+            """)
+
+            # Node type breakdown
+            node_type_rows = await conn.fetch("""
+                SELECT entity_type, COUNT(*) AS count
+                FROM entity_centrality_cache
+                GROUP BY entity_type
+                ORDER BY count DESC
+            """)
+
+            # Total edge count
+            total_edges_row = await conn.fetchrow(
+                "SELECT COUNT(*) AS total FROM unified_edges"
+            )
+
+            # Build edge type details
+            edge_types = {}
+            for row in edge_stats:
+                edge_types[row["edge_type"]] = {
+                    "count": row["edge_count"],
+                    "unique_sources": row["unique_sources"],
+                    "unique_targets": row["unique_targets"],
+                    "avg_weight": round(float(row["avg_weight"] or 0), 4),
+                    "total_tenders": row["total_tenders"] or 0,
+                    "total_value": float(row["total_value"] or 0),
+                }
+
+            # Build node type breakdown
+            node_types = {}
+            for row in node_type_rows:
+                node_types[row["entity_type"]] = row["count"]
+
+            return {
+                "node_count": node_stats["node_count"] if node_stats else 0,
+                "edge_count": total_edges_row["total"] if total_edges_row else 0,
+                "edge_types": edge_types,
+                "node_types": node_types,
+                "communities": node_stats["community_count"] if node_stats else 0,
+                "avg_degree": round(float(node_stats["avg_degree"] or 0), 2) if node_stats else 0,
+                "max_degree": node_stats["max_degree"] if node_stats else 0,
+                "avg_pagerank": round(float(node_stats["avg_pagerank"] or 0), 8) if node_stats else 0,
+                "max_pagerank": round(float(node_stats["max_pagerank"] or 0), 8) if node_stats else 0,
+                "avg_betweenness": round(float(node_stats["avg_betweenness"] or 0), 8) if node_stats else 0,
+                "max_betweenness": round(float(node_stats["max_betweenness"] or 0), 8) if node_stats else 0,
+            }
+
+    except Exception as e:
+        logger.error(f"Error fetching graph stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch graph stats: {str(e)}"
+        )
+
+
+@router.get("/graph/entity/{entity_id}/neighborhood", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_entity_neighborhood(
+    entity_id: str,
+    hops: int = Query(default=2, ge=1, le=3),
+):
+    """
+    Get the subgraph around an entity within N hops.
+
+    Uses BFS traversal on the unified_edges table to find all connected
+    entities within the specified hop distance. Each node is enriched with
+    centrality metrics from the cache.
+
+    Parameters:
+    - entity_id: The central entity identifier (company or institution name)
+    - hops: Number of hops to traverse (1-3, default 2)
+    """
+    import json as _json
+
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            # BFS traversal using iterative frontier expansion
+            visited = {entity_id: 0}  # entity_id -> depth
+            frontier = {entity_id}
+
+            for depth in range(1, hops + 1):
+                if not frontier:
+                    break
+
+                # Find all neighbors of the current frontier
+                neighbors_rows = await conn.fetch("""
+                    SELECT DISTINCT
+                        CASE
+                            WHEN source_id = ANY($1::text[]) THEN target_id
+                            ELSE source_id
+                        END AS neighbor,
+                        CASE
+                            WHEN source_id = ANY($1::text[]) THEN target_type
+                            ELSE source_type
+                        END AS neighbor_type
+                    FROM unified_edges
+                    WHERE source_id = ANY($1::text[]) OR target_id = ANY($1::text[])
+                """, list(frontier))
+
+                next_frontier = set()
+                for row in neighbors_rows:
+                    neighbor = row["neighbor"]
+                    if neighbor not in visited:
+                        visited[neighbor] = depth
+                        next_frontier.add(neighbor)
+
+                frontier = next_frontier
+
+            # Build node list enriched with centrality data
+            node_ids = list(visited.keys())
+            nodes = []
+
+            if node_ids:
+                centrality_rows = await conn.fetch("""
+                    SELECT entity_id, entity_type, pagerank, betweenness, degree, community_id
+                    FROM entity_centrality_cache
+                    WHERE entity_id = ANY($1::text[])
+                """, node_ids)
+
+                centrality_map = {}
+                for row in centrality_rows:
+                    centrality_map[row["entity_id"]] = {
+                        "type": row["entity_type"],
+                        "pagerank": round(float(row["pagerank"] or 0), 6),
+                        "betweenness": round(float(row["betweenness"] or 0), 6),
+                        "degree": row["degree"] or 0,
+                        "community_id": row["community_id"],
+                    }
+
+                for node_id, depth in visited.items():
+                    centrality = centrality_map.get(node_id, {})
+                    nodes.append({
+                        "id": node_id,
+                        "type": centrality.get("type", "unknown"),
+                        "depth": depth,
+                        "pagerank": centrality.get("pagerank", 0),
+                        "betweenness": centrality.get("betweenness", 0),
+                        "degree": centrality.get("degree", 0),
+                        "community_id": centrality.get("community_id"),
+                    })
+
+            # Get all edges between nodes in the subgraph
+            edges = []
+            if node_ids:
+                edge_rows = await conn.fetch("""
+                    SELECT source_id, source_type, target_id, target_type,
+                           edge_type, weight, tender_count, total_value, metadata
+                    FROM unified_edges
+                    WHERE source_id = ANY($1::text[]) AND target_id = ANY($1::text[])
+                """, node_ids)
+
+                for row in edge_rows:
+                    metadata = row["metadata"]
+                    if isinstance(metadata, str):
+                        metadata = _json.loads(metadata) if metadata else {}
+                    elif metadata is None:
+                        metadata = {}
+
+                    edges.append({
+                        "source": row["source_id"],
+                        "source_type": row["source_type"],
+                        "target": row["target_id"],
+                        "target_type": row["target_type"],
+                        "edge_type": row["edge_type"],
+                        "weight": float(row["weight"] or 0),
+                        "tender_count": row["tender_count"] or 0,
+                        "total_value": float(row["total_value"] or 0),
+                        "metadata": metadata,
+                    })
+
+            return {
+                "center": entity_id,
+                "hops": hops,
+                "nodes": nodes,
+                "edges": edges,
+                "node_count": len(nodes),
+                "edge_count": len(edges),
+            }
+
+    except Exception as e:
+        logger.error(f"Error fetching neighborhood for {entity_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch entity neighborhood: {str(e)}"
+        )
+
+
+@router.get("/graph/entity/{entity_id}/connections", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_entity_connections(entity_id: str):
+    """
+    Get all direct connections for an entity.
+
+    Returns a list of connected entities with edge types, weights,
+    relationship metadata, and centrality metrics.
+
+    Parameters:
+    - entity_id: The entity identifier (company or institution name)
+    """
+    import json as _json
+
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            # Get all edges involving this entity
+            rows = await conn.fetch("""
+                SELECT source_id, source_type, target_id, target_type,
+                       edge_type, weight, tender_count, total_value, metadata
+                FROM unified_edges
+                WHERE source_id = $1 OR target_id = $1
+                ORDER BY weight DESC
+            """, entity_id)
+
+            # Group by connected entity
+            connections = {}
+            for row in rows:
+                if row["source_id"] == entity_id:
+                    other_id = row["target_id"]
+                    other_type = row["target_type"]
+                    direction = "outgoing"
+                else:
+                    other_id = row["source_id"]
+                    other_type = row["source_type"]
+                    direction = "incoming"
+
+                metadata = row["metadata"]
+                if isinstance(metadata, str):
+                    metadata = _json.loads(metadata) if metadata else {}
+                elif metadata is None:
+                    metadata = {}
+
+                edge_info = {
+                    "edge_type": row["edge_type"],
+                    "weight": float(row["weight"] or 0),
+                    "tender_count": row["tender_count"] or 0,
+                    "total_value": float(row["total_value"] or 0),
+                    "direction": direction,
+                    "metadata": metadata,
+                }
+
+                if other_id not in connections:
+                    connections[other_id] = {
+                        "connected_entity": other_id,
+                        "connected_entity_type": other_type,
+                        "edges": [],
+                        "total_weight": 0,
+                    }
+
+                connections[other_id]["edges"].append(edge_info)
+                connections[other_id]["total_weight"] += float(row["weight"] or 0)
+
+            # Enrich connected entities with centrality data
+            connected_ids = list(connections.keys())
+            if connected_ids:
+                centrality_rows = await conn.fetch("""
+                    SELECT entity_id, pagerank, betweenness, degree, community_id
+                    FROM entity_centrality_cache
+                    WHERE entity_id = ANY($1::text[])
+                """, connected_ids)
+
+                centrality_map = {
+                    row["entity_id"]: {
+                        "pagerank": round(float(row["pagerank"] or 0), 6),
+                        "betweenness": round(float(row["betweenness"] or 0), 6),
+                        "degree": row["degree"] or 0,
+                        "community_id": row["community_id"],
+                    }
+                    for row in centrality_rows
+                }
+
+                for other_id, conn_info in connections.items():
+                    c = centrality_map.get(other_id, {})
+                    conn_info["pagerank"] = c.get("pagerank", 0)
+                    conn_info["betweenness"] = c.get("betweenness", 0)
+                    conn_info["degree"] = c.get("degree", 0)
+                    conn_info["community_id"] = c.get("community_id")
+
+            # Get the entity's own centrality
+            entity_centrality = await conn.fetchrow("""
+                SELECT entity_type, pagerank, betweenness, degree, community_id
+                FROM entity_centrality_cache
+                WHERE entity_id = $1
+            """, entity_id)
+
+            entity_info = {}
+            if entity_centrality:
+                entity_info = {
+                    "entity_type": entity_centrality["entity_type"],
+                    "pagerank": round(float(entity_centrality["pagerank"] or 0), 6),
+                    "betweenness": round(float(entity_centrality["betweenness"] or 0), 6),
+                    "degree": entity_centrality["degree"] or 0,
+                    "community_id": entity_centrality["community_id"],
+                }
+
+            # Sort connections by total weight descending
+            sorted_connections = sorted(
+                connections.values(),
+                key=lambda c: c["total_weight"],
+                reverse=True,
+            )
+
+            return {
+                "entity_id": entity_id,
+                "entity_info": entity_info,
+                "connections": sorted_connections,
+                "total_connections": len(sorted_connections),
+            }
+
+    except Exception as e:
+        logger.error(f"Error fetching connections for {entity_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch entity connections: {str(e)}"
+        )
+
+
+@router.get("/graph/path/{source_id}/{target_id}", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_shortest_path(source_id: str, target_id: str):
+    """
+    Find the shortest path between two entities in the relationship graph.
+
+    Loads the unified_edges into an in-memory graph and computes the shortest
+    path using Dijkstra's algorithm with inverse weight (stronger connections
+    = shorter distance).
+
+    Parameters:
+    - source_id: Starting entity identifier
+    - target_id: Destination entity identifier
+    """
+    import json as _json
+
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            # Verify both entities exist in the graph
+            source_exists = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM unified_edges WHERE source_id = $1 OR target_id = $1)",
+                source_id,
+            )
+            target_exists = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM unified_edges WHERE source_id = $1 OR target_id = $1)",
+                target_id,
+            )
+
+            if not source_exists or not target_exists:
+                return {
+                    "found": False,
+                    "source": source_id,
+                    "target": target_id,
+                    "path": [],
+                    "edges": [],
+                    "hop_count": 0,
+                    "error": "One or both entities not found in the graph",
+                }
+
+            # Load all edges for in-memory path computation
+            edge_rows = await conn.fetch("""
+                SELECT source_id, source_type, target_id, target_type,
+                       edge_type, weight, tender_count, total_value, metadata
+                FROM unified_edges
+            """)
+
+            if not edge_rows:
+                return {
+                    "found": False,
+                    "source": source_id,
+                    "target": target_id,
+                    "path": [],
+                    "edges": [],
+                    "hop_count": 0,
+                    "error": "Graph is empty",
+                }
+
+            # Build edge list for RelationshipGraph
+            edges = []
+            for row in edge_rows:
+                metadata = row["metadata"]
+                if isinstance(metadata, str):
+                    metadata = _json.loads(metadata) if metadata else {}
+                elif metadata is None:
+                    metadata = {}
+
+                edges.append({
+                    "source_id": row["source_id"],
+                    "source_type": row["source_type"],
+                    "target_id": row["target_id"],
+                    "target_type": row["target_type"],
+                    "edge_type": row["edge_type"],
+                    "weight": float(row["weight"] or 1.0),
+                    "tender_count": row["tender_count"] or 0,
+                    "total_value": float(row["total_value"] or 0),
+                    "metadata": metadata,
+                })
+
+            # Build in-memory graph and compute shortest path
+            try:
+                from ai.corruption.graph.relationship_graph import RelationshipGraph
+            except ImportError:
+                import sys as _sys
+                from pathlib import Path as _Path
+                _ai_path = str(_Path(__file__).parent.parent.parent / "ai" / "corruption")
+                if _ai_path not in _sys.path:
+                    _sys.path.insert(0, _ai_path)
+                from graph.relationship_graph import RelationshipGraph
+
+            graph = RelationshipGraph(edges)
+            path_result = graph.shortest_path(source_id, target_id)
+
+            # Enrich path nodes with centrality data
+            if path_result["found"] and path_result["path"]:
+                path_nodes = path_result["path"]
+                centrality_rows = await conn.fetch("""
+                    SELECT entity_id, entity_type, pagerank, betweenness, degree
+                    FROM entity_centrality_cache
+                    WHERE entity_id = ANY($1::text[])
+                """, path_nodes)
+
+                centrality_map = {
+                    row["entity_id"]: row for row in centrality_rows
+                }
+                node_details = []
+                for node_id in path_nodes:
+                    crow = centrality_map.get(node_id)
+                    if crow:
+                        node_details.append({
+                            "id": node_id,
+                            "type": crow["entity_type"],
+                            "pagerank": round(float(crow["pagerank"] or 0), 6),
+                            "betweenness": round(float(crow["betweenness"] or 0), 6),
+                            "degree": crow["degree"] or 0,
+                        })
+                    else:
+                        node_details.append({
+                            "id": node_id,
+                            "type": "unknown",
+                            "pagerank": 0,
+                            "betweenness": 0,
+                            "degree": 0,
+                        })
+
+                path_result["path_details"] = node_details
+
+            path_result["source"] = source_id
+            path_result["target"] = target_id
+            return path_result
+
+    except Exception as e:
+        logger.error(f"Error finding path from {source_id} to {target_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to find shortest path: {str(e)}"
+        )
+
+
+@router.get("/graph/gatekeepers", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_gatekeepers(
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    """
+    Get entities with highest betweenness centrality (network gatekeepers).
+
+    Gatekeepers are entities that bridge different parts of the procurement
+    network. High betweenness centrality indicates an entity that controls
+    information or transaction flow between otherwise disconnected groups.
+
+    Parameters:
+    - limit: Maximum number of gatekeepers to return (1-100, default 20)
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT
+                    ec.entity_id,
+                    ec.entity_type,
+                    ec.entity_name,
+                    ec.pagerank,
+                    ec.betweenness,
+                    ec.degree,
+                    ec.in_degree,
+                    ec.out_degree,
+                    ec.community_id,
+                    ec.updated_at,
+                    (SELECT COUNT(*) FROM unified_edges
+                     WHERE source_id = ec.entity_id
+                        OR target_id = ec.entity_id
+                    ) AS total_edges,
+                    (SELECT COUNT(DISTINCT edge_type) FROM unified_edges
+                     WHERE source_id = ec.entity_id
+                        OR target_id = ec.entity_id
+                    ) AS edge_type_diversity
+                FROM entity_centrality_cache ec
+                WHERE ec.betweenness > 0
+                ORDER BY ec.betweenness DESC
+                LIMIT $1
+            """, limit)
+
+            gatekeepers = []
+            for row in rows:
+                gatekeepers.append({
+                    "entity_id": row["entity_id"],
+                    "entity_type": row["entity_type"],
+                    "entity_name": row["entity_name"],
+                    "betweenness": round(float(row["betweenness"] or 0), 6),
+                    "pagerank": round(float(row["pagerank"] or 0), 6),
+                    "degree": row["degree"] or 0,
+                    "in_degree": row["in_degree"] or 0,
+                    "out_degree": row["out_degree"] or 0,
+                    "community_id": row["community_id"],
+                    "total_edges": row["total_edges"] or 0,
+                    "edge_type_diversity": row["edge_type_diversity"] or 0,
+                    "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                })
+
+            return {
+                "gatekeepers": gatekeepers,
+                "total": len(gatekeepers),
+                "description": (
+                    "Entities with highest betweenness centrality "
+                    "-- network bridges/gatekeepers"
+                ),
+            }
+
+    except Exception as e:
+        logger.error(f"Error fetching gatekeepers: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch gatekeepers: {str(e)}"
+        )
+
+
+@router.get("/graph/revolving-doors", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_revolving_doors(
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    """
+    Detect entities appearing on both buyer and supplier sides.
+
+    "Revolving door" entities appear as both the source (buyer/institution)
+    and target (supplier/company) in buyer_supplier edges. This can indicate
+    conflicts of interest or entities operating on both sides of procurement.
+
+    Parameters:
+    - limit: Maximum number of results to return (1-100, default 20)
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
+                WITH buyers AS (
+                    SELECT
+                        source_id AS entity_id,
+                        COUNT(*) AS buyer_edge_count,
+                        SUM(total_value) AS buyer_total_value,
+                        SUM(tender_count) AS buyer_tender_count
+                    FROM unified_edges
+                    WHERE edge_type = 'buyer_supplier'
+                    GROUP BY source_id
+                ),
+                suppliers AS (
+                    SELECT
+                        target_id AS entity_id,
+                        COUNT(*) AS supplier_edge_count,
+                        SUM(total_value) AS supplier_total_value,
+                        SUM(tender_count) AS supplier_tender_count
+                    FROM unified_edges
+                    WHERE edge_type = 'buyer_supplier'
+                    GROUP BY target_id
+                )
+                SELECT
+                    b.entity_id,
+                    b.buyer_edge_count,
+                    b.buyer_total_value,
+                    b.buyer_tender_count,
+                    s.supplier_edge_count,
+                    s.supplier_total_value,
+                    s.supplier_tender_count,
+                    COALESCE(ec.entity_type, 'unknown') AS entity_type,
+                    COALESCE(ec.pagerank, 0) AS pagerank,
+                    COALESCE(ec.betweenness, 0) AS betweenness,
+                    COALESCE(ec.degree, 0) AS degree,
+                    ec.community_id
+                FROM buyers b
+                JOIN suppliers s ON b.entity_id = s.entity_id
+                LEFT JOIN entity_centrality_cache ec
+                    ON ec.entity_id = b.entity_id
+                ORDER BY (b.buyer_edge_count + s.supplier_edge_count) DESC
+                LIMIT $1
+            """, limit)
+
+            revolving_doors = []
+            for row in rows:
+                revolving_doors.append({
+                    "entity_id": row["entity_id"],
+                    "entity_type": row["entity_type"],
+                    "buyer_edge_count": row["buyer_edge_count"],
+                    "buyer_total_value": float(row["buyer_total_value"] or 0),
+                    "buyer_tender_count": row["buyer_tender_count"] or 0,
+                    "supplier_edge_count": row["supplier_edge_count"],
+                    "supplier_total_value": float(row["supplier_total_value"] or 0),
+                    "supplier_tender_count": row["supplier_tender_count"] or 0,
+                    "combined_edge_count": (
+                        row["buyer_edge_count"] + row["supplier_edge_count"]
+                    ),
+                    "pagerank": round(float(row["pagerank"] or 0), 6),
+                    "betweenness": round(float(row["betweenness"] or 0), 6),
+                    "degree": row["degree"] or 0,
+                    "community_id": row["community_id"],
+                    "risk_indicator": (
+                        "Entity appears as both buyer and supplier "
+                        "in procurement network"
+                    ),
+                })
+
+            return {
+                "revolving_doors": revolving_doors,
+                "total": len(revolving_doors),
+                "description": (
+                    "Entities appearing on both buyer and supplier "
+                    "sides of procurement relationships"
+                ),
+            }
+
+    except Exception as e:
+        logger.error(f"Error detecting revolving doors: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to detect revolving doors: {str(e)}"
+        )
+
+
+@router.get("/graph/clusters", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_graph_clusters(
+    min_size: int = Query(default=3, ge=2, le=50),
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    """
+    Get detected communities/clusters in the relationship graph.
+
+    Returns clusters from the precomputed community detection results
+    stored in entity_centrality_cache. Clusters with fewer members
+    than min_size are excluded.
+
+    Parameters:
+    - min_size: Minimum members for a cluster (2-50, default 3)
+    - limit: Maximum clusters to return (1-200, default 50)
+    """
+    import json as _json
+
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            # Get community membership
+            community_rows = await conn.fetch("""
+                SELECT
+                    community_id,
+                    entity_id,
+                    entity_type,
+                    entity_name,
+                    pagerank,
+                    betweenness,
+                    degree
+                FROM entity_centrality_cache
+                WHERE community_id IS NOT NULL
+                ORDER BY community_id, pagerank DESC
+            """)
+
+            # Group by community
+            communities = {}
+            for row in community_rows:
+                cid = row["community_id"]
+                if cid not in communities:
+                    communities[cid] = {
+                        "community_id": cid,
+                        "members": [],
+                        "total_pagerank": 0,
+                        "total_betweenness": 0,
+                        "total_degree": 0,
+                    }
+
+                communities[cid]["members"].append({
+                    "entity_id": row["entity_id"],
+                    "entity_type": row["entity_type"],
+                    "entity_name": row["entity_name"],
+                    "pagerank": round(float(row["pagerank"] or 0), 6),
+                    "betweenness": round(float(row["betweenness"] or 0), 6),
+                    "degree": row["degree"] or 0,
+                })
+                communities[cid]["total_pagerank"] += float(
+                    row["pagerank"] or 0
+                )
+                communities[cid]["total_betweenness"] += float(
+                    row["betweenness"] or 0
+                )
+                communities[cid]["total_degree"] += (row["degree"] or 0)
+
+            # Filter by min_size and build response
+            clusters = []
+            for cid, data in communities.items():
+                member_count = len(data["members"])
+                if member_count < min_size:
+                    continue
+
+                # Entity type breakdown
+                type_counts = {}
+                for m in data["members"]:
+                    t = m["entity_type"]
+                    type_counts[t] = type_counts.get(t, 0) + 1
+
+                # Internal edges for this cluster
+                member_ids = [m["entity_id"] for m in data["members"]]
+                internal_edge_rows = await conn.fetch("""
+                    SELECT edge_type,
+                           COUNT(*) AS cnt,
+                           SUM(weight) AS total_weight,
+                           SUM(total_value) AS total_value
+                    FROM unified_edges
+                    WHERE source_id = ANY($1::text[])
+                      AND target_id = ANY($1::text[])
+                    GROUP BY edge_type
+                """, member_ids)
+
+                edge_type_summary = {}
+                total_internal_edges = 0
+                for erow in internal_edge_rows:
+                    edge_type_summary[erow["edge_type"]] = {
+                        "count": erow["cnt"],
+                        "total_weight": round(
+                            float(erow["total_weight"] or 0), 2
+                        ),
+                        "total_value": float(erow["total_value"] or 0),
+                    }
+                    total_internal_edges += erow["cnt"]
+
+                # Cluster density
+                max_edges = member_count * (member_count - 1) / 2
+                density = (
+                    total_internal_edges / max_edges if max_edges > 0 else 0
+                )
+
+                clusters.append({
+                    "community_id": cid,
+                    "member_count": member_count,
+                    "members": data["members"][:20],
+                    "total_members": member_count,
+                    "entity_type_breakdown": type_counts,
+                    "internal_edges": total_internal_edges,
+                    "edge_type_summary": edge_type_summary,
+                    "density": round(density, 4),
+                    "avg_pagerank": round(
+                        data["total_pagerank"] / member_count, 8
+                    ),
+                    "avg_betweenness": round(
+                        data["total_betweenness"] / member_count, 8
+                    ),
+                    "avg_degree": round(
+                        data["total_degree"] / member_count, 2
+                    ),
+                })
+
+            # Sort by member count descending
+            clusters.sort(key=lambda c: c["member_count"], reverse=True)
+            clusters = clusters[:limit]
+
+            return {
+                "clusters": clusters,
+                "total": len(clusters),
+                "min_size_filter": min_size,
+                "description": (
+                    "Detected communities/clusters in the "
+                    "procurement relationship graph"
+                ),
+            }
+
+    except Exception as e:
+        logger.error(f"Error fetching graph clusters: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch graph clusters: {str(e)}"
+        )
