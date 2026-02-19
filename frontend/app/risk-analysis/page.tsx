@@ -897,21 +897,19 @@ export default function RiskAnalysisPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-3 border-t">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Badge variant="outline" className="text-[10px] font-mono shrink-0">{tender.tender_id}</Badge>
-                            {!tender.has_winner && (
-                              <Badge variant="outline" className="text-[10px] shrink-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
-                                <Info className="h-3 w-3 mr-0.5" />Нецелосни податоци
-                              </Badge>
-                            )}
-                            {tender.estimated_value_mkd > 0 && (
-                              <span className="text-xs font-medium text-primary truncate">
-                                {formatCurrency(tender.estimated_value_mkd)}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-muted-foreground shrink-0">
+                        <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t">
+                          <Badge variant="outline" className="text-[10px] font-mono shrink-0">{tender.tender_id}</Badge>
+                          {!tender.has_winner && (
+                            <Badge variant="outline" className="text-[10px] shrink-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
+                              <Info className="h-3 w-3 mr-0.5" />Нецелосни
+                            </Badge>
+                          )}
+                          {tender.estimated_value_mkd > 0 && (
+                            <span className="text-[10px] font-medium text-primary">
+                              {formatCurrency(tender.estimated_value_mkd)}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
                             {tender.flag_count}/{ACTIVE_FLAG_COUNT} индикатори
                           </span>
                         </div>
