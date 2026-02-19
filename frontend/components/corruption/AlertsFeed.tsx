@@ -162,7 +162,7 @@ export function AlertsFeed() {
       setCreating(true);
       const cfg: Record<string, any> = {};
       if (newRule === "high_risk_score") cfg.threshold = parseInt(newThreshold, 10) || 70;
-      if (newRule === "watched_entity" && newEntity.trim()) cfg.entity_name = newEntity.trim();
+      if (newRule === "watched_entity" && newEntity.trim()) cfg.watched_entities = [newEntity.trim()];
       const raw = await apiFetch<any>("/api/corruption/alerts/subscriptions", {
         method: "POST", body: JSON.stringify({ rule_type: newRule, rule_config: cfg, severity_filter: newSev }),
       });
