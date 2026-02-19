@@ -2082,3 +2082,1450 @@ async def trigger_queue_refresh():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to refresh review queue: {str(e)}"
         )
+
+
+# ============================================================================
+# ENTITY / NER SCHEMAS
+# ============================================================================
+
+class EntityMention(BaseModel):
+    """Single entity mention from a document."""
+    mention_id: int
+    entity_text: str
+    entity_type: str
+    normalized_text: Optional[str] = None
+    confidence: float = 1.0
+    extraction_method: str = 'regex'
+    context: Optional[str] = None
+    tender_id: Optional[str] = None
+    doc_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TenderEntitiesResponse(BaseModel):
+    """Entities extracted from a tender's documents."""
+    tender_id: str
+    total_entities: int
+    entities: List[EntityMention]
+    summary: Dict[str, int]
+    disclaimer: str = "Ентитетите се извлечени автоматски и може да содржат грешки."
+
+
+class ConflictOfInterest(BaseModel):
+    """Potential conflict of interest from entity analysis."""
+    person_name: str
+    institution: Optional[str] = None
+    company: Optional[str] = None
+    institution_tenders: Optional[List[str]] = None
+    company_tenders: Optional[List[str]] = None
+    mention_count: int = 0
+    avg_confidence: Optional[float] = None
+
+
+class ConflictsResponse(BaseModel):
+    """Potential conflicts of interest list."""
+    total: int
+    conflicts: List[ConflictOfInterest]
+    disclaimer: str = "Ова е автоматска анализа. Потенцијалните конфликти на интерес бараат дополнителна истрага."
+
+
+class EntityNetworkResponse(BaseModel):
+    """Entity co-occurrence network."""
+    entity: Dict[str, Any]
+    tenders: List[Dict[str, Any]]
+    co_entities: List[Dict[str, Any]]
+
+
+class EntityStatsResponse(BaseModel):
+    """Aggregate entity statistics."""
+    total_entities: int
+    unique_entities: int
+    by_type: Dict[str, int]
+    by_method: Dict[str, int]
+    documents_processed: int
+    tenders_with_entities: int
+    top_persons: List[Dict[str, Any]]
+    top_orgs: List[Dict[str, Any]]
+    last_processed: Optional[str] = None
+
+
+# ============================================================================
+# ENTITY / NER ENDPOINTS
+# ============================================================================
+
+@router.get("/entities/stats", response_model=EntityStatsResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_entity_stats():
+    """
+    Get aggregate statistics for extracted entities.
+
+    Returns:
+    - Total and unique entity counts
+    - Breakdown by type (PERSON, ORG, MONEY, DATE, GPE, TAX_ID, LEGAL_REF, IBAN)
+    - Breakdown by extraction method (regex, llm)
+    - Top persons and organizations by mention count
+    """
+    try:
+        from ai.corruption.nlp.entity_store import EntityStore
+        store = EntityStore()
+        pool = await get_asyncpg_pool()
+        stats = await store.get_entity_stats(pool)
+        return EntityStatsResponse(**stats)
+    except ImportError as e:
+        logger.error(f"NER module not available: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="NER module not available. Ensure ai.corruption.nlp is installed."
+        )
+    except Exception as e:
+        logger.error(f"Error fetching entity stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch entity stats: {str(e)}"
+        )
+
+
+@router.get("/entities/conflicts", response_model=ConflictsResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_conflicts_of_interest(
+    limit: int = Query(20, ge=1, le=100, description="Max conflicts to return"),
+    min_mentions: int = Query(2, ge=1, le=50, description="Minimum mention count"),
+    tender_id: Optional[str] = Query(None, description="Filter to conflicts involving this tender"),
+):
+    """
+    Get potential conflicts of interest from entity analysis.
+
+    A conflict is flagged when the same person name appears in documents
+    from both a buyer institution and a winning company in different tenders.
+
+    Query Parameters:
+    - limit: Maximum number of conflicts to return (default 20)
+    - min_mentions: Minimum total mentions for a conflict (default 2)
+    - tender_id: Optional - only show conflicts involving this tender
+    """
+    try:
+        from ai.corruption.nlp.entity_store import EntityStore
+        store = EntityStore()
+        pool = await get_asyncpg_pool()
+        conflicts = await store.find_conflicts(
+            pool,
+            tender_id=tender_id,
+            min_mentions=min_mentions,
+            limit=limit,
+        )
+
+        conflict_items = []
+        for c in conflicts:
+            conflict_items.append(ConflictOfInterest(
+                person_name=c.get('person_name', ''),
+                institution=c.get('institution'),
+                company=c.get('company'),
+                institution_tenders=c.get('institution_tenders', []),
+                company_tenders=c.get('company_tenders', []),
+                mention_count=c.get('mention_count', 0),
+                avg_confidence=float(c['avg_confidence']) if c.get('avg_confidence') else None,
+            ))
+
+        return ConflictsResponse(
+            total=len(conflict_items),
+            conflicts=conflict_items,
+        )
+    except ImportError as e:
+        logger.error(f"NER module not available: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="NER module not available."
+        )
+    except Exception as e:
+        logger.error(f"Error fetching conflicts: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch conflicts of interest: {str(e)}"
+        )
+
+
+@router.get("/entities/network/{entity_name:path}", response_model=EntityNetworkResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_entity_network(
+    entity_name: str,
+    entity_type: str = Query('PERSON', pattern="^(PERSON|ORG|MONEY|DATE|GPE|TAX_ID|LEGAL_REF|IBAN)$"),
+    limit: int = Query(50, ge=1, le=200, description="Max co-occurring entities"),
+):
+    """
+    Get entity co-occurrence network for a specific entity.
+
+    Returns all tenders where this entity appears, plus other entities
+    that co-occur in the same tenders (useful for network visualization).
+
+    Path Parameters:
+    - entity_name: The entity name to look up
+
+    Query Parameters:
+    - entity_type: Entity type (default PERSON)
+    - limit: Max co-occurring entities to return (default 50)
+    """
+    try:
+        from ai.corruption.nlp.entity_store import EntityStore
+        store = EntityStore()
+        pool = await get_asyncpg_pool()
+        network = await store.get_entity_network(
+            pool,
+            entity_name=entity_name,
+            entity_type=entity_type,
+            limit=limit,
+        )
+        return EntityNetworkResponse(**network)
+    except ImportError as e:
+        logger.error(f"NER module not available: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="NER module not available."
+        )
+    except Exception as e:
+        logger.error(f"Error fetching entity network: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch entity network: {str(e)}"
+        )
+
+
+@router.get("/entities/{tender_id:path}", response_model=TenderEntitiesResponse, dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+async def get_tender_entities(
+    tender_id: str,
+    entity_type: Optional[str] = Query(
+        None,
+        pattern="^(PERSON|ORG|MONEY|DATE|GPE|TAX_ID|LEGAL_REF|IBAN)$",
+        description="Filter by entity type"
+    ),
+    limit: int = Query(200, ge=1, le=1000, description="Max entities to return"),
+):
+    """
+    Get extracted entities for a specific tender.
+
+    Returns all named entities found in the tender's documents,
+    with optional filtering by entity type.
+
+    Path Parameters:
+    - tender_id: The tender ID
+
+    Query Parameters:
+    - entity_type: Optional filter (PERSON, ORG, MONEY, DATE, GPE, TAX_ID, LEGAL_REF, IBAN)
+    - limit: Max entities to return (default 200)
+    """
+    conn = await get_db_connection()
+    try:
+        # Verify tender exists
+        tender = await conn.fetchval(
+            "SELECT tender_id FROM tenders WHERE tender_id = $1",
+            tender_id,
+        )
+        if not tender:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tender {tender_id} not found"
+            )
+
+        # Query entities
+        query = """
+            SELECT mention_id, entity_text, entity_type, normalized_text,
+                   confidence, extraction_method, context,
+                   tender_id, doc_id::text
+            FROM entity_mentions
+            WHERE tender_id = $1
+        """
+        params = [tender_id]
+        param_count = 1
+
+        if entity_type:
+            param_count += 1
+            query += f" AND entity_type = ${param_count}"
+            params.append(entity_type)
+
+        query += f" ORDER BY confidence DESC, entity_type, entity_text LIMIT ${param_count + 1}"
+        params.append(limit)
+
+        rows = await conn.fetch(query, *params)
+
+        entities = []
+        summary: Dict[str, int] = {}
+        for row in rows:
+            entities.append(EntityMention(
+                mention_id=row['mention_id'],
+                entity_text=row['entity_text'],
+                entity_type=row['entity_type'],
+                normalized_text=row['normalized_text'],
+                confidence=float(row['confidence']) if row['confidence'] else 1.0,
+                extraction_method=row['extraction_method'] or 'regex',
+                context=row['context'],
+                tender_id=row['tender_id'],
+                doc_id=row['doc_id'],
+            ))
+            etype = row['entity_type']
+            summary[etype] = summary.get(etype, 0) + 1
+
+        return TenderEntitiesResponse(
+            tender_id=tender_id,
+            total_entities=len(entities),
+            entities=entities,
+            summary=summary,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching entities for tender {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch tender entities: {str(e)}"
+        )
+    finally:
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
+
+
+# ============================================================================
+# SPECIFICATION SIMILARITY SCHEMAS
+# ============================================================================
+
+class SimilarSpec(BaseModel):
+    """A tender with a similar specification."""
+    similar_tender_id: str
+    similarity_score: float
+    same_institution: bool = False
+    same_winner: bool = False
+    similar_title: Optional[str] = None
+    similar_institution: Optional[str] = None
+    similar_winner: Optional[str] = None
+
+
+class SimilarSpecsResponse(BaseModel):
+    """Response for similar specifications lookup."""
+    tender_id: str
+    similar_specs: List[SimilarSpec]
+    total: int
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+class CrossInstitutionClone(BaseModel):
+    """A pair of near-identical specs from different institutions."""
+    tender_id_1: str
+    tender_id_2: str
+    institution_1: Optional[str] = None
+    institution_2: Optional[str] = None
+    winner_1: Optional[str] = None
+    winner_2: Optional[str] = None
+    similarity: float
+    common_winner: bool = False
+    title_1: Optional[str] = None
+    title_2: Optional[str] = None
+
+
+class CrossInstitutionClonesResponse(BaseModel):
+    """Response for cross-institution clone detection."""
+    clones: List[CrossInstitutionClone]
+    total: int
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+class InstitutionSpecReuse(BaseModel):
+    """Specification reuse statistics for an institution."""
+    institution: str
+    total_specs: int = 0
+    unique_specs: int = 0
+    reuse_rate: float = 0.0
+    top_winner: Optional[str] = None
+    top_winner_pct: float = 0.0
+
+
+class SpecReuseStatsResponse(BaseModel):
+    """Response for specification reuse statistics."""
+    institutions: List[InstitutionSpecReuse]
+    total: int
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+class CopyPasteResult(BaseModel):
+    """Result of copy-paste analysis between two tenders."""
+    tender_id_1: str
+    tender_id_2: str
+    similarity_ratio: float
+    copied_fraction: float
+    is_suspicious: bool
+    copied_sections: List[Dict[str, Any]]
+
+
+# ============================================================================
+# SPECIFICATION SIMILARITY ENDPOINTS
+# ============================================================================
+
+@router.get(
+    "/spec-similarity/{tender_id:path}",
+    response_model=SimilarSpecsResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_similar_specs(
+    tender_id: str,
+    threshold: float = Query(0.85, ge=0.0, le=1.0, description="Minimum similarity score"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum results"),
+):
+    """
+    Find tenders with similar specifications.
+
+    Uses pgvector cosine similarity on document embeddings to find tenders
+    whose specification documents are most similar to the given tender.
+
+    Path Parameters:
+    - tender_id: The tender ID to find similar specs for
+
+    Query Parameters:
+    - threshold: Minimum similarity score (0-1, default 0.85)
+    - limit: Maximum number of results (default 10, max 50)
+
+    Returns list of similar tenders with similarity scores and metadata.
+    """
+    pool = await get_asyncpg_pool()
+    try:
+        # Verify tender exists
+        tender_exists = await pool.fetchval(
+            "SELECT 1 FROM tenders WHERE tender_id = $1", tender_id
+        )
+        if not tender_exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tender {tender_id} not found"
+            )
+
+        # Check if tender has embeddings
+        has_embeddings = await pool.fetchval(
+            "SELECT 1 FROM embeddings WHERE tender_id = $1 LIMIT 1", tender_id
+        )
+        if not has_embeddings:
+            return SimilarSpecsResponse(
+                tender_id=tender_id,
+                similar_specs=[],
+                total=0,
+            )
+
+        # Try cached results first
+        try:
+            cached = await pool.fetch(
+                """
+                SELECT
+                    CASE WHEN sp.tender_id_1 = $1 THEN sp.tender_id_2 ELSE sp.tender_id_1 END as similar_tender_id,
+                    sp.similarity_score,
+                    sp.same_institution,
+                    sp.same_winner,
+                    t.title as similar_title,
+                    t.procuring_entity as similar_institution,
+                    t.winner as similar_winner
+                FROM spec_similarity_pairs sp
+                JOIN tenders t ON t.tender_id = CASE WHEN sp.tender_id_1 = $1 THEN sp.tender_id_2 ELSE sp.tender_id_1 END
+                WHERE (sp.tender_id_1 = $1 OR sp.tender_id_2 = $1)
+                  AND sp.similarity_score >= $2
+                ORDER BY sp.similarity_score DESC
+                LIMIT $3
+                """,
+                tender_id,
+                threshold,
+                limit,
+            )
+            if cached:
+                specs = [
+                    SimilarSpec(
+                        similar_tender_id=r["similar_tender_id"],
+                        similarity_score=round(float(r["similarity_score"]), 4),
+                        same_institution=r["same_institution"] or False,
+                        same_winner=r["same_winner"] or False,
+                        similar_title=r["similar_title"],
+                        similar_institution=r["similar_institution"],
+                        similar_winner=r["similar_winner"],
+                    )
+                    for r in cached
+                ]
+                return SimilarSpecsResponse(
+                    tender_id=tender_id,
+                    similar_specs=specs,
+                    total=len(specs),
+                )
+        except Exception:
+            # Table may not exist yet, fall through to live computation
+            pass
+
+        # Live computation using pgvector
+        from ai.corruption.nlp.spec_similarity import SpecSimilarityAnalyzer
+        analyzer = SpecSimilarityAnalyzer()
+        results = await analyzer.find_similar_specs(
+            pool, tender_id, threshold=threshold, limit=limit
+        )
+
+        specs = [SimilarSpec(**r) for r in results]
+
+        return SimilarSpecsResponse(
+            tender_id=tender_id,
+            similar_specs=specs,
+            total=len(specs),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error finding similar specs for {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to find similar specifications: {str(e)}"
+        )
+
+
+@router.get(
+    "/spec-similarity-clones",
+    response_model=CrossInstitutionClonesResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_cross_institution_clones(
+    min_similarity: float = Query(0.92, ge=0.0, le=1.0, description="Minimum similarity"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum results"),
+):
+    """
+    Find near-identical specs from different institutions (strongest rigging signal).
+
+    Cross-institution specification clones are the strongest indicator of
+    supplier-authored specifications. When different procuring entities publish
+    nearly identical tender specifications, it often means the specifications
+    were written by the intended winner.
+
+    Query Parameters:
+    - min_similarity: Minimum similarity score (0-1, default 0.92)
+    - limit: Maximum number of pairs (default 50, max 200)
+
+    Returns list of specification clone pairs with metadata.
+    """
+    pool = await get_asyncpg_pool()
+    try:
+        # Try cached results first
+        try:
+            cached = await pool.fetch(
+                """
+                SELECT
+                    sp.tender_id_1, sp.tender_id_2, sp.similarity_score,
+                    sp.same_winner,
+                    t1.procuring_entity as institution_1,
+                    t2.procuring_entity as institution_2,
+                    t1.winner as winner_1, t2.winner as winner_2,
+                    t1.title as title_1, t2.title as title_2
+                FROM spec_similarity_pairs sp
+                JOIN tenders t1 ON sp.tender_id_1 = t1.tender_id
+                JOIN tenders t2 ON sp.tender_id_2 = t2.tender_id
+                WHERE sp.cross_institution = TRUE
+                  AND sp.similarity_score >= $1
+                ORDER BY sp.similarity_score DESC
+                LIMIT $2
+                """,
+                min_similarity,
+                limit,
+            )
+            if cached:
+                clones = [
+                    CrossInstitutionClone(
+                        tender_id_1=r["tender_id_1"],
+                        tender_id_2=r["tender_id_2"],
+                        institution_1=r["institution_1"],
+                        institution_2=r["institution_2"],
+                        winner_1=r["winner_1"],
+                        winner_2=r["winner_2"],
+                        similarity=round(float(r["similarity_score"]), 4),
+                        common_winner=r["same_winner"] or False,
+                        title_1=r["title_1"],
+                        title_2=r["title_2"],
+                    )
+                    for r in cached
+                ]
+                return CrossInstitutionClonesResponse(
+                    clones=clones,
+                    total=len(clones),
+                )
+        except Exception:
+            pass
+
+        # Live computation
+        from ai.corruption.nlp.spec_similarity import SpecSimilarityAnalyzer
+        analyzer = SpecSimilarityAnalyzer()
+        results = await analyzer.find_cross_institution_clones(
+            pool, min_similarity=min_similarity, limit=limit
+        )
+
+        clones = [CrossInstitutionClone(**r) for r in results]
+
+        return CrossInstitutionClonesResponse(
+            clones=clones,
+            total=len(clones),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error finding cross-institution clones: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to find specification clones: {str(e)}"
+        )
+
+
+@router.get(
+    "/spec-reuse-stats",
+    response_model=SpecReuseStatsResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_spec_reuse_stats(
+    limit: int = Query(20, ge=1, le=100, description="Maximum institutions"),
+    min_reuse_rate: float = Query(0.0, ge=0.0, le=1.0, description="Minimum reuse rate"),
+):
+    """
+    Get specification reuse statistics by institution.
+
+    High specification reuse rate combined with a dominant winner is a strong
+    indicator of procurement rigging. This endpoint returns institutions ranked
+    by their specification reuse rate.
+
+    Query Parameters:
+    - limit: Maximum number of institutions (default 20, max 100)
+    - min_reuse_rate: Minimum reuse rate filter (0-1, default 0)
+
+    Returns list of institutions with reuse metrics.
+    """
+    pool = await get_asyncpg_pool()
+    try:
+        # Try cached results
+        try:
+            rows = await pool.fetch(
+                """
+                SELECT institution, total_specs, unique_specs,
+                       reuse_rate, top_winner, top_winner_pct
+                FROM institution_spec_reuse
+                WHERE reuse_rate >= $1
+                ORDER BY reuse_rate DESC, total_specs DESC
+                LIMIT $2
+                """,
+                min_reuse_rate,
+                limit,
+            )
+
+            if rows:
+                institutions = [
+                    InstitutionSpecReuse(
+                        institution=r["institution"],
+                        total_specs=r["total_specs"],
+                        unique_specs=r["unique_specs"],
+                        reuse_rate=round(float(r["reuse_rate"]), 4),
+                        top_winner=r["top_winner"],
+                        top_winner_pct=round(float(r["top_winner_pct"]), 2),
+                    )
+                    for r in rows
+                ]
+                return SpecReuseStatsResponse(
+                    institutions=institutions,
+                    total=len(institutions),
+                )
+        except Exception:
+            pass
+
+        # No cached data available
+        return SpecReuseStatsResponse(
+            institutions=[],
+            total=0,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching spec reuse stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch specification reuse stats: {str(e)}"
+        )
+
+
+@router.get(
+    "/spec-similarity/copy-paste/{tender_id_1:path}",
+    response_model=CopyPasteResult,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def analyze_copy_paste(
+    tender_id_1: str,
+    tender_id_2: str = Query(..., description="Second tender ID to compare"),
+):
+    """
+    Detailed copy-paste analysis between two tender specifications.
+
+    Uses text diffing (SequenceMatcher) to identify copied sections between
+    two tender documents. Returns the overall similarity ratio, the fraction
+    of text that was copied, and the specific copied sections.
+
+    Path Parameters:
+    - tender_id_1: First tender ID
+
+    Query Parameters:
+    - tender_id_2: Second tender ID to compare against
+
+    Returns detailed copy-paste analysis with copied sections.
+    """
+    pool = await get_asyncpg_pool()
+    try:
+        from ai.corruption.nlp.spec_similarity import SpecSimilarityAnalyzer
+        analyzer = SpecSimilarityAnalyzer()
+
+        # Get document texts for both tenders
+        text1 = await analyzer.get_tender_document_text(pool, tender_id_1)
+        text2 = await analyzer.get_tender_document_text(pool, tender_id_2)
+
+        if not text1:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No extracted documents found for tender {tender_id_1}"
+            )
+        if not text2:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No extracted documents found for tender {tender_id_2}"
+            )
+
+        # Run copy-paste analysis
+        result = await analyzer.detect_copy_paste(text1, text2)
+
+        return CopyPasteResult(
+            tender_id_1=tender_id_1,
+            tender_id_2=tender_id_2,
+            similarity_ratio=result["similarity_ratio"],
+            copied_fraction=result["copied_fraction"],
+            is_suspicious=result["is_suspicious"],
+            copied_sections=result["copied_sections"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in copy-paste analysis: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze copy-paste: {str(e)}"
+        )
+
+
+# ============================================================================
+# DOCUMENT ANOMALY DETECTION SCHEMAS
+# ============================================================================
+
+class DocAnomaly(BaseModel):
+    """Individual document anomaly."""
+    anomaly_id: Optional[int] = None
+    anomaly_type: str
+    severity: str
+    description: str
+    evidence: Optional[Dict[str, Any]] = None
+
+
+class DocAnomalyAnalysis(BaseModel):
+    """Full document anomaly analysis for a tender."""
+    tender_id: str
+    total_documents: int
+    anomalies: List[DocAnomaly]
+    completeness_score: float
+    timing_anomaly_score: float
+    anomaly_count: int
+    overall_risk_contribution: float
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+class DocAnomalyStatsResponse(BaseModel):
+    """Aggregate document anomaly statistics."""
+    total_anomalies: int
+    total_tenders_analyzed: int
+    by_type: Dict[str, int]
+    by_severity: Dict[str, int]
+    avg_completeness_score: float
+    avg_risk_contribution: float
+    tenders_with_critical_anomalies: int
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+class DocCompletenessItem(BaseModel):
+    """Tender document completeness entry."""
+    tender_id: str
+    title: Optional[str] = None
+    procuring_entity: Optional[str] = None
+    total_documents: int
+    expected_documents: int
+    completeness_score: float
+    anomaly_count: int
+    timing_anomaly_score: float
+    overall_risk_contribution: float
+    computed_at: Optional[datetime] = None
+
+
+class WorstDocCompletenessResponse(BaseModel):
+    """Response for worst document completeness tenders."""
+    total: int
+    tenders: List[DocCompletenessItem]
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+# ============================================================================
+# DOCUMENT ANOMALY DETECTION ENDPOINTS
+# ============================================================================
+
+@router.get(
+    "/doc-anomalies/stats",
+    response_model=DocAnomalyStatsResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_doc_anomaly_stats():
+    """
+    Get aggregate document anomaly statistics.
+
+    Returns:
+    - Total anomalies detected across all tenders
+    - Breakdown by anomaly type and severity
+    - Average completeness and risk scores
+    - Count of tenders with critical anomalies
+
+    Data is sourced from the document_anomalies and tender_doc_completeness tables,
+    populated by the batch_doc_anomaly.py cron job.
+    """
+    conn = await get_db_connection()
+    try:
+        # Total anomalies and breakdowns
+        total_anomalies = await conn.fetchval(
+            "SELECT COUNT(*) FROM document_anomalies"
+        ) or 0
+
+        total_tenders = await conn.fetchval(
+            "SELECT COUNT(*) FROM tender_doc_completeness"
+        ) or 0
+
+        # By type
+        type_rows = await conn.fetch("""
+            SELECT anomaly_type, COUNT(*) as cnt
+            FROM document_anomalies
+            GROUP BY anomaly_type
+            ORDER BY cnt DESC
+        """)
+        by_type = {r['anomaly_type']: r['cnt'] for r in type_rows}
+
+        # By severity
+        sev_rows = await conn.fetch("""
+            SELECT severity, COUNT(*) as cnt
+            FROM document_anomalies
+            GROUP BY severity
+            ORDER BY cnt DESC
+        """)
+        by_severity = {r['severity']: r['cnt'] for r in sev_rows}
+
+        # Average scores from tender_doc_completeness
+        avg_row = await conn.fetchrow("""
+            SELECT
+                COALESCE(ROUND(AVG(completeness_score)::numeric, 3), 0) AS avg_completeness,
+                COALESCE(ROUND(AVG(overall_risk_contribution)::numeric, 2), 0) AS avg_risk
+            FROM tender_doc_completeness
+        """)
+
+        avg_completeness = float(avg_row['avg_completeness']) if avg_row else 0.0
+        avg_risk = float(avg_row['avg_risk']) if avg_row else 0.0
+
+        # Tenders with critical anomalies
+        critical_count = await conn.fetchval("""
+            SELECT COUNT(DISTINCT tender_id)
+            FROM document_anomalies
+            WHERE severity = 'critical'
+        """) or 0
+
+        return DocAnomalyStatsResponse(
+            total_anomalies=total_anomalies,
+            total_tenders_analyzed=total_tenders,
+            by_type=by_type,
+            by_severity=by_severity,
+            avg_completeness_score=avg_completeness,
+            avg_risk_contribution=avg_risk,
+            tenders_with_critical_anomalies=critical_count,
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching doc anomaly stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch document anomaly statistics: {str(e)}"
+        )
+    finally:
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
+
+
+@router.get(
+    "/doc-completeness/worst",
+    response_model=WorstDocCompletenessResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_worst_doc_completeness(
+    limit: int = Query(20, ge=1, le=100, description="Number of results"),
+    min_risk: float = Query(0, ge=0, le=100, description="Minimum risk contribution"),
+):
+    """
+    Get tenders with worst document completeness scores.
+
+    Returns tenders ordered by overall risk contribution (descending),
+    with the worst document health at the top. Useful for identifying
+    tenders that may need document review.
+
+    Query Parameters:
+    - limit: Maximum number of results (default 20, max 100)
+    - min_risk: Minimum overall risk contribution filter (0-100, default 0)
+    """
+    conn = await get_db_connection()
+    try:
+        rows = await conn.fetch("""
+            SELECT
+                dc.tender_id,
+                t.title,
+                t.procuring_entity,
+                dc.total_documents,
+                dc.expected_documents,
+                dc.completeness_score,
+                dc.anomaly_count,
+                dc.timing_anomaly_score,
+                dc.overall_risk_contribution,
+                dc.computed_at
+            FROM tender_doc_completeness dc
+            JOIN tenders t ON dc.tender_id = t.tender_id
+            WHERE dc.overall_risk_contribution >= $1
+            ORDER BY dc.overall_risk_contribution DESC, dc.completeness_score ASC
+            LIMIT $2
+        """, min_risk, limit)
+
+        tenders = [
+            DocCompletenessItem(
+                tender_id=r['tender_id'],
+                title=r['title'],
+                procuring_entity=r['procuring_entity'],
+                total_documents=r['total_documents'] or 0,
+                expected_documents=r['expected_documents'] or 0,
+                completeness_score=float(r['completeness_score'] or 0),
+                anomaly_count=r['anomaly_count'] or 0,
+                timing_anomaly_score=float(r['timing_anomaly_score'] or 0),
+                overall_risk_contribution=float(r['overall_risk_contribution'] or 0),
+                computed_at=r['computed_at'],
+            )
+            for r in rows
+        ]
+
+        return WorstDocCompletenessResponse(
+            total=len(tenders),
+            tenders=tenders,
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching worst doc completeness: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch document completeness data: {str(e)}"
+        )
+    finally:
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
+
+
+@router.get(
+    "/doc-anomalies/{tender_id:path}",
+    response_model=DocAnomalyAnalysis,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_document_anomalies(tender_id: str):
+    """
+    Get document anomaly analysis for a specific tender.
+
+    Returns all detected document anomalies including missing documents,
+    timing anomalies, file size issues, and content problems.
+
+    If the tender has been analyzed by the batch processor, returns cached
+    results. Otherwise, runs live analysis (slower but always available).
+
+    Path Parameters:
+    - tender_id: The tender ID to analyze
+    """
+    conn = await get_db_connection()
+    try:
+        # Verify tender exists
+        tender_exists = await conn.fetchval(
+            "SELECT 1 FROM tenders WHERE tender_id = $1", tender_id
+        )
+        if not tender_exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tender {tender_id} not found"
+            )
+
+        # Try cached results first
+        cached_anomalies = None
+        cached_completeness = None
+        try:
+            cached_anomalies = await conn.fetch("""
+                SELECT anomaly_id, anomaly_type, severity, description, evidence
+                FROM document_anomalies
+                WHERE tender_id = $1
+                ORDER BY
+                    CASE severity
+                        WHEN 'critical' THEN 1
+                        WHEN 'high' THEN 2
+                        WHEN 'medium' THEN 3
+                        WHEN 'low' THEN 4
+                    END,
+                    detected_at DESC
+            """, tender_id)
+
+            cached_completeness = await conn.fetchrow("""
+                SELECT total_documents, completeness_score, anomaly_count,
+                       timing_anomaly_score, overall_risk_contribution
+                FROM tender_doc_completeness
+                WHERE tender_id = $1
+            """, tender_id)
+        except Exception:
+            # Tables may not exist yet
+            pass
+
+        if cached_completeness is not None:
+            # Return cached results
+            anomalies = []
+            for r in (cached_anomalies or []):
+                evidence_raw = r['evidence']
+                if isinstance(evidence_raw, str):
+                    import json
+                    evidence = json.loads(evidence_raw) if evidence_raw else {}
+                elif isinstance(evidence_raw, dict):
+                    evidence = evidence_raw
+                else:
+                    evidence = {}
+
+                anomalies.append(DocAnomaly(
+                    anomaly_id=r['anomaly_id'],
+                    anomaly_type=r['anomaly_type'],
+                    severity=r['severity'],
+                    description=r['description'],
+                    evidence=evidence,
+                ))
+
+            return DocAnomalyAnalysis(
+                tender_id=tender_id,
+                total_documents=cached_completeness['total_documents'] or 0,
+                anomalies=anomalies,
+                completeness_score=float(cached_completeness['completeness_score'] or 0),
+                timing_anomaly_score=float(cached_completeness['timing_anomaly_score'] or 0),
+                anomaly_count=cached_completeness['anomaly_count'] or 0,
+                overall_risk_contribution=float(cached_completeness['overall_risk_contribution'] or 0),
+            )
+
+        # No cached results -- run live analysis
+        pool = await get_asyncpg_pool()
+        try:
+            from ai.corruption.nlp.doc_anomaly import DocumentAnomalyDetector
+            detector = DocumentAnomalyDetector()
+            result = await detector.analyze_tender_documents(pool, tender_id)
+
+            anomalies = [
+                DocAnomaly(
+                    anomaly_type=a.get('type', 'unknown'),
+                    severity=a.get('severity', 'medium'),
+                    description=a.get('description', ''),
+                    evidence=a.get('evidence'),
+                )
+                for a in result.get('anomalies', [])
+            ]
+
+            return DocAnomalyAnalysis(
+                tender_id=tender_id,
+                total_documents=result.get('total_documents', 0),
+                anomalies=anomalies,
+                completeness_score=result.get('completeness_score', 0),
+                timing_anomaly_score=result.get('timing_anomaly_score', 0),
+                anomaly_count=result.get('anomaly_count', 0),
+                overall_risk_contribution=result.get('overall_risk_contribution', 0),
+            )
+        except ImportError:
+            # AI module not available, return empty result
+            logger.warning("DocumentAnomalyDetector not available, returning empty result")
+            total_docs = await conn.fetchval(
+                "SELECT COUNT(*) FROM documents WHERE tender_id = $1", tender_id
+            ) or 0
+
+            return DocAnomalyAnalysis(
+                tender_id=tender_id,
+                total_documents=total_docs,
+                anomalies=[],
+                completeness_score=1.0,
+                timing_anomaly_score=0.0,
+                anomaly_count=0,
+                overall_risk_contribution=0.0,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching doc anomalies for {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch document anomalies: {str(e)}"
+        )
+    finally:
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
+
+
+# ============================================================================
+# SPECIFICATION RIGGING ANALYSIS SCHEMAS (Phase 2.1)
+# ============================================================================
+
+class BrandNameDetail(BaseModel):
+    """A detected brand name in a specification."""
+    brand: str
+    context: str
+    confidence: float
+
+
+class QualificationDetail(BaseModel):
+    """An extracted qualification requirement."""
+    type: str
+    value: str
+    is_excessive: bool = False
+
+
+class SpecAnalysisResult(BaseModel):
+    """Specification rigging analysis result for a single tender."""
+    tender_id: str
+    doc_id: Optional[str] = None
+    brand_names_detected: List[BrandNameDetail] = []
+    brand_exclusivity_score: float = 0.0
+    qualification_requirements: List[QualificationDetail] = []
+    qualification_restrictiveness: float = 0.0
+    complexity_score: Optional[float] = None
+    vocabulary_richness: Optional[float] = None
+    rigging_probability: Optional[float] = None
+    risk_factors: List[str] = []
+    analyzed_at: Optional[datetime] = None
+    disclaimer: str = (
+        "Оваа анализа е само за информативни цели и не претставува доказ за корупција. "
+        "Потребна е дополнителна истрага."
+    )
+
+
+class SpecAnalysisStatsResponse(BaseModel):
+    """Aggregate specification analysis statistics."""
+    total_analyzed: int = 0
+    avg_rigging_probability: float = 0.0
+    high_risk_count: int = 0
+    total_brands_detected: int = 0
+    top_brand_offenders: List[Dict[str, Any]] = []
+    excessive_qualifications_count: int = 0
+    disclaimer: str = (
+        "Оваа анализа е само за информативни цели и не претставува доказ за корупција. "
+        "Потребна е дополнителна истрага."
+    )
+
+
+# ============================================================================
+# SPECIFICATION RIGGING ANALYSIS ENDPOINTS (Phase 2.1)
+# ============================================================================
+
+
+@router.get(
+    "/spec-analysis/stats",
+    response_model=SpecAnalysisStatsResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_spec_analysis_stats():
+    """
+    Get aggregate specification analysis statistics.
+
+    Returns total analyzed documents, average rigging score,
+    count of high-risk tenders, top brand-name offenders, etc.
+    """
+    import json
+    pool = await get_asyncpg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'specification_analysis'
+                )
+            """)
+
+            if not table_exists:
+                return SpecAnalysisStatsResponse(
+                    total_analyzed=0,
+                    avg_rigging_probability=0.0,
+                    high_risk_count=0,
+                    total_brands_detected=0,
+                    top_brand_offenders=[],
+                    excessive_qualifications_count=0,
+                )
+
+            # Aggregate stats
+            row = await conn.fetchrow("""
+                SELECT
+                    COUNT(*) AS total_analyzed,
+                    COALESCE(AVG(rigging_probability), 0) AS avg_rigging,
+                    COUNT(*) FILTER (WHERE rigging_probability > 0.5) AS high_risk,
+                    COALESCE(SUM(jsonb_array_length(brand_names)), 0) AS total_brands,
+                    COALESCE(
+                        SUM(
+                            (SELECT COUNT(*) FROM jsonb_array_elements(qualification_requirements) q
+                             WHERE (q.value->>'is_excessive')::boolean = true)
+                        ), 0
+                    ) AS excessive_quals
+                FROM specification_analysis
+            """)
+
+            total_analyzed = row['total_analyzed'] if row else 0
+            avg_rigging = float(row['avg_rigging']) if row else 0.0
+            high_risk = row['high_risk'] if row else 0
+            total_brands = row['total_brands'] if row else 0
+            excessive_quals = row['excessive_quals'] if row else 0
+
+            # Top brand offenders (tenders with highest brand exclusivity)
+            top_offenders_rows = await conn.fetch("""
+                SELECT
+                    sa.tender_id,
+                    sa.brand_exclusivity_score,
+                    sa.rigging_probability,
+                    sa.brand_names,
+                    t.title,
+                    t.procuring_entity
+                FROM specification_analysis sa
+                LEFT JOIN tenders t ON sa.tender_id = t.tender_id
+                WHERE sa.brand_exclusivity_score > 0.3
+                ORDER BY sa.brand_exclusivity_score DESC
+                LIMIT 10
+            """)
+
+            top_brand_offenders = []
+            for r in top_offenders_rows:
+                brands = r['brand_names']
+                if isinstance(brands, str):
+                    brands = json.loads(brands) if brands else []
+                elif brands is None:
+                    brands = []
+
+                brand_list = [b.get('brand', '') for b in brands[:5]] if brands else []
+
+                top_brand_offenders.append({
+                    'tender_id': r['tender_id'],
+                    'brand_exclusivity_score': round(float(r['brand_exclusivity_score']), 3),
+                    'rigging_probability': round(float(r['rigging_probability']), 3) if r['rigging_probability'] else 0.0,
+                    'brands': brand_list,
+                    'title': r['title'],
+                    'procuring_entity': r['procuring_entity'],
+                })
+
+            return SpecAnalysisStatsResponse(
+                total_analyzed=total_analyzed,
+                avg_rigging_probability=round(avg_rigging, 3),
+                high_risk_count=high_risk,
+                total_brands_detected=total_brands,
+                top_brand_offenders=top_brand_offenders,
+                excessive_qualifications_count=excessive_quals,
+            )
+
+    except Exception as e:
+        logger.error(f"Error fetching spec analysis stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get spec analysis statistics: {str(e)}"
+        )
+
+
+@router.get(
+    "/spec-analysis/{tender_id:path}",
+    response_model=SpecAnalysisResult,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_spec_analysis(tender_id: str):
+    """
+    Get specification rigging analysis for a tender.
+
+    Checks the specification_analysis table for cached results first.
+    If no cached results exist, runs on-the-fly analysis on the
+    tender's extracted documents.
+    """
+    import json
+    pool = await get_asyncpg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'specification_analysis'
+                )
+            """)
+
+            cached_row = None
+            if table_exists:
+                # Check for cached results
+                cached_row = await conn.fetchrow("""
+                    SELECT
+                        sa.tender_id,
+                        sa.doc_id::text AS doc_id,
+                        sa.brand_names,
+                        sa.brand_exclusivity_score,
+                        sa.qualification_requirements,
+                        sa.qualification_restrictiveness,
+                        sa.complexity_score,
+                        sa.vocabulary_richness,
+                        sa.rigging_probability,
+                        sa.risk_factors,
+                        sa.analyzed_at
+                    FROM specification_analysis sa
+                    WHERE sa.tender_id = $1
+                    ORDER BY sa.rigging_probability DESC NULLS LAST
+                    LIMIT 1
+                """, tender_id)
+
+            if cached_row:
+                # Parse JSONB fields
+                brand_names_raw = cached_row['brand_names']
+                if isinstance(brand_names_raw, str):
+                    brand_names_raw = json.loads(brand_names_raw) if brand_names_raw else []
+                elif brand_names_raw is None:
+                    brand_names_raw = []
+
+                qual_raw = cached_row['qualification_requirements']
+                if isinstance(qual_raw, str):
+                    qual_raw = json.loads(qual_raw) if qual_raw else []
+                elif qual_raw is None:
+                    qual_raw = []
+
+                risk_factors_raw = cached_row['risk_factors']
+                if isinstance(risk_factors_raw, str):
+                    risk_factors_raw = json.loads(risk_factors_raw) if risk_factors_raw else []
+                elif risk_factors_raw is None:
+                    risk_factors_raw = []
+
+                return SpecAnalysisResult(
+                    tender_id=cached_row['tender_id'],
+                    doc_id=cached_row['doc_id'],
+                    brand_names_detected=[
+                        BrandNameDetail(**b) for b in brand_names_raw
+                    ],
+                    brand_exclusivity_score=float(cached_row['brand_exclusivity_score'] or 0),
+                    qualification_requirements=[
+                        QualificationDetail(**q) for q in qual_raw
+                    ],
+                    qualification_restrictiveness=float(cached_row['qualification_restrictiveness'] or 0),
+                    complexity_score=float(cached_row['complexity_score']) if cached_row['complexity_score'] is not None else None,
+                    vocabulary_richness=float(cached_row['vocabulary_richness']) if cached_row['vocabulary_richness'] is not None else None,
+                    rigging_probability=float(cached_row['rigging_probability']) if cached_row['rigging_probability'] is not None else None,
+                    risk_factors=risk_factors_raw,
+                    analyzed_at=cached_row['analyzed_at'],
+                )
+
+            # No cached result - attempt on-the-fly analysis
+            doc_row = await conn.fetchrow("""
+                SELECT doc_id, content_text
+                FROM documents
+                WHERE tender_id = $1
+                  AND extraction_status = 'success'
+                  AND content_text IS NOT NULL
+                  AND LENGTH(content_text) > 100
+                ORDER BY LENGTH(content_text) DESC
+                LIMIT 1
+            """, tender_id)
+
+            if not doc_row or not doc_row['content_text']:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Не се пронајдени анализирани документи за тендер {tender_id}"
+                )
+
+            # Lazy import to avoid loading the analyzer at module level
+            import sys as _sys
+            import os as _os
+            _ai_path = _os.path.join(
+                _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+                'ai', 'corruption', 'nlp'
+            )
+            if _ai_path not in _sys.path:
+                _sys.path.insert(0, _ai_path)
+            _ai_root = _os.path.join(
+                _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+                'ai'
+            )
+            if _ai_root not in _sys.path:
+                _sys.path.insert(0, _ai_root)
+
+            from spec_analyzer import SpecificationAnalyzer
+
+            analyzer = SpecificationAnalyzer(use_gemini_fallback=False)
+            result = await analyzer.analyze_specification(
+                content_text=doc_row['content_text'],
+                tender_id=tender_id,
+            )
+
+            # Cache the result if the table exists
+            if table_exists:
+                try:
+                    await conn.execute("""
+                        INSERT INTO specification_analysis (
+                            tender_id, doc_id, brand_names, brand_exclusivity_score,
+                            qualification_requirements, qualification_restrictiveness,
+                            complexity_score, vocabulary_richness, rigging_probability,
+                            risk_factors, analyzed_at
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+                        ON CONFLICT (tender_id, doc_id) DO UPDATE SET
+                            brand_names = EXCLUDED.brand_names,
+                            brand_exclusivity_score = EXCLUDED.brand_exclusivity_score,
+                            qualification_requirements = EXCLUDED.qualification_requirements,
+                            qualification_restrictiveness = EXCLUDED.qualification_restrictiveness,
+                            complexity_score = EXCLUDED.complexity_score,
+                            vocabulary_richness = EXCLUDED.vocabulary_richness,
+                            rigging_probability = EXCLUDED.rigging_probability,
+                            risk_factors = EXCLUDED.risk_factors,
+                            analyzed_at = NOW()
+                    """,
+                        tender_id,
+                        doc_row['doc_id'],
+                        json.dumps(result['brand_names_detected']),
+                        result['brand_exclusivity_score'],
+                        json.dumps(result['qualification_requirements']),
+                        result['qualification_restrictiveness'],
+                        result['complexity_score'],
+                        result['vocabulary_richness'],
+                        result['rigging_probability'],
+                        json.dumps(result['risk_factors']),
+                    )
+                except Exception as cache_err:
+                    logger.warning(f"Failed to cache spec analysis for {tender_id}: {cache_err}")
+
+            return SpecAnalysisResult(
+                tender_id=tender_id,
+                doc_id=str(doc_row['doc_id']),
+                brand_names_detected=[
+                    BrandNameDetail(**b) for b in result['brand_names_detected']
+                ],
+                brand_exclusivity_score=result['brand_exclusivity_score'],
+                qualification_requirements=[
+                    QualificationDetail(**q) for q in result['qualification_requirements']
+                ],
+                qualification_restrictiveness=result['qualification_restrictiveness'],
+                complexity_score=result['complexity_score'],
+                vocabulary_richness=result['vocabulary_richness'],
+                rigging_probability=result['rigging_probability'],
+                risk_factors=result['risk_factors'],
+                analyzed_at=datetime.utcnow(),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in spec analysis for {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze specification: {str(e)}"
+        )
