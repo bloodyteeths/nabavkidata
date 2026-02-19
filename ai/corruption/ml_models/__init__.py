@@ -329,6 +329,46 @@ except ImportError as e:
     CorruptionPredictor = None
     PredictionResult = None
 
+# Causal Inference (Phase 3.2)
+try:
+    from ai.corruption.ml_models.causal_analyzer import CausalAnalyzer
+    _CAUSAL_ANALYZER_AVAILABLE = True
+except ImportError as e:
+    _CAUSAL_ANALYZER_AVAILABLE = False
+    CausalAnalyzer = None
+
+# AutoML Pipeline (Phase 3.4)
+try:
+    from ai.corruption.ml_models.automl import AutoMLPipeline
+    _AUTOML_AVAILABLE = True
+except ImportError as e:
+    _AUTOML_AVAILABLE = False
+    AutoMLPipeline = None
+
+# Model Registry (Phase 3.4)
+try:
+    from ai.corruption.ml_models.model_registry import ModelRegistry
+    _MODEL_REGISTRY_AVAILABLE = True
+except ImportError as e:
+    _MODEL_REGISTRY_AVAILABLE = False
+    ModelRegistry = None
+
+# Adversarial Robustness (Phase 3.3)
+try:
+    from ai.corruption.ml_models.adversarial import AdversarialAnalyzer
+    _ADVERSARIAL_AVAILABLE = True
+except ImportError as e:
+    _ADVERSARIAL_AVAILABLE = False
+    AdversarialAnalyzer = None
+
+# Adversarial Training (Phase 3.3)
+try:
+    from ai.corruption.ml_models.adversarial_training import AdversarialTrainer
+    _ADVERSARIAL_TRAINING_AVAILABLE = True
+except ImportError as e:
+    _ADVERSARIAL_TRAINING_AVAILABLE = False
+    AdversarialTrainer = None
+
 
 def check_dependencies() -> dict:
     """
@@ -352,6 +392,11 @@ def check_dependencies() -> dict:
         'mlflow_config': _MLFLOW_CONFIG_AVAILABLE,
         'train_pipeline': _TRAIN_PIPELINE_AVAILABLE,
         'predict_pipeline': _PREDICT_PIPELINE_AVAILABLE,
+        'causal_analyzer': _CAUSAL_ANALYZER_AVAILABLE,
+        'automl': _AUTOML_AVAILABLE,
+        'model_registry': _MODEL_REGISTRY_AVAILABLE,
+        'adversarial': _ADVERSARIAL_AVAILABLE,
+        'adversarial_training': _ADVERSARIAL_TRAINING_AVAILABLE,
         'pytorch': False,
         'pytorch_geometric': False,
         'sklearn': False,
@@ -395,6 +440,12 @@ def check_dependencies() -> dict:
         status['mlflow'] = True
     except ImportError:
         pass
+
+    try:
+        import optuna
+        status['optuna'] = True
+    except ImportError:
+        status['optuna'] = False
 
     return status
 
@@ -498,6 +549,15 @@ __all__ = [
     # Prediction Pipeline
     'CorruptionPredictor',
     'PredictionResult',
+    # Causal Inference (Phase 3.2)
+    'CausalAnalyzer',
+    # AutoML Pipeline (Phase 3.4)
+    'AutoMLPipeline',
+    # Model Registry (Phase 3.4)
+    'ModelRegistry',
+    # Adversarial Robustness (Phase 3.3)
+    'AdversarialAnalyzer',
+    'AdversarialTrainer',
     # Utilities
     'check_dependencies'
 ]

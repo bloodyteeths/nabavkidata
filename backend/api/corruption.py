@@ -3529,3 +3529,1883 @@ async def get_spec_analysis(tender_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to analyze specification: {str(e)}"
         )
+
+
+# ============================================================================
+# CAUSAL INFERENCE ENDPOINTS (Phase 3.2)
+# ============================================================================
+
+class CausalEffectDetail(BaseModel):
+    """Single causal effect estimate for a procurement design choice"""
+    treatment: str
+    treatment_description: str
+    ate: float  # Average Treatment Effect
+    ci_lower: float
+    ci_upper: float
+    p_value: float
+    n_treated: int
+    n_control: int
+    n_matched: int
+    interpretation: str
+    recommendation: str
+
+    class Config:
+        from_attributes = True
+
+
+class CausalEffectsResponse(BaseModel):
+    """Response containing all estimated causal effects"""
+    effects: List[CausalEffectDetail]
+    total: int
+    methodology: str = (
+        "Propensity score matching with bootstrap confidence intervals. "
+        "Controls for confounders: estimated_value_mkd, institution_total_tenders, "
+        "num_bidders, deadline_days, has_lots."
+    )
+    disclaimer: str = (
+        "Каузалните проценки се базирани на набљудувачки податоци и "
+        "пропенсити скор мечинг. Не претставуваат доказ за корупција."
+    )
+
+
+class PolicyRecommendationDetail(BaseModel):
+    """Single policy recommendation"""
+    recommendation: str
+    estimated_impact: float  # Percentage points change
+    confidence: str  # 'high', 'medium', 'low'
+    evidence: Optional[Dict[str, Any]] = None
+    treatment_name: Optional[str] = None
+    institution: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PolicyRecommendationsResponse(BaseModel):
+    """Response containing policy recommendations"""
+    recommendations: List[PolicyRecommendationDetail]
+    total: int
+    institution: Optional[str] = None
+    disclaimer: str = (
+        "Препораките се базирани на статистичка анализа и не претставуваат "
+        "правен совет. Потребна е дополнителна евалуација."
+    )
+
+
+class CausalFeatureComparison(BaseModel):
+    """Comparison of a single feature's SHAP vs causal importance"""
+    name: str
+    treatment_name: Optional[str] = None
+    shap_importance: float
+    causal_effect: float
+    p_value: float
+    is_confounder: bool
+    explanation: str
+
+
+class CausalReportResponse(BaseModel):
+    """Causal vs correlational feature importance report"""
+    features: List[CausalFeatureComparison]
+    n_shap_samples: int
+    n_treatments_analyzed: int
+    methodology_note: str
+    disclaimer: str = (
+        "Оваа анализа е само за информативни цели. Разликите меѓу "
+        "корелациони и каузални ефекти може да варираат со нови податоци."
+    )
+
+
+@router.get(
+    "/causal/effects",
+    response_model=CausalEffectsResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_causal_effects():
+    """
+    Get estimated causal effects of procurement design choices on corruption probability.
+
+    Returns ATE (Average Treatment Effect) for each treatment:
+    - short_deadline: Deadline < 15 days
+    - single_bidder: Only one bidder submitted
+    - high_value: Estimated value > 10M MKD
+    - weekend_publication: Published on weekend
+
+    Effects are pre-computed by the batch_causal.py cron job and cached in
+    the causal_estimates table. If no cached results exist, returns empty list.
+    """
+    import json as _json
+    pool = await get_asyncpg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'causal_estimates'
+                )
+            """)
+
+            if not table_exists:
+                return CausalEffectsResponse(effects=[], total=0)
+
+            rows = await conn.fetch("""
+                SELECT
+                    treatment_name, treatment_description,
+                    ate, ci_lower, ci_upper, p_value,
+                    n_treated, n_control, n_matched,
+                    interpretation, recommendation
+                FROM causal_estimates
+                ORDER BY ABS(ate) DESC
+            """)
+
+            effects = []
+            for r in rows:
+                effects.append(CausalEffectDetail(
+                    treatment=r['treatment_name'],
+                    treatment_description=r['treatment_description'] or '',
+                    ate=float(r['ate']),
+                    ci_lower=float(r['ci_lower'] or 0),
+                    ci_upper=float(r['ci_upper'] or 0),
+                    p_value=float(r['p_value'] or 1),
+                    n_treated=r['n_treated'] or 0,
+                    n_control=r['n_control'] or 0,
+                    n_matched=r['n_matched'] or 0,
+                    interpretation=r['interpretation'] or '',
+                    recommendation=r['recommendation'] or '',
+                ))
+
+            return CausalEffectsResponse(
+                effects=effects,
+                total=len(effects),
+            )
+
+    except Exception as e:
+        logger.error(f"Error fetching causal effects: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get causal effects: {str(e)}"
+        )
+
+
+@router.get(
+    "/causal/recommendations",
+    response_model=PolicyRecommendationsResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_policy_recommendations(
+    institution: Optional[str] = Query(
+        None,
+        description="Institution name to filter recommendations. If not provided, returns global recommendations."
+    ),
+):
+    """
+    Get actionable policy recommendations based on causal analysis.
+
+    Recommendations are derived from statistically significant causal effects
+    and include estimated impact (percentage point change in corruption probability)
+    and confidence level.
+
+    Optionally filter by institution for scoped recommendations.
+    """
+    import json as _json
+    pool = await get_asyncpg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'policy_recommendations'
+                )
+            """)
+
+            if not table_exists:
+                return PolicyRecommendationsResponse(
+                    recommendations=[], total=0, institution=institution
+                )
+
+            # Build query
+            if institution:
+                rows = await conn.fetch("""
+                    SELECT
+                        recommendation, estimated_impact, confidence,
+                        evidence, treatment_name, institution
+                    FROM policy_recommendations
+                    WHERE institution = $1
+                    ORDER BY
+                        CASE confidence
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            WHEN 'low' THEN 3
+                            ELSE 4
+                        END,
+                        ABS(estimated_impact) DESC
+                """, institution)
+            else:
+                rows = await conn.fetch("""
+                    SELECT
+                        recommendation, estimated_impact, confidence,
+                        evidence, treatment_name, institution
+                    FROM policy_recommendations
+                    WHERE institution IS NULL
+                    ORDER BY
+                        CASE confidence
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            WHEN 'low' THEN 3
+                            ELSE 4
+                        END,
+                        ABS(estimated_impact) DESC
+                """)
+
+            recommendations = []
+            for r in rows:
+                evidence = r['evidence']
+                if isinstance(evidence, str):
+                    evidence = _json.loads(evidence) if evidence else {}
+                elif evidence is None:
+                    evidence = {}
+
+                recommendations.append(PolicyRecommendationDetail(
+                    recommendation=r['recommendation'],
+                    estimated_impact=float(r['estimated_impact'] or 0),
+                    confidence=r['confidence'] or 'low',
+                    evidence=evidence,
+                    treatment_name=r['treatment_name'],
+                    institution=r['institution'],
+                ))
+
+            return PolicyRecommendationsResponse(
+                recommendations=recommendations,
+                total=len(recommendations),
+                institution=institution,
+            )
+
+    except Exception as e:
+        logger.error(f"Error fetching policy recommendations: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get policy recommendations: {str(e)}"
+        )
+
+
+@router.get(
+    "/causal/report",
+    response_model=CausalReportResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_causal_report():
+    """
+    Get causal vs correlational feature importance comparison report.
+
+    Compares SHAP-based (correlational) feature importance with propensity
+    score matching-based (causal) importance. Identifies confounders
+    (features that correlate with corruption but do not cause it) vs
+    true causal factors (features that, when changed, actually affect
+    corruption probability).
+    """
+    import json as _json
+    pool = await get_asyncpg_pool()
+
+    try:
+        # Read causal estimates
+        causal_data = {}
+        async with pool.acquire() as conn:
+            ce_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'causal_estimates'
+                )
+            """)
+
+            if ce_exists:
+                rows = await conn.fetch("""
+                    SELECT treatment_name, ate, p_value, n_matched
+                    FROM causal_estimates
+                """)
+                for r in rows:
+                    causal_data[r['treatment_name']] = {
+                        'ate': float(r['ate']),
+                        'p_value': float(r['p_value'] or 1),
+                        'n_matched': int(r['n_matched'] or 0),
+                    }
+
+        # Read SHAP importances
+        shap_importances = {}
+        async with pool.acquire() as conn:
+            shap_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'ml_shap_cache'
+                )
+            """)
+
+            if shap_exists:
+                rows = await conn.fetch("""
+                    SELECT shap_values
+                    FROM ml_shap_cache
+                    ORDER BY computed_at DESC
+                    LIMIT 500
+                """)
+
+                if rows:
+                    all_shap = {}
+                    count = 0
+                    for r in rows:
+                        sv = r['shap_values']
+                        if isinstance(sv, str):
+                            sv = _json.loads(sv) if sv else {}
+                        elif sv is None:
+                            sv = {}
+                        for feat, val in sv.items():
+                            if feat not in all_shap:
+                                all_shap[feat] = 0.0
+                            all_shap[feat] += abs(float(val))
+                        count += 1
+
+                    if count > 0:
+                        shap_importances = {
+                            k: round(v / count, 6) for k, v in all_shap.items()
+                        }
+
+        # Map treatments to features
+        treatment_to_feature = {
+            'short_deadline': 'deadline_days',
+            'single_bidder': 'num_bidders',
+            'high_value': 'estimated_value_mkd',
+            'weekend_publication': 'pub_weekend',
+        }
+
+        # Build comparison
+        import numpy as _np
+        features_report = []
+
+        shap_values_list = list(shap_importances.values()) if shap_importances else [0]
+        median_shap = float(_np.percentile(shap_values_list, 50)) if shap_values_list else 0.0
+
+        for treatment_name, feature_name in treatment_to_feature.items():
+            causal = causal_data.get(treatment_name, {})
+            shap_imp = shap_importances.get(feature_name, 0.0)
+            ate = causal.get('ate', 0.0)
+            p_value = causal.get('p_value', 1.0)
+
+            significant_causal = p_value < 0.05
+            high_shap = shap_imp > median_shap if shap_importances else False
+
+            if high_shap and not significant_causal:
+                is_confounder = True
+                explanation = (
+                    f"'{feature_name}' has high SHAP importance ({shap_imp:.4f}) "
+                    f"but NO significant causal effect (ATE={ate:.4f}, p={p_value:.3f}). "
+                    f"This suggests it is a CONFOUNDER."
+                )
+            elif significant_causal and high_shap:
+                is_confounder = False
+                explanation = (
+                    f"'{feature_name}' has both high SHAP importance ({shap_imp:.4f}) "
+                    f"AND significant causal effect (ATE={ate:.4f}, p={p_value:.3f}). "
+                    f"This is likely a TRUE CAUSE."
+                )
+            elif significant_causal and not high_shap:
+                is_confounder = False
+                explanation = (
+                    f"'{feature_name}' has significant causal effect (ATE={ate:.4f}, "
+                    f"p={p_value:.3f}) but low SHAP importance ({shap_imp:.4f}). "
+                    f"Causal effect may be masked by confounders in SHAP."
+                )
+            else:
+                is_confounder = False
+                explanation = (
+                    f"'{feature_name}' shows neither strong SHAP importance "
+                    f"({shap_imp:.4f}) nor significant causal effect "
+                    f"(ATE={ate:.4f}, p={p_value:.3f})."
+                )
+
+            features_report.append(CausalFeatureComparison(
+                name=feature_name,
+                treatment_name=treatment_name,
+                shap_importance=round(shap_imp, 6),
+                causal_effect=round(ate, 6),
+                p_value=round(p_value, 4),
+                is_confounder=is_confounder,
+                explanation=explanation,
+            ))
+
+        features_report.sort(key=lambda x: abs(x.causal_effect), reverse=True)
+
+        return CausalReportResponse(
+            features=features_report,
+            n_shap_samples=len(shap_importances),
+            n_treatments_analyzed=len(causal_data),
+            methodology_note=(
+                "SHAP values measure correlational feature importance: how much each "
+                "feature contributes to the model's prediction. Causal effects (ATE) "
+                "measure the actual impact of changing a feature on the outcome, "
+                "controlling for confounders via propensity score matching. "
+                "Features with high SHAP but no causal effect are likely confounders. "
+                "Features with significant causal effects are actionable targets for "
+                "policy intervention."
+            ),
+        )
+
+    except Exception as e:
+        logger.error(f"Error generating causal report: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate causal report: {str(e)}"
+        )
+
+
+# ============================================================================
+# AutoML & Model Registry Endpoints (Phase 3.4)
+# ============================================================================
+
+@router.get("/ml/models")
+async def get_model_registry():
+    """
+    Get registered model versions and their performance metrics.
+
+    Returns all registered models with their active version,
+    total version count, and best AUC-ROC score.
+    """
+    try:
+        from ai.corruption.ml_models.model_registry import ModelRegistry
+        pool = await get_asyncpg_pool()
+        registry = ModelRegistry()
+        models = await registry.list_all_models(pool)
+        return {
+            "models": models,
+            "total": len(models),
+        }
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"Model registry not available: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error fetching model registry: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch model registry: {str(e)}"
+        )
+
+
+@router.get("/ml/models/{model_name}/history")
+async def get_model_history(model_name: str, limit: int = Query(10, ge=1, le=100)):
+    """
+    Get training history for a specific model.
+
+    Path Parameters:
+    - model_name: 'xgboost' or 'random_forest'
+
+    Query Parameters:
+    - limit: max versions to return (default 10, max 100)
+    """
+    try:
+        from ai.corruption.ml_models.model_registry import ModelRegistry
+        pool = await get_asyncpg_pool()
+        registry = ModelRegistry()
+        history = await registry.get_model_history(pool, model_name, limit=limit)
+        return {
+            "model_name": model_name,
+            "versions": history,
+            "total": len(history),
+        }
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"Model registry not available: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error fetching model history for {model_name}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch model history: {str(e)}"
+        )
+
+
+@router.get("/ml/models/{model_name}/active")
+async def get_active_model(model_name: str):
+    """
+    Get the currently active model version and its full metadata.
+
+    Path Parameters:
+    - model_name: 'xgboost' or 'random_forest'
+    """
+    try:
+        from ai.corruption.ml_models.model_registry import ModelRegistry
+        pool = await get_asyncpg_pool()
+        registry = ModelRegistry()
+        active = await registry.get_active_model(pool, model_name)
+        if not active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No active model found for '{model_name}'"
+            )
+        return active
+    except HTTPException:
+        raise
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"Model registry not available: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error fetching active model {model_name}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch active model: {str(e)}"
+        )
+
+
+@router.get("/ml/models/{model_name}/compare")
+async def compare_model_versions(
+    model_name: str,
+    v1: str = Query(..., description="First version ID"),
+    v2: str = Query(..., description="Second version ID"),
+):
+    """
+    Compare metrics between two model versions side-by-side.
+
+    Query Parameters:
+    - v1: first version_id
+    - v2: second version_id
+    """
+    try:
+        from ai.corruption.ml_models.model_registry import ModelRegistry
+        pool = await get_asyncpg_pool()
+        registry = ModelRegistry()
+        comparison = await registry.compare_versions(pool, model_name, v1, v2)
+        return comparison
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"Model registry not available: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error comparing model versions: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to compare model versions: {str(e)}"
+        )
+
+
+@router.post("/ml/models/{model_name}/rollback", dependencies=[Depends(require_admin)])
+async def rollback_model(
+    model_name: str,
+    version_id: Optional[str] = Query(None, description="Target version to rollback to (default: previous)")
+):
+    """
+    Admin: Rollback to a previous model version.
+
+    If version_id is provided, activates that specific version.
+    Otherwise, activates the most recent non-active version.
+    Also restores the archived joblib file if available.
+
+    Path Parameters:
+    - model_name: 'xgboost' or 'random_forest'
+
+    Query Parameters:
+    - version_id: specific version to restore (optional)
+    """
+    try:
+        from ai.corruption.ml_models.model_registry import ModelRegistry
+        pool = await get_asyncpg_pool()
+        registry = ModelRegistry()
+        result = await registry.rollback(pool, model_name, version_id=version_id)
+        return {
+            "message": f"Rolled back {model_name} to {result['rolled_back_to']}",
+            **result,
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"Model registry not available: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error rolling back model {model_name}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to rollback model: {str(e)}"
+        )
+
+
+@router.get("/ml/drift")
+async def get_data_drift_status():
+    """
+    Get latest data drift analysis.
+
+    Returns the most recent drift check from the data_drift_log table,
+    including per-feature PSI values and overall drift assessment.
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT drift_id, feature_psi, overall_drift, drift_level,
+                       should_retrain, checked_at
+                FROM data_drift_log
+                ORDER BY checked_at DESC
+                LIMIT 1
+            """)
+
+        if not row:
+            return {
+                "message": "No drift analysis available. Run a drift check first.",
+                "drift_level": "unknown",
+                "should_retrain": False,
+            }
+
+        import json as _json
+        feature_psi = row['feature_psi']
+        if isinstance(feature_psi, str):
+            feature_psi = _json.loads(feature_psi)
+
+        # Sort features by PSI descending
+        sorted_features = sorted(
+            feature_psi.items(), key=lambda x: x[1], reverse=True
+        )
+
+        return {
+            "drift_id": row['drift_id'],
+            "overall_drift": float(row['overall_drift']) if row['overall_drift'] else 0.0,
+            "drift_level": row['drift_level'],
+            "should_retrain": row['should_retrain'],
+            "checked_at": row['checked_at'].isoformat() if row['checked_at'] else None,
+            "top_drifted_features": [
+                {"feature": name, "psi": round(psi, 4)}
+                for name, psi in sorted_features[:20]
+            ],
+            "total_features_checked": len(feature_psi),
+        }
+    except Exception as e:
+        logger.error(f"Error fetching drift status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch drift status: {str(e)}"
+        )
+
+
+@router.post("/ml/drift/check", dependencies=[Depends(require_admin)])
+async def run_drift_check(
+    background_tasks: BackgroundTasks,
+    window_days: int = Query(30, ge=7, le=365, description="Lookback window in days"),
+):
+    """
+    Admin: Trigger a fresh data drift analysis.
+
+    Runs asynchronously in the background. Check results with GET /ml/drift.
+
+    Query Parameters:
+    - window_days: comparison window (default 30)
+    """
+    async def _run_drift(window: int):
+        try:
+            from ai.corruption.ml_models.automl import AutoMLPipeline
+            pool = await get_asyncpg_pool()
+            pipeline = AutoMLPipeline()
+            await pipeline.check_data_drift(pool, window_days=window)
+        except Exception as exc:
+            logger.error(f"Background drift check failed: {exc}")
+
+    background_tasks.add_task(_run_drift, window_days)
+    return {
+        "message": f"Drift check started (window={window_days} days). Check GET /api/corruption/ml/drift for results.",
+        "status": "running",
+    }
+
+
+@router.post("/ml/optimize", dependencies=[Depends(require_admin)])
+async def trigger_optimization(
+    background_tasks: BackgroundTasks,
+    model_type: str = Query("xgboost", description="Model type to optimize"),
+    n_trials: int = Query(30, ge=5, le=100, description="Number of Optuna trials"),
+):
+    """
+    Admin: Trigger Bayesian hyperparameter optimization with Optuna.
+
+    Runs asynchronously in the background. Results are stored in the
+    optimization_runs table and can be queried via GET /ml/optimization-history.
+
+    Query Parameters:
+    - model_type: 'xgboost' or 'random_forest' (default 'xgboost')
+    - n_trials: number of Optuna trials (default 30, max 100)
+    """
+    if model_type not in ('xgboost', 'random_forest'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="model_type must be 'xgboost' or 'random_forest'"
+        )
+
+    async def _run_optimization(mtype: str, trials: int):
+        try:
+            from ai.corruption.ml_models.automl import AutoMLPipeline
+            pool = await get_asyncpg_pool()
+            pipeline = AutoMLPipeline()
+            await pipeline.optimize(pool, model_type=mtype, n_trials=trials, triggered_by='manual')
+        except Exception as exc:
+            logger.error(f"Background optimization failed: {exc}")
+
+    background_tasks.add_task(_run_optimization, model_type, n_trials)
+    return {
+        "message": f"Optimization started for {model_type} ({n_trials} trials). "
+                   f"Check GET /api/corruption/ml/optimization-history for results.",
+        "status": "running",
+        "model_type": model_type,
+        "n_trials": n_trials,
+    }
+
+
+@router.get("/ml/optimization-history")
+async def get_optimization_history(
+    model_name: Optional[str] = Query(None, description="Filter by model name"),
+    limit: int = Query(10, ge=1, le=50),
+):
+    """
+    Get history of Optuna optimization runs.
+
+    Query Parameters:
+    - model_name: filter by model type (optional)
+    - limit: max runs to return (default 10)
+    """
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            if model_name:
+                rows = await conn.fetch("""
+                    SELECT run_id, model_name, n_trials, best_params, best_score,
+                           duration_seconds, triggered_by, completed_at
+                    FROM optimization_runs
+                    WHERE model_name = $1
+                    ORDER BY completed_at DESC
+                    LIMIT $2
+                """, model_name, limit)
+            else:
+                rows = await conn.fetch("""
+                    SELECT run_id, model_name, n_trials, best_params, best_score,
+                           duration_seconds, triggered_by, completed_at
+                    FROM optimization_runs
+                    ORDER BY completed_at DESC
+                    LIMIT $1
+                """, limit)
+
+        import json as _json
+        results = []
+        for row in rows:
+            best_params = row['best_params']
+            if isinstance(best_params, str):
+                best_params = _json.loads(best_params)
+            results.append({
+                'run_id': row['run_id'],
+                'model_name': row['model_name'],
+                'n_trials': row['n_trials'],
+                'best_params': best_params,
+                'best_score': float(row['best_score']) if row['best_score'] else None,
+                'duration_seconds': float(row['duration_seconds']) if row['duration_seconds'] else None,
+                'triggered_by': row['triggered_by'],
+                'completed_at': row['completed_at'].isoformat() if row['completed_at'] else None,
+            })
+
+        return {
+            "runs": results,
+            "total": len(results),
+        }
+    except Exception as e:
+        logger.error(f"Error fetching optimization history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch optimization history: {str(e)}"
+        )
+
+
+@router.get("/ml/retrain-status")
+async def get_retrain_recommendation():
+    """
+    Check if model retraining is recommended.
+
+    Evaluates three criteria:
+    1. Data drift (PSI > 0.1 on key features)
+    2. New labeled data (50+ new reviews since last training)
+    3. Time since last training (> 30 days)
+
+    Returns recommendation with urgency level and reasons.
+    """
+    try:
+        from ai.corruption.ml_models.automl import AutoMLPipeline
+        pool = await get_asyncpg_pool()
+        pipeline = AutoMLPipeline()
+        result = await pipeline.should_retrain(pool)
+        return result
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"AutoML pipeline not available: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error checking retrain status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check retrain status: {str(e)}"
+        )
+
+
+# ============================================================================
+# ADVERSARIAL ROBUSTNESS ENDPOINTS (Phase 3.3)
+# ============================================================================
+
+
+@router.get(
+    "/robustness/fragile",
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_fragile_predictions(
+    limit: int = Query(20, ge=1, le=100),
+    include_boundary: bool = Query(True, description="Include boundary cases"),
+):
+    """
+    Get predictions most vulnerable to adversarial manipulation.
+
+    Returns tenders whose ML predictions are fragile -- meaning small
+    perturbations to input features could flip the classification.
+    These deserve manual review.
+    """
+    import json as _json
+
+    pool = await get_asyncpg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if the adversarial_analysis table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'adversarial_analysis'
+                )
+            """)
+
+            if not table_exists:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Adversarial analysis table not found. Run migration 038_adversarial.sql first."
+                )
+
+            where_clause = ""
+            if not include_boundary:
+                where_clause = "WHERE is_boundary_case = FALSE"
+
+            rows = await conn.fetch(f"""
+                SELECT
+                    aa.tender_id,
+                    aa.model_name,
+                    aa.robustness_score,
+                    aa.robustness_level,
+                    aa.robustness_margin,
+                    aa.vulnerable_features,
+                    aa.is_boundary_case,
+                    aa.prediction,
+                    aa.adversarial_resistance,
+                    aa.recommendations,
+                    aa.analyzed_at,
+                    t.title,
+                    t.procuring_entity,
+                    t.winner,
+                    t.estimated_value_mkd,
+                    t.status
+                FROM adversarial_analysis aa
+                LEFT JOIN tenders t ON aa.tender_id = t.tender_id
+                {where_clause}
+                ORDER BY aa.robustness_score ASC
+                LIMIT $1
+            """, limit)
+
+            results = []
+            for row in rows:
+                vulnerable_features = row['vulnerable_features']
+                if isinstance(vulnerable_features, str):
+                    vulnerable_features = _json.loads(vulnerable_features) if vulnerable_features else []
+
+                recommendations = row['recommendations']
+                if isinstance(recommendations, str):
+                    recommendations = _json.loads(recommendations) if recommendations else []
+
+                results.append({
+                    'tender_id': row['tender_id'],
+                    'title': row['title'],
+                    'procuring_entity': row['procuring_entity'],
+                    'winner': row['winner'],
+                    'estimated_value_mkd': float(row['estimated_value_mkd']) if row['estimated_value_mkd'] else None,
+                    'status': row['status'],
+                    'model_name': row['model_name'],
+                    'robustness_score': row['robustness_score'],
+                    'robustness_level': row['robustness_level'],
+                    'robustness_margin': row['robustness_margin'],
+                    'vulnerable_features': vulnerable_features,
+                    'is_boundary_case': row['is_boundary_case'],
+                    'prediction': row['prediction'],
+                    'adversarial_resistance': row['adversarial_resistance'],
+                    'recommendations': recommendations,
+                    'analyzed_at': row['analyzed_at'].isoformat() if row['analyzed_at'] else None,
+                })
+
+            return {
+                'total': len(results),
+                'fragile_predictions': results,
+                'disclaimer': (
+                    "Fragile predictions are those where small changes in tender data "
+                    "could flip the ML classification. These tenders warrant manual review."
+                ),
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching fragile predictions: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch fragile predictions: {str(e)}"
+        )
+
+
+@router.get(
+    "/robustness/{tender_id:path}",
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_prediction_robustness(tender_id: str):
+    """
+    Get adversarial robustness analysis for a tender's risk prediction.
+
+    If a cached analysis exists in the database, returns that.
+    Otherwise, runs on-the-fly analysis using the ML model and
+    FeatureExtractor.
+    """
+    import json as _json
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    pool = await get_asyncpg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if the adversarial_analysis table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'adversarial_analysis'
+                )
+            """)
+
+            # Try cached result first
+            cached = None
+            if table_exists:
+                cached = await conn.fetchrow("""
+                    SELECT * FROM adversarial_analysis
+                    WHERE tender_id = $1
+                """, tender_id)
+
+            if cached:
+                vulnerable_features = cached['vulnerable_features']
+                if isinstance(vulnerable_features, str):
+                    vulnerable_features = _json.loads(vulnerable_features) if vulnerable_features else []
+
+                recommendations = cached['recommendations']
+                if isinstance(recommendations, str):
+                    recommendations = _json.loads(recommendations) if recommendations else []
+
+                return {
+                    'tender_id': cached['tender_id'],
+                    'model_name': cached['model_name'],
+                    'robustness_score': cached['robustness_score'],
+                    'robustness_level': cached['robustness_level'],
+                    'robustness_margin': cached['robustness_margin'],
+                    'vulnerable_features': vulnerable_features,
+                    'is_boundary_case': cached['is_boundary_case'],
+                    'prediction': cached['prediction'],
+                    'adversarial_resistance': cached['adversarial_resistance'],
+                    'recommendations': recommendations,
+                    'analyzed_at': cached['analyzed_at'].isoformat() if cached['analyzed_at'] else None,
+                    'source': 'cached',
+                }
+
+        # No cached result -- run on-the-fly analysis
+        # Verify tender exists
+        async with pool.acquire() as conn:
+            tender_exists = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM tenders WHERE tender_id = $1)", tender_id
+            )
+            if not tender_exists:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Tender {tender_id} not found"
+                )
+
+        # Import and run adversarial analysis
+        try:
+            _sys.path.insert(0, str(_Path(__file__).parent.parent.parent / "ai" / "corruption"))
+            from features.feature_extractor import FeatureExtractor
+            from ai.corruption.ml_models.adversarial import AdversarialAnalyzer
+        except ImportError as ie:
+            logger.error(f"Failed to import adversarial modules: {ie}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Adversarial analysis module not available. Check server configuration."
+            )
+
+        # Extract features
+        extractor = FeatureExtractor(pool)
+        try:
+            fv = await extractor.extract_features(tender_id, include_metadata=False)
+        except Exception as fe:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Could not extract features for tender {tender_id}: {str(fe)}"
+            )
+
+        # Run robustness analysis
+        analyzer = AdversarialAnalyzer()
+        try:
+            analyzer.load_model('xgboost')
+        except FileNotFoundError:
+            try:
+                analyzer.load_model('random_forest')
+            except FileNotFoundError:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="No trained ML model found. Train models first."
+                )
+
+        result = analyzer.assess_prediction_robustness(fv.feature_array)
+
+        # Cache the result if table exists
+        if table_exists:
+            try:
+                async with pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO adversarial_analysis (
+                            tender_id, model_name, robustness_score, robustness_level,
+                            robustness_margin, vulnerable_features, is_boundary_case,
+                            prediction, adversarial_resistance, recommendations, analyzed_at
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+                        ON CONFLICT (tender_id) DO UPDATE SET
+                            model_name = EXCLUDED.model_name,
+                            robustness_score = EXCLUDED.robustness_score,
+                            robustness_level = EXCLUDED.robustness_level,
+                            robustness_margin = EXCLUDED.robustness_margin,
+                            vulnerable_features = EXCLUDED.vulnerable_features,
+                            is_boundary_case = EXCLUDED.is_boundary_case,
+                            prediction = EXCLUDED.prediction,
+                            adversarial_resistance = EXCLUDED.adversarial_resistance,
+                            recommendations = EXCLUDED.recommendations,
+                            analyzed_at = NOW()
+                    """,
+                        tender_id,
+                        result['model_name'],
+                        result['robustness_score'],
+                        result['robustness_level'],
+                        result['robustness_margin'],
+                        _json.dumps(result['vulnerable_features']),
+                        result['is_boundary_case'],
+                        result['prediction'],
+                        result['adversarial_resistance'],
+                        _json.dumps(result['recommendations']),
+                    )
+            except Exception as cache_err:
+                logger.warning(f"Failed to cache robustness analysis for {tender_id}: {cache_err}")
+
+        return {
+            'tender_id': tender_id,
+            'model_name': result['model_name'],
+            'robustness_score': result['robustness_score'],
+            'robustness_level': result['robustness_level'],
+            'robustness_margin': result['robustness_margin'],
+            'vulnerable_features': result['vulnerable_features'],
+            'is_boundary_case': result['is_boundary_case'],
+            'prediction': result['prediction'],
+            'adversarial_resistance': result['adversarial_resistance'],
+            'recommendations': result['recommendations'],
+            'gameable_vulnerabilities': result.get('gameable_vulnerabilities', []),
+            'total_flippable_features': result.get('total_flippable_features', 0),
+            'easiest_flip_feature': result.get('easiest_flip_feature'),
+            'analyzed_at': datetime.utcnow().isoformat(),
+            'source': 'computed',
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in robustness analysis for {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze prediction robustness: {str(e)}"
+        )
+
+
+# ============================================================================
+# TEMPORAL RISK ANALYSIS ENDPOINTS (Phase 3.1)
+# ============================================================================
+
+class TemporalProfileResponse(BaseModel):
+    """Temporal risk profile for an entity."""
+    entity: str
+    entity_type: str
+    total_tenders: int
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
+    temporal_features: Dict[str, Any]
+    change_points: List[Dict[str, Any]]
+    trajectory: Dict[str, Any]
+    summary_stats: Dict[str, Any]
+    computed_at: Optional[str] = None
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+class EscalatingEntityItem(BaseModel):
+    """Entity with escalating risk trajectory."""
+    entity_name: str
+    entity_type: str
+    trajectory: str
+    trajectory_confidence: Optional[float] = None
+    trajectory_description: Optional[str] = None
+    risk_trend_slope: Optional[float] = None
+    risk_volatility: Optional[float] = None
+    tender_count: int = 0
+    last_change_point_date: Optional[str] = None
+    summary_stats: Optional[Dict[str, Any]] = None
+
+
+class EscalatingEntitiesResponse(BaseModel):
+    """List of entities with escalating risk."""
+    total: int
+    entities: List[EscalatingEntityItem]
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+class ChangePointItem(BaseModel):
+    """Entity with a recent behavioral change point."""
+    entity_name: str
+    entity_type: str
+    last_change_point_date: Optional[str] = None
+    trajectory: Optional[str] = None
+    trajectory_confidence: Optional[float] = None
+    risk_trend_slope: Optional[float] = None
+    change_points: Optional[List[Dict[str, Any]]] = None
+    tender_count: int = 0
+
+
+class RecentChangePointsResponse(BaseModel):
+    """Entities with recent behavioral change points."""
+    total: int
+    days_lookback: int
+    entities: List[ChangePointItem]
+    disclaimer: str = "Оваа анализа е само за информативни цели и не претставува доказ за корупција. Потребна е дополнителна истрага."
+
+
+@router.get(
+    "/temporal/escalating",
+    response_model=EscalatingEntitiesResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_escalating_entities(
+    entity_type: str = Query("institution", description="Entity type: institution or company"),
+    limit: int = Query(20, ge=1, le=100, description="Max results"),
+):
+    """
+    Get entities with escalating risk trajectories.
+
+    Returns institutions or companies whose risk is trending upward,
+    ordered by steepest risk trend slope. Requires pre-computed
+    temporal profiles (run batch_temporal.py first).
+    """
+    import json as _json
+
+    pool = await get_asyncpg_pool()
+    try:
+        async with pool.acquire() as conn:
+            # Check if the table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'entity_temporal_profiles'
+                )
+            """)
+            if not table_exists:
+                return EscalatingEntitiesResponse(total=0, entities=[])
+
+            rows = await conn.fetch(
+                """
+                SELECT
+                    entity_name, entity_type, trajectory,
+                    trajectory_confidence, trajectory_description,
+                    risk_trend_slope, risk_volatility,
+                    tender_count,
+                    last_change_point_date,
+                    summary_stats
+                FROM entity_temporal_profiles
+                WHERE entity_type = $1
+                  AND trajectory IN ('escalating', 'new_pattern', 'stable_high')
+                ORDER BY risk_trend_slope DESC NULLS LAST
+                LIMIT $2
+                """,
+                entity_type,
+                limit,
+            )
+
+            entities = []
+            for row in rows:
+                stats_raw = row["summary_stats"]
+                if isinstance(stats_raw, str):
+                    stats = _json.loads(stats_raw) if stats_raw else {}
+                elif isinstance(stats_raw, dict):
+                    stats = stats_raw
+                else:
+                    stats = {}
+
+                entities.append(
+                    EscalatingEntityItem(
+                        entity_name=row["entity_name"],
+                        entity_type=row["entity_type"],
+                        trajectory=row["trajectory"] or "unknown",
+                        trajectory_confidence=row["trajectory_confidence"],
+                        trajectory_description=row["trajectory_description"],
+                        risk_trend_slope=row["risk_trend_slope"],
+                        risk_volatility=row["risk_volatility"],
+                        tender_count=row["tender_count"] or 0,
+                        last_change_point_date=(
+                            row["last_change_point_date"].isoformat()
+                            if row["last_change_point_date"]
+                            else None
+                        ),
+                        summary_stats=stats,
+                    )
+                )
+
+            return EscalatingEntitiesResponse(
+                total=len(entities),
+                entities=entities,
+            )
+
+    except Exception as e:
+        logger.error(f"Error fetching escalating entities: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch escalating entities: {str(e)}",
+        )
+
+
+@router.get(
+    "/temporal/change-points",
+    response_model=RecentChangePointsResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_recent_change_points(
+    days: int = Query(90, ge=1, le=730, description="Lookback window in days"),
+    entity_type: str = Query("institution", description="Entity type: institution or company"),
+    limit: int = Query(20, ge=1, le=100, description="Max results"),
+):
+    """
+    Get entities with recent behavioral change points.
+
+    Returns institutions or companies where a CUSUM-detected change point
+    (sudden shift in risk pattern) occurred within the specified number of days.
+    """
+    import json as _json
+    from datetime import timedelta as _td
+
+    pool = await get_asyncpg_pool()
+    try:
+        async with pool.acquire() as conn:
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'entity_temporal_profiles'
+                )
+            """)
+            if not table_exists:
+                return RecentChangePointsResponse(
+                    total=0, days_lookback=days, entities=[]
+                )
+
+            cutoff_date = (datetime.utcnow() - _td(days=days)).date()
+
+            rows = await conn.fetch(
+                """
+                SELECT
+                    entity_name, entity_type,
+                    last_change_point_date,
+                    trajectory, trajectory_confidence,
+                    risk_trend_slope,
+                    change_points,
+                    tender_count
+                FROM entity_temporal_profiles
+                WHERE entity_type = $1
+                  AND last_change_point_date IS NOT NULL
+                  AND last_change_point_date >= $2
+                ORDER BY last_change_point_date DESC
+                LIMIT $3
+                """,
+                entity_type,
+                cutoff_date,
+                limit,
+            )
+
+            entities = []
+            for row in rows:
+                cp_raw = row["change_points"]
+                if isinstance(cp_raw, str):
+                    cps = _json.loads(cp_raw) if cp_raw else []
+                elif isinstance(cp_raw, list):
+                    cps = cp_raw
+                else:
+                    cps = []
+
+                entities.append(
+                    ChangePointItem(
+                        entity_name=row["entity_name"],
+                        entity_type=row["entity_type"],
+                        last_change_point_date=(
+                            row["last_change_point_date"].isoformat()
+                            if row["last_change_point_date"]
+                            else None
+                        ),
+                        trajectory=row["trajectory"],
+                        trajectory_confidence=row["trajectory_confidence"],
+                        risk_trend_slope=row["risk_trend_slope"],
+                        change_points=cps,
+                        tender_count=row["tender_count"] or 0,
+                    )
+                )
+
+            return RecentChangePointsResponse(
+                total=len(entities),
+                days_lookback=days,
+                entities=entities,
+            )
+
+    except Exception as e:
+        logger.error(f"Error fetching change points: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch change points: {str(e)}",
+        )
+
+
+@router.get(
+    "/temporal/{entity_name:path}",
+    response_model=TemporalProfileResponse,
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_temporal_profile(
+    entity_name: str,
+    entity_type: str = Query("institution", description="Entity type: institution or company"),
+    live: bool = Query(False, description="If true, compute fresh profile instead of using cached"),
+    window_days: int = Query(730, ge=30, le=2555, description="Lookback window in days"),
+):
+    """
+    Get temporal risk profile for an institution or company.
+
+    By default, returns the pre-computed profile from entity_temporal_profiles.
+    Set live=true to compute a fresh profile on-the-fly (slower but always current).
+
+    Path Parameters:
+    - entity_name: Name of the institution or company
+
+    Query Parameters:
+    - entity_type: 'institution' or 'company' (default: institution)
+    - live: Compute fresh profile instead of using cached (default: false)
+    - window_days: Lookback window in days (default: 730)
+    """
+    import json as _json
+
+    pool = await get_asyncpg_pool()
+
+    try:
+        # If not live, try to load cached profile first
+        if not live:
+            async with pool.acquire() as conn:
+                table_exists = await conn.fetchval("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables
+                        WHERE table_name = 'entity_temporal_profiles'
+                    )
+                """)
+
+                if table_exists:
+                    row = await conn.fetchrow(
+                        """
+                        SELECT
+                            entity_name, entity_type,
+                            temporal_features, trajectory,
+                            trajectory_confidence, trajectory_description,
+                            trajectory_recommendation,
+                            change_points, summary_stats,
+                            tender_count, period_start, period_end,
+                            computed_at
+                        FROM entity_temporal_profiles
+                        WHERE entity_name = $1 AND entity_type = $2
+                        """,
+                        entity_name,
+                        entity_type,
+                    )
+
+                    if row:
+                        # Parse JSONB fields
+                        tf_raw = row["temporal_features"]
+                        if isinstance(tf_raw, str):
+                            tf = _json.loads(tf_raw) if tf_raw else {}
+                        elif isinstance(tf_raw, dict):
+                            tf = tf_raw
+                        else:
+                            tf = {}
+
+                        cp_raw = row["change_points"]
+                        if isinstance(cp_raw, str):
+                            cps = _json.loads(cp_raw) if cp_raw else []
+                        elif isinstance(cp_raw, list):
+                            cps = cp_raw
+                        else:
+                            cps = []
+
+                        ss_raw = row["summary_stats"]
+                        if isinstance(ss_raw, str):
+                            ss = _json.loads(ss_raw) if ss_raw else {}
+                        elif isinstance(ss_raw, dict):
+                            ss = ss_raw
+                        else:
+                            ss = {}
+
+                        return TemporalProfileResponse(
+                            entity=row["entity_name"],
+                            entity_type=row["entity_type"],
+                            total_tenders=row["tender_count"] or 0,
+                            period_start=(
+                                row["period_start"].isoformat()
+                                if row["period_start"]
+                                else None
+                            ),
+                            period_end=(
+                                row["period_end"].isoformat()
+                                if row["period_end"]
+                                else None
+                            ),
+                            temporal_features=tf,
+                            change_points=cps,
+                            trajectory={
+                                "trajectory": row["trajectory"] or "unknown",
+                                "confidence": row["trajectory_confidence"] or 0.0,
+                                "description": row["trajectory_description"] or "",
+                                "recommendation": row["trajectory_recommendation"] or "",
+                            },
+                            summary_stats=ss,
+                            computed_at=(
+                                row["computed_at"].isoformat()
+                                if row["computed_at"]
+                                else None
+                            ),
+                        )
+
+        # Compute live profile
+        try:
+            from ai.corruption.ml_models.temporal_analyzer import TemporalAnalyzer
+        except ImportError:
+            # Fallback: try adding parent paths for server deployment
+            import sys as _sys
+            from pathlib import Path as _Path
+            _sys.path.insert(0, str(_Path(__file__).parent.parent.parent / "ai" / "corruption"))
+            from ml_models.temporal_analyzer import TemporalAnalyzer
+
+        analyzer = TemporalAnalyzer()
+        profile = await analyzer.get_entity_risk_profile(
+            pool, entity_name, entity_type, window_days
+        )
+
+        return TemporalProfileResponse(
+            entity=profile["entity"],
+            entity_type=profile["entity_type"],
+            total_tenders=profile["total_tenders"],
+            period_start=profile.get("period_start"),
+            period_end=profile.get("period_end"),
+            temporal_features=profile.get("temporal_features", {}),
+            change_points=profile.get("change_points", []),
+            trajectory=profile.get("trajectory", {}),
+            summary_stats=profile.get("summary_stats", {}),
+            computed_at=profile.get("computed_at"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in temporal profile for {entity_name}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get temporal profile: {str(e)}",
+        )
+
+
+# ============================================================================
+# CONFORMAL PREDICTION / CALIBRATION ENDPOINTS (Phase 3.5)
+# ============================================================================
+
+
+@router.get(
+    "/calibration/status",
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_calibration_status():
+    """
+    Get current model calibration quality metrics.
+
+    Returns the latest conformal calibration parameters, ECE/MCE metrics,
+    and whether the model is currently well-calibrated.
+    """
+    import json
+    pool = await get_asyncpg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if tables exist
+            tables_exist = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'conformal_calibration'
+                )
+            """)
+
+            if not tables_exist:
+                return {
+                    "status": "not_calibrated",
+                    "message": "Conformal calibration tables not yet created. "
+                               "Run migration 040_conformal.sql first.",
+                    "calibration": None,
+                    "latest_check": None,
+                    "prediction_stats": None,
+                }
+
+            # Get latest conformal calibration parameters
+            cal_row = await conn.fetchrow("""
+                SELECT
+                    model_name, alpha, quantile_threshold,
+                    platt_a, platt_b, calibration_set_size,
+                    ece, mce, is_well_calibrated, fitted_at
+                FROM conformal_calibration
+                ORDER BY fitted_at DESC
+                LIMIT 1
+            """)
+
+            # Get latest calibration check
+            check_row = await conn.fetchrow("""
+                SELECT
+                    model_name, ece, mce,
+                    coverage_actual, coverage_target,
+                    n_samples, drift_detected, checked_at
+                FROM calibration_checks
+                ORDER BY checked_at DESC
+                LIMIT 1
+            """)
+
+            # Get calibrated prediction stats
+            stats_row = await conn.fetchrow("""
+                SELECT
+                    COUNT(*) as total_calibrated,
+                    AVG(calibrated_probability) as avg_calibrated_prob,
+                    AVG(set_width) as avg_set_width,
+                    MIN(calibrated_at) as earliest_calibration,
+                    MAX(calibrated_at) as latest_calibration
+                FROM calibrated_predictions
+            """)
+
+            if not cal_row:
+                return {
+                    "status": "not_calibrated",
+                    "message": "No conformal calibration has been performed yet. "
+                               "Run batch_calibrate.py to calibrate risk scores.",
+                    "calibration": None,
+                    "latest_check": None,
+                    "prediction_stats": None,
+                }
+
+            calibration = {
+                "model_name": cal_row['model_name'],
+                "alpha": float(cal_row['alpha']),
+                "coverage_level": round(1 - float(cal_row['alpha']), 2),
+                "quantile_threshold": float(cal_row['quantile_threshold']) if cal_row['quantile_threshold'] else None,
+                "platt_a": float(cal_row['platt_a']) if cal_row['platt_a'] else None,
+                "platt_b": float(cal_row['platt_b']) if cal_row['platt_b'] else None,
+                "calibration_set_size": cal_row['calibration_set_size'],
+                "ece": float(cal_row['ece']) if cal_row['ece'] else None,
+                "mce": float(cal_row['mce']) if cal_row['mce'] else None,
+                "is_well_calibrated": cal_row['is_well_calibrated'],
+                "fitted_at": cal_row['fitted_at'].isoformat() if cal_row['fitted_at'] else None,
+            }
+
+            latest_check = None
+            if check_row:
+                latest_check = {
+                    "model_name": check_row['model_name'],
+                    "ece": float(check_row['ece']) if check_row['ece'] else None,
+                    "mce": float(check_row['mce']) if check_row['mce'] else None,
+                    "coverage_actual": float(check_row['coverage_actual']) if check_row['coverage_actual'] else None,
+                    "coverage_target": float(check_row['coverage_target']) if check_row['coverage_target'] else None,
+                    "n_samples": check_row['n_samples'],
+                    "drift_detected": check_row['drift_detected'],
+                    "checked_at": check_row['checked_at'].isoformat() if check_row['checked_at'] else None,
+                }
+
+            prediction_stats = None
+            if stats_row and stats_row['total_calibrated']:
+                prediction_stats = {
+                    "total_calibrated": stats_row['total_calibrated'],
+                    "avg_calibrated_probability": round(float(stats_row['avg_calibrated_prob']), 4) if stats_row['avg_calibrated_prob'] else None,
+                    "avg_set_width": round(float(stats_row['avg_set_width']), 4) if stats_row['avg_set_width'] else None,
+                    "earliest_calibration": stats_row['earliest_calibration'].isoformat() if stats_row['earliest_calibration'] else None,
+                    "latest_calibration": stats_row['latest_calibration'].isoformat() if stats_row['latest_calibration'] else None,
+                }
+
+            return {
+                "status": "calibrated" if calibration['is_well_calibrated'] else "needs_recalibration",
+                "calibration": calibration,
+                "latest_check": latest_check,
+                "prediction_stats": prediction_stats,
+            }
+
+    except Exception as e:
+        logger.error(f"Error fetching calibration status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch calibration status: {str(e)}"
+        )
+
+
+@router.get(
+    "/calibrated/{tender_id:path}",
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_calibrated_prediction(tender_id: str):
+    """
+    Get calibrated risk prediction with coverage guarantee for a specific tender.
+
+    Returns the raw model score, Platt-scaled calibrated probability,
+    and conformal prediction interval with coverage guarantee.
+    """
+    import json
+    pool = await get_asyncpg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'calibrated_predictions'
+                )
+            """)
+
+            if not table_exists:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Calibrated predictions table not yet created. "
+                           "Run migration 040_conformal.sql first."
+                )
+
+            row = await conn.fetchrow("""
+                SELECT
+                    cp.tender_id,
+                    cp.raw_score,
+                    cp.calibrated_probability,
+                    cp.prediction_lower,
+                    cp.prediction_upper,
+                    cp.set_width,
+                    cp.model_name,
+                    cp.calibrated_at,
+                    t.title,
+                    t.procuring_entity,
+                    t.winner,
+                    t.estimated_value_mkd,
+                    t.status,
+                    mp.risk_score as original_risk_score,
+                    mp.risk_level as original_risk_level
+                FROM calibrated_predictions cp
+                JOIN tenders t ON cp.tender_id = t.tender_id
+                LEFT JOIN ml_predictions mp ON cp.tender_id = mp.tender_id
+                    AND mp.model_version = cp.model_name
+                WHERE cp.tender_id = $1
+            """, tender_id)
+
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No calibrated prediction found for tender {tender_id}. "
+                           f"Run batch calibration first."
+                )
+
+            # Get calibration parameters for context
+            cal_row = await conn.fetchrow("""
+                SELECT alpha, quantile_threshold, is_well_calibrated
+                FROM conformal_calibration
+                WHERE model_name = $1
+                ORDER BY fitted_at DESC
+                LIMIT 1
+            """, row['model_name'] or 'xgboost_rf_v1')
+
+            # Determine calibrated risk level
+            cal_prob = float(row['calibrated_probability'])
+            if cal_prob >= 0.8:
+                cal_risk_level = "critical"
+            elif cal_prob >= 0.6:
+                cal_risk_level = "high"
+            elif cal_prob >= 0.4:
+                cal_risk_level = "medium"
+            elif cal_prob >= 0.2:
+                cal_risk_level = "low"
+            else:
+                cal_risk_level = "minimal"
+
+            result = {
+                "tender_id": row['tender_id'],
+                "title": row['title'],
+                "procuring_entity": row['procuring_entity'],
+                "winner": row['winner'],
+                "estimated_value_mkd": float(row['estimated_value_mkd']) if row['estimated_value_mkd'] else None,
+                "status": row['status'],
+                "raw_score": float(row['raw_score']),
+                "calibrated_probability": cal_prob,
+                "calibrated_risk_level": cal_risk_level,
+                "prediction_interval": {
+                    "lower": float(row['prediction_lower']),
+                    "upper": float(row['prediction_upper']),
+                    "width": float(row['set_width']),
+                },
+                "original_risk_score": float(row['original_risk_score']) if row['original_risk_score'] else None,
+                "original_risk_level": row['original_risk_level'],
+                "model_name": row['model_name'],
+                "calibrated_at": row['calibrated_at'].isoformat() if row['calibrated_at'] else None,
+            }
+
+            if cal_row:
+                result["coverage_guarantee"] = {
+                    "coverage_level": round(1 - float(cal_row['alpha']), 2),
+                    "alpha": float(cal_row['alpha']),
+                    "conformal_quantile": float(cal_row['quantile_threshold']) if cal_row['quantile_threshold'] else None,
+                    "is_well_calibrated": cal_row['is_well_calibrated'],
+                }
+
+            result["disclaimer"] = (
+                "Калибрираната веројатност дава статистички гарантирани "
+                "интервали на предвидување. Оваа анализа е само за "
+                "информативни цели."
+            )
+
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching calibrated prediction for {tender_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch calibrated prediction: {str(e)}"
+        )
+
+
+@router.get(
+    "/calibration/history",
+    dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))],
+)
+async def get_calibration_history(
+    limit: int = Query(default=20, ge=1, le=100, description="Number of checks to return"),
+):
+    """
+    Get calibration check history over time.
+
+    Returns a time series of calibration quality metrics (ECE, MCE, coverage)
+    for monitoring drift.
+    """
+    pool = await get_asyncpg_pool()
+
+    try:
+        async with pool.acquire() as conn:
+            # Check if table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'calibration_checks'
+                )
+            """)
+
+            if not table_exists:
+                return {
+                    "checks": [],
+                    "summary": {
+                        "total_checks": 0,
+                        "drift_alerts": 0,
+                        "avg_ece": None,
+                        "latest_ece": None,
+                        "latest_drift": None,
+                    },
+                }
+
+            rows = await conn.fetch("""
+                SELECT
+                    check_id, model_name, ece, mce,
+                    coverage_actual, coverage_target,
+                    n_samples, drift_detected, checked_at
+                FROM calibration_checks
+                ORDER BY checked_at DESC
+                LIMIT $1
+            """, limit)
+
+            checks = []
+            for row in rows:
+                checks.append({
+                    "check_id": row['check_id'],
+                    "model_name": row['model_name'],
+                    "ece": float(row['ece']) if row['ece'] else None,
+                    "mce": float(row['mce']) if row['mce'] else None,
+                    "coverage_actual": float(row['coverage_actual']) if row['coverage_actual'] else None,
+                    "coverage_target": float(row['coverage_target']) if row['coverage_target'] else None,
+                    "n_samples": row['n_samples'],
+                    "drift_detected": row['drift_detected'],
+                    "checked_at": row['checked_at'].isoformat() if row['checked_at'] else None,
+                })
+
+            # Compute summary
+            if checks:
+                ece_values = [c['ece'] for c in checks if c['ece'] is not None]
+                drift_count = sum(1 for c in checks if c['drift_detected'])
+                summary = {
+                    "total_checks": len(checks),
+                    "drift_alerts": drift_count,
+                    "avg_ece": round(sum(ece_values) / len(ece_values), 4) if ece_values else None,
+                    "latest_ece": checks[0]['ece'] if checks else None,
+                    "latest_drift": checks[0]['drift_detected'] if checks else None,
+                }
+            else:
+                summary = {
+                    "total_checks": 0,
+                    "drift_alerts": 0,
+                    "avg_ece": None,
+                    "latest_ece": None,
+                    "latest_drift": None,
+                }
+
+            return {
+                "checks": checks,
+                "summary": summary,
+            }
+
+    except Exception as e:
+        logger.error(f"Error fetching calibration history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch calibration history: {str(e)}"
+        )
