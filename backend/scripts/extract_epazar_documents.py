@@ -16,6 +16,9 @@ import hashlib
 from pathlib import Path
 from typing import Optional, Dict, List
 import argparse
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directory to path
 sys.path.insert(0, '/Users/tamsar/Downloads/nabavkidata')

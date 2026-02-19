@@ -8,6 +8,9 @@ import os
 import re
 from datetime import timedelta
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',

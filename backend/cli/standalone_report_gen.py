@@ -14,6 +14,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Try to import weasyprint
 try:

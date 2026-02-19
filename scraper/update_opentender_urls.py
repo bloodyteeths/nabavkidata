@@ -8,6 +8,9 @@ import csv
 import os
 import re
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',

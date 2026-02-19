@@ -25,6 +25,9 @@ import json
 import re
 from datetime import datetime
 from typing import Dict, List, Tuple
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Set environment
 os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL')

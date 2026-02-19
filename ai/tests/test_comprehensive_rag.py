@@ -27,6 +27,9 @@ import time
 import re
 from typing import List, Dict
 from collections import defaultdict
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add paths
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))

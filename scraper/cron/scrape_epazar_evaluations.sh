@@ -21,7 +21,7 @@ cd "$PROJECT_DIR"
 
 # Activate virtual environment if exists
 if [ -f "/home/ubuntu/nabavkidata/venv/bin/activate" ]; then
-    source /home/ubuntu/nabavkidata/venv/bin/activate
+    
 fi
 
 # Run evaluation extractor

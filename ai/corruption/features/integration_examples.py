@@ -13,6 +13,7 @@ License: Proprietary
 
 import asyncio
 import asyncpg
+import os
 import numpy as np
 import pandas as pd
 from typing import List, Dict, Tuple
@@ -29,6 +30,9 @@ import shap
 # Our modules
 from ai.corruption.features.feature_extractor import FeatureExtractor
 from ai.corruption_detector import CorruptionAnalyzer
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logger = logging.getLogger(__name__)
 

@@ -31,6 +31,9 @@ import json
 
 # Import feature extractor
 import sys
+from dotenv import load_dotenv
+load_dotenv()
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 from ai.corruption.features.feature_extractor import FeatureExtractor, FeatureVector
 

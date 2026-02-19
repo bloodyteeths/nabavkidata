@@ -33,6 +33,9 @@ import time
 from typing import Any, Dict, List
 
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Resolve project paths so imports work when running standalone
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

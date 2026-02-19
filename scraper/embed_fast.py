@@ -13,6 +13,9 @@ from typing import List
 
 import asyncpg
 from fastembed import TextEmbedding
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(
     level=logging.INFO,

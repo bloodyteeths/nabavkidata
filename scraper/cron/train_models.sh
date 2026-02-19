@@ -23,7 +23,7 @@ PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 LOG_DIR="/var/log/nabavkidata"
 MODELS_DIR="$PROJECT_ROOT/ai/corruption/ml_models/trained"
 BACKUP_DIR="$PROJECT_ROOT/ai/corruption/ml_models/backup"
-VENV_PATH="$PROJECT_ROOT/venv"
+# VENV_PATH not needed - packages installed globally
 LOCK_FILE="/tmp/train_models.lock"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 

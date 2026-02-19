@@ -18,6 +18,9 @@ import json
 from typing import Optional
 
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(
     level=logging.INFO,

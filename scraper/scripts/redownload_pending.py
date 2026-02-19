@@ -22,6 +22,9 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 from yarl import URL
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))

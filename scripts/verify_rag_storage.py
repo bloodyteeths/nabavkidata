@@ -15,6 +15,9 @@ import asyncio
 import os
 import asyncpg
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 

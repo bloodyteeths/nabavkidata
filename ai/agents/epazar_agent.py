@@ -29,6 +29,9 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from decimal import Decimal
 from urllib.parse import quote, urlencode
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logger = logging.getLogger(__name__)
 

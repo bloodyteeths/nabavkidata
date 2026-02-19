@@ -4,6 +4,9 @@ from sqlalchemy import pool
 from alembic import context
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directory to path to import models
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))

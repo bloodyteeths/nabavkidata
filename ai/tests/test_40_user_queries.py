@@ -6,6 +6,9 @@ Tests what actual users would ask to win tenders and find opportunities.
 import asyncio
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv()
+
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 os.chdir(os.path.join(os.path.dirname(__file__), '../..'))

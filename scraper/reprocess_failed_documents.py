@@ -30,6 +30,9 @@ import aiofiles
 
 # Add parent directory to path
 import sys
+from dotenv import load_dotenv
+load_dotenv()
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from document_parser import parse_file, is_supported_document

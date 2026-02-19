@@ -19,6 +19,9 @@ from typing import List
 
 import asyncpg
 from sentence_transformers import SentenceTransformer
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(
     level=logging.INFO,

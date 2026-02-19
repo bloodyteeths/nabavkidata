@@ -25,6 +25,9 @@ from scraper.items import DocumentItem, LotAwardItem, CompanyWallItem
 import aiofiles
 import fitz  # PyMuPDF
 from yarl import URL
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logger = logging.getLogger(__name__)
 

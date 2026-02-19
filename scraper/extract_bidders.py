@@ -23,6 +23,9 @@ from decimal import Decimal
 from typing import List, Dict, Any, Optional
 
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(
     level=logging.INFO,

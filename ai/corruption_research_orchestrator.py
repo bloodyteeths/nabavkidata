@@ -31,6 +31,8 @@ import asyncpg
 import logging
 import json
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
@@ -108,8 +110,6 @@ if GEMINI_API_KEY:
     logger.info("Gemini API configured successfully")
 else:
     logger.warning("GEMINI_API_KEY not set - LLM synthesis will be disabled, falling back to rule-based analysis")
-
-
 # =============================================================================
 # Data Classes for Research Results
 # =============================================================================
@@ -126,8 +126,6 @@ class ResearchFinding:
 
     def to_dict(self) -> Dict:
         return asdict(self)
-
-
 @dataclass
 class CorruptionAssessment:
     """Synthesized corruption risk assessment"""
@@ -150,8 +148,6 @@ class CorruptionAssessment:
         result['timestamp'] = self.timestamp.isoformat()
         result['findings'] = [f.to_dict() if hasattr(f, 'to_dict') else f for f in self.findings]
         return result
-
-
 @dataclass
 class DataConsistencyReport:
     """Report comparing our DB with official sources"""
@@ -160,8 +156,6 @@ class DataConsistencyReport:
     our_data: Dict[str, Any]
     official_data: Dict[str, Any]
     recommendations: List[str]
-
-
 # =============================================================================
 # Main Orchestrator Class
 # =============================================================================
@@ -1496,8 +1490,6 @@ Focus on ACTIONABLE findings. Be thorough but factual. Only report findings you 
 
         except Exception as e:
             logger.error(f"Failed to store investigation results: {e}")
-
-
 # =============================================================================
 # CLI Interface
 # =============================================================================
@@ -1558,8 +1550,6 @@ Examples:
 
     finally:
         await orchestrator.close()
-
-
 def _print_assessment(assessment: CorruptionAssessment):
     """Pretty print an assessment"""
     risk_colors = {
@@ -1624,8 +1614,6 @@ def _print_assessment(assessment: CorruptionAssessment):
             print(f"  {key}: {value}")
 
     print(f"\n{'='*70}\n")
-
-
 def _print_scan_results(results: Dict):
     """Pretty print scan results"""
     print(f"\n{'='*70}")
@@ -1673,7 +1661,5 @@ def _print_scan_results(results: Dict):
             print(f"  * {rec}")
 
     print(f"\n{'='*70}\n")
-
-
 if __name__ == "__main__":
     asyncio.run(main())

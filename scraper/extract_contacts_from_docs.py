@@ -16,12 +16,16 @@ Usage:
 import asyncio
 import argparse
 import logging
+import os
 import re
 import sys
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Configure logging
 logging.basicConfig(

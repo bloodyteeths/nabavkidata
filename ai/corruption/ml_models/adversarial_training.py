@@ -12,6 +12,8 @@ Author: nabavkidata.com
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import sys
 import json
 import logging
@@ -49,8 +51,6 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     os.getenv("DATABASE_URL")
 )
-
-
 class AdversarialTrainer:
     """
     Adversarial training pipeline for corruption detection models.
@@ -578,8 +578,6 @@ class AdversarialTrainer:
         with open(metrics_path, 'w') as f:
             json.dump(metrics, f, indent=2, default=str)
         logger.info(f"Saved training metrics to {metrics_path}")
-
-
 async def main():
     """Run adversarial training pipeline."""
     import argparse
@@ -618,7 +616,5 @@ async def main():
         print(json.dumps(results, indent=2))
     finally:
         await pool.close()
-
-
 if __name__ == "__main__":
     asyncio.run(main())

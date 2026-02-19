@@ -21,6 +21,9 @@ import json
 import argparse
 from datetime import datetime, timedelta
 import pytz
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 

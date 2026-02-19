@@ -22,6 +22,9 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 from embeddings import EmbeddingGenerator, VectorStore
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Safety settings to prevent content blocking - set all to BLOCK_NONE
 SAFETY_SETTINGS = {

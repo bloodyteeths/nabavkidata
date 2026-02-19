@@ -3,7 +3,11 @@
 Update tenders with dossier_ids from ocds_mapping table.
 Uses batched updates to avoid blocking.
 """
+import os
 import psycopg2
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 

@@ -42,6 +42,9 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Set, Tuple
 from dataclasses import dataclass, asdict
 import logging
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directories to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))

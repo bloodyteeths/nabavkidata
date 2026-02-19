@@ -18,6 +18,7 @@ Usage:
 import asyncio
 import argparse
 import logging
+import os
 import re
 import random
 from typing import List, Optional, Dict
@@ -26,6 +27,9 @@ from datetime import datetime
 
 import asyncpg
 from playwright.async_api import async_playwright
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Configure logging
 logging.basicConfig(

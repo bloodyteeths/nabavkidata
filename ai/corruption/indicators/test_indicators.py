@@ -6,8 +6,12 @@ Usage:
 """
 
 import asyncio
+import os
 import asyncpg
 from dozorro_indicators import IndicatorRegistry
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Database configuration
 DB_URL = os.getenv("DATABASE_URL")

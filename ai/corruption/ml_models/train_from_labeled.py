@@ -39,6 +39,9 @@ from typing import Dict, List, Tuple, Any, Optional
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directories to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))

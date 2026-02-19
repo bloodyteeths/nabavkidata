@@ -2,6 +2,9 @@ import asyncio
 import os
 from datetime import datetime, timezone
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 THRESHOLD_HOURS = 4
 

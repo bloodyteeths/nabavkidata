@@ -15,6 +15,9 @@ import re
 import json
 from bs4 import BeautifulSoup
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 BASE_URL = "https://it.mk"

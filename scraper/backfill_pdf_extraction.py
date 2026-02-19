@@ -10,6 +10,9 @@ import logging
 import asyncpg
 from pathlib import Path
 from document_parser import ResilientDocumentParser
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

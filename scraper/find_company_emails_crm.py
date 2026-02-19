@@ -10,6 +10,9 @@ import os
 import logging
 import re
 from playwright.async_api import async_playwright
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)

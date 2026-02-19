@@ -48,7 +48,7 @@ cd "$PROJECT_DIR/ai"
 
 # Activate virtual environment if it exists
 if [ -f "$PROJECT_DIR/backend/venv/bin/activate" ]; then
-    source "$PROJECT_DIR/backend/venv/bin/activate"
+    
 fi
 
 # Run corruption analysis

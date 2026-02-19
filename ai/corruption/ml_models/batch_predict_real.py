@@ -17,6 +17,9 @@ from typing import Dict, List, Optional
 import asyncpg
 import joblib
 import numpy as np
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))

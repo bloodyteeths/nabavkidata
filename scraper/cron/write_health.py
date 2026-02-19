@@ -7,6 +7,9 @@ from pathlib import Path
 
 import asyncpg
 import aiohttp
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DEFAULT_HEALTH_PATH = Path("/var/log/nabavkidata/health.json")
 

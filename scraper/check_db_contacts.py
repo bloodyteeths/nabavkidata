@@ -2,7 +2,11 @@
 """Check existing contact data in database"""
 
 import asyncio
+import os
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 async def check_data():
     conn = await asyncpg.connect(os.getenv('DATABASE_URL'))

@@ -15,6 +15,9 @@ import asyncpg
 import aiohttp
 import json
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 APOLLO_API_KEY = os.getenv("APOLLO_API_KEY", "M5Ker5RzIA9flD0s_IONEA")

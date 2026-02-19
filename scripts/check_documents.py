@@ -3,6 +3,9 @@ import os
 from datetime import datetime, timezone
 
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 """
 Quick validation script for document coverage on active tenders.

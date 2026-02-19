@@ -9,6 +9,9 @@ follow-up question support in a real application.
 import asyncio
 import os
 from rag_query import LLMDrivenAgent
+from dotenv import load_dotenv
+load_dotenv()
+
 
 
 async def example_conversation():

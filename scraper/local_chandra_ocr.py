@@ -18,6 +18,9 @@ from datetime import datetime
 from typing import Optional, List, Dict
 import asyncpg
 import aiohttp
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Database connection
 DATABASE_URL = os.getenv('DATABASE_URL')

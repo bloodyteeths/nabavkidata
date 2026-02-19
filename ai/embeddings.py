@@ -21,6 +21,9 @@ import google.generativeai as genai
 
 # Import shared connection pool
 from db_pool import get_pool, get_connection
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Import optimized chunker
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'embeddings'))

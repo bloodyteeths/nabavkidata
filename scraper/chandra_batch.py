@@ -13,6 +13,9 @@ from typing import List, Dict, Optional
 import asyncpg
 import aiohttp
 import time
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 WORK_DIR = Path('/tmp/chandra_work')

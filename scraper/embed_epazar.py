@@ -26,6 +26,9 @@ from typing import List, Dict, Tuple
 import psycopg2
 from psycopg2.extras import execute_values
 from fastembed import TextEmbedding
+from dotenv import load_dotenv
+load_dotenv()
+
 
 os.environ['OMP_NUM_THREADS'] = '8'
 os.environ['TOKENIZERS_PARALLELISM'] = 'true'

@@ -27,6 +27,9 @@ import os
 import subprocess
 import sys
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

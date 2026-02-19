@@ -16,7 +16,7 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-VENV_PATH="/home/ubuntu/nabavkidata/backend/venv"
+# VENV_PATH not needed - packages installed globally
 LOG_DIR="/var/log/nabavkidata"
 FILES_STORE="/home/ubuntu/nabavkidata/scraper/downloads/files"
 

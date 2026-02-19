@@ -23,6 +23,9 @@ import asyncio
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logger = logging.getLogger(__name__)
 

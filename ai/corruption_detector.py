@@ -40,6 +40,9 @@ from collections import defaultdict
 import json
 import statistics
 import math
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Configure logging
 logging.basicConfig(

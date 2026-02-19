@@ -16,6 +16,9 @@ import json
 import re
 import aiohttp
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Database connection
 DATABASE_URL = os.getenv("DATABASE_URL", "").replace("postgresql+asyncpg://", "postgresql://")

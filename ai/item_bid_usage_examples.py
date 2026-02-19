@@ -13,9 +13,13 @@ Usage:
 
 import asyncio
 import asyncpg
+import os
 from decimal import Decimal
 from typing import List, Dict
 import json
+from dotenv import load_dotenv
+load_dotenv()
+
 
 
 # Database configuration

@@ -22,6 +22,9 @@ import sys
 from pathlib import Path
 import argparse
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 try:
     import asyncpg

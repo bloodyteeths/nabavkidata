@@ -23,6 +23,9 @@ import logging
 from datetime import datetime
 import httpx
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

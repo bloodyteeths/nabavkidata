@@ -11,6 +11,9 @@ import time
 import logging
 import requests
 from typing import Optional, Dict, List
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent to path
 sys.path.insert(0, '/Users/tamsar/Downloads/nabavkidata')

@@ -24,6 +24,9 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Database configuration
 DB_CONFIG = {

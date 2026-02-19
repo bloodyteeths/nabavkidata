@@ -25,6 +25,9 @@ import aiohttp
 import aiofiles
 from PIL import Image
 import io
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Database
 DATABASE_URL = os.getenv('DATABASE_URL')

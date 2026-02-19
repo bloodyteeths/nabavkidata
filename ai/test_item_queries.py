@@ -24,6 +24,9 @@ Usage:
 import asyncio
 import os
 from rag_query import RAGQueryPipeline, ask_question
+from dotenv import load_dotenv
+load_dotenv()
+
 
 
 # Example queries to test

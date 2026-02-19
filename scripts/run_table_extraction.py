@@ -19,6 +19,9 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directory to path
 sys.path.insert(0, '/Users/tamsar/Downloads/nabavkidata')

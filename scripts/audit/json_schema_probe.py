@@ -14,6 +14,9 @@ from typing import Any, Dict, Iterable, List, Set
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
+from dotenv import load_dotenv
+load_dotenv()
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = REPO_ROOT / "devtools" / "json_schemas"

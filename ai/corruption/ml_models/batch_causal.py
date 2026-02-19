@@ -33,6 +33,9 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent paths for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))

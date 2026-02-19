@@ -20,6 +20,9 @@ import asyncpg
 import json
 import re
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 TWOCAPTCHA_API_KEY = os.getenv("TWOCAPTCHA_API_KEY")

@@ -25,6 +25,9 @@ from datetime import datetime
 import asyncpg
 import aiohttp
 import aiofiles
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent for imports
 sys.path.insert(0, str(Path(__file__).parent))

@@ -10,7 +10,11 @@ import asyncio
 import asyncpg
 import logging
 import json
+import os
 from typing import Dict, List, Tuple
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(
     level=logging.INFO,

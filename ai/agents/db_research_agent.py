@@ -17,12 +17,16 @@ Author: nabavkidata.com
 import asyncio
 import asyncpg
 import logging
+import os
 from typing import Optional, Dict, List, Any, Tuple
 from datetime import datetime, timedelta
 from decimal import Decimal
 import json
 from dataclasses import dataclass, asdict
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Configure logging
 logging.basicConfig(

@@ -31,6 +31,9 @@ import asyncio
 import logging
 import argparse
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directories to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))

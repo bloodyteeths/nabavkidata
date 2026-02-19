@@ -27,6 +27,9 @@ import fitz  # PyMuPDF
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 import requests
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Setup logging
 logging.basicConfig(

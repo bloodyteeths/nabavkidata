@@ -5,9 +5,13 @@ Updates in chunks of 1000 records.
 """
 import gzip
 import json
+import os
 import re
 import psycopg2
 from psycopg2.extras import execute_batch
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 

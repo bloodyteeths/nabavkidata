@@ -20,6 +20,9 @@ import sys
 import argparse
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(
     level=logging.INFO,

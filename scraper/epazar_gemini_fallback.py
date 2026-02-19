@@ -23,6 +23,9 @@ from decimal import Decimal
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 import google.generativeai as genai
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Setup logging
 logging.basicConfig(

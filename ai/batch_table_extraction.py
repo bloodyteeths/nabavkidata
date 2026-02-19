@@ -20,6 +20,9 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))

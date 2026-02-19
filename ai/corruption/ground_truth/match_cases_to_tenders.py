@@ -17,6 +17,9 @@ from typing import List, Optional, Dict, Any
 import json
 import sys
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directories to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))

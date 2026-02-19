@@ -17,6 +17,9 @@ from typing import List
 import psycopg2
 from psycopg2.extras import execute_values
 from fastembed import TextEmbedding
+from dotenv import load_dotenv
+load_dotenv()
+
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Avoid deadlock with multiprocessing
 

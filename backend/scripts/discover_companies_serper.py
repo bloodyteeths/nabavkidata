@@ -15,6 +15,9 @@ import aiohttp
 import json
 import re
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "3f204d308413293294eba57d56ff6e9958762197")

@@ -7,6 +7,9 @@ import os
 import sys
 import asyncio
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add project paths
 project_root = Path(__file__).parent.parent

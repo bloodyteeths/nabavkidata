@@ -12,6 +12,9 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import asyncpg
 from asyncpg.pool import Pool
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Configure logging
 logging.basicConfig(

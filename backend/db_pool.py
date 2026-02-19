@@ -5,6 +5,9 @@ Used by corruption.py and any future modules needing raw asyncpg access.
 import asyncpg
 import os
 import logging
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logger = logging.getLogger(__name__)
 

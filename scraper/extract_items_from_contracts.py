@@ -15,6 +15,9 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 import asyncpg
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))

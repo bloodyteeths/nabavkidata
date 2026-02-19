@@ -11,6 +11,8 @@ Author: nabavkidata.com
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import sys
 import json
 import logging
@@ -54,8 +56,6 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     os.getenv("DATABASE_URL")
 )
-
-
 async def create_labeled_dataset(
     pool: asyncpg.Pool,
     positive_min_score: int = 30,  # Lower threshold to get more positive samples
@@ -117,8 +117,6 @@ async def create_labeled_dataset(
 
     logger.info(f"Total dataset: {len(tender_ids)} samples ({len(positive_ids)} positive, {len(negative_ids)} negative)")
     return tender_ids, labels
-
-
 async def extract_features_for_dataset(
     pool: asyncpg.Pool,
     tender_ids: List[str],
@@ -163,8 +161,6 @@ async def extract_features_for_dataset(
         raise ValueError("No features could be extracted")
 
     return np.array(all_features), feature_names, valid_ids
-
-
 def preprocess_features(
     X_train: np.ndarray,
     X_test: np.ndarray
@@ -183,8 +179,6 @@ def preprocess_features(
     X_test_scaled = scaler.transform(X_test_imp)
 
     return X_train_scaled, X_test_scaled, imputer, scaler
-
-
 def train_xgboost(
     X_train: np.ndarray,
     y_train: np.ndarray,
@@ -258,8 +252,6 @@ def train_xgboost(
     logger.info(f"XGBoost CV AUC: {metrics['cv_auc_mean']:.4f} (+/- {metrics['cv_auc_std']:.4f})")
 
     return model, metrics
-
-
 def train_random_forest(
     X_train: np.ndarray,
     y_train: np.ndarray,
@@ -302,8 +294,6 @@ def train_random_forest(
     logger.info(f"Random Forest CV AUC: {metrics['cv_auc_mean']:.4f} (+/- {metrics['cv_auc_std']:.4f})")
 
     return model, metrics
-
-
 def evaluate_model(
     model,
     X_test: np.ndarray,
@@ -349,8 +339,6 @@ def evaluate_model(
     logger.info(f"  Confusion Matrix:\n{confusion_matrix(y_test, y_pred)}")
 
     return metrics
-
-
 async def main():
     """Main training pipeline."""
     import argparse
@@ -503,7 +491,5 @@ async def main():
 
     finally:
         await pool.close()
-
-
 if __name__ == "__main__":
     asyncio.run(main())

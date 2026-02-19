@@ -32,6 +32,9 @@ from urllib.parse import quote
 
 import asyncpg
 import httpx
+from dotenv import load_dotenv
+load_dotenv()
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
