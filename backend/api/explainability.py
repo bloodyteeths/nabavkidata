@@ -27,7 +27,8 @@ ML_MODELS_DIR = Path(__file__).parent.parent.parent / "ai" / "corruption" / "ml_
 TRAINING_METRICS_PATH = ML_MODELS_DIR / "training_metrics.json"
 RF_METADATA_PATH = ML_MODELS_DIR / "random_forest_metadata.json"
 XGB_METADATA_PATH = ML_MODELS_DIR / "xgboost_metadata.json"
-XGB_IMPORTANCE_PATH = ML_MODELS_DIR / "xgboost_feature_importance.csv"
+XGB_IMPORTANCE_PATH = ML_MODELS_DIR / "xgboost_real_feature_importance.csv"
+XGB_IMPORTANCE_PATH_FALLBACK = ML_MODELS_DIR / "xgboost_feature_importance.csv"
 
 # Add ai/corruption to sys.path for SHAP explainer imports
 _AI_CORRUPTION_DIR = Path(__file__).parent.parent.parent / "ai" / "corruption"
@@ -274,26 +275,27 @@ def load_feature_importance() -> List[FeatureImportance]:
     """Load feature importance from XGBoost model."""
     features = []
 
-    # Try XGBoost feature importance CSV
-    if XGB_IMPORTANCE_PATH.exists():
-        try:
-            import csv
-            with open(XGB_IMPORTANCE_PATH, 'r') as f:
-                reader = csv.DictReader(f)
-                for i, row in enumerate(reader):
-                    name = row.get('feature', row.get('Feature', f'feature_{i}'))
-                    importance = float(row.get('importance', row.get('Importance', 0)))
-                    desc_info = FEATURE_DESCRIPTIONS.get(name, (name.replace("_", " ").title(), "", "other"))
+    # Try XGBoost feature importance CSV (prefer real, then fallback)
+    for csv_path in [XGB_IMPORTANCE_PATH, XGB_IMPORTANCE_PATH_FALLBACK]:
+        if csv_path.exists() and not features:
+            try:
+                import csv
+                with open(csv_path, 'r') as f:
+                    reader = csv.DictReader(f)
+                    for i, row in enumerate(reader):
+                        name = row.get('feature', row.get('Feature', f'feature_{i}'))
+                        importance = float(row.get('importance', row.get('Importance', row.get('gain', 0))))
+                        desc_info = FEATURE_DESCRIPTIONS.get(name, (name.replace("_", " ").title(), "", "other"))
 
-                    features.append(FeatureImportance(
-                        name=name,
-                        importance=importance,
-                        rank=i + 1,
-                        category=desc_info[2] if len(desc_info) > 2 else None,
-                        description=desc_info[1] if len(desc_info) > 1 else None
-                    ))
-        except Exception as e:
-            logger.error(f"Error loading feature importance CSV: {e}")
+                        features.append(FeatureImportance(
+                            name=name,
+                            importance=importance,
+                            rank=i + 1,
+                            category=desc_info[2] if len(desc_info) > 2 else None,
+                            description=desc_info[1] if len(desc_info) > 1 else None
+                        ))
+            except Exception as e:
+                logger.error(f"Error loading feature importance CSV {csv_path}: {e}")
 
     # Fallback to training metrics
     if not features and TRAINING_METRICS_PATH.exists():
