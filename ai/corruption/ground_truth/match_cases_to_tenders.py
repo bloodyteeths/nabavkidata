@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirna
 from backend.utils.transliteration import latin_to_cyrillic, get_search_variants
 
 # Database connection
-DATABASE_URL = "postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 @dataclass

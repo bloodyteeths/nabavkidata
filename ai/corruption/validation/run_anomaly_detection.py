@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 DB_CONFIG = {
     'host': 'nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com',
     'user': 'nabavki_user',
-    'password': '9fagrPSDfQqBjrKZZLVrJY2Am',
+    'password': os.getenv('DB_PASSWORD', ''),
     'database': 'nabavkidata',
     'port': 5432
 }

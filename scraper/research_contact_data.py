@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Research script to investigate where participant/bidder contact information
@@ -17,7 +18,7 @@ from playwright.async_api import async_playwright
 
 # Login credentials
 USERNAME = 'teknomed'
-PASSWORD = '7Jb*Gr=2'
+PASSWORD = '" + os.getenv("NABAVKI_PASSWORD", "") + "'
 
 async def research_contact_data():
     """Research where contact data (emails, phones) is available"""

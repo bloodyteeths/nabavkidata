@@ -18,7 +18,7 @@ DB_NAME="nabavkidata"
 DB_USER="nabavki_user"
 
 # Run the update query
-RESULT=$(PGPASSWORD='9fagrPSDfQqBjrKZZLVrJY2Am' psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "
+RESULT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "
 UPDATE epazar_tenders
 SET status = 'closed',
     updated_at = NOW()
@@ -41,7 +41,7 @@ if [ "$COUNT" -gt 0 ]; then
 fi
 
 # Get current status distribution
-STATS=$(PGPASSWORD='9fagrPSDfQqBjrKZZLVrJY2Am' psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "
+STATS=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "
 SELECT status, COUNT(*) as count
 FROM epazar_tenders
 GROUP BY status

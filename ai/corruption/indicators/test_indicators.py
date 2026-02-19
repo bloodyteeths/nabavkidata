@@ -10,7 +10,7 @@ import asyncpg
 from dozorro_indicators import IndicatorRegistry
 
 # Database configuration
-DB_URL = "postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata"
+DB_URL = os.getenv("DATABASE_URL")
 
 
 async def test_indicators():

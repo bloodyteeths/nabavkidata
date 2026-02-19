@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Explore awarded tender detail page structure to understand bidder table selectors
@@ -7,7 +8,7 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 
 USERNAME = "teknomed"
-PASSWORD = "7Jb*Gr=2"
+PASSWORD = "" + os.getenv("NABAVKI_PASSWORD", "") + ""
 
 async def explore_awarded_detail():
     """Login and explore specific awarded tender detail page"""

@@ -621,30 +621,10 @@ class HybridRAGEngine:
     ) -> str:
         """Generate final answer from combined context."""
 
-        source_note = ""
-        # Do NOT mention web search or data sources to user - they just want answers
-
         # Build conversation context
         conversation_context = ""
         if conversation_history:
-            conversation_context = "\n\nПРЕТХОДЕН РАЗГОВОР (користи го за контекст):\n"
-            for turn in conversation_history[-4:]:  # Last 4 messages for context
-                if 'question' in turn:
-                    conversation_context += f"Корисник: {turn.get('question', '')[:300]}\n"
-                    if turn.get('answer'):
-                        conversation_context += f"Асистент: {turn.get('answer', '')[:300]}\n\n"
-                elif 'role' in turn and 'content' in turn:
-                    role = turn.get('role', '')
-                    content = str(turn.get('content', ''))[:300]
-                    if role == 'user':
-                        conversation_context += f"Корисник: {content}\n"
-                    elif role == 'assistant':
-                        conversation_context += f"Асистент: {content}\n\n"
-
-        # Build conversation context
-        conversation_context = ""
-        if conversation_history:
-            conversation_context = "\n\nПРЕТХОДЕН РАЗГОВОР (користи го за контекст):\n"
+            conversation_context = "\n\nПРЕТХОДЕН РАЗГОВОР:\n"
             for turn in conversation_history[-4:]:
                 if 'question' in turn:
                     conversation_context += f"Корисник: {turn.get('question', '')[:300]}\n"
@@ -661,27 +641,17 @@ class HybridRAGEngine:
         prompt = f"""You are an expert Macedonian public procurement analyst.
 {conversation_context}
 
-Answer the user's question directly and confidently based on the available information.
-{conversation_context}
-
 QUESTION: {question}
 
 CONTEXT:
 {combined_context}
 
-CRITICAL INSTRUCTIONS:
-1. NEVER mention "web search", "web research", "database", "Live Data", "data sources", or where information comes from
-2. Present all information as if you naturally know it - you are an EXPERT, not a search engine
-3. Prioritize SPECIFIC data: tender IDs, exact values in MKD, company names, deadlines
-4. If showing active tenders, include deadline information
-5. For market analysis questions, provide actionable insights
-6. Format response with clear sections using markdown
-7. NEVER tell users to "check websites themselves" - YOU provide complete answers
-8. If some data is missing, focus on what IS available and provide useful analysis
-9. DO NOT start with phrases like "Врз основа на достапните податоци" or "Според моите истражувања"
-10. Just answer directly: "Еве ги информациите за..." or "Најголемите тендери се..."
-
-ОДГОВОРИ НА МАКЕДОНСКИ ЈАЗИК."""
+INSTRUCTIONS:
+- Answer directly with specific data: tender IDs, MKD values, company names, deadlines.
+- Never mention data sources (web search, database, etc.) - present facts naturally.
+- Never redirect users to other websites.
+- Be CONCISE: 2-4 sentences for simple questions, tables/lists for complex ones.
+- Answer in Macedonian."""
 
         try:
             def _sync_generate():
@@ -693,7 +663,7 @@ CRITICAL INSTRUCTIONS:
                     prompt,
                     generation_config=genai.GenerationConfig(
                         temperature=0.3,
-                        max_output_tokens=1500
+                        max_output_tokens=800
                     ),
                     safety_settings=SAFETY_SETTINGS
                 )

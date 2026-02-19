@@ -62,11 +62,7 @@ DEFAULT_GRAPH_INFO = MODEL_DIR / "graph_info.json"
 DEFAULT_OUTPUT = MODEL_DIR / "gnn_node_embeddings.npz"
 
 # Database URL (for graph reconstruction if needed)
-DEFAULT_DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@"
-    "nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata",
-)
+DEFAULT_DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 
 def export_embeddings(

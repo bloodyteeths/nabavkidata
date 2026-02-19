@@ -13,8 +13,10 @@ import os
 import json
 import asyncio
 
-# Add AI module to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../ai'))
+# Add AI module to path (must be before backend/ to avoid db_pool conflict)
+_ai_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../ai'))
+if _ai_path not in sys.path:
+    sys.path.insert(0, _ai_path)
 
 from database import get_db
 from models import QueryHistory, User
@@ -41,13 +43,21 @@ except ImportError:
     print("Warning: Fraud prevention not available. Tier limits not enforced.")
 
 # Import RAG components
+# Clear cached backend db_pool so ai/db_pool.py loads instead
+_cached_db_pool = sys.modules.pop('db_pool', None)
 try:
     from rag_query import RAGQueryPipeline, search_tenders as rag_search_tenders
     from embeddings import EmbeddingsPipeline
     RAG_AVAILABLE = True
-except ImportError:
+except Exception as _rag_err:
     RAG_AVAILABLE = False
-    print("Warning: RAG modules not available. Install ai/ dependencies.")
+    import traceback
+    print(f"Warning: RAG modules not available: {_rag_err}")
+    traceback.print_exc()
+finally:
+    # Restore backend db_pool if it was cached
+    if _cached_db_pool is not None:
+        sys.modules['db_pool'] = _cached_db_pool
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 
@@ -134,7 +144,7 @@ async def query_rag(
                     SELECT COUNT(*) FROM usage_tracking
                     WHERE user_id = :user_id
                       AND action_type = 'rag_query'
-                      AND created_at >= CURRENT_DATE
+                      AND timestamp >= CURRENT_DATE
                 """),
                 {"user_id": user_id}
             )
@@ -234,7 +244,7 @@ async def query_rag(
             try:
                 await db.execute(
                     sql_text("""
-                        INSERT INTO usage_tracking (user_id, action_type, details, created_at)
+                        INSERT INTO usage_tracking (user_id, action_type, metadata, timestamp)
                         VALUES (:user_id, 'rag_query', :details, NOW())
                     """),
                     {"user_id": user_id, "details": f"Q: {request.question[:100]}"}
@@ -380,11 +390,11 @@ async def query_rag_stream(
                 # Send sources
                 sources_data = [
                     {
-                        'tender_id': s.tender_id,
-                        'doc_id': s.doc_id,
+                        'tender_id': str(s.tender_id) if s.tender_id else None,
+                        'doc_id': str(s.doc_id) if s.doc_id else None,
                         'chunk_text': s.chunk_text[:200] + '...' if len(s.chunk_text) > 200 else s.chunk_text,
-                        'similarity': s.similarity,
-                        'chunk_metadata': s.chunk_metadata
+                        'similarity': float(s.similarity),
+                        'chunk_metadata': {k: str(v) for k, v in (s.chunk_metadata if isinstance(s.chunk_metadata, dict) else {}).items()}
                     }
                     for s in search_results
                 ]
@@ -417,7 +427,7 @@ async def query_rag_stream(
                     prompt,
                     generation_config=genai.GenerationConfig(
                         temperature=0.3,
-                        max_output_tokens=1000
+                        max_output_tokens=800
                     ),
                     
                     stream=True
@@ -655,7 +665,7 @@ async def embed_documents_batch(
                 SELECT COALESCE(SUM(JSONB_ARRAY_LENGTH(COALESCE(embed_ids::jsonb, '[]'::jsonb))), 0) as count
                 FROM query_history
                 WHERE user_id = :user_id
-                  AND created_at > NOW() - INTERVAL '24 hours'
+                  AND timestamp > NOW() - INTERVAL '24 hours'
                   AND embed_ids IS NOT NULL
             """),
             {"user_id": str(current_user.user_id)}

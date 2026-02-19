@@ -10,6 +10,11 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+# Load environment variables
+from dotenv import load_dotenv
+env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(env_path)
+
 from database import AsyncSessionLocal
 from models import User
 from services.personalization_engine import InterestVectorBuilder
@@ -51,6 +56,7 @@ async def update_all_user_vectors():
 
                 except Exception as e:
                     print(f"Error updating user {user_id}: {e}")
+                    await db.rollback()
                     error_count += 1
                     continue
 

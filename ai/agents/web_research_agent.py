@@ -180,7 +180,7 @@ class WebResearchAgent:
             api_key: Serper API key (falls back to SERPER_API_KEY env var)
             calls_per_minute: Rate limit for API calls
         """
-        self.api_key = api_key or os.getenv('SERPER_API_KEY', '4415877ad2273c0e07330ca8400a2e058186192a')
+        self.api_key = api_key or os.getenv('SERPER_API_KEY', '')
         self.rate_limiter = RateLimiter(calls_per_minute)
         self._session: Optional[aiohttp.ClientSession] = None
 

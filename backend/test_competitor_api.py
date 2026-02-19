@@ -8,7 +8,7 @@ from sqlalchemy import text
 import os
 
 # Database connection
-DATABASE_URL = "postgresql+asyncpg://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def test_queries():
     """Test all SQL queries used by the API"""

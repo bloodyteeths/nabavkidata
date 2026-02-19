@@ -21,7 +21,7 @@ LOG_DIR="/var/log/nabavkidata"
 FILES_STORE="/home/ubuntu/nabavkidata/scraper/downloads/files"
 
 # Database URL
-export DATABASE_URL="postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata"
+export DATABASE_URL="${DATABASE_URL:?DATABASE_URL must be set in environment}"
 export FILES_STORE="$FILES_STORE"
 
 # Ensure directories exist

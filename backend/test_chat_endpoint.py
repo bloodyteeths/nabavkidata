@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy import select
 
 # Set environment variables
-os.environ['DATABASE_URL'] = 'postgresql+asyncpg://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata'
+os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL')
 os.environ['GEMINI_API_KEY'] = 'YOUR_GEMINI_API_KEY'
 os.environ['GEMINI_MODEL'] = 'gemini-2.0-flash'
 

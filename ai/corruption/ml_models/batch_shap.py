@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 # Database connection
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata"
+    os.getenv("DATABASE_URL")
 )
 
 

@@ -72,10 +72,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Default database URL
-DEFAULT_DATABASE_URL = (
-    "postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@"
-    "nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata"
-)
+DEFAULT_DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 # Model output path
 MODEL_DIR = Path(__file__).parent / "models"

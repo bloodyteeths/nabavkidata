@@ -30,7 +30,7 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
 fi
 
 # Database URL (fallback if not in .env)
-export DATABASE_URL="${DATABASE_URL:-postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata}"
+export DATABASE_URL="${DATABASE_URL:?DATABASE_URL must be set in environment}"
 
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"

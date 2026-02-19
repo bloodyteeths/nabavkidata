@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NabavkiData - EIC Accelerator Video Script</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.7;
+            color: #1a1a2e;
+            background: #fff;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding-bottom: 40px;
+            border-bottom: 3px solid #2563eb;
+        }
+
+        .logo {
+            font-size: 36px;
+            font-weight: 800;
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-bottom: 15px;
+        }
+
+        .meta-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .meta-badge {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        .section {
+            margin: 50px 0;
+            page-break-inside: avoid;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .time-badge {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e3a8a;
+        }
+
+        .visual-cue {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-left: 4px solid #f59e0b;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+            font-size: 14px;
+            color: #92400e;
+        }
+
+        .visual-cue strong {
+            color: #78350f;
+        }
+
+        .script-text {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 20px 0;
+            font-size: 17px;
+            line-height: 1.9;
+            color: #334155;
+        }
+
+        .script-text p {
+            margin-bottom: 20px;
+        }
+
+        .script-text p:last-child {
+            margin-bottom: 0;
+        }
+
+        .emphasis {
+            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #1e40af;
+        }
+
+        .stat {
+            font-weight: 700;
+            color: #dc2626;
+        }
+
+        /* Production Notes */
+        .production-section {
+            background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+            border: 1px solid #86efac;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 50px 0;
+        }
+
+        .production-section h2 {
+            color: #166534;
+            margin-bottom: 20px;
+        }
+
+        .production-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .production-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #bbf7d0;
+        }
+
+        .production-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #166534;
+            margin-bottom: 12px;
+        }
+
+        .production-card ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .production-card li {
+            font-size: 14px;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        /* Timing Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        th {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            color: white;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+
+        tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        /* Key Messages */
+        .key-messages {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border: 1px solid #93c5fd;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px 0;
+        }
+
+        .key-messages h3 {
+            color: #1e40af;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .key-messages ol {
+            margin: 0;
+            padding-left: 25px;
+        }
+
+        .key-messages li {
+            margin-bottom: 10px;
+            font-weight: 500;
+            color: #1e3a8a;
+        }
+
+        .footer {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+        }
+
+        @media print {
+            body {
+                padding: 40px;
+            }
+            .section {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">NabavkiData</div>
+    <h1>EIC Accelerator Video Script</h1>
+    <p>3-Minute Pitch Video - Step 1 Application</p>
+    <div class="meta-info">
+        <span class="meta-badge">Duration: 3:00</span>
+        <span class="meta-badge">~565 Words</span>
+        <span class="meta-badge">150 WPM + Pauses</span>
+    </div>
+</div>
+
+<!-- Section 1: The Hook -->
+<div class="section">
+    <div class="section-header">
+        <span class="time-badge">0:00 - 0:25</span>
+        <h2>THE HOOK: Why This Matters to Europe</h2>
+    </div>
+
+    <div class="visual-cue">
+        <strong>VISUAL:</strong> EU map with Western Balkans highlighted, news headlines about corruption, EU enlargement summit footage
+    </div>
+
+    <div class="script-text">
+        <p>"The European Union has invested <span class="stat">six billion euros</span> in bringing the Western Balkans into Europe. But there's a problem no one can solve:</p>
+
+        <p><span class="stat">Five billion euros</span> disappear every year to procurement corruption in this region. Hidden in scanned documents. Buried in Cyrillic text. Invisible to everyone.</p>
+
+        <p>Businesses can't compete fairly. Citizens can't see where their money goes. And EU candidate countries can't meet <span class="emphasis">Chapter 23 requirements</span> for membership.</p>
+
+        <p>We built the technology to change this."</p>
+    </div>
+</div>
+
+<!-- Section 2: The Solution -->
+<div class="section">
+    <div class="section-header">
+        <span class="time-badge">0:25 - 1:00</span>
+        <h2>THE SOLUTION: Show, Don't Tell</h2>
+    </div>
+
+    <div class="visual-cue">
+        <strong>VISUAL:</strong> Platform demo - search interface, results appearing, dashboards
+    </div>
+
+    <div class="script-text">
+        <p>"This is NabavkiData - AI-powered procurement intelligence.</p>
+
+        <p>Watch: A company searches for road contracts with only one bidder - a classic corruption red flag. Instantly, we surface every suspicious tender from the past <span class="stat">16 years</span>.</p>
+
+        <p>Here's our breakthrough: We read what no one else can. Our custom OCR pipeline achieves <span class="stat">94% accuracy</span> on degraded Cyrillic scans - <span class="emphasis">double</span> what Google or Amazon can do.</p>
+
+        <p>We don't just find documents. We find patterns. Which companies always bid together. Which contracts have suspicious pricing. Which officials favor certain vendors.</p>
+
+        <p>Our system has already processed <span class="stat">7,800 awarded tenders</span>, <span class="stat">194,000 bidder records</span>, and <span class="stat">450,000 document embeddings</span>. The data exists. Now it speaks."</p>
+    </div>
+</div>
+
+<!-- Section 3: Technology -->
+<div class="section">
+    <div class="section-header">
+        <span class="time-badge">1:00 - 1:35</span>
+        <h2>THE TECHNOLOGY: Deep Tech Credibility</h2>
+    </div>
+
+    <div class="visual-cue">
+        <strong>VISUAL:</strong> Animated tech stack diagram, TRL ladder showing progress
+    </div>
+
+    <div class="script-text">
+        <p>"This isn't a prototype - it's operational technology at <span class="emphasis">TRL 7</span>.</p>
+
+        <p>Our stack combines three innovations:</p>
+
+        <p>First, intelligent scrapers that harvest data from government portals in real-time.</p>
+
+        <p>Second, a Cyrillic OCR pipeline trained on <span class="stat">two years</span> of government documents - our moat.</p>
+
+        <p>Third, a RAG-based AI system that understands meaning, not just keywords. Ask it anything in any language.</p>
+
+        <p>And now, we're building something unprecedented: machine learning models that detect corruption automatically. Anomaly detection for pricing fraud. Graph neural networks that unmask collusion rings.</p>
+
+        <p>This is the anti-corruption intelligence the EU needs to bring the Western Balkans into Europe."</p>
+    </div>
+</div>
+
+<!-- Section 4: Market & Traction -->
+<div class="section">
+    <div class="section-header">
+        <span class="time-badge">1:35 - 2:10</span>
+        <h2>MARKET & TRACTION: Proof It Works</h2>
+    </div>
+
+    <div class="visual-cue">
+        <strong>VISUAL:</strong> Market size graphics, platform metrics, logos of interested organizations
+    </div>
+
+    <div class="script-text">
+        <p>"Our market is massive and underserved.</p>
+
+        <p><span class="stat">50 billion euros</span> in annual procurement across the Western Balkans. <span class="stat">500,000 companies</span> competing for contracts. Zero solutions that can read their documents.</p>
+
+        <p>We've proven the model in Macedonia. Now we're ready to expand across the region.</p>
+
+        <p>We already have letters of intent from anti-corruption NGOs, construction companies, and investigative journalists. Transparency International and BIRN, the Balkan investigative network, are in discussions.</p>
+
+        <p>This isn't theory. The platform is live. The data is flowing. Customers are waiting."</p>
+    </div>
+</div>
+
+<!-- Section 5: The Ask -->
+<div class="section">
+    <div class="section-header">
+        <span class="time-badge">2:10 - 2:45</span>
+        <h2>THE ASK: Why EIC</h2>
+    </div>
+
+    <div class="visual-cue">
+        <strong>VISUAL:</strong> EIC logo, funding breakdown, team photos
+    </div>
+
+    <div class="script-text">
+        <p>"We're requesting <span class="stat">2.5 million euros</span> from the EIC Accelerator.</p>
+
+        <p>Why EIC and not private VCs?</p>
+
+        <p>Because this is deep tech with a public mission. Corruption detection AI is unproven. The Western Balkans is off most investors' maps. And the 3-5 year timeline to EU enlargement is too long for typical venture patience.</p>
+
+        <p>But for Europe, this investment pays dividends: stronger rule of law in candidate countries, fair markets for SMEs, and billions in procurement savings.</p>
+
+        <p>Your funding will advance our corruption detection algorithms from <span class="emphasis">TRL 6 to TRL 8</span>, deploy across <span class="stat">five countries</span>, and onboard <span class="stat">3,000 paying customers</span>."</p>
+    </div>
+</div>
+
+<!-- Section 6: Close -->
+<div class="section">
+    <div class="section-header">
+        <span class="time-badge">2:45 - 3:00</span>
+        <h2>CLOSE: Vision & Call to Action</h2>
+    </div>
+
+    <div class="visual-cue">
+        <strong>VISUAL:</strong> Citizens, journalists, business owners benefiting. Final slide with logo and tagline
+    </div>
+
+    <div class="script-text">
+        <p>"Every euro saved from corruption is a euro spent on schools, hospitals, roads.</p>
+
+        <p>Every company that wins on merit strengthens the economy.</p>
+
+        <p>Every transparency tool brings the Western Balkans closer to Europe.</p>
+
+        <p><span class="emphasis">NabavkiData</span>. Transparency through technology. Opportunity through data. Justice through intelligence.</p>
+
+        <p><strong>Join us.</strong>"</p>
+    </div>
+
+    <div class="visual-cue">
+        <strong>END CARD:</strong> Logo, website, EIC Accelerator badge, contact information
+    </div>
+</div>
+
+<!-- Key Messages -->
+<div class="key-messages">
+    <h3>Key Messages to Land</h3>
+    <ol>
+        <li>€5 billion corruption problem - scale matters to EU</li>
+        <li>TRL 7 - this is operational, not a concept</li>
+        <li>94% Cyrillic OCR accuracy - our technical moat</li>
+        <li>EU enlargement alignment - Chapter 23 compliance</li>
+        <li>Clear ask: €2.5M for 5-country expansion</li>
+    </ol>
+</div>
+
+<!-- Timing Table -->
+<div class="section">
+    <h2>Timing Breakdown</h2>
+    <table>
+        <tr>
+            <th>Section</th>
+            <th>Duration</th>
+            <th>Words</th>
+            <th>Focus</th>
+        </tr>
+        <tr>
+            <td>Hook</td>
+            <td>25 seconds</td>
+            <td>~85</td>
+            <td>Problem + EU relevance</td>
+        </tr>
+        <tr>
+            <td>Solution Demo</td>
+            <td>35 seconds</td>
+            <td>~115</td>
+            <td>Platform + OCR breakthrough</td>
+        </tr>
+        <tr>
+            <td>Technology</td>
+            <td>35 seconds</td>
+            <td>~110</td>
+            <td>TRL + tech stack</td>
+        </tr>
+        <tr>
+            <td>Market/Traction</td>
+            <td>35 seconds</td>
+            <td>~100</td>
+            <td>Validation + interest</td>
+        </tr>
+        <tr>
+            <td>The Ask</td>
+            <td>35 seconds</td>
+            <td>~105</td>
+            <td>Why EIC + outcomes</td>
+        </tr>
+        <tr>
+            <td>Close</td>
+            <td>15 seconds</td>
+            <td>~50</td>
+            <td>Vision + CTA</td>
+        </tr>
+        <tr style="background: #dbeafe; font-weight: 600;">
+            <td><strong>TOTAL</strong></td>
+            <td><strong>3:00</strong></td>
+            <td><strong>~565</strong></td>
+            <td></td>
+        </tr>
+    </table>
+</div>
+
+<!-- Production Notes -->
+<div class="production-section">
+    <h2>Production Notes</h2>
+    <div class="production-grid">
+        <div class="production-card">
+            <h3>Speaker Guidance</h3>
+            <ul>
+                <li>Speak to camera for credibility</li>
+                <li>Controlled energy - passionate but professional</li>
+                <li>Pause briefly after key statistics</li>
+                <li>Smile at the end - positive, confident close</li>
+            </ul>
+        </div>
+        <div class="production-card">
+            <h3>Visual Requirements</h3>
+            <ul>
+                <li>Platform demo (15-20 seconds)</li>
+                <li>OCR demonstration (5-10 seconds)</li>
+                <li>Data graphics (market size, TRL)</li>
+                <li>Team footage</li>
+            </ul>
+        </div>
+        <div class="production-card">
+            <h3>Audio</h3>
+            <ul>
+                <li>Clean voice recording (lavalier mic)</li>
+                <li>Subtle background music</li>
+                <li>No music during statistics</li>
+                <li>Building momentum toward end</li>
+            </ul>
+        </div>
+        <div class="production-card">
+            <h3>B-Roll Needed</h3>
+            <ul>
+                <li>EU/Western Balkans maps</li>
+                <li>Government buildings</li>
+                <li>Business settings</li>
+                <li>Citizens and journalists</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="footer">
+    <p><strong>NabavkiData</strong> | EIC Accelerator Step 1 Application</p>
+    <p style="margin-top: 10px; font-style: italic;">"Transparency through technology. Opportunity through data. Justice through intelligence."</p>
+</div>
+
+</body>
+</html>

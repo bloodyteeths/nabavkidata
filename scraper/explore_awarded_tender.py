@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Explore awarded tender pages to understand bidder/lot data structure
@@ -6,7 +7,7 @@ import asyncio
 from playwright.async_api import async_playwright
 
 USERNAME = "teknomed"
-PASSWORD = "7Jb*Gr=2"
+PASSWORD = "" + os.getenv("NABAVKI_PASSWORD", "") + ""
 
 async def explore_awarded_tender():
     """Login and explore awarded tender pages to understand data structure"""

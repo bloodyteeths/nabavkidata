@@ -33,7 +33,7 @@ from ai.corruption_detector import CorruptionAnalyzer
 logger = logging.getLogger(__name__)
 
 # Database config
-DB_URL = "postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata"
+DB_URL = os.getenv("DATABASE_URL")
 
 
 # =============================================================================

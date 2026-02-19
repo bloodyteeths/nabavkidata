@@ -43,7 +43,7 @@ DB_CONFIG = {
     'host': os.environ.get('DB_HOST', 'nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com'),
     'port': int(os.environ.get('DB_PORT', 5432)),
     'user': os.environ.get('DB_USER', 'nabavki_user'),
-    'password': os.environ.get('DB_PASSWORD', '9fagrPSDfQqBjrKZZLVrJY2Am'),
+    'password': os.environ.get('DB_PASSWORD', ''),
     'dbname': os.environ.get('DB_NAME', 'nabavkidata'),
 }
 

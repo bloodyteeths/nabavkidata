@@ -29,7 +29,7 @@ def get_db_connection():
         host=os.getenv('DB_HOST', 'nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com'),
         database=os.getenv('DB_NAME', 'nabavkidata'),
         user=os.getenv('DB_USER', 'nabavki_user'),
-        password=os.getenv('DB_PASSWORD', '9fagrPSDfQqBjrKZZLVrJY2Am'),
+        password=os.getenv('DB_PASSWORD', ''),
         port=os.getenv('DB_PORT', 5432)
     )
 

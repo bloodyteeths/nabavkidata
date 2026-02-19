@@ -5,7 +5,7 @@ import asyncio
 import asyncpg
 
 async def check_data():
-    conn = await asyncpg.connect('postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata')
+    conn = await asyncpg.connect(os.getenv('DATABASE_URL'))
 
     # Check what winner/contact data we already have
     print('=== Winner data in tenders table ===')

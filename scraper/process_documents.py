@@ -55,7 +55,7 @@ def _normalize_database_url(url: str) -> str:
         return url.replace('postgresql+asyncpg://', 'postgresql://')
     return url
 
-DATABASE_URL = _normalize_database_url(os.getenv('DATABASE_URL', 'postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata'))
+DATABASE_URL = _normalize_database_url(os.getenv('DATABASE_URL'))
 FILES_STORE = Path(os.getenv('FILES_STORE', '/home/ubuntu/nabavkidata/scraper/downloads/files'))
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 

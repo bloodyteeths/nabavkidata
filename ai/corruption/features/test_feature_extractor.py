@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 # Database configuration
 DB_URL = os.getenv(
     'DATABASE_URL',
-    'postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata'
+    os.getenv('DATABASE_URL')
 )
 
 

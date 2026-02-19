@@ -30,8 +30,8 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
     set +a
 fi
 
-# Database URL (fallback if not in .env)
-export DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata}"
+# Database URL (must be set in .env or environment)
+export DATABASE_URL="${DATABASE_URL:?DATABASE_URL must be set in environment or .env}"
 
 # Validate credentials
 if [ -z "$NABAVKI_USERNAME" ] || [ -z "$NABAVKI_PASSWORD" ]; then

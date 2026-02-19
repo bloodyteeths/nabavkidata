@@ -9,7 +9,7 @@ from playwright.async_api import async_playwright
 
 # Credentials
 USERNAME = "teknomed"
-PASSWORD = "7Jb*Gr=2"
+PASSWORD = "" + os.getenv("NABAVKI_PASSWORD", "") + ""
 
 async def test_login():
     """Test login to e-nabavki.gov.mk and explore tender data"""

@@ -243,27 +243,28 @@ class InterestVectorBuilder:
 
         # Weighted average
         weighted_emb = np.average(embeddings, axis=0, weights=weights)
-        interest_vector = weighted_emb.tolist()
+        # Convert to string format for pgvector via raw SQL
+        interest_vector = "[" + ",".join(str(float(x)) for x in weighted_emb) + "]"
 
-        # Upsert user interest vector
-        query = select(UserInterestVector).where(UserInterestVector.user_id == user_id)
-        result = await self.db.execute(query)
-        existing = result.scalar_one_or_none()
-
-        if existing:
-            existing.embedding = interest_vector
-            existing.interaction_count = len(behaviors)
-            existing.last_updated = datetime.utcnow()
-            existing.version += 1
-        else:
-            new_vector = UserInterestVector(
-                user_id=user_id,
-                embedding=interest_vector,
-                interaction_count=len(behaviors),
-                last_updated=datetime.utcnow()
-            )
-            self.db.add(new_vector)
-
+        # Use raw SQL with CAST() to avoid asyncpg :: parameter conflict
+        from sqlalchemy import text as sql_text
+        await self.db.execute(
+            sql_text(
+                "INSERT INTO user_interest_vectors (user_id, embedding, interaction_count, last_updated, version) "
+                "VALUES (:user_id, CAST(:embedding AS vector), :count, :updated, 1) "
+                "ON CONFLICT (user_id) DO UPDATE SET "
+                "embedding = CAST(:embedding AS vector), "
+                "interaction_count = :count, "
+                "last_updated = :updated, "
+                "version = user_interest_vectors.version + 1"
+            ),
+            {
+                "user_id": str(user_id),
+                "embedding": interest_vector,
+                "count": len(behaviors),
+                "updated": datetime.utcnow()
+            }
+        )
         await self.db.commit()
 
 

@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NabavkiData - EIC Accelerator Pitch Deck</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.6;
+            color: #1a1a2e;
+            background: #fff;
+        }
+
+        .slide {
+            width: 100%;
+            min-height: 100vh;
+            padding: 60px 80px;
+            page-break-after: always;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .slide:last-child {
+            page-break-after: avoid;
+        }
+
+        .slide-number {
+            position: absolute;
+            bottom: 30px;
+            right: 40px;
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .logo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 800;
+            color: #2563eb;
+        }
+
+        .eic-badge {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Title Slide */
+        .title-slide {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #06b6d4 100%);
+            color: white;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .title-slide h1 {
+            font-size: 72px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+        }
+
+        .title-slide .subtitle {
+            font-size: 28px;
+            font-weight: 400;
+            opacity: 0.95;
+            margin-bottom: 40px;
+            max-width: 700px;
+        }
+
+        .title-slide .tagline {
+            font-size: 18px;
+            font-style: italic;
+            opacity: 0.85;
+            margin-bottom: 60px;
+        }
+
+        .title-meta {
+            display: flex;
+            gap: 40px;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .title-meta span {
+            background: rgba(255,255,255,0.15);
+            padding: 10px 20px;
+            border-radius: 8px;
+        }
+
+        /* Regular slides */
+        h2 {
+            font-size: 42px;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+
+        .slide-subtitle {
+            font-size: 20px;
+            color: #6b7280;
+            margin-bottom: 40px;
+            font-weight: 400;
+        }
+
+        h3 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1e40af;
+            margin: 30px 0 15px 0;
+        }
+
+        h4 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #374151;
+            margin: 20px 0 10px 0;
+        }
+
+        p {
+            font-size: 16px;
+            color: #4b5563;
+            margin-bottom: 15px;
+        }
+
+        ul {
+            margin: 15px 0;
+            padding-left: 25px;
+        }
+
+        li {
+            font-size: 16px;
+            color: #4b5563;
+            margin-bottom: 10px;
+        }
+
+        li strong {
+            color: #1e40af;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        th {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            color: white;
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+
+        tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        tr:hover {
+            background: #eff6ff;
+        }
+
+        /* Stats boxes */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid #bfdbfe;
+        }
+
+        .stat-box .number {
+            font-size: 36px;
+            font-weight: 800;
+            color: #1e40af;
+            display: block;
+        }
+
+        .stat-box .label {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 5px;
+        }
+
+        /* Highlight boxes */
+        .highlight-box {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-left: 4px solid #f59e0b;
+            padding: 20px 25px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .highlight-box p {
+            color: #92400e;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .problem-box {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            border-left: 4px solid #dc2626;
+            padding: 20px 25px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .problem-box p {
+            color: #991b1b;
+            margin: 0;
+        }
+
+        .solution-box {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            border-left: 4px solid #059669;
+            padding: 20px 25px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .solution-box p {
+            color: #065f46;
+            margin: 0;
+        }
+
+        /* Two column layout */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin: 20px 0;
+        }
+
+        /* Feature cards */
+        .feature-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 15px 0;
+        }
+
+        .feature-card h4 {
+            color: #1e40af;
+            margin-top: 0;
+        }
+
+        /* TRL Progress */
+        .trl-bar {
+            display: flex;
+            margin: 30px 0;
+            height: 50px;
+            border-radius: 25px;
+            overflow: hidden;
+            background: #e5e7eb;
+        }
+
+        .trl-segment {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            color: white;
+        }
+
+        .trl-complete {
+            background: linear-gradient(135deg, #059669, #10b981);
+        }
+
+        .trl-current {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+        }
+
+        .trl-target {
+            background: linear-gradient(135deg, #9ca3af, #d1d5db);
+            color: #4b5563;
+        }
+
+        /* Footer */
+        .slide-footer {
+            margin-top: auto;
+            padding-top: 30px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slide-footer .logo-small {
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        /* Contact slide */
+        .contact-slide {
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+            color: white;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .contact-slide h2 {
+            color: white;
+            font-size: 48px;
+            margin-bottom: 40px;
+        }
+
+        .contact-info {
+            font-size: 20px;
+            opacity: 0.9;
+            line-height: 2;
+        }
+
+        .final-tagline {
+            font-size: 24px;
+            font-style: italic;
+            margin-top: 60px;
+            opacity: 0.85;
+        }
+
+        @media print {
+            .slide {
+                height: 100vh;
+                page-break-after: always;
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- SLIDE 1: Title -->
+<div class="slide title-slide">
+    <h1>NabavkiData</h1>
+    <p class="subtitle">AI-Powered Public Procurement Intelligence Platform</p>
+    <p class="tagline">Turning €50 billion in opaque Balkan procurement data into transparent, searchable intelligence</p>
+    <div class="title-meta">
+        <span>Skopje, North Macedonia</span>
+        <span>TRL 7</span>
+        <span>€2.5M Request</span>
+        <span>GovTech / Anti-Corruption AI</span>
+    </div>
+    <div class="slide-number">1</div>
+</div>
+
+<!-- SLIDE 2: Problem -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>The Problem</h2>
+    <p class="slide-subtitle">A €5 Billion Corruption Crisis in the Western Balkans</p>
+
+    <div class="stats-grid">
+        <div class="stat-box">
+            <span class="number">€50B+</span>
+            <span class="label">Annual Procurement</span>
+        </div>
+        <div class="stat-box">
+            <span class="number">5-25%</span>
+            <span class="label">Lost to Corruption</span>
+        </div>
+        <div class="stat-box">
+            <span class="number">80%+</span>
+            <span class="label">Unreadable Documents</span>
+        </div>
+        <div class="stat-box">
+            <span class="number">60%+</span>
+            <span class="label">SME Opportunities Missed</span>
+        </div>
+    </div>
+
+    <h3>Why This Persists</h3>
+    <table>
+        <tr>
+            <th>Barrier</th>
+            <th>Impact</th>
+        </tr>
+        <tr>
+            <td><strong>Data Silos</strong></td>
+            <td>Tender info scattered across 15+ national portals, incompatible formats</td>
+        </tr>
+        <tr>
+            <td><strong>Unreadable Documents</strong></td>
+            <td>80%+ are scanned PDFs in Cyrillic - no OCR solution exists</td>
+        </tr>
+        <tr>
+            <td><strong>No Pattern Detection</strong></td>
+            <td>Bid rigging, collusion rings, and price manipulation invisible</td>
+        </tr>
+        <tr>
+            <td><strong>Language Barriers</strong></td>
+            <td>Critical documents in 8+ languages, untranslatable at scale</td>
+        </tr>
+    </table>
+
+    <div class="problem-box">
+        <p><strong>This is not just a business problem - it's a barrier to EU enlargement.</strong></p>
+    </div>
+
+    <div class="slide-number">2</div>
+</div>
+
+<!-- SLIDE 3: Solution -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>Our Solution</h2>
+    <p class="slide-subtitle">AI That Reads What Humans Can't</p>
+
+    <div class="two-col">
+        <div class="feature-card">
+            <h4>1. Intelligent Data Harvesting</h4>
+            <ul>
+                <li>Real-time scraping from government portals</li>
+                <li>Automated detection of new tenders, awards, cancellations</li>
+                <li>Full historical archive: 2008-present</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h4>2. Cyrillic Deep OCR Pipeline</h4>
+            <ul>
+                <li>94% accuracy on degraded government scans</li>
+                <li>vs. 40% for Google/AWS OCR</li>
+                <li>Extracts: prices, bidders, dates, items</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h4>3. Semantic Search & RAG</h4>
+            <ul>
+                <li>450,000+ document embeddings</li>
+                <li>Bilingual query processing (Latin ↔ Cyrillic)</li>
+                <li>Natural language questions with citations</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h4>4. Corruption Detection Engine</h4>
+            <ul>
+                <li>Anomaly detection: pricing, timing patterns</li>
+                <li>Network analysis: collusion rings</li>
+                <li>Red flag scoring per tender/entity</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="solution-box">
+        <p><strong>We don't just aggregate data - we make it intelligent.</strong></p>
+    </div>
+
+    <div class="slide-number">3</div>
+</div>
+
+<!-- SLIDE 4: Technology & TRL -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>Technology Readiness</h2>
+    <p class="slide-subtitle">TRL 7 - System Prototype in Operational Environment</p>
+
+    <div class="trl-bar">
+        <div class="trl-segment trl-complete">TRL 5</div>
+        <div class="trl-segment trl-complete">TRL 6</div>
+        <div class="trl-segment trl-current">TRL 7</div>
+        <div class="trl-segment trl-target">TRL 8</div>
+        <div class="trl-segment trl-target">TRL 9</div>
+    </div>
+
+    <table>
+        <tr>
+            <th>TRL Stage</th>
+            <th>Status</th>
+            <th>Evidence</th>
+        </tr>
+        <tr>
+            <td>TRL 5: Validated in relevant environment</td>
+            <td>✅ Complete</td>
+            <td>Live platform processing real government data</td>
+        </tr>
+        <tr>
+            <td>TRL 6: Demonstrated in relevant environment</td>
+            <td>✅ Complete</td>
+            <td>7,800+ awarded tenders analyzed</td>
+        </tr>
+        <tr>
+            <td>TRL 7: System prototype operational</td>
+            <td>✅ Current</td>
+            <td>Production system with 3-hour sync cycle</td>
+        </tr>
+        <tr>
+            <td>TRL 8: System complete and qualified</td>
+            <td>🎯 Target</td>
+            <td>Multi-country deployment</td>
+        </tr>
+    </table>
+
+    <h3>Intellectual Property Strategy</h3>
+    <table>
+        <tr>
+            <th>IP Asset</th>
+            <th>Status</th>
+            <th>Protection</th>
+        </tr>
+        <tr>
+            <td>Cyrillic OCR Models</td>
+            <td>Developed</td>
+            <td>Trade secret + potential patent</td>
+        </tr>
+        <tr>
+            <td>Corruption Detection Algorithms</td>
+            <td>In development</td>
+            <td>Patent filing planned Q2 2025</td>
+        </tr>
+        <tr>
+            <td>Bilingual NLP Pipeline</td>
+            <td>Developed</td>
+            <td>Trade secret</td>
+        </tr>
+        <tr>
+            <td>NabavkiData Brand</td>
+            <td>Registered</td>
+            <td>EU trademark application filed</td>
+        </tr>
+    </table>
+
+    <div class="slide-number">4</div>
+</div>
+
+<!-- SLIDE 5: Market -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>Market Opportunity</h2>
+    <p class="slide-subtitle">TAM / SAM / SOM Analysis</p>
+
+    <div class="stats-grid">
+        <div class="stat-box">
+            <span class="number">€850M</span>
+            <span class="label">TAM (EU + Candidates)</span>
+        </div>
+        <div class="stat-box">
+            <span class="number">€120M</span>
+            <span class="label">SAM (Cyrillic Markets)</span>
+        </div>
+        <div class="stat-box">
+            <span class="number">€15M</span>
+            <span class="label">SOM (2028 Target)</span>
+        </div>
+        <div class="stat-box">
+            <span class="number">500K+</span>
+            <span class="label">Companies Bidding</span>
+        </div>
+    </div>
+
+    <div class="two-col">
+        <div>
+            <h3>Target Segments</h3>
+            <table>
+                <tr>
+                    <th>Segment</th>
+                    <th>Size</th>
+                </tr>
+                <tr>
+                    <td>Business Bidders</td>
+                    <td>50,000+ companies</td>
+                </tr>
+                <tr>
+                    <td>Anti-Corruption NGOs</td>
+                    <td>50+ organizations</td>
+                </tr>
+                <tr>
+                    <td>Government Agencies</td>
+                    <td>6 national + 50+ municipalities</td>
+                </tr>
+            </table>
+        </div>
+        <div>
+            <h3>Why Now</h3>
+            <ul>
+                <li><strong>EU Enlargement Push:</strong> Western Balkans priority</li>
+                <li><strong>AI Breakthrough:</strong> LLMs make semantic search viable</li>
+                <li><strong>Digital Transformation:</strong> Post-COVID acceleration</li>
+                <li><strong>Anti-Corruption Funding:</strong> €2B+ EU investment</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="slide-number">5</div>
+</div>
+
+<!-- SLIDE 6: Competition -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>Competition & Differentiation</h2>
+    <p class="slide-subtitle">The Only Cyrillic-Capable Solution</p>
+
+    <table>
+        <tr>
+            <th>Competitor</th>
+            <th>Coverage</th>
+            <th>Cyrillic OCR</th>
+            <th>AI Search</th>
+            <th>Corruption Detection</th>
+        </tr>
+        <tr>
+            <td>OpenTender.eu</td>
+            <td>EU-wide</td>
+            <td>❌</td>
+            <td>❌ Basic</td>
+            <td>❌</td>
+        </tr>
+        <tr>
+            <td>TED (EU)</td>
+            <td>EU-wide</td>
+            <td>❌</td>
+            <td>❌ Basic</td>
+            <td>❌</td>
+        </tr>
+        <tr>
+            <td>Govini (US)</td>
+            <td>USA only</td>
+            <td>N/A</td>
+            <td>✅</td>
+            <td>✅ Limited</td>
+        </tr>
+        <tr>
+            <td>Spend Network</td>
+            <td>UK focus</td>
+            <td>❌</td>
+            <td>✅</td>
+            <td>❌</td>
+        </tr>
+        <tr style="background: #dbeafe; font-weight: 600;">
+            <td>NabavkiData</td>
+            <td>W. Balkans</td>
+            <td>✅ 94%</td>
+            <td>✅</td>
+            <td>✅</td>
+        </tr>
+    </table>
+
+    <h3>Our Unfair Advantages</h3>
+    <div class="two-col">
+        <ul>
+            <li><strong>2+ years of OCR training data</strong> - cannot be quickly replicated</li>
+            <li><strong>Local market knowledge</strong> - government portal quirks, legal context</li>
+            <li><strong>First mover</strong> - building NGO and journalist relationships</li>
+        </ul>
+        <ul>
+            <li><strong>Academic partnerships</strong> - corruption detection research</li>
+            <li><strong>Regulatory tailwinds</strong> - EU transparency requirements</li>
+            <li><strong>Trust network</strong> - anti-corruption community</li>
+        </ul>
+    </div>
+
+    <div class="slide-number">6</div>
+</div>
+
+<!-- SLIDE 7: Business Model -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>Business Model</h2>
+    <p class="slide-subtitle">Freemium SaaS + Enterprise + Data Licensing</p>
+
+    <table>
+        <tr>
+            <th>Tier</th>
+            <th>Target Customer</th>
+            <th>Price</th>
+            <th>Revenue Potential</th>
+        </tr>
+        <tr>
+            <td>Basic (Free)</td>
+            <td>Researchers, citizens</td>
+            <td>€0</td>
+            <td>Brand awareness, funnel</td>
+        </tr>
+        <tr>
+            <td>Professional</td>
+            <td>SME bidders, journalists</td>
+            <td>€29/month</td>
+            <td>5,000 users → €1.7M ARR</td>
+        </tr>
+        <tr>
+            <td>Business</td>
+            <td>Construction, pharma, IT</td>
+            <td>€199/month</td>
+            <td>1,000 users → €2.4M ARR</td>
+        </tr>
+        <tr>
+            <td>Enterprise</td>
+            <td>Anti-corruption agencies</td>
+            <td>€15-50K/year</td>
+            <td>30 contracts → €900K ARR</td>
+        </tr>
+    </table>
+
+    <h3>Financial Projections</h3>
+    <table>
+        <tr>
+            <th>Year</th>
+            <th>Free Users</th>
+            <th>Paid Users</th>
+            <th>ARR</th>
+            <th>Net Revenue</th>
+        </tr>
+        <tr>
+            <td>2025</td>
+            <td>5,000</td>
+            <td>200</td>
+            <td>€150K</td>
+            <td>-€200K</td>
+        </tr>
+        <tr>
+            <td>2026</td>
+            <td>25,000</td>
+            <td>1,500</td>
+            <td>€900K</td>
+            <td>€100K</td>
+        </tr>
+        <tr>
+            <td>2027</td>
+            <td>60,000</td>
+            <td>4,000</td>
+            <td>€2.5M</td>
+            <td>€600K</td>
+        </tr>
+        <tr style="background: #d1fae5;">
+            <td>2028</td>
+            <td>120,000</td>
+            <td>8,000</td>
+            <td>€5.5M</td>
+            <td>€1.8M</td>
+        </tr>
+    </table>
+
+    <div class="highlight-box">
+        <p><strong>Path to Profitability: Q4 2026</strong> | LTV:CAC Ratio: 8:1</p>
+    </div>
+
+    <div class="slide-number">7</div>
+</div>
+
+<!-- SLIDE 8: Traction -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>Traction & Validation</h2>
+    <p class="slide-subtitle">Proof of Concept Validated</p>
+
+    <div class="stats-grid">
+        <div class="stat-box">
+            <span class="number">7,800+</span>
+            <span class="label">Tenders Indexed</span>
+        </div>
+        <div class="stat-box">
+            <span class="number">194K+</span>
+            <span class="label">Bidder Records</span>
+        </div>
+        <div class="stat-box">
+            <span class="number">450K+</span>
+            <span class="label">Embeddings</span>
+        </div>
+        <div class="stat-box">
+            <span class="number">94%</span>
+            <span class="label">OCR Accuracy</span>
+        </div>
+    </div>
+
+    <div class="two-col">
+        <div>
+            <h3>Platform Metrics</h3>
+            <table>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Historical Coverage</td>
+                    <td>2008-2024 (16 years)</td>
+                </tr>
+                <tr>
+                    <td>Data Freshness</td>
+                    <td>3-hour sync cycle</td>
+                </tr>
+                <tr>
+                    <td>Documents Processed</td>
+                    <td>32,000+</td>
+                </tr>
+                <tr>
+                    <td>Languages Supported</td>
+                    <td>Latin + Cyrillic</td>
+                </tr>
+            </table>
+        </div>
+        <div>
+            <h3>Customer Validation</h3>
+            <ul>
+                <li><strong>Letters of Intent</strong> from anti-corruption NGOs, construction companies, investigative media</li>
+                <li><strong>Pilot discussions</strong> with Transparency International</li>
+                <li><strong>Interest expressed</strong> by BIRN (Balkan Investigative Reporting Network)</li>
+                <li><strong>Partnership discussions</strong> with OCCRP</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="slide-number">8</div>
+</div>
+
+<!-- SLIDE 9: Team -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>Team</h2>
+    <p class="slide-subtitle">Experienced Team with Complementary Skills</p>
+
+    <div class="two-col">
+        <div class="feature-card">
+            <h4>Chief Executive Officer</h4>
+            <p>Strategy, fundraising, partnerships</p>
+            <ul>
+                <li>Experience in technology and business development</li>
+                <li>Regional market knowledge</li>
+                <li>Investor relations</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h4>Chief Technology Officer</h4>
+            <p>Technology architecture, AI/ML development</p>
+            <ul>
+                <li>Software engineering and machine learning</li>
+                <li>Data engineering expertise</li>
+                <li>Technical team leadership</li>
+            </ul>
+        </div>
+    </div>
+
+    <h3>Hiring Plan (with EIC Funding)</h3>
+    <table>
+        <tr>
+            <th>Role</th>
+            <th>Timing</th>
+            <th>Priority</th>
+        </tr>
+        <tr>
+            <td>ML Engineer (Corruption Detection)</td>
+            <td>Q1 2025</td>
+            <td>Critical</td>
+        </tr>
+        <tr>
+            <td>ML Engineer (NLP/OCR)</td>
+            <td>Q2 2025</td>
+            <td>Critical</td>
+        </tr>
+        <tr>
+            <td>Full-Stack Developer</td>
+            <td>Q2 2025</td>
+            <td>High</td>
+        </tr>
+        <tr>
+            <td>Data Engineer</td>
+            <td>Q3 2025</td>
+            <td>High</td>
+        </tr>
+        <tr>
+            <td>Business Development Manager</td>
+            <td>Q3 2025</td>
+            <td>High</td>
+        </tr>
+    </table>
+
+    <div class="slide-number">9</div>
+</div>
+
+<!-- SLIDE 10: The Ask -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>The Ask</h2>
+    <p class="slide-subtitle">€2.5 Million - Blended Finance (Grant + Equity)</p>
+
+    <table>
+        <tr>
+            <th>Category</th>
+            <th>Amount</th>
+            <th>%</th>
+            <th>Key Activities</th>
+        </tr>
+        <tr>
+            <td><strong>R&D - AI/ML</strong></td>
+            <td>€1,000,000</td>
+            <td>40%</td>
+            <td>Corruption detection, GNN development, OCR improvements</td>
+        </tr>
+        <tr>
+            <td><strong>Engineering</strong></td>
+            <td>€600,000</td>
+            <td>24%</td>
+            <td>Platform scaling, multi-country architecture, API</td>
+        </tr>
+        <tr>
+            <td><strong>Go-to-Market</strong></td>
+            <td>€500,000</td>
+            <td>20%</td>
+            <td>Sales team, marketing, partnerships</td>
+        </tr>
+        <tr>
+            <td><strong>Operations</strong></td>
+            <td>€250,000</td>
+            <td>10%</td>
+            <td>Legal, compliance, infrastructure</td>
+        </tr>
+        <tr>
+            <td><strong>Reserve</strong></td>
+            <td>€150,000</td>
+            <td>6%</td>
+            <td>Contingency</td>
+        </tr>
+    </table>
+
+    <h3>Why EIC (Not Private Investment)</h3>
+    <ul>
+        <li><strong>Deep Tech Risk:</strong> Corruption detection AI is unproven at scale - VCs want proven economics</li>
+        <li><strong>Long Time Horizon:</strong> 3-5 year EU enlargement timeline too long for typical VC patience</li>
+        <li><strong>Public Good Component:</strong> Transparency features reduce margins but maximize societal impact</li>
+        <li><strong>Regional Focus:</strong> Western Balkans "off the radar" for mainstream European VCs</li>
+        <li><strong>Strategic Alignment:</strong> EIC specifically funds EU enlargement-enabling technologies</li>
+    </ul>
+
+    <div class="slide-number">10</div>
+</div>
+
+<!-- SLIDE 11: Impact & EU Alignment -->
+<div class="slide">
+    <div class="logo-header">
+        <div class="logo">NabavkiData</div>
+        <div class="eic-badge">EIC ACCELERATOR</div>
+    </div>
+
+    <h2>Impact & EU Alignment</h2>
+    <p class="slide-subtitle">Contributing to European Priorities</p>
+
+    <div class="two-col">
+        <div>
+            <h3>EU Strategic Priorities</h3>
+            <table>
+                <tr>
+                    <th>Priority</th>
+                    <th>Contribution</th>
+                </tr>
+                <tr>
+                    <td>EU Enlargement</td>
+                    <td>Chapter 23 compliance support</td>
+                </tr>
+                <tr>
+                    <td>European Green Deal</td>
+                    <td>Green procurement oversight</td>
+                </tr>
+                <tr>
+                    <td>Digital Decade 2030</td>
+                    <td>AI-powered transparency</td>
+                </tr>
+            </table>
+        </div>
+        <div>
+            <h3>UN SDG Alignment</h3>
+            <table>
+                <tr>
+                    <th>SDG</th>
+                    <th>Contribution</th>
+                </tr>
+                <tr>
+                    <td>SDG 16</td>
+                    <td>Peace, Justice, Institutions</td>
+                </tr>
+                <tr>
+                    <td>SDG 8</td>
+                    <td>Economic Growth</td>
+                </tr>
+                <tr>
+                    <td>SDG 9</td>
+                    <td>Innovation</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <h3>Measurable Impact Targets (by 2028)</h3>
+    <table>
+        <tr>
+            <th>Metric</th>
+            <th>Target</th>
+            <th>Measurement</th>
+        </tr>
+        <tr>
+            <td>Corruption cases identified</td>
+            <td>50+</td>
+            <td>Referrals to authorities</td>
+        </tr>
+        <tr>
+            <td>SME bid success improvement</td>
+            <td>+25%</td>
+            <td>Before/after analysis</td>
+        </tr>
+        <tr>
+            <td>Procurement savings identified</td>
+            <td>€50M+</td>
+            <td>Price anomaly detection</td>
+        </tr>
+        <tr>
+            <td>Countries covered</td>
+            <td>5+</td>
+            <td>Platform deployment</td>
+        </tr>
+        <tr>
+            <td>Jobs created</td>
+            <td>25 direct, 200+ indirect</td>
+            <td>Company + ecosystem growth</td>
+        </tr>
+    </table>
+
+    <div class="slide-number">11</div>
+</div>
+
+<!-- SLIDE 12: Contact -->
+<div class="slide contact-slide">
+    <h2>NabavkiData</h2>
+    <div class="contact-info">
+        <p>Skopje, North Macedonia</p>
+        <p>&nbsp;</p>
+        <p>GovTech / Anti-Corruption / AI</p>
+        <p>&nbsp;</p>
+        <p>EIC Accelerator Application</p>
+    </div>
+    <p class="final-tagline">"Transparency through technology. Opportunity through data. Justice through intelligence."</p>
+    <div class="slide-number">12</div>
+</div>
+
+</body>
+</html>

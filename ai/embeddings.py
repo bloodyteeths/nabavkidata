@@ -2,7 +2,7 @@
 AI Embeddings Generator - Vector embeddings for RAG
 
 Features:
-- Google Gemini text-embedding-004 (768 dimensions)
+- Google Gemini gemini-embedding-001 (768 dimensions)
 - Semantic text chunking (Cyrillic-aware)
 - Batch processing for efficiency
 - pgvector storage integration
@@ -218,7 +218,7 @@ class TextChunker:
 
 class EmbeddingGenerator:
     """
-    Generate embeddings using Google Gemini text-embedding-004
+    Generate embeddings using Google Gemini gemini-embedding-001
 
     Handles batching, rate limiting, and error recovery
     """
@@ -226,7 +226,7 @@ class EmbeddingGenerator:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "models/text-embedding-004",
+        model: str = "models/gemini-embedding-001",
         batch_size: int = 100
     ):
         self.api_key = api_key or os.getenv('GEMINI_API_KEY')
@@ -236,7 +236,7 @@ class EmbeddingGenerator:
         genai.configure(api_key=self.api_key)
         self.model = model
         self.batch_size = batch_size
-        self.dimensions = 768  # text-embedding-004 dimensions
+        self.dimensions = 768  # gemini-embedding-001 dimensions
 
     async def generate_embedding(self, text: str) -> List[float]:
         """
@@ -254,7 +254,8 @@ class EmbeddingGenerator:
                 genai.embed_content,
                 model=self.model,
                 content=text,
-                task_type="retrieval_document"
+                task_type="retrieval_document",
+                output_dimensionality=768
             )
 
             vector = result['embedding']
@@ -294,7 +295,8 @@ class EmbeddingGenerator:
                         genai.embed_content,
                         model=self.model,
                         content=texts,
-                        task_type="retrieval_document"
+                        task_type="retrieval_document",
+                output_dimensionality=768
                     )
                     break  # Success
                 except Exception as api_error:

@@ -14,6 +14,6 @@ Author: nabavkidata.com
 License: Proprietary
 """
 
-from ai.corruption.features.feature_extractor import FeatureExtractor
+from .features.feature_extractor import FeatureExtractor
 
 __all__ = ['FeatureExtractor']

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OWASP Dependency-Check Configuration
+  https://jeremylong.github.io/DependencyCheck/
+-->
+<dependencyCheck xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xsi:noNamespaceSchemaLocation="https://jeremylong.github.io/DependencyCheck/dependency-check.xsd">
+
+  <!-- Analyzer Settings -->
+  <analyzers>
+    <assemblyEnabled>false</assemblyEnabled>
+    <jarEnabled>true</jarEnabled>
+    <archiveEnabled>true</archiveEnabled>
+    <nodeEnabled>true</nodeEnabled>
+    <retiredEnabled>true</retiredEnabled>
+    <pythonEnabled>true</pythonEnabled>
+  </analyzers>
+
+  <!-- CVE Data Feeds -->
+  <cve>
+    <url>
+      <base>https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-%d.json.gz</base>
+      <modified>https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-modified.json.gz</modified>
+    </url>
+    <download>
+      <username></username>
+      <password></password>
+    </download>
+    <validForHours>24</validForHours>
+  </cve>
+
+  <!-- Database Settings -->
+  <database>
+    <connectionString>jdbc:h2:file:%s;MV_STORE=FALSE;AUTOCOMMIT=ON;FILE_LOCK=SERIALIZED</connectionString>
+    <driverName>org.h2.Driver</driverName>
+  </database>
+
+  <!-- Suppression Rules -->
+  <suppressions>
+    <!-- Example: Suppress false positives
+    <suppress>
+      <notes>False positive - test dependency only</notes>
+      <gav regex="true">^org\.example:test-lib:.*$</gav>
+      <cve>CVE-2023-12345</cve>
+    </suppress>
+    -->
+  </suppressions>
+
+  <!-- Failure Threshold -->
+  <failBuildOnCVSS>7.0</failBuildOnCVSS>
+
+  <!-- Skip these directories -->
+  <skipConfigurations>
+    <skipConfiguration>
+      <regex>true</regex>
+      <path>.*/node_modules/.*</path>
+    </skipConfiguration>
+    <skipConfiguration>
+      <regex>true</regex>
+      <path>.*/venv/.*</path>
+    </skipConfiguration>
+    <skipConfiguration>
+      <regex>true</regex>
+      <path>.*/.venv/.*</path>
+    </skipConfiguration>
+    <skipConfiguration>
+      <regex>true</regex>
+      <path>.*/tests?/.*</path>
+    </skipConfiguration>
+  </skipConfigurations>
+
+  <!-- Update NVD data automatically -->
+  <autoUpdate>true</autoUpdate>
+</dependencyCheck>

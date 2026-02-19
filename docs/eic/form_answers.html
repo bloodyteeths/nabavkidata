@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NabavkiData - EIC Accelerator Form Answers</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.7;
+            color: #1a1a2e;
+            background: #fff;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 50px 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding-bottom: 30px;
+            border-bottom: 3px solid #2563eb;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: 800;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-bottom: 15px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .meta-item {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #bfdbfe;
+        }
+
+        .meta-item .label {
+            font-size: 11px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .meta-item .value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e40af;
+            margin-top: 5px;
+        }
+
+        /* Sections */
+        .main-section {
+            margin: 50px 0;
+            page-break-inside: avoid;
+        }
+
+        .section-title {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px 8px 0 0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .section-content {
+            border: 1px solid #e5e7eb;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            padding: 30px;
+        }
+
+        h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin: 35px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        h2:first-child {
+            margin-top: 0;
+        }
+
+        h3 {
+            font-size: 17px;
+            font-weight: 600;
+            color: #1e40af;
+            margin: 25px 0 12px 0;
+        }
+
+        p {
+            font-size: 15px;
+            color: #4b5563;
+            margin-bottom: 15px;
+        }
+
+        ul, ol {
+            margin: 15px 0;
+            padding-left: 25px;
+        }
+
+        li {
+            font-size: 15px;
+            color: #4b5563;
+            margin-bottom: 8px;
+        }
+
+        li strong {
+            color: #1e40af;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+
+        th {
+            background: linear-gradient(135deg, #374151, #4b5563);
+            color: white;
+            padding: 12px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+
+        tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        /* Highlight boxes */
+        .innovation-box {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border-left: 4px solid #2563eb;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .innovation-box h4 {
+            color: #1e40af;
+            font-size: 15px;
+            margin-bottom: 10px;
+        }
+
+        .innovation-box p, .innovation-box li {
+            color: #1e3a8a;
+            font-size: 14px;
+        }
+
+        .key-stat {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-left: 4px solid #f59e0b;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+            font-weight: 600;
+            color: #92400e;
+        }
+
+        .summary-box {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            border: 2px solid #10b981;
+            padding: 25px;
+            margin: 30px 0;
+            border-radius: 12px;
+        }
+
+        .summary-box h3 {
+            color: #065f46;
+            margin-top: 0;
+        }
+
+        .summary-box p {
+            color: #064e3b;
+        }
+
+        /* TRL Bar */
+        .trl-container {
+            margin: 25px 0;
+        }
+
+        .trl-bar {
+            display: flex;
+            height: 40px;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #e5e7eb;
+        }
+
+        .trl-segment {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 12px;
+            color: white;
+        }
+
+        .trl-complete {
+            background: linear-gradient(135deg, #059669, #10b981);
+        }
+
+        .trl-current {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+        }
+
+        .trl-target {
+            background: #d1d5db;
+            color: #4b5563;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        .stat-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-box .number {
+            font-size: 28px;
+            font-weight: 800;
+            color: #1e40af;
+        }
+
+        .stat-box .label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 5px;
+        }
+
+        /* Two columns */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin: 20px 0;
+        }
+
+        .col-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .col-box h4 {
+            color: #1e40af;
+            font-size: 15px;
+            margin-bottom: 12px;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        @media print {
+            body {
+                padding: 30px;
+            }
+            .main-section {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div class="logo">NabavkiData</div>
+    <h1>EIC Accelerator Step 1 - Form Answers</h1>
+    <p>Complete Short Proposal Application</p>
+    <div class="meta-grid">
+        <div class="meta-item">
+            <div class="label">Company</div>
+            <div class="value">NabavkiData d.o.o.e.l.</div>
+        </div>
+        <div class="meta-item">
+            <div class="label">Country</div>
+            <div class="value">North Macedonia</div>
+        </div>
+        <div class="meta-item">
+            <div class="label">TRL</div>
+            <div class="value">7</div>
+        </div>
+        <div class="meta-item">
+            <div class="label">Funding Request</div>
+            <div class="value">€2,500,000</div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 1: Excellence -->
+<div class="main-section">
+    <div class="section-title">SECTION 1: EXCELLENCE</div>
+    <div class="section-content">
+
+        <h2>1.1 Innovation - What is the innovation?</h2>
+        <p>NabavkiData is an AI-powered public procurement intelligence platform that transforms unstructured government data into actionable insights for businesses, anti-corruption organizations, and citizens across the Western Balkans.</p>
+
+        <h3>Core Innovation - Three Interconnected Breakthroughs:</h3>
+
+        <div class="innovation-box">
+            <h4>1. Cyrillic Deep OCR Pipeline (Our Primary Technical Moat)</h4>
+            <p>Off-the-shelf OCR solutions achieve only 40-60% accuracy on degraded Cyrillic government scans. We developed a custom-trained pipeline achieving <strong>94% accuracy</strong>:</p>
+            <ul>
+                <li>Pre-processing optimized for low-quality government scans</li>
+                <li>Custom models trained on 2+ years of real procurement documents</li>
+                <li>Post-processing with domain-specific entity recognition</li>
+                <li>Automatic extraction of structured fields from unstructured text</li>
+            </ul>
+        </div>
+
+        <div class="innovation-box">
+            <h4>2. RAG-Powered Semantic Search</h4>
+            <ul>
+                <li>450,000+ document embeddings for semantic similarity</li>
+                <li>Bilingual query processing (automatic Latin ↔ Cyrillic transliteration)</li>
+                <li>Retrieval-Augmented Generation for natural language Q&A</li>
+                <li>Context-aware responses with source citations</li>
+            </ul>
+        </div>
+
+        <div class="innovation-box">
+            <h4>3. ML-Based Corruption Detection (Novel Application)</h4>
+            <ul>
+                <li><strong>Anomaly Detection:</strong> Statistical flagging of unusual pricing, timing patterns</li>
+                <li><strong>Graph Neural Networks:</strong> Network analysis to identify collusion rings</li>
+                <li><strong>Temporal Analysis:</strong> Pattern recognition for suspicious seasonal publication</li>
+                <li><strong>Red Flag Scoring:</strong> Automated risk assessment per tender and entity</li>
+            </ul>
+        </div>
+
+        <h2>1.2 Beyond State of the Art</h2>
+
+        <table>
+            <tr>
+                <th>Dimension</th>
+                <th>Current SOTA</th>
+                <th>NabavkiData Advancement</th>
+            </tr>
+            <tr>
+                <td>OCR Accuracy</td>
+                <td>40-60% on Cyrillic</td>
+                <td>94% accuracy (2x improvement)</td>
+            </tr>
+            <tr>
+                <td>Search</td>
+                <td>Keyword matching</td>
+                <td>Semantic understanding</td>
+            </tr>
+            <tr>
+                <td>Language</td>
+                <td>Single language</td>
+                <td>Bilingual (Latin/Cyrillic)</td>
+            </tr>
+            <tr>
+                <td>Coverage</td>
+                <td>Single country or EU only</td>
+                <td>Multi-country Western Balkans</td>
+            </tr>
+            <tr>
+                <td>History</td>
+                <td>Current year</td>
+                <td>16 years (2008-2024)</td>
+            </tr>
+            <tr>
+                <td>Freshness</td>
+                <td>Weekly/monthly</td>
+                <td>3-hour sync cycle</td>
+            </tr>
+            <tr>
+                <td>Corruption Detection</td>
+                <td>Manual investigation</td>
+                <td>Automated ML flagging</td>
+            </tr>
+        </table>
+
+        <h2>1.3 Technology Readiness Level</h2>
+        <p><strong>Current TRL: 7</strong> (System prototype demonstrated in operational environment)</p>
+
+        <div class="trl-container">
+            <div class="trl-bar">
+                <div class="trl-segment trl-complete">5</div>
+                <div class="trl-segment trl-complete">6</div>
+                <div class="trl-segment trl-current">7</div>
+                <div class="trl-segment trl-target">8</div>
+                <div class="trl-segment trl-target">9</div>
+            </div>
+        </div>
+
+        <table>
+            <tr>
+                <th>Component</th>
+                <th>TRL</th>
+                <th>Evidence</th>
+            </tr>
+            <tr>
+                <td>Web scraping infrastructure</td>
+                <td>8</td>
+                <td>Production, 3-hour sync cycle</td>
+            </tr>
+            <tr>
+                <td>Cyrillic OCR pipeline</td>
+                <td>7</td>
+                <td>94% accuracy, 32K+ documents processed</td>
+            </tr>
+            <tr>
+                <td>Embedding generation</td>
+                <td>7</td>
+                <td>450,000+ embeddings in production</td>
+            </tr>
+            <tr>
+                <td>RAG search system</td>
+                <td>7</td>
+                <td>Live with bilingual support</td>
+            </tr>
+            <tr>
+                <td>Corruption detection ML</td>
+                <td>5-6</td>
+                <td>Algorithms designed, initial validation</td>
+            </tr>
+        </table>
+
+        <h2>1.4 Intellectual Property Strategy</h2>
+
+        <table>
+            <tr>
+                <th>IP Asset</th>
+                <th>Status</th>
+                <th>Protection Strategy</th>
+            </tr>
+            <tr>
+                <td>Cyrillic OCR Models</td>
+                <td>Developed</td>
+                <td>Trade secret (architecture + training data)</td>
+            </tr>
+            <tr>
+                <td>Corruption Detection Algorithms</td>
+                <td>In development</td>
+                <td>Patent application planned Q2 2025</td>
+            </tr>
+            <tr>
+                <td>Bilingual NLP Pipeline</td>
+                <td>Developed</td>
+                <td>Trade secret</td>
+            </tr>
+            <tr>
+                <td>Training Data</td>
+                <td>2+ years accumulated</td>
+                <td>Trade secret (key competitive moat)</td>
+            </tr>
+            <tr>
+                <td>NabavkiData Brand</td>
+                <td>Registered</td>
+                <td>EU trademark application filed</td>
+            </tr>
+        </table>
+
+        <p><strong>Freedom to Operate:</strong> No blocking patents identified. Built on open-source foundations with no licensing constraints. Preliminary FTO review completed.</p>
+
+    </div>
+</div>
+
+<!-- Section 2: Impact -->
+<div class="main-section">
+    <div class="section-title">SECTION 2: IMPACT</div>
+    <div class="section-content">
+
+        <h2>2.1 Market Opportunity - TAM/SAM/SOM</h2>
+
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="number">€850M</div>
+                <div class="label">TAM (EU + Candidates)</div>
+            </div>
+            <div class="stat-box">
+                <div class="number">€120M</div>
+                <div class="label">SAM (Cyrillic Markets)</div>
+            </div>
+            <div class="stat-box">
+                <div class="number">€15M</div>
+                <div class="label">SOM (2028 Target)</div>
+            </div>
+        </div>
+
+        <h3>Market Timing - Why Now:</h3>
+        <table>
+            <tr>
+                <th>Driver</th>
+                <th>Trend</th>
+                <th>Impact</th>
+            </tr>
+            <tr>
+                <td>EU Enlargement Push</td>
+                <td>Western Balkans priority post-Ukraine</td>
+                <td>Chapter 23 compliance mandatory</td>
+            </tr>
+            <tr>
+                <td>AI Breakthrough</td>
+                <td>LLMs, embeddings now viable</td>
+                <td>Semantic search finally possible</td>
+            </tr>
+            <tr>
+                <td>Digital Transformation</td>
+                <td>Post-COVID government digitization</td>
+                <td>More data available online</td>
+            </tr>
+            <tr>
+                <td>Anti-Corruption Funding</td>
+                <td>€2B+ EU investment in rule-of-law</td>
+                <td>Willing buyers for our tools</td>
+            </tr>
+        </table>
+
+        <h2>2.2 Scalability</h2>
+
+        <table>
+            <tr>
+                <th>Phase</th>
+                <th>Countries</th>
+                <th>Timeline</th>
+                <th>Users</th>
+            </tr>
+            <tr>
+                <td>Complete</td>
+                <td>North Macedonia</td>
+                <td>Done</td>
+                <td>5,000</td>
+            </tr>
+            <tr>
+                <td>Phase 2</td>
+                <td>Kosovo, Albania</td>
+                <td>2025</td>
+                <td>20,000</td>
+            </tr>
+            <tr>
+                <td>Phase 3</td>
+                <td>Serbia, Montenegro</td>
+                <td>2026</td>
+                <td>60,000</td>
+            </tr>
+            <tr>
+                <td>Phase 4</td>
+                <td>Bosnia, Croatia, Bulgaria</td>
+                <td>2027+</td>
+                <td>120,000</td>
+            </tr>
+        </table>
+
+        <h2>2.3 EU Strategic Alignment</h2>
+
+        <div class="two-col">
+            <div class="col-box">
+                <h4>EU Priorities</h4>
+                <ul>
+                    <li><strong>EU Enlargement:</strong> Chapter 23 compliance support</li>
+                    <li><strong>European Green Deal:</strong> Green procurement oversight</li>
+                    <li><strong>Digital Decade 2030:</strong> AI-powered transparency</li>
+                    <li><strong>Anti-Corruption Strategy:</strong> Technology infrastructure</li>
+                </ul>
+            </div>
+            <div class="col-box">
+                <h4>UN SDG Alignment</h4>
+                <ul>
+                    <li><strong>SDG 16:</strong> Peace, Justice, Strong Institutions</li>
+                    <li><strong>SDG 8:</strong> Decent Work & Economic Growth</li>
+                    <li><strong>SDG 9:</strong> Industry, Innovation, Infrastructure</li>
+                    <li><strong>SDG 10:</strong> Reduced Inequalities</li>
+                </ul>
+            </div>
+        </div>
+
+        <h3>Measurable Impact Targets (by 2028):</h3>
+        <table>
+            <tr>
+                <th>Metric</th>
+                <th>Target</th>
+                <th>Measurement</th>
+            </tr>
+            <tr>
+                <td>Corruption cases identified</td>
+                <td>50+</td>
+                <td>Referrals to authorities</td>
+            </tr>
+            <tr>
+                <td>SME bid success improvement</td>
+                <td>+25%</td>
+                <td>Before/after analysis</td>
+            </tr>
+            <tr>
+                <td>Procurement savings identified</td>
+                <td>€50M+</td>
+                <td>Price anomaly detection</td>
+            </tr>
+            <tr>
+                <td>Documents made searchable</td>
+                <td>2M+</td>
+                <td>Platform metrics</td>
+            </tr>
+            <tr>
+                <td>Countries covered</td>
+                <td>5+</td>
+                <td>Platform deployment</td>
+            </tr>
+        </table>
+
+        <h2>2.4 Competitive Advantage</h2>
+
+        <table>
+            <tr>
+                <th>Barrier</th>
+                <th>Our Position</th>
+                <th>Time to Replicate</th>
+            </tr>
+            <tr>
+                <td>Training Data</td>
+                <td>2+ years of Cyrillic documents</td>
+                <td>2-3 years minimum</td>
+            </tr>
+            <tr>
+                <td>OCR Accuracy</td>
+                <td>94% on degraded scans</td>
+                <td>1-2 years R&D</td>
+            </tr>
+            <tr>
+                <td>Historical Coverage</td>
+                <td>16 years (2008-2024)</td>
+                <td>Cannot be accelerated</td>
+            </tr>
+            <tr>
+                <td>Trust Network</td>
+                <td>NGO/journalist relationships</td>
+                <td>Years to build</td>
+            </tr>
+            <tr>
+                <td>First Mover</td>
+                <td>Operational platform</td>
+                <td>18-24 months</td>
+            </tr>
+        </table>
+
+    </div>
+</div>
+
+<!-- Section 3: Implementation -->
+<div class="main-section">
+    <div class="section-title">SECTION 3: IMPLEMENTATION</div>
+    <div class="section-content">
+
+        <h2>3.1 Team</h2>
+
+        <div class="two-col">
+            <div class="col-box">
+                <h4>Chief Executive Officer</h4>
+                <p>Strategy, fundraising, partnerships</p>
+                <ul>
+                    <li>Technology and business development experience</li>
+                    <li>Regional market knowledge</li>
+                    <li>Investor relations</li>
+                </ul>
+            </div>
+            <div class="col-box">
+                <h4>Chief Technology Officer</h4>
+                <p>Technology architecture, AI/ML development</p>
+                <ul>
+                    <li>Software engineering and machine learning</li>
+                    <li>Data engineering expertise</li>
+                    <li>Technical team leadership</li>
+                </ul>
+            </div>
+        </div>
+
+        <h3>Hiring Plan (with EIC Funding):</h3>
+        <table>
+            <tr>
+                <th>Role</th>
+                <th>Timing</th>
+                <th>Priority</th>
+                <th>Key Skills</th>
+            </tr>
+            <tr>
+                <td>ML Engineer (Corruption Detection)</td>
+                <td>Q1 2025</td>
+                <td>Critical</td>
+                <td>GNNs, anomaly detection</td>
+            </tr>
+            <tr>
+                <td>ML Engineer (NLP/OCR)</td>
+                <td>Q2 2025</td>
+                <td>Critical</td>
+                <td>Transformers, multilingual NLP</td>
+            </tr>
+            <tr>
+                <td>Full-Stack Developer</td>
+                <td>Q2 2025</td>
+                <td>High</td>
+                <td>React, Python, PostgreSQL</td>
+            </tr>
+            <tr>
+                <td>Data Engineer</td>
+                <td>Q3 2025</td>
+                <td>High</td>
+                <td>Scrapy, ETL pipelines</td>
+            </tr>
+            <tr>
+                <td>Business Development Manager</td>
+                <td>Q3 2025</td>
+                <td>High</td>
+                <td>B2B SaaS, regional experience</td>
+            </tr>
+        </table>
+
+        <h2>3.2 Work Plan and Milestones</h2>
+
+        <h3>Phase 1: Foundation (Months 1-6) - €500,000</h3>
+        <table>
+            <tr>
+                <th>Milestone</th>
+                <th>Deliverable</th>
+                <th>Success Criteria</th>
+            </tr>
+            <tr>
+                <td>M1.1</td>
+                <td>Launch paid subscription tiers</td>
+                <td>First 50 paid users</td>
+            </tr>
+            <tr>
+                <td>M1.2</td>
+                <td>Corruption detection MVP</td>
+                <td>3 algorithms operational</td>
+            </tr>
+            <tr>
+                <td>M1.3</td>
+                <td>Customer onboarding</td>
+                <td>100 paying customers</td>
+            </tr>
+            <tr>
+                <td>M1.4</td>
+                <td>Kosovo deployment</td>
+                <td>1,000+ tenders indexed</td>
+            </tr>
+        </table>
+
+        <h3>Phase 2: Regional Expansion (Months 7-12) - €700,000</h3>
+        <table>
+            <tr>
+                <th>Milestone</th>
+                <th>Deliverable</th>
+                <th>Success Criteria</th>
+            </tr>
+            <tr>
+                <td>M2.1</td>
+                <td>Albania platform launch</td>
+                <td>2,000+ tenders indexed</td>
+            </tr>
+            <tr>
+                <td>M2.2</td>
+                <td>Developer API launch</td>
+                <td>10 API customers</td>
+            </tr>
+            <tr>
+                <td>M2.3</td>
+                <td>Public transparency dashboard</td>
+                <td>Open access launched</td>
+            </tr>
+            <tr>
+                <td>M2.4</td>
+                <td>NGO partnership</td>
+                <td>MOU with TI chapter</td>
+            </tr>
+        </table>
+
+        <h3>Phase 3: Scale (Months 13-18) - €700,000</h3>
+        <table>
+            <tr>
+                <th>Milestone</th>
+                <th>Deliverable</th>
+                <th>Success Criteria</th>
+            </tr>
+            <tr>
+                <td>M3.1</td>
+                <td>Serbia platform launch</td>
+                <td>Largest market covered</td>
+            </tr>
+            <tr>
+                <td>M3.2</td>
+                <td>Montenegro coverage</td>
+                <td>5 countries total</td>
+            </tr>
+            <tr>
+                <td>M3.3</td>
+                <td>Enterprise sales</td>
+                <td>20 enterprise customers</td>
+            </tr>
+            <tr>
+                <td>M3.4</td>
+                <td>Advanced ML models</td>
+                <td>GNN collusion detection live</td>
+            </tr>
+        </table>
+
+        <h3>Phase 4: Growth (Months 19-24) - €600,000</h3>
+        <table>
+            <tr>
+                <th>Milestone</th>
+                <th>Deliverable</th>
+                <th>Success Criteria</th>
+            </tr>
+            <tr>
+                <td>M4.1</td>
+                <td>6th country launch</td>
+                <td>Bosnia and Herzegovina</td>
+            </tr>
+            <tr>
+                <td>M4.2</td>
+                <td>Revenue milestone</td>
+                <td>€2M ARR achieved</td>
+            </tr>
+            <tr>
+                <td>M4.3</td>
+                <td>User milestone</td>
+                <td>3,000+ paying customers</td>
+            </tr>
+            <tr>
+                <td>M4.4</td>
+                <td>Series A readiness</td>
+                <td>Investment materials ready</td>
+            </tr>
+        </table>
+
+        <h2>3.3 Risk Assessment</h2>
+
+        <table>
+            <tr>
+                <th>Risk</th>
+                <th>Probability</th>
+                <th>Impact</th>
+                <th>Mitigation</th>
+            </tr>
+            <tr>
+                <td>OCR accuracy plateau</td>
+                <td>Medium</td>
+                <td>High</td>
+                <td>Continuous training; human-in-the-loop</td>
+            </tr>
+            <tr>
+                <td>Slow customer adoption</td>
+                <td>Medium</td>
+                <td>High</td>
+                <td>Freemium model; partnerships</td>
+            </tr>
+            <tr>
+                <td>Government portal changes</td>
+                <td>High</td>
+                <td>Medium</td>
+                <td>Modular architecture; monitoring</td>
+            </tr>
+            <tr>
+                <td>Competition from larger players</td>
+                <td>Low</td>
+                <td>High</td>
+                <td>First-mover advantage; data moat</td>
+            </tr>
+            <tr>
+                <td>Political instability</td>
+                <td>Medium</td>
+                <td>Medium</td>
+                <td>Multi-country diversification</td>
+            </tr>
+        </table>
+
+        <h2>3.4 Financial Plan</h2>
+
+        <h3>Use of EIC Funds (€2,500,000):</h3>
+        <table>
+            <tr>
+                <th>Category</th>
+                <th>Amount</th>
+                <th>%</th>
+                <th>Key Activities</th>
+            </tr>
+            <tr>
+                <td>R&D - AI/ML</td>
+                <td>€1,000,000</td>
+                <td>40%</td>
+                <td>Corruption detection, GNN, OCR</td>
+            </tr>
+            <tr>
+                <td>Engineering</td>
+                <td>€600,000</td>
+                <td>24%</td>
+                <td>Platform, multi-country, API</td>
+            </tr>
+            <tr>
+                <td>Go-to-Market</td>
+                <td>€500,000</td>
+                <td>20%</td>
+                <td>Sales, marketing, partnerships</td>
+            </tr>
+            <tr>
+                <td>Operations</td>
+                <td>€250,000</td>
+                <td>10%</td>
+                <td>Legal, compliance, infrastructure</td>
+            </tr>
+            <tr>
+                <td>Contingency</td>
+                <td>€150,000</td>
+                <td>6%</td>
+                <td>Unforeseen challenges</td>
+            </tr>
+        </table>
+
+        <h3>Revenue Projections:</h3>
+        <table>
+            <tr>
+                <th>Year</th>
+                <th>Free Users</th>
+                <th>Paid Users</th>
+                <th>ARR</th>
+            </tr>
+            <tr>
+                <td>2025</td>
+                <td>5,000</td>
+                <td>200</td>
+                <td>€150K</td>
+            </tr>
+            <tr>
+                <td>2026</td>
+                <td>25,000</td>
+                <td>1,500</td>
+                <td>€900K</td>
+            </tr>
+            <tr>
+                <td>2027</td>
+                <td>60,000</td>
+                <td>4,000</td>
+                <td>€2.5M</td>
+            </tr>
+            <tr>
+                <td>2028</td>
+                <td>120,000</td>
+                <td>8,000</td>
+                <td>€5.5M</td>
+            </tr>
+        </table>
+
+        <div class="key-stat">
+            Path to Profitability: Q4 2026 | LTV:CAC Ratio: 8:1
+        </div>
+
+        <h2>3.5 Why EIC (Not Private Investment)</h2>
+
+        <ol>
+            <li><strong>Deep Tech Risk:</strong> Corruption detection AI at scale is unproven. VCs require demonstrated unit economics.</li>
+            <li><strong>Long Time Horizon:</strong> EU enlargement is a 3-5 year process. Standard VC exit timelines don't align.</li>
+            <li><strong>Public Good Component:</strong> Free transparency features reduce commercial margins but maximize societal impact.</li>
+            <li><strong>Regional Focus:</strong> Western Balkans is considered "frontier" by European VCs.</li>
+            <li><strong>Strategic EU Alignment:</strong> EIC specifically funds EU enlargement-enabling technologies.</li>
+        </ol>
+
+        <p><strong>Grant vs. Equity Preference:</strong> Blended finance (grant for R&D, equity for go-to-market)</p>
+
+    </div>
+</div>
+
+<!-- Summary -->
+<div class="summary-box">
+    <h3>Summary Statement</h3>
+    <p><strong>The Problem:</strong> €50+ billion in annual procurement across the Western Balkans is largely opaque - locked in scanned Cyrillic documents no technology can read. Corruption thrives in this darkness.</p>
+    <p><strong>Our Solution:</strong> AI that reads what humans can't. We've built the first platform achieving 94% OCR accuracy on government scans, combined with semantic search and corruption detection algorithms.</p>
+    <p><strong>The Evidence:</strong> 7,800+ tenders indexed, 450,000+ embeddings generated, operational platform processing data every 3 hours. TRL 7 - this is working technology, not a concept.</p>
+    <p><strong>The Ask:</strong> €2.5M to scale from one country to six, advance corruption detection from TRL 6 to TRL 8, and build a sustainable business delivering lasting European impact.</p>
+    <p><strong>The Impact:</strong> Every euro saved from corruption is a euro for schools, hospitals, roads. Every company winning on merit strengthens the economy. Every transparency tool brings the Western Balkans closer to Europe.</p>
+    <p style="margin-top: 20px; font-weight: 700; font-size: 17px; text-align: center;">We are not just building a company. We are building infrastructure for accountability.</p>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+    <p><strong>NabavkiData d.o.o.e.l.</strong></p>
+    <p>Skopje, North Macedonia</p>
+    <p style="margin-top: 15px; font-style: italic;">"Transparency through technology. Opportunity through data. Justice through intelligence."</p>
+    <p style="margin-top: 20px; font-size: 12px;">EIC Accelerator Step 1 Application</p>
+</div>
+
+</body>
+</html>

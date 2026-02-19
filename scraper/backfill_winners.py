@@ -85,7 +85,8 @@ async def get_db_pool():
 async def get_tenders_missing_winners(pool, limit: int = 500, offset: int = 0) -> List[Dict]:
     """Get tenders that have e-nabavki source_urls but are missing winner.
     Only includes dossie-acpp URLs (awarded contracts) — these have winner data.
-    Excludes dossie-realized-contract (different page structure, often times out)."""
+    Excludes OT- prefixed tenders (opentender imports with stale URLs).
+    Prioritizes recent tenders (2023+) which are most likely to still be live."""
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT tender_id, source_url, status, num_bidders, actual_value_mkd
@@ -93,7 +94,10 @@ async def get_tenders_missing_winners(pool, limit: int = 500, offset: int = 0) -
             WHERE winner IS NULL
               AND status IN ('awarded', 'completed')
               AND source_url LIKE '%e-nabavki.gov.mk%dossie-acpp%'
-            ORDER BY tender_id
+              AND tender_id NOT LIKE 'OT-%'
+            ORDER BY
+              CASE WHEN tender_id ~ '/202[3-6]$' THEN 0 ELSE 1 END,
+              tender_id DESC
             LIMIT $1 OFFSET $2
         """, limit, offset)
         return [dict(r) for r in rows]
@@ -339,6 +343,7 @@ async def main():
             WHERE winner IS NULL
               AND status IN ('awarded', 'completed')
               AND source_url LIKE '%e-nabavki.gov.mk%dossie-acpp%'
+              AND tender_id NOT LIKE 'OT-%'
         """)
     logger.info(f"Total tenders with e-nabavki URLs missing winner: {total_missing:,}")
 

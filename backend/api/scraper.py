@@ -632,7 +632,7 @@ async def run_scraper(scraper_id: str):
     # Build the command to run in background
     scraper_dir = "/home/ubuntu/nabavkidata/scraper"
     venv_activate = "source /home/ubuntu/nabavkidata/venv/bin/activate"
-    db_url = "export DATABASE_URL='postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata'"
+    db_url = "export DATABASE_URL=os.getenv('DATABASE_URL')"
 
     log_file = config["log_file"].replace("$(date +%Y%m%d)", datetime.utcnow().strftime("%Y%m%d"))
 

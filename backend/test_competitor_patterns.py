@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy import text
 
 # Database configuration
-DATABASE_URL = "postgresql+asyncpg://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com/nabavkidata"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def test_bidding_patterns():
     """Test the bidding pattern analysis queries"""

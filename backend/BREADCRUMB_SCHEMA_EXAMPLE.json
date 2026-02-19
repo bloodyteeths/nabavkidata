@@ -1,0 +1,23 @@
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Почетна",
+      "item": "https://www.nabavkidata.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Тендери",
+      "item": "https://www.nabavkidata.com/tenders"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Example Tender Title - Current Page"
+    }
+  ]
+}

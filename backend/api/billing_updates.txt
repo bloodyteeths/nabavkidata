@@ -1,0 +1,6 @@
+# Just showing we need to update these files manually
+# billing.py - remove white-label, integrations
+# tenders.py - add export endpoint
+# models.py - add APIKey model
+# main.py - add api_keys router
+# Create api_keys.py

@@ -18,7 +18,7 @@ DB_NAME="nabavkidata"
 DB_USER="nabavki_user"
 
 # Run the update query
-RESULT=$(PGPASSWORD='9fagrPSDfQqBjrKZZLVrJY2Am' psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "
+RESULT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "
 UPDATE tenders
 SET status = 'closed',
     updated_at = NOW()

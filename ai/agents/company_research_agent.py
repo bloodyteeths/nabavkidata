@@ -21,6 +21,7 @@ License: Proprietary
 import asyncio
 import aiohttp
 import logging
+import os
 import re
 import json
 from typing import List, Dict, Optional, Any, Tuple
@@ -36,7 +37,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Serper API configuration
-SERPER_API_KEY = "4415877ad2273c0e07330ca8400a2e058186192a"
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
 SERPER_URL = "https://google.serper.dev/search"
 
 # Macedonian business data sources

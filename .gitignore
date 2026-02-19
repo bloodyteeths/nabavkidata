@@ -97,6 +97,21 @@ tmp/
 temp/
 *.tmp
 
+# Large data files
+ocds_data/mk_full.jsonl
+ocds_data/mk_full.jsonl.gz
+scraper/ocds_updates.sql
+*.sql.gz
+data/
+
+# Workspace files
+*.code-workspace
+
+# Misc junk
+*.eml
+chandra_venv/
+apollo_accountant_results/
+
 scraper/opendata_cache/
 
 # Claude Code

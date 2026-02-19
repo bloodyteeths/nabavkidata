@@ -48,7 +48,7 @@ def _normalize_db_url(url: str) -> str:
 
 DATABASE_URL = _normalize_db_url(os.getenv(
     'DATABASE_URL',
-    'postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata'
+    os.getenv('DATABASE_URL')
 ))
 FILES_STORE = Path(os.getenv('FILES_STORE', '/home/ubuntu/nabavkidata/scraper/downloads/files'))
 FILES_STORE.mkdir(parents=True, exist_ok=True)

@@ -113,3 +113,56 @@ class LotAwardItem(scrapy.Item):
     all_bidders = scrapy.Field()  # JSON array of all bidders for this lot
     raw_data = scrapy.Field()  # Original extracted data
     source_url = scrapy.Field()  # URL of the tender page
+
+
+class CompanyWallItem(scrapy.Item):
+    """CompanyWall.com.mk company data"""
+    # Core identifiers
+    name = scrapy.Field()
+    name_short = scrapy.Field()
+    embs = scrapy.Field()              # ЕМБС registration number
+    edb = scrapy.Field()               # ЕДБ tax ID
+    companywall_id = scrapy.Field()    # CompanyWall unique ID (e.g. "MMBJW9bR")
+
+    # Status
+    status = scrapy.Field()            # active, inactive, in_liquidation, in_bankruptcy
+    legal_form = scrapy.Field()        # DOO, DOOEL, AD, TP, etc.
+    founding_date = scrapy.Field()     # Date of incorporation
+
+    # Location
+    address = scrapy.Field()
+    city = scrapy.Field()
+    municipality = scrapy.Field()
+    postal_code = scrapy.Field()
+    region = scrapy.Field()
+
+    # Contact
+    phone = scrapy.Field()
+    email = scrapy.Field()
+    website = scrapy.Field()
+
+    # Industry
+    nace_code = scrapy.Field()         # NACE activity code (e.g. "62.100")
+    nace_description = scrapy.Field()  # Activity description
+
+    # People
+    owners = scrapy.Field()            # JSON array of owner names
+    directors = scrapy.Field()         # JSON array of director names
+
+    # Financials
+    revenue = scrapy.Field()
+    profit = scrapy.Field()
+    num_employees = scrapy.Field()
+    financial_year = scrapy.Field()
+    avg_salary = scrapy.Field()
+
+    # Risk indicators
+    tax_debtor = scrapy.Field()
+    court_proceedings = scrapy.Field()
+    bank_blocked = scrapy.Field()
+    credit_rating = scrapy.Field()
+
+    # Metadata
+    source_url = scrapy.Field()
+    scraped_at = scrapy.Field()
+    raw_data_json = scrapy.Field()

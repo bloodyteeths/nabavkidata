@@ -1,0 +1,133 @@
+# Alerting rules for Nabavki Data Platform
+# Prometheus Alertmanager configuration
+
+groups:
+  - name: api_alerts
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{service="backend",status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{service="backend"}[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "High error rate detected on {{ $labels.service }}"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_milliseconds_bucket{service="backend"}[5m])
+          ) > 500
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High response time on {{ $labels.service }}"
+          description: "95th percentile response time is {{ $value }}ms (threshold: 500ms)"
+
+      - alert: APIDown
+        expr: up{service="backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "API service is down"
+          description: "Backend API on {{ $labels.instance }} has been down for 2 minutes"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      - alert: DatabaseConnectionsHigh
+        expr: postgres_stat_database_numbackends{datname="nabavki"} > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High number of database connections"
+          description: "Database has {{ $value }} active connections (threshold: 80)"
+
+      - alert: DatabaseConnectionIssues
+        expr: rate(postgres_stat_database_xact_rollback{datname="nabavki"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High transaction rollback rate"
+          description: "Database rollback rate is {{ $value }} per second"
+
+      - alert: DatabaseDown
+        expr: up{service="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "Database on {{ $labels.instance }} is unreachable"
+
+  - name: system_alerts
+    interval: 30s
+    rules:
+      - alert: DiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space is {{ $value | humanizePercentage }} full (threshold: 85%)"
+
+      - alert: DiskSpaceCritical
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) < 0.05
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Critical disk space on {{ $labels.instance }}"
+          description: "Disk space is {{ $value | humanizePercentage }} full (threshold: 95%)"
+
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+          ) / node_memory_MemTotal_bytes > 0.90
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | humanizePercentage }} (threshold: 90%)"
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 15m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value | humanizePercentage }} (threshold: 80%)"

@@ -17,7 +17,7 @@ from sqlalchemy import text
 # Database configuration
 DB_HOST = "nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com"
 DB_USER = "nabavki_user"
-DB_PASS = "9fagrPSDfQqBjrKZZLVrJY2Am"
+DB_PASS = os.getenv("DB_PASSWORD", "")
 DB_NAME = "nabavkidata"
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}"

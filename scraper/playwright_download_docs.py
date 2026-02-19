@@ -47,7 +47,7 @@ NABAVKI_USERNAME = os.environ.get('NABAVKI_USERNAME')
 NABAVKI_PASSWORD = os.environ.get('NABAVKI_PASSWORD')
 
 # Database
-DB_URL = os.environ.get('DATABASE_URL', 'postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata')
+DB_URL = os.environ.get('DATABASE_URL')
 if DB_URL.startswith('postgresql+asyncpg://'):
     DB_URL = DB_URL.replace('postgresql+asyncpg://', 'postgresql://')
 
