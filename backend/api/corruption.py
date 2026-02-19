@@ -6484,11 +6484,12 @@ async def list_alert_rules():
         )
 
 
-@router.get("/alerts/subscriptions", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+@router.get("/alerts/subscriptions")
 async def list_alert_subscriptions(
-    user_id: str = Query(..., description="User ID to list subscriptions for"),
+    current_user=Depends(require_module(ModuleName.RISK_ANALYSIS)),
     active_only: bool = Query(True, description="Only show active subscriptions"),
 ):
+    user_id = str(current_user.user_id)
     """
     List a user's alert subscriptions.
 
@@ -6556,24 +6557,16 @@ async def list_alert_subscriptions(
         )
 
 
-@router.post("/alerts/subscriptions", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
-async def create_alert_subscription(body: dict):
+@router.post("/alerts/subscriptions")
+async def create_alert_subscription(body: dict, current_user=Depends(require_module(ModuleName.RISK_ANALYSIS))):
     """
-    Create a new alert subscription.
+    Create a new alert subscription. User is identified from auth token.
 
     Body Parameters:
-    - user_id (str, required): User ID
     - rule_type (str, required): One of: high_risk_score, single_bidder_high_value,
       watched_entity, multiple_flags, repeat_pattern, escalating_risk
-    - rule_config (dict, optional): Rule-specific configuration. Examples:
-        - high_risk_score: {"threshold": 80}
-        - single_bidder_high_value: {"value_threshold": 10000000}
-        - watched_entity: {"watched_entities": ["Company A", "Institution B"]}
-        - multiple_flags: {"flag_threshold": 4}
-        - repeat_pattern: {"repeat_threshold": 5}
-        - escalating_risk: {}
-    - severity_filter (str, optional): Minimum severity to receive alerts
-      (low, medium, high, critical). NULL means all.
+    - rule_config (dict, optional): Rule-specific configuration
+    - severity_filter (str, optional): Minimum severity (low, medium, high, critical)
 
     Returns:
     - The created subscription object with subscription_id
@@ -6582,18 +6575,12 @@ async def create_alert_subscription(body: dict):
         import json as _json
         from ai.corruption.alerts.alert_rules import AVAILABLE_RULES, create_rule
 
-        user_id = body.get("user_id")
+        user_id = str(current_user.user_id)
         rule_type = body.get("rule_type")
         rule_config = body.get("rule_config", {})
         severity_filter = body.get("severity_filter")
 
         # Validation
-        if not user_id or not str(user_id).strip():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Field 'user_id' is required"
-            )
-
         if not rule_type or rule_type not in AVAILABLE_RULES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -6773,8 +6760,9 @@ async def update_alert_subscription(subscription_id: int, body: dict):
         )
 
 
-@router.delete("/alerts/subscriptions/{subscription_id}", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
-async def delete_alert_subscription(subscription_id: int, user_id: str = Query(..., description="User ID for ownership verification")):
+@router.delete("/alerts/subscriptions/{subscription_id}")
+async def delete_alert_subscription(subscription_id: int, current_user=Depends(require_module(ModuleName.RISK_ANALYSIS))):
+    user_id = str(current_user.user_id)
     """
     Delete (deactivate) an alert subscription.
 
@@ -6817,15 +6805,26 @@ async def delete_alert_subscription(subscription_id: int, user_id: str = Query(.
         )
 
 
-@router.get("/alerts", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+@router.get("/alerts")
 async def list_corruption_alerts(
-    user_id: str = Query(..., description="User ID to list alerts for"),
+    current_user=Depends(require_module(ModuleName.RISK_ANALYSIS)),
     unread_only: bool = Query(False, description="Only show unread alerts"),
-    severity: Optional[str] = Query(None, pattern="^(low|medium|high|critical)$", description="Filter by severity"),
+    severity: Optional[str] = Query(None, description="Filter by severity (low/medium/high/critical)"),
     rule_type: Optional[str] = Query(None, description="Filter by rule type"),
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Results per page"),
+    limit: int = Query(20, ge=1, le=100, description="Results per page"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    page: Optional[int] = Query(None, ge=1, description="Page number (alternative to offset)"),
+    page_size: Optional[int] = Query(None, ge=1, le=100, description="Page size (alternative to limit)"),
 ):
+    user_id = str(current_user.user_id)
+    # Normalize severity=all to None
+    if severity and severity.lower() == "all":
+        severity = None
+    # Support both limit/offset and page/page_size
+    if page is not None:
+        page_size = page_size or limit
+        offset = (page - 1) * page_size
+        limit = page_size
     """
     List corruption alerts for a user with pagination and filters.
 
@@ -6881,7 +6880,6 @@ async def list_corruption_alerts(
             )
 
             # Fetch page
-            offset = (page - 1) * page_size
             param_idx += 1
             limit_param = param_idx
             param_idx += 1
@@ -6898,7 +6896,7 @@ async def list_corruption_alerts(
                 ORDER BY created_at DESC
                 LIMIT ${limit_param} OFFSET ${offset_param}
                 """,
-                *params, page_size, offset
+                *params, limit, offset
             )
 
             alerts = []
@@ -6925,9 +6923,6 @@ async def list_corruption_alerts(
                 "alerts": alerts,
                 "total": total or 0,
                 "unread_count": unread_count or 0,
-                "page": page,
-                "page_size": page_size,
-                "total_pages": ((total or 0) + page_size - 1) // page_size if page_size > 0 else 0,
             }
 
     except Exception as e:
@@ -6938,11 +6933,12 @@ async def list_corruption_alerts(
         )
 
 
-@router.patch("/alerts/{alert_id}/read", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+@router.patch("/alerts/{alert_id}/read")
 async def mark_alert_read(
     alert_id: int,
-    user_id: str = Query(..., description="User ID for ownership verification"),
+    current_user=Depends(require_module(ModuleName.RISK_ANALYSIS)),
 ):
+    user_id = str(current_user.user_id)
     """
     Mark a corruption alert as read.
 
@@ -6998,10 +6994,11 @@ async def mark_alert_read(
         )
 
 
-@router.patch("/alerts/mark-all-read", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+@router.patch("/alerts/mark-all-read")
 async def mark_all_alerts_read(
-    user_id: str = Query(..., description="User ID"),
+    current_user=Depends(require_module(ModuleName.RISK_ANALYSIS)),
 ):
+    user_id = str(current_user.user_id)
     """
     Mark all unread corruption alerts as read for a user.
 
@@ -7109,9 +7106,9 @@ async def trigger_alert_evaluation(background_tasks: BackgroundTasks):
         )
 
 
-@router.get("/alerts/stats", dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+@router.get("/alerts/stats")
 async def get_alert_stats(
-    user_id: Optional[str] = Query(None, description="User ID for user-scoped stats. Omit for global stats."),
+    current_user=Depends(require_module(ModuleName.RISK_ANALYSIS)),
 ):
     """
     Get corruption alert statistics.
@@ -7133,6 +7130,7 @@ async def get_alert_stats(
     try:
         from ai.corruption.alerts.corruption_alerter import CorruptionAlerter
 
+        user_id = str(current_user.user_id)
         alerter = CorruptionAlerter()
         pool = await get_asyncpg_pool()
         stats = await alerter.get_stats(pool, user_id=user_id)

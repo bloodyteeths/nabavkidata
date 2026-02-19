@@ -21,7 +21,7 @@ interface Alert {
 }
 interface AlertsResponse { alerts: Alert[]; total: number; unread_count: number; }
 interface AlertStats {
-  total: number; unread: number;
+  total_alerts: number; unread_count: number;
   by_severity: Record<string, number>; by_rule_type: Record<string, number>;
   recent_24h: number; recent_7d: number;
 }
@@ -119,8 +119,9 @@ export function AlertsFeed() {
   const loadSubs = useCallback(async () => {
     try {
       setSubsLoading(true); setSubsError(null);
-      const d = await apiFetch<Subscription[]>("/api/corruption/alerts/subscriptions");
-      setSubs(Array.isArray(d) ? d : []);
+      const d = await apiFetch<any>("/api/corruption/alerts/subscriptions");
+      const list = Array.isArray(d) ? d : (d?.subscriptions || []);
+      setSubs(list.map((s: any) => ({ ...s, id: s.id || s.subscription_id })));
     } catch (e: any) { setSubsError(e.message || "Грешка"); }
     finally { setSubsLoading(false); }
   }, []);
@@ -131,7 +132,7 @@ export function AlertsFeed() {
     try {
       await apiFetch<void>(`/api/corruption/alerts/${id}/read`, { method: "PATCH" });
       setAlerts(p => p.map(a => a.alert_id === id ? { ...a, read: true } : a));
-      setStats(p => p ? { ...p, unread: Math.max(0, p.unread - 1) } : p);
+      setStats(p => p ? { ...p, unread_count: Math.max(0, p.unread_count - 1) } : p);
     } catch {}
   };
 
@@ -140,7 +141,7 @@ export function AlertsFeed() {
       setMarkingAll(true);
       await apiFetch<void>("/api/corruption/alerts/mark-all-read", { method: "PATCH" });
       setAlerts(p => p.map(a => ({ ...a, read: true })));
-      setStats(p => p ? { ...p, unread: 0 } : p);
+      setStats(p => p ? { ...p, unread_count: 0 } : p);
     } catch { setAlertsError("Грешка при означување"); }
     finally { setMarkingAll(false); }
   };
@@ -162,9 +163,10 @@ export function AlertsFeed() {
       const cfg: Record<string, any> = {};
       if (newRule === "high_risk_score") cfg.threshold = parseInt(newThreshold, 10) || 70;
       if (newRule === "watched_entity" && newEntity.trim()) cfg.entity_name = newEntity.trim();
-      const sub = await apiFetch<Subscription>("/api/corruption/alerts/subscriptions", {
+      const raw = await apiFetch<any>("/api/corruption/alerts/subscriptions", {
         method: "POST", body: JSON.stringify({ rule_type: newRule, rule_config: cfg, severity_filter: newSev }),
       });
+      const sub: Subscription = { ...raw, id: raw.id || raw.subscription_id };
       setSubs(p => [...p, sub]);
       setNewRule(""); setNewSev("medium"); setNewThreshold("70"); setNewEntity("");
     } catch (e: any) { setSubsError(e.message || "Грешка при креирање"); }
@@ -184,12 +186,12 @@ export function AlertsFeed() {
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
                   <Bell className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Вкупно: {stats.total}</span>
+                  <span className="text-sm font-medium">Вкупно: {stats.total_alerts}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <BellRing className="h-4 w-4 text-red-500" />
                   <Badge className="bg-red-500 text-white hover:bg-red-600">
-                    {stats.unread} непрочитани
+                    {stats.unread_count} непрочитани
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
@@ -202,7 +204,7 @@ export function AlertsFeed() {
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={handleMarkAllRead}
-                    disabled={markingAll || stats.unread === 0}>
+                    disabled={markingAll || stats.unread_count === 0}>
                     {markingAll
                       ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                       : <CheckCircle2 className="h-4 w-4 mr-1" />}
