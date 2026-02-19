@@ -14,9 +14,9 @@ LOG_FILE="$LOG_DIR/corruption_analysis.log"
 LOCK_FILE="/tmp/corruption_analysis.lock"
 
 # Load database credentials from environment
-if [ -f "$PROJECT_DIR/backend/.env.production" ]; then
+if [ -f "$PROJECT_DIR/backend/.env" ]; then
     set -a
-    source "$PROJECT_DIR/backend/.env.production"
+    source "$PROJECT_DIR/backend/.env"
     set +a
 fi
 
@@ -46,10 +46,6 @@ log "============================================================"
 
 cd "$PROJECT_DIR/ai"
 
-# Activate virtual environment if it exists
-if [ -f "$PROJECT_DIR/backend/venv/bin/activate" ]; then
-    
-fi
 
 # Run corruption analysis
 log "Running full corruption analysis..."

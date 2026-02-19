@@ -23,7 +23,6 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-# VENV_PATH not needed - packages installed globally
 LOG_DIR="/var/log/nabavkidata"
 PROGRESS_FILE="/tmp/historical_backfill_progress.json"
 
@@ -252,7 +251,6 @@ log "Progress file: $PROGRESS_FILE"
 log "========================================="
 
 # Activate virtual environment
-source "$VENV_PATH/bin/activate"
 
 # Change to scraper directory
 cd /home/ubuntu/nabavkidata/scraper
@@ -306,6 +304,5 @@ PGPASSWORD="$DB_PASS" psql \
     -c "SELECT EXTRACT(YEAR FROM publication_date) as year, COUNT(*) FROM tenders WHERE publication_date IS NOT NULL GROUP BY year ORDER BY year DESC;"
 
 # Deactivate virtual environment
-deactivate 2>/dev/null || true
 
 log "Historical backfill finished"

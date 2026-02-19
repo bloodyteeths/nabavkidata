@@ -18,7 +18,6 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-# VENV_PATH not needed - packages installed globally
 LOG_DIR="/var/log/nabavkidata"
 
 # Database URL
@@ -35,7 +34,6 @@ log() {
 log "Starting E-Pazar scrape (all categories)..."
 
 # Activate virtual environment
-source "$VENV_PATH/bin/activate"
 
 # Change to scraper directory
 cd /home/ubuntu/nabavkidata/scraper
@@ -44,9 +42,9 @@ cd /home/ubuntu/nabavkidata/scraper
 RUN_START=$(date -Iseconds)
 LOG_FILE="$LOG_DIR/scrapy_epazar_$(date +%Y%m%d_%H%M%S).log"
 
-log "Running "$VENV_PATH/bin/scrapy" crawl epazar_api -a category=all"
+log "Running /home/ubuntu/.local/bin/scrapy crawl epazar_api -a category=all"
 
-"$VENV_PATH/bin/scrapy" crawl epazar_api \
+/home/ubuntu/.local/bin/scrapy crawl epazar_api \
     -a category=all \
     -s LOG_LEVEL=INFO \
     -s LOG_FILE="$LOG_FILE"
@@ -64,7 +62,7 @@ fi
 
 # Write health JSON if write_health.py exists
 if [ -f "$SCRIPT_DIR/write_health.py" ]; then
-    "$VENV_PATH/bin/python" "$SCRIPT_DIR/write_health.py" \
+    /usr/bin/python3 "$SCRIPT_DIR/write_health.py" \
       --status "$STATUS" \
       --dataset epazar \
       --log-file "$LOG_FILE" \
@@ -75,6 +73,5 @@ if [ -f "$SCRIPT_DIR/write_health.py" ]; then
 fi
 
 # Deactivate virtual environment
-deactivate 2>/dev/null || true
 
 log "E-Pazar scrape finished"

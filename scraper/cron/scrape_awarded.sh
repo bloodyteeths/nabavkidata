@@ -14,7 +14,6 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-# VENV_PATH not needed - packages installed globally
 LOG_DIR="/var/log/nabavkidata"
 
 # Database URL
@@ -38,7 +37,6 @@ acquire_scraper_lock || exit 0
 log "Starting awarded contracts scrape..."
 
 # Activate virtual environment
-source "$VENV_PATH/bin/activate"
 
 # Change to scraper directory
 cd /home/ubuntu/nabavkidata/scraper
@@ -53,7 +51,7 @@ MAX_PAGES=200
 
 log "Running scrapy crawl nabavki -a category=awarded -a max_listing_pages=$MAX_PAGES"
 
-"$VENV_PATH/bin/scrapy" crawl nabavki \
+/home/ubuntu/.local/bin/scrapy crawl nabavki \
     -a category=awarded \
     -a max_listing_pages=$MAX_PAGES \
     -s LOG_LEVEL=INFO \
@@ -85,4 +83,3 @@ python3 "$SCRIPT_DIR/write_health.py" \
   --exit-code "$RC" || true
 
 # Deactivate virtual environment
-deactivate 2>/dev/null || true

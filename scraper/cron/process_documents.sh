@@ -16,7 +16,6 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-# VENV_PATH not needed - packages installed globally
 LOG_DIR="/var/log/nabavkidata"
 FILES_STORE="/home/ubuntu/nabavkidata/scraper/downloads/files"
 
@@ -37,7 +36,6 @@ log "Starting document processing..."
 log "FILES_STORE: $FILES_STORE"
 
 # Activate virtual environment
-source "$VENV_PATH/bin/activate"
 
 # Change to scraper directory
 cd /home/ubuntu/nabavkidata/scraper
@@ -50,7 +48,7 @@ log "========================================"
 log "Phase 1: Processing Bid Documents"
 log "========================================"
 
-"$VENV_PATH/bin/python" -c "
+/usr/bin/python3 -c "
 import asyncio
 import sys
 sys.path.insert(0, '.')
@@ -97,7 +95,7 @@ log "========================================"
 log "Phase 2: Processing Contract Documents"
 log "========================================"
 
-"$VENV_PATH/bin/python" -c "
+/usr/bin/python3 -c "
 import asyncio
 import sys
 sys.path.insert(0, '.')
@@ -144,7 +142,7 @@ log "========================================"
 log "Phase 3: Processing Other Documents"
 log "========================================"
 
-"$VENV_PATH/bin/python" -c "
+/usr/bin/python3 -c "
 import asyncio
 import sys
 sys.path.insert(0, '.')
@@ -196,12 +194,11 @@ log "========================================"
 
 # Run the backfill script to extract CPV codes, emails, phones from PDFs
 # This processes documents that have file_path but no specifications_json
-"$VENV_PATH/bin/python" backfill_pdf_extraction.py 200 || {
+/usr/bin/python3 backfill_pdf_extraction.py 200 || {
     RC=$?
     log "WARNING: PDF backfill failed with exit code $RC"
 }
 
 # Deactivate virtual environment
-deactivate 2>/dev/null || true
 
 log "Document processing completed"

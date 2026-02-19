@@ -19,7 +19,6 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-# VENV_PATH not needed - packages installed globally
 LOG_DIR="/var/log/nabavkidata"
 HEALTH_FILE="/home/ubuntu/nabavkidata/health.json"
 
@@ -52,7 +51,6 @@ log "Starting E-Nabavki authenticated scrape..."
 log "Using username: $NABAVKI_USERNAME"
 
 # Activate virtual environment
-source "$VENV_PATH/bin/activate"
 
 # Change to scraper directory
 cd /home/ubuntu/nabavkidata/scraper
@@ -71,7 +69,7 @@ for CATEGORY in $CATEGORIES; do
 
     LOG_FILE="$LOG_DIR/scrapy_nabavki_${CATEGORY}_$(date +%Y%m%d_%H%M%S).log"
 
-    "$VENV_PATH/bin/scrapy" crawl nabavki_auth \
+    /home/ubuntu/.local/bin/scrapy crawl nabavki_auth \
         -a category=$CATEGORY \
         -s LOG_LEVEL=INFO \
         -s LOG_FILE="$LOG_FILE" || {
@@ -106,6 +104,5 @@ if [ -f "/tmp/nabavki_auth_health.json" ]; then
 fi
 
 # Deactivate virtual environment
-deactivate 2>/dev/null || true
 
 log "E-Nabavki scrape finished"

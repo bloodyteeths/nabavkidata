@@ -14,7 +14,6 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-# VENV_PATH not needed - packages installed globally
 LOG_DIR="/var/log/nabavkidata"
 
 # Database URL
@@ -31,7 +30,6 @@ log() {
 log "Starting active tenders scrape..."
 
 # Activate virtual environment
-source "$VENV_PATH/bin/activate"
 
 # Change to scraper directory
 cd /home/ubuntu/nabavkidata/scraper
@@ -40,9 +38,9 @@ cd /home/ubuntu/nabavkidata/scraper
 RUN_START=$(date -Iseconds)
 LOG_FILE="$LOG_DIR/scrapy_active_$(date +%Y%m%d_%H%M%S).log"
 
-log "Running "$VENV_PATH/bin/scrapy" crawl nabavki -a category=active"
+log "Running /home/ubuntu/.local/bin/scrapy crawl nabavki -a category=active"
 
-"$VENV_PATH/bin/scrapy" crawl nabavki \
+/home/ubuntu/.local/bin/scrapy crawl nabavki \
     -a category=active \
     -s LOG_LEVEL=INFO \
     -s LOG_FILE="$LOG_FILE"
@@ -59,7 +57,7 @@ else
 fi
 
 # Write health JSON
-"$VENV_PATH/bin/python" "$SCRIPT_DIR/write_health.py" \
+/usr/bin/python3 "$SCRIPT_DIR/write_health.py" \
   --status "$STATUS" \
   --dataset active \
   --log-file "$LOG_FILE" \
@@ -69,4 +67,3 @@ fi
   --exit-code "$RC" || true
 
 # Deactivate virtual environment
-deactivate 2>/dev/null || true

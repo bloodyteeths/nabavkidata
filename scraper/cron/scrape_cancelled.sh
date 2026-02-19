@@ -14,7 +14,6 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-# VENV_PATH not needed - packages installed globally
 LOG_DIR="/var/log/nabavkidata"
 
 # Scraper settings
@@ -41,7 +40,6 @@ acquire_scraper_lock || exit 0
 log "Starting cancelled tenders scrape..."
 
 # Activate virtual environment
-source "$VENV_PATH/bin/activate"
 
 # Change to scraper directory
 cd /home/ubuntu/nabavkidata/scraper
@@ -84,4 +82,3 @@ python3 "$SCRIPT_DIR/write_health.py" \
   --exit-code "$RC" || true
 
 # Deactivate virtual environment
-deactivate 2>/dev/null || true

@@ -32,6 +32,6 @@ echo "$(date): Starting auto-embeddings pipeline..."
 cd "$AI_DIR"
 
 # Run embeddings pipeline (batch of 20, max 500 docs per run)
-"$VENV_PATH/bin/python" embeddings/pipeline.py --batch-size=20 --max-documents=500
+/usr/bin/python3 embeddings/pipeline.py --batch-size=20 --max-documents=500
 
 echo "$(date): Auto-embeddings pipeline completed"
