@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(env_path)
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import AsyncSessionLocal
 from models import User, Tender
@@ -87,7 +87,7 @@ def generate_match_reasons(tender: Tender, prefs: Optional[UserPreferences]) -> 
     # Check CPV match
     if prefs.cpv_codes and tender.cpv_code:
         for cpv in prefs.cpv_codes:
-            if tender.cpv_code.startswith(cpv[:2]):
+            if tender.cpv_code.startswith(cpv[:4]):
                 reasons.append(f"🏷️ CPV: {tender.cpv_code}")
                 break
 
@@ -116,7 +116,8 @@ async def generate_personalized_digest_html(
     prefs: Optional[UserPreferences],
     insights: List[Dict],
     competitor_activity: List[Dict],
-    frequency: str = "daily"
+    frequency: str = "daily",
+    alert_matches: List = None
 ) -> str:
     """Generate HTML digest with personalized content"""
 
@@ -215,6 +216,47 @@ async def generate_personalized_digest_html(
         </div>
         """
 
+    # Build alert matches section
+    alert_matches_html = ""
+    if alert_matches:
+        alert_items = ""
+        for row in alert_matches:
+            match_id, tender_id, score, reasons, alert_name, title, entity, value, closing = row
+            value_str = f"{value:,.0f} МКД" if value else "N/A"
+            closing_str = closing.strftime('%d.%m.%Y') if closing and hasattr(closing, 'strftime') else "N/A"
+            reasons_list = reasons if isinstance(reasons, list) else []
+            reasons_str = ", ".join(reasons_list[:2]) if reasons_list else ""
+
+            alert_items += f"""
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+                    <div>
+                        <span style="background-color: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-size: 11px;">{alert_name}</span>
+                        <span style="background-color: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 4px;">{int(score)}%</span>
+                    </div>
+                    <h4 style="margin: 8px 0 4px 0; font-size: 14px;">
+                        <a href="{FRONTEND_URL}/tenders/{tender_id}" style="color: #2563eb; text-decoration: none;">{title or 'Без наслов'}</a>
+                    </h4>
+                    <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                        {entity or 'N/A'} | {value_str} | Рок: {closing_str}
+                    </p>
+                    {f'<p style="margin: 4px 0 0 0; font-size: 11px; color: #9ca3af;">{reasons_str}</p>' if reasons_str else ''}
+                </td>
+            </tr>
+            """
+
+        alert_matches_html = f"""
+        <div style="margin: 25px 0; padding: 15px; background-color: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+            <h3 style="margin: 0 0 12px 0; color: #92400e; font-size: 16px;">🔔 Совпаѓања од вашите алерти ({len(alert_matches)})</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                {alert_items}
+            </table>
+            <p style="margin: 12px 0 0 0; text-align: center;">
+                <a href="{FRONTEND_URL}/alerts" style="color: #2563eb; font-size: 13px;">Погледни ги сите алерти →</a>
+            </p>
+        </div>
+        """
+
     content = f"""
     <p>Здраво <strong>{user_name}</strong>,</p>
     <p>Еве го вашиот {frequency} преглед на јавни набавки персонализиран според вашите преференци.</p>
@@ -224,6 +266,8 @@ async def generate_personalized_digest_html(
             {period} преглед: {len(tenders)} препорачани тендери
         </p>
     </div>
+
+    {alert_matches_html}
 
     {insights_html}
 
@@ -341,6 +385,26 @@ async def send_personalized_digest(
         # Get competitor activity
         competitor_activity = await get_competitor_activity(db, user_id)
 
+        # Get unread alert matches from the last day
+        alert_matches_data = []
+        try:
+            alert_result = await db.execute(text("""
+                SELECT am.match_id, am.tender_id, am.match_score, am.match_reasons,
+                       ta.name as alert_name,
+                       t.title, t.procuring_entity, t.estimated_value_mkd, t.closing_date
+                FROM alert_matches am
+                JOIN tender_alerts ta ON ta.alert_id = am.alert_id
+                LEFT JOIN tenders t ON am.tender_id = t.tender_id
+                WHERE ta.user_id = :user_id
+                  AND am.created_at >= NOW() - INTERVAL '1 day'
+                  AND am.notified_at IS NULL
+                ORDER BY am.match_score DESC
+                LIMIT 10
+            """), {'user_id': user_id})
+            alert_matches_data = alert_result.fetchall()
+        except Exception as e:
+            logger.warning(f"Failed to fetch alert matches for digest: {e}")
+
         # Generate HTML
         html_content = await generate_personalized_digest_html(
             user_name=name,
@@ -348,7 +412,8 @@ async def send_personalized_digest(
             prefs=prefs,
             insights=insights,
             competitor_activity=competitor_activity,
-            frequency=frequency
+            frequency=frequency,
+            alert_matches=alert_matches_data
         )
 
         # Send email
@@ -372,6 +437,18 @@ async def send_personalized_digest(
                 tender_count=len(tenders),
                 competitor_count=len(competitor_activity)
             )
+
+            # Mark alert matches as notified
+            if alert_matches_data:
+                match_ids = [str(row[0]) for row in alert_matches_data]
+                try:
+                    await db.execute(text("""
+                        UPDATE alert_matches SET notified_at = NOW()
+                        WHERE match_id = ANY(:match_ids)
+                    """), {'match_ids': match_ids})
+                    await db.commit()
+                except Exception as e:
+                    logger.warning(f"Failed to mark alert matches as notified: {e}")
 
         return success
 
@@ -476,6 +553,11 @@ async def generate_all_digests(frequency: str = "daily"):
         except Exception as e:
             logger.error(f"Digest generation failed: {e}")
             await log_cron_failed(db, execution_id, str(e))
+            try:
+                from api.clawd_monitor import notify_clawd
+                await notify_clawd("cron_failed", {"job": job_name, "error": str(e)})
+            except Exception:
+                pass
             raise
 
 

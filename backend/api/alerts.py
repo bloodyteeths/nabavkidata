@@ -10,10 +10,13 @@ from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, Field
 import logging
+import json
+import re
 
 from database import get_db
 from models import User
 from api.auth import get_current_user
+from api.corruption import latin_to_cyrillic
 
 logger = logging.getLogger(__name__)
 
@@ -122,13 +125,25 @@ async def check_alert_against_tender(alert: dict, tender: dict) -> tuple[bool, f
     score = 0.0
     reasons = []
 
-    # Keyword matching
+    # Keyword matching (bilingual: checks both Latin and Cyrillic variants)
     if criteria.get('keywords'):
-        text = f"{tender.get('title', '')} {tender.get('description', '')}".lower()
+        tender_text = f"{tender.get('title', '')} {tender.get('description', '')}".lower()
         matched_keywords = []
         for kw in criteria['keywords']:
-            if kw.lower() in text:
-                matched_keywords.append(kw)
+            kw_lower = kw.lower()
+            kw_cyrillic = latin_to_cyrillic(kw).lower()
+            # Short keywords (<=3 chars) use word boundary to avoid false positives
+            if len(kw_lower) <= 3:
+                pattern = r'(?<!\w)' + re.escape(kw_lower) + r'(?!\w)'
+                if re.search(pattern, tender_text):
+                    matched_keywords.append(kw)
+                elif kw_cyrillic != kw_lower:
+                    pattern_cyr = r'(?<!\w)' + re.escape(kw_cyrillic) + r'(?!\w)'
+                    if re.search(pattern_cyr, tender_text):
+                        matched_keywords.append(kw)
+            else:
+                if kw_lower in tender_text or (kw_cyrillic != kw_lower and kw_cyrillic in tender_text):
+                    matched_keywords.append(kw)
 
         if matched_keywords:
             score += 25
@@ -180,8 +195,9 @@ async def check_alert_against_tender(alert: dict, tender: dict) -> tuple[bool, f
             score += 25
             reasons.append(f"Competitors matched: {', '.join(matched_competitors)}")
 
-    # Tender matched if score > 0
-    matches = score > 0
+    # Require at least one meaningful criterion (keyword=25, CPV=30, entity=25)
+    # Budget-only match (20) is not enough on its own
+    matches = score >= 25
     final_score = min(score, 100.0)
 
     return matches, final_score, reasons
@@ -226,13 +242,22 @@ async def check_alerts_for_user(db: AsyncSession, user_id: UUID, limit_tenders: 
             'execution_time_ms': 0
         }
 
-    # Get recent tenders (last 100 by default)
+    # Get recent tenders from both e-nabavki AND e-pazar
     tenders_result = await db.execute(
         text("""
-            SELECT tender_id, title, description, procuring_entity,
-                   estimated_value_mkd, cpv_code, winner,
-                   'e-nabavki' as source
-            FROM tenders
+            (SELECT tender_id, title, description, procuring_entity,
+                    estimated_value_mkd, cpv_code, winner,
+                    'e-nabavki' as source, created_at
+             FROM tenders
+             ORDER BY created_at DESC
+             LIMIT :limit)
+            UNION ALL
+            (SELECT tender_id, title, description, contracting_authority,
+                    estimated_value_mkd, cpv_code, '',
+                    'e-pazar' as source, created_at
+             FROM epazar_tenders
+             ORDER BY created_at DESC
+             LIMIT :limit)
             ORDER BY created_at DESC
             LIMIT :limit
         """).params(limit=limit_tenders)
@@ -280,13 +305,13 @@ async def check_alerts_for_user(db: AsyncSession, user_id: UUID, limit_tenders: 
                     text("""
                         INSERT INTO alert_matches
                         (alert_id, tender_id, tender_source, match_score, match_reasons, is_read, created_at)
-                        VALUES (:alert_id, :tender_id, :tender_source, :match_score, :match_reasons, false, NOW())
+                        VALUES (:alert_id, :tender_id, :tender_source, :match_score, CAST(:match_reasons AS jsonb), false, NOW())
                     """).params(
                         alert_id=str(alert['alert_id']),
                         tender_id=tender['tender_id'],
                         tender_source=tender['source'],
                         match_score=score,
-                        match_reasons=reasons
+                        match_reasons=json.dumps(reasons)
                     )
                 )
                 matches_found += 1
@@ -307,7 +332,7 @@ async def check_alerts_for_user(db: AsyncSession, user_id: UUID, limit_tenders: 
 # API ENDPOINTS
 # ============================================================================
 
-@router.get("", response_model=List[AlertResponse])
+@router.get("")
 async def list_alerts(
     include_counts: bool = Query(True, description="Include match counts"),
     db: AsyncSession = Depends(get_db),
@@ -329,16 +354,22 @@ async def list_alerts(
 
     alerts = []
     for row in result.fetchall():
+        # Parse JSONB fields
+        criteria = row[4] if isinstance(row[4], dict) else (json.loads(row[4]) if row[4] else {})
+        channels = row[6] if isinstance(row[6], list) else (json.loads(row[6]) if row[6] else [])
+
         alert_dict = {
+            'id': str(row[0]),
             'alert_id': row[0],
             'user_id': row[1],
             'name': row[2],
             'alert_type': row[3],
-            'criteria': row[4],
+            'criteria': criteria,
             'is_active': row[5],
-            'notification_channels': row[6],
-            'created_at': row[7],
-            'updated_at': row[8]
+            'channels': channels,
+            'notification_channels': channels,
+            'created_at': row[7].isoformat() if row[7] else None,
+            'updated_at': row[8].isoformat() if row[8] else None
         }
 
         # Get match counts if requested
@@ -356,9 +387,9 @@ async def list_alerts(
             alert_dict['match_count'] = counts[0] if counts else 0
             alert_dict['unread_count'] = counts[1] if counts else 0
 
-        alerts.append(AlertResponse(**alert_dict))
+        alerts.append(alert_dict)
 
-    return alerts
+    return {'alerts': alerts, 'total': len(alerts)}
 
 
 @router.post("", response_model=AlertResponse, status_code=status.HTTP_201_CREATED)
@@ -587,7 +618,7 @@ async def get_alert_matches(
 
     matches = []
     for row in result.fetchall():
-        # Fetch tender details
+        # Fetch tender details (try e-nabavki first, then e-pazar)
         tender_result = await db.execute(
             text("""
                 SELECT tender_id, title, procuring_entity, estimated_value_mkd,
@@ -597,6 +628,18 @@ async def get_alert_matches(
             """).params(tender_id=row[2])
         )
         tender_row = tender_result.fetchone()
+
+        if not tender_row:
+            # Try e-pazar
+            tender_result = await db.execute(
+                text("""
+                    SELECT tender_id, title, contracting_authority, estimated_value_mkd,
+                           closing_date, status, cpv_code
+                    FROM epazar_tenders
+                    WHERE tender_id = :tender_id
+                """).params(tender_id=row[2])
+            )
+            tender_row = tender_result.fetchone()
 
         tender_details = None
         if tender_row:
@@ -677,6 +720,16 @@ async def mark_matches_read(
     }
 
 
+@router.post("/matches/read")
+async def mark_matches_read_alt(
+    request: MarkReadRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Alias for /mark-read (frontend compatibility)"""
+    return await mark_matches_read(request, db, current_user)
+
+
 @router.post("/check-now", response_model=CheckAlertsResponse)
 async def check_alerts_now(
     db: AsyncSession = Depends(get_db),
@@ -754,7 +807,7 @@ async def get_all_matches(
 
     matches = []
     for row in result.fetchall():
-        # Fetch tender details
+        # Fetch tender details (try e-nabavki first, then e-pazar)
         tender_result = await db.execute(
             text("""
                 SELECT tender_id, title, procuring_entity, estimated_value_mkd,
@@ -764,6 +817,18 @@ async def get_all_matches(
             """).params(tender_id=row[3])
         )
         tender_row = tender_result.fetchone()
+
+        if not tender_row:
+            # Try e-pazar
+            tender_result = await db.execute(
+                text("""
+                    SELECT tender_id, title, contracting_authority, estimated_value_mkd,
+                           closing_date, status, cpv_code
+                    FROM epazar_tenders
+                    WHERE tender_id = :tender_id
+                """).params(tender_id=row[3])
+            )
+            tender_row = tender_result.fetchone()
 
         tender_details = None
         if tender_row:
@@ -777,6 +842,18 @@ async def get_all_matches(
                 'cpv_code': tender_row[6]
             }
 
+        # Parse match_reasons (JSONB comes as list or string)
+        reasons_raw = row[6]
+        if isinstance(reasons_raw, str):
+            try:
+                reasons_parsed = json.loads(reasons_raw)
+            except (json.JSONDecodeError, TypeError):
+                reasons_parsed = [reasons_raw] if reasons_raw else []
+        elif isinstance(reasons_raw, list):
+            reasons_parsed = reasons_raw
+        else:
+            reasons_parsed = []
+
         matches.append({
             'match_id': str(row[0]),
             'alert_id': str(row[1]),
@@ -784,10 +861,13 @@ async def get_all_matches(
             'tender_id': row[3],
             'tender_source': row[4],
             'match_score': float(row[5]),
-            'match_reasons': row[6],
+            'match_reasons': reasons_parsed,
             'is_read': row[7],
             'notified_at': row[8].isoformat() if row[8] else None,
             'created_at': row[9].isoformat() if row[9] else None,
+            'matched_at': row[9].isoformat() if row[9] else None,
+            'tender_title': tender_details.get('title', '') if tender_details else '',
+            'tender': tender_details,
             'tender_details': tender_details
         })
 
@@ -805,4 +885,67 @@ async def get_all_matches(
     return {
         'matches': matches,
         'total': total
+    }
+
+
+# ============================================================================
+# MATCH FEEDBACK
+# ============================================================================
+
+class MatchFeedbackRequest(BaseModel):
+    """Schema for submitting feedback on a match"""
+    match_id: UUID
+    feedback: str = Field(..., description="'up' or 'down'")
+
+
+@router.post("/matches/feedback")
+async def submit_match_feedback(
+    request: MatchFeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Submit thumbs up/down feedback on an alert match
+    """
+    if request.feedback not in ('up', 'down'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Feedback must be 'up' or 'down'"
+        )
+
+    # Verify match belongs to user's alert
+    verify_result = await db.execute(
+        text("""
+            SELECT am.match_id FROM alert_matches am
+            JOIN tender_alerts ta ON ta.alert_id = am.alert_id
+            WHERE am.match_id = :match_id AND ta.user_id = :user_id
+        """).params(
+            match_id=str(request.match_id),
+            user_id=str(current_user.user_id)
+        )
+    )
+
+    if not verify_result.scalar():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to provide feedback on this match"
+        )
+
+    await db.execute(
+        text("""
+            UPDATE alert_matches
+            SET user_feedback = :feedback, feedback_at = NOW()
+            WHERE match_id = :match_id
+        """).params(
+            feedback=request.feedback,
+            match_id=str(request.match_id)
+        )
+    )
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "match_id": str(request.match_id),
+        "feedback": request.feedback
     }

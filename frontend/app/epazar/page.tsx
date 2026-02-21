@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { AlertBellButton } from '@/components/alerts/AlertBellButton';
 
 function getStatusLabel(status: string): string {
   switch (status?.toLowerCase()) {
@@ -459,6 +460,16 @@ export default function EPazarPage() {
                               <span className="font-semibold text-green-600">{formatCurrency(tender.awarded_value_mkd)}</span>
                             </div>
                           ) : null}
+                        </div>
+                        <div className="flex justify-between items-center mt-3">
+                          <span className="text-xs text-gray-400">{tender.cpv_code || ''}</span>
+                          <AlertBellButton
+                            tenderId={tender.tender_id}
+                            cpvCode={tender.cpv_code}
+                            procuringEntity={tender.contracting_authority}
+                            title={tender.title}
+                            size="sm"
+                          />
                         </div>
                       </CardContent>
                     </Card>

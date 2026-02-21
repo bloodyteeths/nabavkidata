@@ -8,6 +8,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { Calendar, Building2, Tag, ExternalLink, Clock, User, Mail, Phone, Trophy, FileText } from "lucide-react";
 import type { Tender } from "@/lib/api";
 import Link from "next/link";
+import { AlertBellButton } from "@/components/alerts/AlertBellButton";
 
 interface TenderCardProps {
   tender: Tender;
@@ -304,6 +305,12 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
                 Детали
               </Link>
             </Button>
+            <AlertBellButton
+              tenderId={tender.tender_id}
+              cpvCode={tender.cpv_code}
+              procuringEntity={tender.procuring_entity}
+              title={tender.title}
+            />
             {sourceUrl ? (
               <Button size="sm" variant="outline" asChild className="flex-1 sm:flex-none">
                 <a href={sourceUrl} target="_blank" rel="noopener noreferrer">

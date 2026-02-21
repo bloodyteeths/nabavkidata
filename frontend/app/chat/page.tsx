@@ -5,7 +5,7 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Sparkles, Trash2, AlertCircle, ArrowRight, Zap } from "lucide-react";
+import { MessageSquare, Sparkles, Trash2, AlertCircle, ArrowRight, Zap, Bell } from "lucide-react";
 import { api } from "@/lib/api";
 import Link from "next/link";
 
@@ -38,6 +38,13 @@ const SUGGESTED_QUESTIONS = [
   "Која институција објавува најмногу тендери?",
 ];
 
+const ALERTS_SUGGESTED_QUESTIONS = [
+  "Сумирај ги моите алерти",
+  "Кои тендери можам да учествувам?",
+  "Покажи ми најголемите совпаѓања по вредност",
+  "Кои рокови истекуваат наскоро?",
+];
+
 const STORAGE_KEY = 'nabavkidata_chat_messages';
 
 export default function ChatPage() {
@@ -46,6 +53,7 @@ export default function ChatPage() {
   const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [alertsMode, setAlertsMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -135,7 +143,7 @@ export default function ChatPage() {
         content: msg.content
       }));
 
-      const response = await api.queryRAG(content, undefined, conversationHistory);
+      const response = await api.queryRAG(content, undefined, conversationHistory, alertsMode ? 'alerts' : undefined);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -218,6 +226,16 @@ export default function ChatPage() {
                   </Badge>
                 </div>
               )}
+              <Button
+                variant={alertsMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setAlertsMode(!alertsMode)}
+                className="gap-1 md:gap-2 h-8 md:h-9 text-xs md:text-sm px-2 md:px-3"
+                title={alertsMode ? 'Алерт режим активен' : 'Анализирај ги моите алерти'}
+              >
+                <Bell className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">{alertsMode ? 'Алерт режим' : 'Мои алерти'}</span>
+              </Button>
               {messages.length > 0 && (
                 <Button
                   variant="outline"
@@ -280,9 +298,13 @@ export default function ChatPage() {
                   <Sparkles className="h-6 w-6 md:h-8 md:w-8 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-xl md:text-2xl font-bold">Добредојдовте во AI Асистентот</h2>
+                  <h2 className="text-xl md:text-2xl font-bold">
+                    {alertsMode ? 'Анализа на Алерти' : 'Добредојдовте во AI Асистентот'}
+                  </h2>
                   <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2 px-4">
-                    Поставете прашање за тендерите или изберете од предлозите подолу
+                    {alertsMode
+                      ? 'Прашајте за вашите совпаѓања со алерти'
+                      : 'Поставете прашање за тендерите или изберете од предлозите подолу'}
                   </p>
                 </div>
               </div>
@@ -290,7 +312,7 @@ export default function ChatPage() {
               <div className="w-full max-w-2xl space-y-2 md:space-y-3">
                 <p className="text-xs md:text-sm font-medium text-muted-foreground px-1">Предложени прашања:</p>
                 <div className="grid gap-2 md:gap-3">
-                  {SUGGESTED_QUESTIONS.map((question, index) => (
+                  {(alertsMode ? ALERTS_SUGGESTED_QUESTIONS : SUGGESTED_QUESTIONS).map((question, index) => (
                     <Card
                       key={index}
                       className={`p-3 md:p-4 transition-colors ${isLimitReached || isBlocked

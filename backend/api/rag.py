@@ -185,6 +185,105 @@ async def query_rag(
         print(f"[RAG DEBUG] No conversation_history received")
     print(f"[RAG DEBUG] Question: {request.question[:100]}...")
 
+    # Handle alerts context mode: use alert matches instead of vector search
+    if request.context_type == "alerts":
+        try:
+            alerts_result = await db.execute(
+                sql_text("""
+                    SELECT am.tender_id, am.match_score, am.match_reasons,
+                           COALESCE(t.title, ep.title) as title,
+                           COALESCE(t.procuring_entity, ep.contracting_authority) as entity,
+                           COALESCE(t.estimated_value_mkd, ep.estimated_value_mkd) as value,
+                           COALESCE(t.cpv_code, ep.cpv_code) as cpv,
+                           COALESCE(t.closing_date, ep.closing_date) as closing,
+                           COALESCE(t.status, ep.status) as status,
+                           COALESCE(LEFT(t.description, 200), LEFT(ep.description, 200)) as description,
+                           ta.name as alert_name
+                    FROM alert_matches am
+                    JOIN tender_alerts ta ON ta.alert_id = am.alert_id
+                    LEFT JOIN tenders t ON am.tender_id = t.tender_id AND am.tender_source = 'e-nabavki'
+                    LEFT JOIN epazar_tenders ep ON am.tender_id = ep.tender_id AND am.tender_source = 'e-pazar'
+                    WHERE ta.user_id = :user_id AND ta.is_active = true
+                    ORDER BY am.created_at DESC
+                    LIMIT 20
+                """),
+                {"user_id": user_id}
+            )
+            alert_matches = alerts_result.fetchall()
+
+            if not alert_matches:
+                query_time_ms = int((time.time() - start_time) * 1000)
+                return RAGQueryResponse(
+                    question=request.question,
+                    answer="Немате активни алерт совпаѓања. Креирајте алерти на страницата за Алерти за да добивате препораки.",
+                    sources=[],
+                    confidence="low",
+                    query_time_ms=query_time_ms,
+                    generated_at=datetime.utcnow().isoformat()
+                )
+
+            # Build context from alert matches
+            context_parts = []
+            for row in alert_matches:
+                tid, score, reasons, title, entity, value, cpv, closing, st, desc, alert_name = row
+                value_str = f"{value:,.0f} МКД" if value else "N/A"
+                closing_str = closing.strftime('%d.%m.%Y') if closing and hasattr(closing, 'strftime') else str(closing or 'N/A')
+                reasons_list = reasons if isinstance(reasons, list) else (json.loads(reasons) if isinstance(reasons, str) else [])
+                reasons_str = ', '.join(reasons_list) if reasons_list else ''
+
+                context_parts.append(
+                    f"Тендер: {title or 'Без наслов'}\n"
+                    f"  ID: {tid}\n"
+                    f"  Договорен орган: {entity or 'N/A'}\n"
+                    f"  Вредност: {value_str}\n"
+                    f"  CPV: {cpv or 'N/A'}\n"
+                    f"  Статус: {st or 'N/A'}\n"
+                    f"  Рок: {closing_str}\n"
+                    f"  Совпаѓање: {score}% ({reasons_str})\n"
+                    f"  Алерт: {alert_name}\n"
+                    f"  Опис: {desc or ''}\n"
+                )
+
+            alerts_context = "\n---\n".join(context_parts)
+
+            import google.generativeai as genai
+            genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+
+            prompt = f"""Ти си AI асистент за анализа на јавни набавки во Македонија.
+
+Корисникот ги има следните алерт совпаѓања ({len(alert_matches)} тендери кои одговараат на неговите преференции):
+
+{alerts_context}
+
+Одговори на прашањето на корисникот врз основа на овие совпаѓања.
+Ако прашањето е за сумирање, дај краток преглед по категории или вредност.
+Ако е за учество, провери рокови (дали се сè уште отворени) и статуси.
+Ако е за вредност, спореди буџетите и издвој ги најголемите.
+Одговори на македонски. Биди концизен и корисен.
+
+Прашање: {request.question}"""
+
+            model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(temperature=0.3, max_output_tokens=800)
+            )
+
+            query_time_ms = int((time.time() - start_time) * 1000)
+
+            return RAGQueryResponse(
+                question=request.question,
+                answer=response.text,
+                sources=[],
+                confidence="high",
+                query_time_ms=query_time_ms,
+                generated_at=datetime.utcnow().isoformat()
+            )
+
+        except Exception as alerts_error:
+            print(f"Alerts context query failed: {alerts_error}")
+            raise HTTPException(status_code=500, detail=f"Грешка при анализа на алерти: {str(alerts_error)}")
+
     try:
         # Initialize RAG pipeline
         pipeline = RAGQueryPipeline(top_k=request.top_k)

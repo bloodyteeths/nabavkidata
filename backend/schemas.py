@@ -216,6 +216,10 @@ class RAGQueryRequest(BaseModel):
         None,
         description="Previous Q&A pairs for context"
     )
+    context_type: Optional[str] = Field(
+        None,
+        description="Context source: None=vector search, 'alerts'=user's alert matches"
+    )
 
 
 class RAGSource(BaseModel):

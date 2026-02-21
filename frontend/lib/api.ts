@@ -1083,14 +1083,16 @@ class APIClient {
   async queryRAG(
     question: string,
     tenderId?: string,
-    conversationHistory?: Array<{ role: string; content: string }>
+    conversationHistory?: Array<{ role: string; content: string }>,
+    contextType?: 'alerts'
   ) {
     return this.request<RAGQueryResponse>('/api/rag/query', {
       method: 'POST',
       body: JSON.stringify({
         question,
         tender_id: tenderId,
-        conversation_history: conversationHistory
+        conversation_history: conversationHistory,
+        context_type: contextType,
       }),
     });
   }
@@ -2128,6 +2130,33 @@ class APIClient {
     return this.request<{ message: string; updated_count: number }>('/api/alerts/matches/read', {
       method: 'POST',
       body: JSON.stringify({ match_ids: matchIds }),
+    });
+  }
+
+  async quickSubscribeFromTender(tender: {
+    tender_id: string;
+    cpv_code?: string;
+    procuring_entity?: string;
+    title?: string;
+  }) {
+    const criteria: any = {};
+    if (tender.cpv_code) criteria.cpv_codes = [tender.cpv_code.substring(0, 4)];
+    if (tender.procuring_entity) criteria.entities = [tender.procuring_entity];
+
+    const name = `${tender.procuring_entity || 'Тендер'} - ${(tender.cpv_code || '').substring(0, 4)}`.substring(0, 200);
+
+    return this.createAlert({
+      name,
+      alert_type: 'combined',
+      criteria,
+      notification_channels: ['email', 'in_app'],
+    });
+  }
+
+  async submitMatchFeedback(matchId: string, feedback: 'up' | 'down') {
+    return this.request<{ success: boolean }>('/api/alerts/matches/feedback', {
+      method: 'POST',
+      body: JSON.stringify({ match_id: matchId, feedback }),
     });
   }
 

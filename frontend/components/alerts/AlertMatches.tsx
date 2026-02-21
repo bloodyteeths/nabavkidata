@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { ExternalLink, Check, Inbox, Filter } from 'lucide-react';
+import { ExternalLink, Check, Inbox, Filter, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Select } from '@/components/ui/select';
 
 interface AlertMatch {
@@ -34,6 +34,7 @@ export function AlertMatches() {
   const [loading, setLoading] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState<string>('all');
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [feedbackState, setFeedbackState] = useState<Record<string, 'up' | 'down' | null>>({});
   const router = useRouter();
 
   useEffect(() => {
@@ -86,6 +87,16 @@ export function AlertMatches() {
   const handleViewTender = (tenderId: string, matchId: string) => {
     handleMarkAsRead([matchId]);
     router.push(`/tenders/${encodeURIComponent(tenderId)}`);
+  };
+
+  const handleFeedback = async (matchId: string, feedback: 'up' | 'down') => {
+    try {
+      await api.submitMatchFeedback(matchId, feedback);
+      setFeedbackState((prev) => ({ ...prev, [matchId]: feedback }));
+      toast.success(feedback === 'up' ? 'Релевантен' : 'Нерелевантен');
+    } catch {
+      toast.error('Грешка при испраќање');
+    }
   };
 
   const getScoreBadgeVariant = (score: number): 'default' | 'secondary' | 'outline' => {
@@ -240,6 +251,26 @@ export function AlertMatches() {
                       Означи прочитано
                     </Button>
                   )}
+                  <div className="flex items-center gap-1 ml-2">
+                    <Button
+                      variant={feedbackState[match.match_id] === 'up' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => handleFeedback(match.match_id, 'up')}
+                      className="h-8 w-8 p-0"
+                      title="Релевантен"
+                    >
+                      <ThumbsUp className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant={feedbackState[match.match_id] === 'down' ? 'destructive' : 'ghost'}
+                      size="sm"
+                      onClick={() => handleFeedback(match.match_id, 'down')}
+                      className="h-8 w-8 p-0"
+                      title="Нерелевантен"
+                    >
+                      <ThumbsDown className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                   <span className="text-xs text-muted-foreground ml-auto">
                     {match.matched_at ? new Date(match.matched_at).toLocaleString('mk-MK') : ''}
                   </span>
