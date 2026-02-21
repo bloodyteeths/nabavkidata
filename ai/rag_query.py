@@ -42,6 +42,34 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# PRODUCT KNOWLEDGE - Static app feature documentation for AI prompts
+# ============================================================================
+
+_PRODUCT_KNOWLEDGE = None
+
+def get_product_knowledge() -> str:
+    """Load and cache the product knowledge document."""
+    global _PRODUCT_KNOWLEDGE
+    if _PRODUCT_KNOWLEDGE is None:
+        for path in [
+            os.path.join(os.path.dirname(__file__), '..', 'backend', 'data', 'product_knowledge.md'),
+            os.path.join(os.path.dirname(__file__), 'product_knowledge.md'),
+            '/home/ubuntu/nabavkidata/backend/data/product_knowledge.md',
+        ]:
+            try:
+                with open(path) as f:
+                    _PRODUCT_KNOWLEDGE = f.read()
+                    logger.info(f"[ProductKnowledge] Loaded from {path}")
+                    break
+            except FileNotFoundError:
+                continue
+        if _PRODUCT_KNOWLEDGE is None:
+            _PRODUCT_KNOWLEDGE = ""
+            logger.warning("[ProductKnowledge] Not found at any path")
+    return _PRODUCT_KNOWLEDGE
+
+
+# ============================================================================
 # DATE PARSING HELPER - Handles both ISO and relative dates
 # ============================================================================
 
@@ -4857,6 +4885,15 @@ class LLMDrivenAgent:
                 if 'answer' in turn:
                     history_context += f"Assistant: {turn['answer'][:500]}\n"
 
+        # Inject product knowledge for help/feature questions
+        HELP_KEYWORDS = ['how do i', 'how to', 'what is', 'where is', 'can i', 'feature',
+                         'како', 'каде', 'што е', 'функција', 'помош', 'help', 'guide',
+                         'what can', 'explain', 'show me how', 'tutorial', 'упатство']
+        if any(kw in question.lower() for kw in HELP_KEYWORDS):
+            pk = get_product_knowledge()
+            if pk:
+                history_context = f"APP FEATURES & USER GUIDE:\n{pk}\n\n" + history_context
+
         # Extract time period from question (if present)
         time_period = extract_time_period(question)
         time_context = ""
@@ -5780,6 +5817,11 @@ RESPONSE RULES:
 - Временски релевантни прашања
 """
         prompt_parts = [cls.SYSTEM_PROMPT, date_context, "\n\n"]
+
+        # Add product knowledge so AI can answer questions about app features
+        product_knowledge = get_product_knowledge()
+        if product_knowledge:
+            prompt_parts.append(f"APP FEATURES & USER GUIDE:\n{product_knowledge}\n\n")
 
         # Add conversation history if provided (with token limit)
         if conversation_history:

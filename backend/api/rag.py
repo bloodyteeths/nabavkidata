@@ -332,6 +332,15 @@ async def query_rag(
             today_str = datetime.utcnow().strftime('%d.%m.%Y')
 
             # Build memory-enriched prompt sections
+            # Load product knowledge for app feature questions
+            product_knowledge_section = ""
+            try:
+                pk_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'product_knowledge.md')
+                with open(pk_path) as _pkf:
+                    product_knowledge_section = f"\nAPP FEATURES & USER GUIDE:\n{_pkf.read()}\n"
+            except FileNotFoundError:
+                pass
+
             memory_sections = ""
             if memory_context:
                 if memory_context.get("user_profile"):
@@ -351,6 +360,7 @@ async def query_rag(
             prompt = f"""You are an AI assistant for analyzing public procurement tenders in Macedonia.
 Today's date is {today_str}.
 {memory_sections}
+{product_knowledge_section}
 The user has the following alert matches ({len(alert_matches)} tenders matching their preferences):
 
 {alerts_context}
