@@ -27,6 +27,12 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
+# Source locking mechanism (prevents zombie scrapers from piling up)
+source "$SCRIPT_DIR/scraper_lock.sh"
+
+# Acquire lock (exit if another scraper is running)
+acquire_scraper_lock || exit 0
+
 log "Starting active tenders scrape..."
 
 # Activate virtual environment

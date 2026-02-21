@@ -169,9 +169,24 @@ class DocumentResponse(DocumentBase):
     doc_id: UUID
     tender_id: str
     uploaded_at: datetime
+    has_content: bool = False
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_orm(cls, obj):
+        """Custom from_orm that computes has_content and strips full text from list responses."""
+        instance = super().model_validate(obj)
+        # Compute has_content: true if extraction succeeded and there's meaningful text
+        instance.has_content = (
+            obj.extraction_status == 'success'
+            and obj.content_text is not None
+            and len(obj.content_text) > 100
+        )
+        # Don't send full content_text in list responses (it's huge)
+        instance.content_text = None
+        return instance
 
 
 class DocumentListResponse(BaseModel):

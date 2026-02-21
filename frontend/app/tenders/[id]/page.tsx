@@ -109,8 +109,13 @@ function formatContractDuration(value?: string | number): string {
 }
 
 function extractDocumentName(doc: { file_name?: string; file_url?: string }): string {
+  const isGenericName = (name: string) =>
+    /^document_[a-f0-9]+\.pdf$/i.test(name) ||
+    /^[a-f0-9]{32}/i.test(name) ||
+    /^\d+_\d+_[a-f0-9]+/.test(name);
+
   // If we have a proper file_name that's not just a hash, use it
-  if (doc.file_name && !doc.file_name.match(/^[a-f0-9]{32}/i) && !doc.file_name.match(/^\d+_\d+_[a-f0-9]+/)) {
+  if (doc.file_name && !isGenericName(doc.file_name)) {
     return doc.file_name;
   }
   // Try to extract fname from URL query parameter
@@ -121,21 +126,20 @@ function extractDocumentName(doc: { file_name?: string; file_url?: string }): st
       if (fname) {
         return decodeURIComponent(fname);
       }
-      // Try to find fname in the URL even if not proper URL format
-      const fnameMatch = doc.file_url.match(/fname=([^&]+)/i);
-      if (fnameMatch) {
-        return decodeURIComponent(fnameMatch[1]);
-      }
     } catch {
-      // URL parsing failed, try regex
       const fnameMatch = doc.file_url.match(/fname=([^&]+)/i);
       if (fnameMatch) {
         return decodeURIComponent(fnameMatch[1]);
       }
     }
+    // Map URL patterns to meaningful document type names
+    if (doc.file_url.includes('DownloadBidFile')) return 'Понуда (финансиска)';
+    if (doc.file_url.includes('DownloadContractFile')) return 'Договор';
+    if (doc.file_url.includes('DownloadPublicFile')) return 'Тендерска документација';
+    if (doc.file_url.includes('DownloadDoc')) return 'Документ';
   }
   // Fallback to file_name or unknown
-  return doc.file_name || "Непознат документ";
+  return doc.file_name || "Документ";
 }
 
 interface ChatMsg {
@@ -1408,7 +1412,7 @@ export default function TenderDetailPage() {
                                       <span>{doc.page_count} страници</span>
                                     </>
                                   )}
-                                  {doc.extraction_status === 'success' && doc.content_text ? (
+                                  {doc.has_content || (doc.extraction_status === 'success' && doc.content_text) ? (
                                     <>
                                       <span>•</span>
                                       <Badge variant="outline" className="text-xs text-green-600 border-green-300">

@@ -146,6 +146,16 @@ class DocumentProcessor:
                     logger.error(f"Download failed: HTTP {response.status}")
                     return None
 
+                # Check content type — if HTML, it's likely the auth/login page
+                content_type = response.headers.get('Content-Type', '')
+                if 'text/html' in content_type.lower():
+                    logger.warning(f"Got HTML instead of document (auth wall?): {content_type}")
+                    await self.conn.execute(
+                        "UPDATE documents SET extraction_status = 'auth_required' WHERE doc_id = $1",
+                        doc['doc_id']
+                    )
+                    return None
+
                 # Stream to file
                 async with aiofiles.open(file_path, 'wb') as f:
                     async for chunk in response.content.iter_chunked(8192):
@@ -308,6 +318,14 @@ class DocumentProcessor:
 
         logger.info(f"Updated document {doc_id} with {len(extraction_result.text)} chars")
 
+    def _is_auth_wall(self, text: str) -> bool:
+        """Detect if extracted text is the e-nabavki login page instead of actual document content"""
+        if not text or len(text) > 2000:
+            return False  # Real documents are usually longer
+        auth_markers = ['Симни документ', 'Најави се', 'Корисничко име', 'Лозинка']
+        matches = sum(1 for marker in auth_markers if marker in text)
+        return matches >= 3  # At least 3 of 4 markers present
+
     def _is_bid_document(self, file_url: str) -> bool:
         """Check if document URL indicates a financial bid document"""
         if not file_url:
@@ -406,6 +424,27 @@ class DocumentProcessor:
                 await self.conn.execute(
                     "UPDATE documents SET extraction_status = 'ocr_required' WHERE doc_id = $1",
                     doc_id
+                )
+                return False
+
+            # Step 2b: Detect auth wall / login page (not real document content)
+            if self._is_auth_wall(result.text):
+                logger.info(f"Auth wall detected for document {doc_id}, marking as auth_required")
+                await self.conn.execute(
+                    "UPDATE documents SET extraction_status = 'auth_required' WHERE doc_id = $1",
+                    doc_id
+                )
+                # Clean up downloaded file
+                if file_path.exists():
+                    file_path.unlink()
+                return False
+
+            # Step 2c: Skip documents with too little meaningful text
+            if len(result.text.strip()) < 50:
+                logger.info(f"Too little text ({len(result.text)} chars) for document {doc_id}")
+                await self.conn.execute(
+                    "UPDATE documents SET extraction_status = 'skip_minimal', content_text = $1 WHERE doc_id = $2",
+                    result.text, doc_id
                 )
                 return False
 

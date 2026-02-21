@@ -199,6 +199,15 @@ log "========================================"
     log "WARNING: PDF backfill failed with exit code $RC"
 }
 
-# Deactivate virtual environment
+log "========================================"
+log "Phase 5: Cleanup Downloaded PDFs"
+log "========================================"
+
+# Delete successfully processed PDFs to save disk space
+CLEANED=0
+for f in "$FILES_STORE"/*.pdf "$FILES_STORE"/*.docx "$FILES_STORE"/*.xlsx; do
+    [ -f "$f" ] && rm -f "$f" && CLEANED=$((CLEANED + 1))
+done
+log "Cleaned up $CLEANED files from $FILES_STORE"
 
 log "Document processing completed"
