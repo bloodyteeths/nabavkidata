@@ -35,7 +35,9 @@ export function AlertList({ onCreateClick }: AlertListProps) {
     try {
       setLoading(true);
       const data = await api.getAlerts();
-      setAlerts(data.alerts || []);
+      // Handle both array and {alerts: [...]} response formats
+      const alertsList = Array.isArray(data) ? data : (data.alerts || []);
+      setAlerts(alertsList);
     } catch (error: any) {
       console.error('Failed to load alerts:', error);
       toast.error('Грешка при вчитување на алертите');

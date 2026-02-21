@@ -91,7 +91,7 @@ export function AlertCard({ alert, onToggle, onEdit, onDelete }: AlertCardProps)
       <CardContent>
         <div className="flex items-center justify-between gap-2">
           <div className="text-xs text-muted-foreground">
-            Креирано: {new Date(alert.created_at).toLocaleDateString('mk-MK')}
+            Креирано: {alert.created_at ? new Date(alert.created_at).toLocaleDateString('mk-MK') : '-'}
           </div>
           <div className="flex items-center gap-2">
             {onEdit && (

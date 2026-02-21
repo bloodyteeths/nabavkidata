@@ -47,8 +47,19 @@ export function AlertMatches() {
         api.getAlertMatches(selectedAlert === 'all' ? undefined : selectedAlert),
         api.getAlerts(),
       ]);
-      setMatches(matchesData.matches || []);
-      setAlerts(alertsData.alerts || []);
+      // Handle both array and {matches: [...]} response formats
+      const matchesList = Array.isArray(matchesData) ? matchesData : (matchesData.matches || []);
+      // Normalize match fields (backend may use different names)
+      const normalized = matchesList.map((m: any) => ({
+        ...m,
+        tender_title: m.tender_title || m.tender_details?.title || m.tender?.title || '',
+        matched_at: m.matched_at || m.created_at || '',
+        tender: m.tender || m.tender_details || null,
+      }));
+      setMatches(normalized);
+      // Handle both array and {alerts: [...]} response formats
+      const alertsList = Array.isArray(alertsData) ? alertsData : (alertsData.alerts || []);
+      setAlerts(alertsList);
     } catch (error: any) {
       console.error('Failed to load matches:', error);
       toast.error('Грешка при вчитување на совпаѓањата');
@@ -230,7 +241,7 @@ export function AlertMatches() {
                     </Button>
                   )}
                   <span className="text-xs text-muted-foreground ml-auto">
-                    {new Date(match.matched_at).toLocaleString('mk-MK')}
+                    {match.matched_at ? new Date(match.matched_at).toLocaleString('mk-MK') : ''}
                   </span>
                 </div>
               </CardContent>
