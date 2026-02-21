@@ -52,44 +52,18 @@ export function GlobalChatWidget() {
   const [charCount, setCharCount] = useState(0);
   const [remainingQueries, setRemainingQueries] = useState<number | null>(null);
   const [alertsMode, setAlertsMode] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const MAX_CHARS = 500;
-  const STORAGE_KEY = "nabavkidata_global_chat";
 
   // Hide widget on /chat page
   if (pathname === "/chat") {
     return null;
   }
 
-  // Load messages from sessionStorage on mount
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const messagesWithDates = parsed.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-        }));
-        setMessages(messagesWithDates);
-      }
-    } catch (error) {
-      console.error("Failed to load chat history:", error);
-    }
-  }, []);
-
-  // Save messages to sessionStorage whenever they change
-  useEffect(() => {
-    if (messages.length > 0) {
-      try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-      } catch (error) {
-        console.error("Failed to save chat history:", error);
-      }
-    }
-  }, [messages]);
+  // Messages are now managed by server sessions — no localStorage/sessionStorage needed
 
   // Auto-scroll to bottom only when new messages are added
   useEffect(() => {
@@ -146,13 +120,19 @@ export function GlobalChatWidget() {
     setIsLoading(true);
 
     try {
-      // Build conversation history from previous messages for context
-      const conversationHistory = messages.slice(-10).map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
+      // Server handles conversation history via session
+      const response = await api.queryRAG(
+        userMessage.content,
+        undefined,
+        undefined,
+        alertsMode ? 'alerts' : undefined,
+        sessionId || undefined
+      );
 
-      const response = await api.queryRAG(userMessage.content, undefined, conversationHistory, alertsMode ? 'alerts' : undefined);
+      // Capture session_id from first response
+      if (response.session_id && !sessionId) {
+        setSessionId(response.session_id);
+      }
 
       const assistantMessage: Message = {
         role: "assistant",
@@ -184,10 +164,10 @@ export function GlobalChatWidget() {
     }
   };
 
-  const handleClearChat = () => {
+  const handleNewChat = () => {
     setMessages([]);
-    sessionStorage.removeItem(STORAGE_KEY);
-    toast.success("Конверзацијата е избришана");
+    setSessionId(null);
+    toast.success("Нов разговор започнат");
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -218,7 +198,7 @@ export function GlobalChatWidget() {
 
   const goToFullChat = () => {
     setIsOpen(false);
-    router.push("/chat");
+    router.push(sessionId ? `/chat?session=${sessionId}` : "/chat");
   };
 
   return (
@@ -283,8 +263,8 @@ export function GlobalChatWidget() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={handleClearChat}
-                      title="Избриши"
+                      onClick={handleNewChat}
+                      title="Нов разговор"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

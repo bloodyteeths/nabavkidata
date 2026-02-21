@@ -16,7 +16,7 @@ from database import init_db, close_db, get_db
 from db_pool import get_asyncpg_pool, close_asyncpg_pool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals, whistleblower, clawd_monitor
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals, whistleblower, clawd_monitor, chat_sessions
 # Note: report_campaigns commented out - missing weasyprint on server
 # from api import report_campaigns
 from middleware.fraud import FraudPreventionMiddleware
@@ -152,6 +152,7 @@ app.include_router(referrals.router, prefix="/api")  # Referral program (user en
 app.include_router(referrals.admin_router, prefix="/api")  # Referral program (admin payout management)
 app.include_router(whistleblower.router)  # Anonymous whistleblower portal (Phase 4.5)
 app.include_router(clawd_monitor.router, prefix="/api")  # Clawd VA monitoring endpoint
+app.include_router(chat_sessions.router, prefix="/api")  # Persistent chat sessions with memory
 
 
 # Root endpoints
@@ -200,37 +201,74 @@ async def _database_health(db: AsyncSession):
 
 
 @app.get("/health")
-async def health_check(db: AsyncSession = Depends(get_db)):
+@app.get("/api/health")
+async def health_check():
     """
-    Public health check endpoint for external monitoring.
-    Returns minimal information to avoid information disclosure.
+    Public health check for external monitoring (Clawd VA).
+    No auth required. Fast — uses asyncpg pool directly, reads marker file for scraper.
     """
+    health = {"database": False}
+
+    # --- DB check via asyncpg pool (fastest path) ---
     try:
-        await db.execute(text("SELECT 1"))
-        db_status = "ok"
+        pool = await get_asyncpg_pool()
+        await pool.fetchval("SELECT 1")
+        health["database"] = True
     except Exception:
-        db_status = "error"
+        pass
+
+    # --- Scraper status from marker file ---
+    scraper_status = "unknown"
+    scraper_last_run = None
+    try:
+        marker = Path("/tmp/nabavkidata_scraper_last_run")
+        if marker.exists():
+            mtime = marker.stat().st_mtime
+            scraper_last_run = datetime.utcfromtimestamp(mtime).strftime("%Y-%m-%dT%H:%M:%SZ")
+            age_hours = (datetime.utcnow() - datetime.utcfromtimestamp(mtime)).total_seconds() / 3600
+            scraper_status = "ok" if age_hours < 26 else "stale"
+    except Exception:
+        scraper_status = "failed"
+
+    overall = "ok" if health["database"] else "unhealthy"
 
     return {
-        "status": "healthy" if db_status == "ok" else "degraded",
-        "service": "backend-api",
+        "status": overall,
+        "health": health,
+        "scraper_status": scraper_status,
+        "scraper_last_run": scraper_last_run,
         "timestamp": datetime.utcnow().isoformat()
     }
 
 
-@app.get("/api/health")
-async def api_health(db: AsyncSession = Depends(get_db)):
+@app.get("/health/scraper")
+@app.get("/api/health/scraper")
+async def scraper_health_check():
     """
-    Health check - minimal public info only.
+    Scraper-specific health check for Clawd VA monitoring.
+    Returns 200 with status 'ok' if scraper ran within last 26 hours.
     """
     try:
-        await db.execute(text("SELECT 1"))
-        db_status = "ok"
+        marker = Path("/tmp/nabavkidata_scraper_last_run")
+        if marker.exists():
+            mtime = marker.stat().st_mtime
+            last_run = datetime.utcfromtimestamp(mtime).strftime("%Y-%m-%dT%H:%M:%SZ")
+            age_hours = (datetime.utcnow() - datetime.utcfromtimestamp(mtime)).total_seconds() / 3600
+            status = "ok" if age_hours < 26 else "stale"
+        else:
+            last_run = None
+            status = "unknown"
     except Exception:
-        db_status = "error"
+        last_run = None
+        status = "failed"
+
+    scraper_health = _read_scraper_health()
 
     return {
-        "status": "healthy" if db_status == "ok" else "degraded",
-        "service": "backend-api",
+        "status": status,
+        "last_run": last_run,
+        "dataset": scraper_health.get("dataset") if scraper_health else None,
+        "last_status": scraper_health.get("status") if scraper_health else None,
+        "total_tenders": scraper_health.get("db", {}).get("total_tenders") if scraper_health else None,
         "timestamp": datetime.utcnow().isoformat()
     }

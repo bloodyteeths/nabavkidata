@@ -220,6 +220,10 @@ class RAGQueryRequest(BaseModel):
         None,
         description="Context source: None=vector search, 'alerts'=user's alert matches"
     )
+    session_id: Optional[str] = Field(
+        None,
+        description="Chat session ID for persistent memory. Auto-created if not provided."
+    )
 
 
 class RAGSource(BaseModel):
@@ -239,6 +243,7 @@ class RAGQueryResponse(BaseModel):
     confidence: str  # 'high', 'medium', 'low'
     query_time_ms: int
     generated_at: datetime
+    session_id: Optional[str] = None
 
 
 class SemanticSearchRequest(BaseModel):

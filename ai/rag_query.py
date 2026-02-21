@@ -4832,14 +4832,30 @@ class LLMDrivenAgent:
                 tool_calls = modified_tool_calls
                 logger.info(f"[FOLLOWUP] Re-using {len(tool_calls)} modified tool calls from previous query")
 
-        # Build conversation context
+        # Build conversation context (supports persistent memory system entries)
         history_context = ""
         if conversation_history:
-            for turn in conversation_history[-4:]:
-                if 'question' in turn:
-                    history_context += f"User: {turn['question'][:200]}\n"
+            # Separate system context (memory/profile) from conversation turns
+            for turn in conversation_history:
+                role = turn.get('role', '')
+                if role == 'system':
+                    # Memory summary or user profile from persistent memory
+                    history_context += f"{turn.get('content', '')[:800]}\n\n"
+
+            # Process last 10 conversation messages (expanded from 4)
+            conv_turns = [t for t in conversation_history if t.get('role') != 'system']
+            for turn in conv_turns[-10:]:
+                if 'role' in turn and 'content' in turn:
+                    role = turn.get('role', '')
+                    content = str(turn.get('content', ''))[:500]
+                    if role == 'user':
+                        history_context += f"User: {content}\n"
+                    elif role == 'assistant':
+                        history_context += f"Assistant: {content}\n"
+                elif 'question' in turn:
+                    history_context += f"User: {turn['question'][:500]}\n"
                 if 'answer' in turn:
-                    history_context += f"Assistant: {turn['answer'][:200]}\n"
+                    history_context += f"Assistant: {turn['answer'][:500]}\n"
 
         # Extract time period from question (if present)
         time_period = extract_time_period(question)
@@ -5767,39 +5783,60 @@ RESPONSE RULES:
 
         # Add conversation history if provided (with token limit)
         if conversation_history:
-            prompt_parts.append("PREVIOUS CONVERSATION (CRITICAL - understand the topic):\n")
             history_tokens = 0
-            max_history_tokens = 1000  # Limit history to ~1000 tokens
+            max_history_tokens = 2000  # Increased for persistent memory context
 
-            # Process last 4-6 messages (2-3 turns), handle both formats
-            for turn in conversation_history[-6:]:
-                # Handle role/content format (from API)
-                if 'role' in turn and 'content' in turn:
-                    role = turn.get('role', '')
-                    content = str(turn.get('content', ''))[:600]
+            # First, handle system entries (user profile, memory summary)
+            system_parts = []
+            conversation_parts = []
+            for turn in conversation_history:
+                role = turn.get('role', '')
+                if role == 'system':
+                    system_parts.append(turn)
+                else:
+                    conversation_parts.append(turn)
 
+            # Inject system context (user profile + memory summary)
+            if system_parts:
+                for sys_turn in system_parts:
+                    content = str(sys_turn.get('content', ''))[:800]
                     turn_tokens = len(content) // 4
                     if history_tokens + turn_tokens > max_history_tokens:
                         break
-
-                    if role == 'user':
-                        prompt_parts.append(f"User: {content}\n")
-                    elif role == 'assistant':
-                        prompt_parts.append(f"Assistant: {content}\n\n")
+                    prompt_parts.append(f"{content}\n\n")
                     history_tokens += turn_tokens
 
-                # Handle question/answer format (legacy)
-                elif 'question' in turn:
-                    q_text = turn.get('question', '')[:500]
-                    a_text = turn.get('answer', '')[:1000]
+            # Process last 10 conversation messages (5 turns)
+            if conversation_parts:
+                prompt_parts.append("PREVIOUS CONVERSATION (CRITICAL - understand the topic):\n")
+                for turn in conversation_parts[-10:]:
+                    # Handle role/content format (from API)
+                    if 'role' in turn and 'content' in turn:
+                        role = turn.get('role', '')
+                        content = str(turn.get('content', ''))[:500]
 
-                    turn_tokens = (len(q_text) + len(a_text)) // 4
-                    if history_tokens + turn_tokens > max_history_tokens:
-                        break
+                        turn_tokens = len(content) // 4
+                        if history_tokens + turn_tokens > max_history_tokens:
+                            break
 
-                    prompt_parts.append(f"User: {q_text}\n")
-                    prompt_parts.append(f"Assistant: {a_text}\n\n")
-                    history_tokens += turn_tokens
+                        if role == 'user':
+                            prompt_parts.append(f"User: {content}\n")
+                        elif role == 'assistant':
+                            prompt_parts.append(f"Assistant: {content}\n\n")
+                        history_tokens += turn_tokens
+
+                    # Handle question/answer format (legacy)
+                    elif 'question' in turn:
+                        q_text = turn.get('question', '')[:500]
+                        a_text = turn.get('answer', '')[:1000]
+
+                        turn_tokens = (len(q_text) + len(a_text)) // 4
+                        if history_tokens + turn_tokens > max_history_tokens:
+                            break
+
+                        prompt_parts.append(f"User: {q_text}\n")
+                        prompt_parts.append(f"Assistant: {a_text}\n\n")
+                        history_tokens += turn_tokens
 
             prompt_parts.append("\n")
 
@@ -6659,7 +6696,9 @@ class RAGQueryPipeline:
         conversation_context = ""
         if conversation_history:
             recent_exchanges = []
-            for turn in conversation_history[-4:]:  # Last 4 messages
+            # Filter out system entries (memory/profile) and use last 8 conversation turns
+            conv_turns = [t for t in conversation_history if t.get('role') != 'system']
+            for turn in conv_turns[-8:]:
                 if 'role' in turn and 'content' in turn:
                     content = str(turn.get('content', ''))[:400]
                     role = turn.get('role', '')
@@ -6892,7 +6931,8 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
 
         # Check conversation history for institution context (pronoun resolution)
         if conversation_history:
-            for turn in conversation_history[-3:]:  # Last 3 messages
+            conv_turns = [t for t in conversation_history if t.get('role') != 'system']
+            for turn in conv_turns[-6:]:  # Last 6 conversation messages
                 content = ""
                 if 'question' in turn:
                     content = str(turn.get('question', '')).lower()

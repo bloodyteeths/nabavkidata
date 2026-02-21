@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Sparkles, Trash2, AlertCircle, ArrowRight, Zap, Bell } from "lucide-react";
+import { MessageSquare, Sparkles, AlertCircle, ArrowRight, Zap, Bell, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import Link from "next/link";
 
@@ -45,15 +46,27 @@ const ALERTS_SUGGESTED_QUESTIONS = [
   "Кои рокови истекуваат наскоро?",
 ];
 
-const STORAGE_KEY = 'nabavkidata_chat_messages';
+export default function ChatPageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col h-screen bg-background items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <ChatPage />
+    </Suspense>
+  );
+}
 
-export default function ChatPage() {
+function ChatPage() {
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
   const [alertsMode, setAlertsMode] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -65,27 +78,31 @@ export default function ChatPage() {
     setIsHydrated(true);
   }, []);
 
-  // Load messages from localStorage on mount
+  // Load session from URL param or restore last session
   useEffect(() => {
     if (!isHydrated) return;
-    const storedMessages = localStorage.getItem(STORAGE_KEY);
-    if (storedMessages) {
-      try {
-        const parsedMessages = JSON.parse(storedMessages);
-        setMessages(parsedMessages);
-      } catch (error) {
-        console.error('Failed to parse stored messages:', error);
-        localStorage.removeItem(STORAGE_KEY);
-      }
+    const urlSessionId = searchParams.get('session');
+    if (urlSessionId) {
+      setSessionId(urlSessionId);
+      // Load session messages from server
+      api.getChatSession(urlSessionId)
+        .then((data) => {
+          if (data?.messages) {
+            setMessages(
+              data.messages.map((m) => ({
+                id: m.message_id,
+                role: m.role as 'user' | 'assistant',
+                content: m.content,
+                sources: m.sources,
+                confidence: m.confidence || undefined,
+                timestamp: m.created_at ? new Date(m.created_at) : undefined,
+              }))
+            );
+          }
+        })
+        .catch((err) => console.error('Failed to load session:', err));
     }
-  }, [isHydrated]);
-
-  // Save messages to localStorage whenever they change
-  useEffect(() => {
-    if (isHydrated && messages.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    }
-  }, [messages, isHydrated]);
+  }, [isHydrated, searchParams]);
 
   useEffect(() => {
     scrollToBottom();
@@ -137,13 +154,19 @@ export default function ChatPage() {
     scrollToBottom();
 
     try {
-      // Build conversation history from previous messages (last 10 exchanges max)
-      const conversationHistory = messages.slice(-20).map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
+      // Server handles conversation history via session — no need to send from client
+      const response = await api.queryRAG(
+        content,
+        undefined,
+        undefined,
+        alertsMode ? 'alerts' : undefined,
+        sessionId || undefined
+      );
 
-      const response = await api.queryRAG(content, undefined, conversationHistory, alertsMode ? 'alerts' : undefined);
+      // Capture session_id from first response (auto-created on server)
+      if (response.session_id && !sessionId) {
+        setSessionId(response.session_id);
+      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -172,9 +195,13 @@ export default function ChatPage() {
     }
   };
 
-  const handleClearChat = () => {
+  const handleNewChat = () => {
     setMessages([]);
-    localStorage.removeItem(STORAGE_KEY);
+    setSessionId(null);
+    // Clear URL session param if present
+    if (searchParams.get('session')) {
+      window.history.replaceState({}, '', '/chat');
+    }
   };
 
   const handleSuggestedQuestion = (question: string) => {
@@ -240,12 +267,12 @@ export default function ChatPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleClearChat}
+                  onClick={handleNewChat}
                   className="gap-1 md:gap-2 h-8 md:h-9 text-xs md:text-sm px-2 md:px-3"
                 >
-                  <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
-                  <span className="hidden sm:inline">Исчисти разговор</span>
-                  <span className="sm:hidden">Исчисти</span>
+                  <Plus className="h-3 w-3 md:h-4 md:w-4" />
+                  <span className="hidden sm:inline">Нов разговор</span>
+                  <span className="sm:hidden">Нов</span>
                 </Button>
               )}
             </div>

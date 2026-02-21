@@ -222,6 +222,28 @@ export interface RAGQueryResponse {
   }>;
   confidence: string;
   query_time_ms: number;
+  session_id?: string;
+}
+
+export interface ChatSession {
+  session_id: string;
+  title: string | null;
+  message_count: number;
+  context_type: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ChatSessionDetail extends ChatSession {
+  memory_summary: string | null;
+  messages: Array<{
+    message_id: string;
+    role: string;
+    content: string;
+    sources: any;
+    confidence: string | null;
+    created_at: string | null;
+  }>;
 }
 
 export interface AuthTokens {
@@ -1084,7 +1106,8 @@ class APIClient {
     question: string,
     tenderId?: string,
     conversationHistory?: Array<{ role: string; content: string }>,
-    contextType?: 'alerts'
+    contextType?: 'alerts',
+    sessionId?: string
   ) {
     return this.request<RAGQueryResponse>('/api/rag/query', {
       method: 'POST',
@@ -1093,7 +1116,29 @@ class APIClient {
         tender_id: tenderId,
         conversation_history: conversationHistory,
         context_type: contextType,
+        session_id: sessionId,
       }),
+    });
+  }
+
+  // Chat Sessions
+  async getChatSessions() {
+    return this.request<{ sessions: ChatSession[] }>('/api/chat/sessions');
+  }
+
+  async createChatSession() {
+    return this.request<{ session_id: string }>('/api/chat/sessions', {
+      method: 'POST',
+    });
+  }
+
+  async getChatSession(sessionId: string) {
+    return this.request<ChatSessionDetail>(`/api/chat/sessions/${sessionId}`);
+  }
+
+  async deleteChatSession(sessionId: string) {
+    return this.request<{ success: boolean }>(`/api/chat/sessions/${sessionId}`, {
+      method: 'DELETE',
     });
   }
 

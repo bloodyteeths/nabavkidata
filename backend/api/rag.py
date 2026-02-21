@@ -34,6 +34,14 @@ from schemas import (
 )
 from api.auth import get_current_user
 
+# Import chat memory service
+try:
+    from services.chat_memory import save_message, load_context_for_prompt
+    CHAT_MEMORY_AVAILABLE = True
+except ImportError:
+    CHAT_MEMORY_AVAILABLE = False
+    print("Warning: Chat memory service not available.")
+
 # Import fraud prevention for tier enforcement
 try:
     from services.fraud_prevention import check_rate_limit, increment_query_count, TIER_LIMITS
@@ -174,6 +182,43 @@ async def query_rag(
 
     start_time = time.time()
 
+    # =========================================================================
+    # PERSISTENT MEMORY: Session management + context loading
+    # =========================================================================
+    session_id = request.session_id
+    memory_context = None
+
+    if CHAT_MEMORY_AVAILABLE:
+        try:
+            # Auto-create session if none provided
+            if not session_id:
+                create_result = await db.execute(
+                    sql_text("""
+                        INSERT INTO chat_sessions (user_id, context_type)
+                        VALUES (CAST(:uid AS uuid), :ctx)
+                        RETURNING session_id
+                    """),
+                    {"uid": user_id, "ctx": request.context_type}
+                )
+                session_id = str(create_result.scalar())
+                await db.commit()
+                print(f"[ChatMemory] Auto-created session {session_id}")
+
+            # Save user message
+            await save_message(
+                db, session_id, "user", request.question
+            )
+
+            # Load memory context (summary + recent messages + user profile)
+            memory_context = await load_context_for_prompt(db, session_id, user_id)
+            print(f"[ChatMemory] Loaded context: summary={'yes' if memory_context.get('memory_summary') else 'no'}, "
+                  f"recent={len(memory_context.get('recent_messages', []))}, "
+                  f"profile={'yes' if memory_context.get('user_profile') else 'no'}")
+        except Exception as mem_err:
+            print(f"Warning: Chat memory failed, continuing without: {mem_err}")
+            import traceback
+            traceback.print_exc()
+
     # DEBUG: Log conversation history
     if request.conversation_history:
         print(f"[RAG DEBUG] Received conversation_history with {len(request.conversation_history)} messages")
@@ -196,10 +241,23 @@ async def query_rag(
     question_lower = request.question.lower()
     use_alerts_context = request.context_type == "alerts"
     if not use_alerts_context:
+        # Check current question for alert keywords
         for kw in ALERT_KEYWORDS:
             if kw in question_lower:
                 use_alerts_context = True
                 print(f"[RAG DEBUG] Auto-detected alerts query via keyword: '{kw}'")
+                break
+    if not use_alerts_context and request.conversation_history:
+        # Check if previous messages in conversation used alerts context
+        # (follow-up questions about tenders from alerts should stay in alerts mode)
+        history_text = ' '.join(
+            msg.get('content', '')[:200].lower()
+            for msg in (request.conversation_history or [])[-4:]
+        )
+        for kw in ALERT_KEYWORDS:
+            if kw in history_text:
+                use_alerts_context = True
+                print(f"[RAG DEBUG] Auto-detected alerts follow-up via history keyword: '{kw}'")
                 break
 
     # Handle alerts context mode: use alert matches instead of vector search
@@ -273,21 +331,39 @@ async def query_rag(
 
             today_str = datetime.utcnow().strftime('%d.%m.%Y')
 
+            # Build memory-enriched prompt sections
+            memory_sections = ""
+            if memory_context:
+                if memory_context.get("user_profile"):
+                    memory_sections += f"\nUSER PROFILE:\n{memory_context['user_profile']}\n"
+                if memory_context.get("memory_summary"):
+                    memory_sections += f"\nCONVERSATION MEMORY (compressed earlier messages):\n{memory_context['memory_summary']}\n"
+                recent = memory_context.get("recent_messages", [])
+                if recent and len(recent) > 1:
+                    # Skip the last message (it's the current question we just saved)
+                    history_msgs = recent[:-1]
+                    if history_msgs:
+                        history_text = "\n".join(
+                            f"{m['role'].capitalize()}: {m['content'][:500]}" for m in history_msgs
+                        )
+                        memory_sections += f"\nRECENT CONVERSATION:\n{history_text}\n"
+
             prompt = f"""You are an AI assistant for analyzing public procurement tenders in Macedonia.
 Today's date is {today_str}.
-
+{memory_sections}
 The user has the following alert matches ({len(alert_matches)} tenders matching their preferences):
 
 {alerts_context}
 
 IMPORTANT: Today is {today_str}. Any tender with a deadline (Рок) before today is EXPIRED and closed — do NOT list it as open or available for participation. Only tenders with deadlines on or after today are open.
 
-Answer the user's question based on these matches.
+Answer the user's question based on these matches. Use the conversation history and user profile to give personalized, context-aware answers.
 If the question is about summarizing, give a short overview by category or value.
 If about participation, check deadlines against today's date and only show tenders that are still open.
 If about value, compare budgets and highlight the largest ones.
 If about specifications, extract key requirements, qualifications, and criteria from the descriptions.
 When listing tenders, always include the deadline and clearly mark whether it is open or expired.
+If the user asks a follow-up question, use the conversation history to understand what they're referring to.
 {lang_instruction} Be concise and useful.
 
 Question: {request.question}"""
@@ -330,13 +406,21 @@ Question: {request.question}"""
             except Exception as e:
                 print(f"Warning: Failed to track alerts usage: {e}")
 
+            # Save assistant response to chat memory
+            if CHAT_MEMORY_AVAILABLE and session_id:
+                try:
+                    await save_message(db, session_id, "assistant", response.text)
+                except Exception as save_err:
+                    print(f"Warning: Failed to save assistant message: {save_err}")
+
             return RAGQueryResponse(
                 question=request.question,
                 answer=response.text,
                 sources=[],
                 confidence="high",
                 query_time_ms=query_time_ms,
-                generated_at=datetime.utcnow().isoformat()
+                generated_at=datetime.utcnow().isoformat(),
+                session_id=session_id
             )
 
         except Exception as alerts_error:
@@ -347,11 +431,41 @@ Question: {request.question}"""
         # Initialize RAG pipeline
         pipeline = RAGQueryPipeline(top_k=request.top_k)
 
+        # Build enriched conversation history from memory
+        enriched_history = request.conversation_history or []
+        if memory_context:
+            memory_history = []
+            # Inject user profile as system context
+            if memory_context.get("user_profile"):
+                memory_history.append({
+                    "role": "system",
+                    "content": f"User profile: {memory_context['user_profile']}"
+                })
+            # Inject compressed memory summary
+            if memory_context.get("memory_summary"):
+                memory_history.append({
+                    "role": "system",
+                    "content": f"Earlier conversation summary: {memory_context['memory_summary']}"
+                })
+            # Use recent messages from DB (skip last one which is current question)
+            recent = memory_context.get("recent_messages", [])
+            if recent:
+                db_history = [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in recent[:-1]  # Exclude current question
+                ]
+                if db_history:
+                    memory_history.extend(db_history)
+
+            # Use memory-based history instead of client-sent if we have it
+            if memory_history:
+                enriched_history = memory_history
+
         # Generate answer
         answer = await pipeline.generate_answer(
             question=request.question,
             tender_id=request.tender_id,
-            conversation_history=request.conversation_history,
+            conversation_history=enriched_history,
             user_id=str(current_user.user_id)
         )
 
@@ -435,13 +549,25 @@ Question: {request.question}"""
                 chunk_metadata=chunk_meta
             ))
 
+        # Save assistant response to chat memory
+        if CHAT_MEMORY_AVAILABLE and session_id:
+            try:
+                await save_message(
+                    db, session_id, "assistant", answer.answer,
+                    sources=[{"tender_id": s.tender_id, "similarity": s.similarity} for s in answer.sources[:5]],
+                    confidence=answer.confidence
+                )
+            except Exception as save_err:
+                print(f"Warning: Failed to save assistant message: {save_err}")
+
         return RAGQueryResponse(
             question=answer.question,
             answer=answer.answer,
             sources=sources_response,
             confidence=answer.confidence,
             query_time_ms=query_time_ms,
-            generated_at=answer.generated_at
+            generated_at=answer.generated_at,
+            session_id=session_id
         )
 
     except Exception as e:
