@@ -371,7 +371,7 @@ Question: {request.question}"""
             model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
             response = model.generate_content(
                 prompt,
-                generation_config=genai.GenerationConfig(temperature=0.3, max_output_tokens=2000)
+                generation_config=genai.GenerationConfig(temperature=0.3, max_output_tokens=4096)
             )
 
             query_time_ms = int((time.time() - start_time) * 1000)
@@ -711,9 +711,9 @@ async def query_rag_stream(
                     prompt,
                     generation_config=genai.GenerationConfig(
                         temperature=0.3,
-                        max_output_tokens=800
+                        max_output_tokens=4096
                     ),
-                    
+
                     stream=True
                 )
 
