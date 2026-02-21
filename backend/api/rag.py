@@ -316,7 +316,7 @@ Question: {request.question}"""
                 await db.execute(
                     sql_text("""
                         INSERT INTO usage_tracking (user_id, action_type, metadata, timestamp)
-                        VALUES (:user_id::uuid, 'rag_query', :details::jsonb, NOW())
+                        VALUES (CAST(:user_id AS uuid), 'rag_query', CAST(:details AS jsonb), NOW())
                     """),
                     {"user_id": user_id, "details": json.dumps({"type": "alerts_context", "question": request.question[:100]})}
                 )
@@ -397,7 +397,7 @@ Question: {request.question}"""
             await db.execute(
                 sql_text("""
                     INSERT INTO usage_tracking (user_id, action_type, metadata, timestamp)
-                    VALUES (:user_id::uuid, 'rag_query', :details::jsonb, NOW())
+                    VALUES (CAST(:user_id AS uuid), 'rag_query', CAST(:details AS jsonb), NOW())
                 """),
                 {"user_id": user_id, "details": json.dumps({"question": request.question[:100]})}
             )

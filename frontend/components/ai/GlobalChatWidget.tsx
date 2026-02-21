@@ -91,12 +91,12 @@ export function GlobalChatWidget() {
     }
   }, [messages]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom only when new messages are added
   useEffect(() => {
-    if (messagesEndRef.current) {
+    if (messagesEndRef.current && messages.length > 0) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, isLoading]);
+  }, [messages.length]);
 
   // Load usage status when widget opens
   useEffect(() => {
@@ -303,7 +303,7 @@ export function GlobalChatWidget() {
 
             {/* Messages */}
             <CardContent className="p-0 flex-1 overflow-hidden flex flex-col min-h-0">
-              <div className="flex-1 overflow-y-auto p-4 h-[calc(100vh-180px)] sm:h-[350px]" ref={scrollAreaRef}>
+              <div className="flex-1 overflow-y-auto p-4 h-[calc(100vh-180px)] sm:h-[400px]" ref={scrollAreaRef}>
                 <div className="space-y-4">
                   {messages.length === 0 ? (
                     <div className="text-center py-6">
