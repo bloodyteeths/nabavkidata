@@ -266,24 +266,30 @@ async def query_rag(
             import google.generativeai as genai
             genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 
-            prompt = f"""Ти си AI асистент за анализа на јавни набавки во Македонија.
+            # Detect language of the question to respond in same language
+            import re as _re
+            has_cyrillic = bool(_re.search('[а-яА-ЯѐЀ-ӿ]', request.question))
+            lang_instruction = "Одговори на македонски." if has_cyrillic else "Respond in the same language as the user's question."
 
-Корисникот ги има следните алерт совпаѓања ({len(alert_matches)} тендери кои одговараат на неговите преференции):
+            prompt = f"""You are an AI assistant for analyzing public procurement tenders in Macedonia.
+
+The user has the following alert matches ({len(alert_matches)} tenders matching their preferences):
 
 {alerts_context}
 
-Одговори на прашањето на корисникот врз основа на овие совпаѓања.
-Ако прашањето е за сумирање, дај краток преглед по категории или вредност.
-Ако е за учество, провери рокови (дали се сè уште отворени) и статуси.
-Ако е за вредност, спореди буџетите и издвој ги најголемите.
-Одговори на македонски. Биди концизен и корисен.
+Answer the user's question based on these matches.
+If the question is about summarizing, give a short overview by category or value.
+If about participation, check deadlines (whether still open) and statuses.
+If about value, compare budgets and highlight the largest ones.
+If about specifications, extract key requirements, qualifications, and criteria from the descriptions.
+{lang_instruction} Be concise and useful.
 
-Прашање: {request.question}"""
+Question: {request.question}"""
 
             model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
             response = model.generate_content(
                 prompt,
-                generation_config=genai.GenerationConfig(temperature=0.3, max_output_tokens=800)
+                generation_config=genai.GenerationConfig(temperature=0.3, max_output_tokens=2000)
             )
 
             query_time_ms = int((time.time() - start_time) * 1000)
@@ -310,9 +316,9 @@ async def query_rag(
                 await db.execute(
                     sql_text("""
                         INSERT INTO usage_tracking (user_id, action_type, metadata, timestamp)
-                        VALUES (:user_id, 'rag_query', :details, NOW())
+                        VALUES (:user_id::uuid, 'rag_query', :details::jsonb, NOW())
                     """),
-                    {"user_id": user_id, "details": f"alerts_context: {request.question[:100]}"}
+                    {"user_id": user_id, "details": json.dumps({"type": "alerts_context", "question": request.question[:100]})}
                 )
                 await db.commit()
             except Exception as e:
@@ -391,9 +397,9 @@ async def query_rag(
             await db.execute(
                 sql_text("""
                     INSERT INTO usage_tracking (user_id, action_type, metadata, timestamp)
-                    VALUES (:user_id, 'rag_query', :details, NOW())
+                    VALUES (:user_id::uuid, 'rag_query', :details::jsonb, NOW())
                 """),
-                {"user_id": user_id, "details": f"Q: {request.question[:100]}"}
+                {"user_id": user_id, "details": json.dumps({"question": request.question[:100]})}
             )
             await db.commit()
         except Exception as e:
