@@ -340,7 +340,15 @@ export default function TenderDetailPage() {
     try {
       setDocumentsLoading(true);
       const result = await api.getTenderDocuments(tenderId);
-      setDocuments(result.documents || []);
+      // Normalize field names (backend may send legacy or new format)
+      const docs = (result.documents || []).map((doc: any) => ({
+        ...doc,
+        doc_id: doc.doc_id || doc.document_id,
+        file_name: doc.file_name || doc.filename,
+        file_url: doc.file_url || doc.download_url,
+        extraction_status: doc.extraction_status || 'pending',
+      }));
+      setDocuments(docs);
     } catch (error) {
       console.error("Failed to load documents:", error);
       setDocuments([]);

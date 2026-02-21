@@ -84,13 +84,21 @@ class AmendmentsListResponse(BaseModel):
 
 class DocumentResponse(BaseModel):
     """Document attached to a tender"""
-    document_id: str
-    filename: str
-    file_type: Optional[str] = None
+    doc_id: str
+    tender_id: Optional[str] = None
+    doc_type: Optional[str] = None
+    file_name: Optional[str] = None
+    file_url: Optional[str] = None
     file_size_bytes: Optional[int] = None
-    category: Optional[str] = None  # technical_specs, financial_docs, award_decision, etc.
-    upload_date: Optional[datetime] = None
+    page_count: Optional[int] = None
+    extraction_status: str = "pending"
+    has_content: bool = False
+    uploaded_at: Optional[datetime] = None
+    # Legacy field names for backwards compatibility
+    document_id: Optional[str] = None
+    filename: Optional[str] = None
     download_url: Optional[str] = None
+    category: Optional[str] = None
     description: Optional[str] = None
 
 
@@ -98,6 +106,7 @@ class DocumentsListResponse(BaseModel):
     """List of documents for a tender"""
     tender_id: str
     total_documents: int
+    total: Optional[int] = None  # Alias for frontend compatibility
     documents: List[DocumentResponse]
     documents_by_category: dict
 
@@ -342,7 +351,9 @@ async def get_tender_documents(
         docs_query = text("""
             SELECT
                 doc_id::text, file_name, doc_type, file_size_bytes,
-                doc_category, upload_date, file_url
+                doc_category, upload_date, file_url, extraction_status,
+                page_count, uploaded_at,
+                CASE WHEN extraction_status = 'success' AND content_text IS NOT NULL AND LENGTH(content_text) > 100 THEN true ELSE false END as has_content
             FROM documents
             WHERE tender_id = :tender_id AND doc_category = :category
             ORDER BY upload_date DESC
@@ -352,7 +363,9 @@ async def get_tender_documents(
         docs_query = text("""
             SELECT
                 doc_id::text, file_name, doc_type, file_size_bytes,
-                doc_category, upload_date, file_url
+                doc_category, upload_date, file_url, extraction_status,
+                page_count, uploaded_at,
+                CASE WHEN extraction_status = 'success' AND content_text IS NOT NULL AND LENGTH(content_text) > 100 THEN true ELSE false END as has_content
             FROM documents
             WHERE tender_id = :tender_id
             ORDER BY doc_category, upload_date DESC
@@ -366,14 +379,22 @@ async def get_tender_documents(
 
     for row in rows:
         doc = DocumentResponse(
+            doc_id=str(row.doc_id),
+            tender_id=tender_id,
+            file_name=row.file_name,
+            doc_type=row.doc_type,
+            file_url=row.file_url,
+            file_size_bytes=row.file_size_bytes,
+            page_count=row.page_count,
+            extraction_status=row.extraction_status or 'pending',
+            has_content=bool(row.has_content),
+            uploaded_at=row.uploaded_at,
+            # Legacy fields for backwards compat
             document_id=str(row.doc_id),
             filename=row.file_name,
-            file_type=row.doc_type,
-            file_size_bytes=row.file_size_bytes,
-            category=row.doc_category,
-            upload_date=row.upload_date,
             download_url=row.file_url,
-            description=None  # description column doesn't exist
+            category=row.doc_category,
+            description=None,
         )
         documents.append(doc)
 
@@ -386,6 +407,7 @@ async def get_tender_documents(
     return DocumentsListResponse(
         tender_id=tender_id,
         total_documents=len(documents),
+        total=len(documents),
         documents=documents,
         documents_by_category=docs_by_category
     )
