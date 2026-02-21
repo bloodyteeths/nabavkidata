@@ -271,17 +271,23 @@ async def query_rag(
             has_cyrillic = bool(_re.search('[а-яА-ЯѐЀ-ӿ]', request.question))
             lang_instruction = "Одговори на македонски." if has_cyrillic else "Respond in the same language as the user's question."
 
+            today_str = datetime.utcnow().strftime('%d.%m.%Y')
+
             prompt = f"""You are an AI assistant for analyzing public procurement tenders in Macedonia.
+Today's date is {today_str}.
 
 The user has the following alert matches ({len(alert_matches)} tenders matching their preferences):
 
 {alerts_context}
 
+IMPORTANT: Today is {today_str}. Any tender with a deadline (Рок) before today is EXPIRED and closed — do NOT list it as open or available for participation. Only tenders with deadlines on or after today are open.
+
 Answer the user's question based on these matches.
 If the question is about summarizing, give a short overview by category or value.
-If about participation, check deadlines (whether still open) and statuses.
+If about participation, check deadlines against today's date and only show tenders that are still open.
 If about value, compare budgets and highlight the largest ones.
 If about specifications, extract key requirements, qualifications, and criteria from the descriptions.
+When listing tenders, always include the deadline and clearly mark whether it is open or expired.
 {lang_instruction} Be concise and useful.
 
 Question: {request.question}"""
