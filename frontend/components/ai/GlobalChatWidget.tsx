@@ -242,7 +242,7 @@ export function GlobalChatWidget() {
       {/* Chat Window */}
       {isOpen && (
         <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 sm:w-full sm:max-w-md animate-in slide-in-from-bottom-5 duration-300">
-          <Card className="h-full sm:h-auto shadow-2xl border-2 rounded-none sm:rounded-lg flex flex-col">
+          <Card className="h-full sm:h-auto sm:max-h-[600px] shadow-2xl border-2 rounded-none sm:rounded-lg flex flex-col">
             {/* Header */}
             <CardHeader className="pb-3 border-b bg-gradient-to-r from-primary/10 to-primary/5 flex-shrink-0">
               <div className="flex items-center justify-between">
