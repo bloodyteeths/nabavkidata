@@ -184,9 +184,26 @@ async def query_rag(
     else:
         print(f"[RAG DEBUG] No conversation_history received")
     print(f"[RAG DEBUG] Question: {request.question[:100]}...")
+    print(f"[RAG DEBUG] context_type: {request.context_type}")
+
+    # Auto-detect alert-related queries even without explicit context_type
+    ALERT_KEYWORDS = [
+        'алерт', 'алерти', 'совпаѓањ', 'известувањ', 'inbox', 'notification',
+        'alert', 'alerts', 'мои тендери', 'мои совпаѓања', 'мои алерти',
+        'сандаче', 'нотификации', 'препораки', 'match', 'matches',
+        'моите алерти', 'моите совпаѓања', 'моите тендери',
+    ]
+    question_lower = request.question.lower()
+    use_alerts_context = request.context_type == "alerts"
+    if not use_alerts_context:
+        for kw in ALERT_KEYWORDS:
+            if kw in question_lower:
+                use_alerts_context = True
+                print(f"[RAG DEBUG] Auto-detected alerts query via keyword: '{kw}'")
+                break
 
     # Handle alerts context mode: use alert matches instead of vector search
-    if request.context_type == "alerts":
+    if use_alerts_context:
         try:
             alerts_result = await db.execute(
                 sql_text("""
@@ -271,6 +288,36 @@ async def query_rag(
 
             query_time_ms = int((time.time() - start_time) * 1000)
 
+            # Track usage for alerts context (same as regular RAG)
+            if in_trial:
+                try:
+                    await db.execute(
+                        sql_text("""
+                            UPDATE trial_credits
+                            SET used_credits = used_credits + 1, updated_at = NOW()
+                            WHERE user_id = :user_id
+                              AND credit_type = 'ai_messages'
+                              AND expires_at > NOW()
+                        """),
+                        {"user_id": user_id}
+                    )
+                    await db.commit()
+                except Exception as e:
+                    print(f"Warning: Failed to consume trial credit (alerts): {e}")
+
+            # Always track in usage_tracking for counter
+            try:
+                await db.execute(
+                    sql_text("""
+                        INSERT INTO usage_tracking (user_id, action_type, metadata, timestamp)
+                        VALUES (:user_id, 'rag_query', :details, NOW())
+                    """),
+                    {"user_id": user_id, "details": f"alerts_context: {request.question[:100]}"}
+                )
+                await db.commit()
+            except Exception as e:
+                print(f"Warning: Failed to track alerts usage: {e}")
+
             return RAGQueryResponse(
                 question=request.question,
                 answer=response.text,
@@ -322,7 +369,7 @@ async def query_rag(
             except Exception as e:
                 print(f"Warning: Failed to increment query count: {e}")
 
-        # Consume trial credit or track usage
+        # Consume trial credit if in trial
         if in_trial:
             try:
                 await db.execute(
@@ -338,19 +385,19 @@ async def query_rag(
                 await db.commit()
             except Exception as e:
                 print(f"Warning: Failed to consume trial credit: {e}")
-        elif tier == "free":
-            # Track usage for free tier
-            try:
-                await db.execute(
-                    sql_text("""
-                        INSERT INTO usage_tracking (user_id, action_type, metadata, timestamp)
-                        VALUES (:user_id, 'rag_query', :details, NOW())
-                    """),
-                    {"user_id": user_id, "details": f"Q: {request.question[:100]}"}
-                )
-                await db.commit()
-            except Exception as e:
-                print(f"Warning: Failed to track usage: {e}")
+
+        # Always track usage in usage_tracking for all tiers (powers the counter)
+        try:
+            await db.execute(
+                sql_text("""
+                    INSERT INTO usage_tracking (user_id, action_type, metadata, timestamp)
+                    VALUES (:user_id, 'rag_query', :details, NOW())
+                """),
+                {"user_id": user_id, "details": f"Q: {request.question[:100]}"}
+            )
+            await db.commit()
+        except Exception as e:
+            print(f"Warning: Failed to track usage: {e}")
 
         # Convert sources to response format
         sources_response = []

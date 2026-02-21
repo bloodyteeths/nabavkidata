@@ -16,6 +16,7 @@ import {
   Loader2,
   Maximize2,
   Zap,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -34,6 +35,12 @@ const SUGGESTED_QUESTIONS = [
   "Најнови тендери денес",
 ];
 
+const ALERTS_SUGGESTED_QUESTIONS = [
+  "Сумирај ги моите алерти",
+  "Кои тендери можам да учествувам?",
+  "Кои рокови истекуваат наскоро?",
+];
+
 export function GlobalChatWidget() {
   const pathname = usePathname();
   const router = useRouter();
@@ -44,6 +51,7 @@ export function GlobalChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [remainingQueries, setRemainingQueries] = useState<number | null>(null);
+  const [alertsMode, setAlertsMode] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -144,7 +152,7 @@ export function GlobalChatWidget() {
         content: msg.content
       }));
 
-      const response = await api.queryRAG(userMessage.content, undefined, conversationHistory);
+      const response = await api.queryRAG(userMessage.content, undefined, conversationHistory, alertsMode ? 'alerts' : undefined);
 
       const assistantMessage: Message = {
         role: "assistant",
@@ -253,6 +261,15 @@ export function GlobalChatWidget() {
                     </Badge>
                   )}
                   <Button
+                    variant={alertsMode ? "default" : "ghost"}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setAlertsMode(!alertsMode)}
+                    title={alertsMode ? "Алерт режим активен" : "Мои алерти"}
+                  >
+                    <Bell className="h-4 w-4" />
+                  </Button>
+                  <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
@@ -294,10 +311,10 @@ export function GlobalChatWidget() {
                         <Sparkles className="h-6 w-6 text-primary" />
                       </div>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Како можам да помогнам?
+                        {alertsMode ? "Прашајте за вашите алерти" : "Како можам да помогнам?"}
                       </p>
                       <div className="space-y-2">
-                        {SUGGESTED_QUESTIONS.map((q, i) => (
+                        {(alertsMode ? ALERTS_SUGGESTED_QUESTIONS : SUGGESTED_QUESTIONS).map((q, i) => (
                           <button
                             key={i}
                             onClick={() => handleSuggestedQuestion(q)}
