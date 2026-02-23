@@ -356,6 +356,28 @@ class APIClient {
     this.baseURL = API_URL;
   }
 
+  private getDeviceFingerprint(): string {
+    if (typeof window === 'undefined') return '';
+    try {
+      const components = [
+        navigator.userAgent, navigator.language,
+        screen.width + 'x' + screen.height, String(screen.colorDepth),
+        String(new Date().getTimezoneOffset()),
+        String(navigator.hardwareConcurrency || ''),
+        navigator.platform || '',
+      ];
+      const str = components.join('|');
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return 'fp_' + Math.abs(hash).toString(36);
+    } catch {
+      return '';
+    }
+  }
+
   private getAuthToken(): string | null {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('auth_token');
@@ -400,6 +422,12 @@ class APIClient {
     // Auto-attach Authorization header if token exists
     if (token && !headers['Authorization']) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Device fingerprint for fraud prevention
+    const fp = this.getDeviceFingerprint();
+    if (fp) {
+      headers['x-device-fingerprint'] = fp;
     }
 
     // Add CSRF token for state-changing operations on billing endpoints
@@ -501,13 +529,34 @@ class APIClient {
       throw new Error('Unauthorized. Please login again.');
     }
 
-    // Handle 402 Payment Required - user needs to upgrade
-    if (response.status === 402) {
+    // Handle 402/403 - upgrade required (tier enforcement)
+    if (response.status === 402 || response.status === 403) {
       const errorData = await response.json().catch(() => ({ detail: 'Upgrade required' }));
-      const error = new Error(errorData.detail || 'Upgrade required to access this feature');
-      (error as any).status = 402;
-      (error as any).upgradeRequired = true;
-      throw error;
+      const isUpgrade = errorData.error === 'upgrade_required' ||
+                        errorData.upgrade_required ||
+                        (typeof errorData.detail === 'object' && errorData.detail?.error === 'upgrade_required');
+
+      // Extract structured info (detail may be string or object)
+      const detail = typeof errorData.detail === 'object' ? errorData.detail : errorData;
+
+      if (isUpgrade || response.status === 402) {
+        // Dispatch global event for PaywallModal
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('paywall-required', {
+            detail: {
+              message: detail.message || detail.detail || 'Надградете за пристап до оваа функција.',
+              status: response.status,
+              feature: detail.feature || 'premium',
+              tierRequired: detail.tier_required || 'starter'
+            }
+          }));
+        }
+
+        const error = new Error(detail.message || detail.detail || 'Upgrade required');
+        (error as any).status = response.status;
+        (error as any).upgradeRequired = true;
+        throw error;
+      }
     }
 
     if (!response.ok) {
@@ -1571,24 +1620,48 @@ class APIClient {
     }>(`/api/personalization/digests/${digestId}`);
   }
 
+  // CPV Divisions with caching (for CategoryGrid)
+  private _cpvDivisionsCache: { data: any; timestamp: number } | null = null;
+
+  async getCPVDivisionsWithStats() {
+    // Cache for 10 minutes
+    if (this._cpvDivisionsCache && Date.now() - this._cpvDivisionsCache.timestamp < 600000) {
+      return this._cpvDivisionsCache.data;
+    }
+    const response = await this.request<{
+      total: number;
+      divisions: Array<{
+        code: string;
+        name: string;
+        name_mk: string;
+        tender_count: number;
+        total_value_mkd: number | null;
+      }>;
+    }>(`/api/cpv-codes/divisions`);
+    this._cpvDivisionsCache = { data: response, timestamp: Date.now() };
+    return response;
+  }
+
   // Product Search Methods
   async searchProducts(params: {
-    q: string;
+    q?: string;
     year?: number;
     cpv_code?: string;
     min_price?: number;
     max_price?: number;
     procuring_entity?: string;
+    sort_by?: string;
     page?: number;
     page_size?: number;
   }) {
     const query = new URLSearchParams();
-    query.append('q', params.q);
+    if (params.q) query.append('q', params.q);
     if (params.year) query.append('year', params.year.toString());
     if (params.cpv_code) query.append('cpv_code', params.cpv_code);
     if (params.min_price) query.append('min_price', params.min_price.toString());
     if (params.max_price) query.append('max_price', params.max_price.toString());
     if (params.procuring_entity) query.append('procuring_entity', params.procuring_entity);
+    if (params.sort_by) query.append('sort_by', params.sort_by);
     if (params.page) query.append('page', params.page.toString());
     if (params.page_size) query.append('page_size', params.page_size.toString());
     return this.request<ProductSearchResponse>(`/api/products/search?${query.toString()}`);

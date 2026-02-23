@@ -1,28 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ExportButton } from "@/components/ExportButton";
-import { CPVBrowser } from "@/components/cpv/CPVBrowser";
+import { CategoryGrid, type Division } from "@/components/products/CategoryGrid";
+import { ProductCard } from "@/components/products/ProductCard";
+import { ProductFilters, type ProductFilterState } from "@/components/products/ProductFilters";
 import { api, type ProductSearchResult, type ProductAggregation } from "@/lib/api";
-import {
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Package,
-  TrendingUp,
-  Building2,
-  Calendar,
-  ExternalLink,
-  Filter,
-  SlidersHorizontal,
-  X
-} from "lucide-react";
-import { toast } from "sonner";
-import Link from "next/link";
 import {
   Select,
   SelectContent,
@@ -30,9 +19,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatDate } from "@/lib/utils";
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Package,
+  TrendingUp,
+  ArrowLeft,
+  SlidersHorizontal,
+} from "lucide-react";
+import { toast } from "sonner";
 
-// Utility functions
+// Sort options
+type SortOption = "date_desc" | "date_asc" | "price_asc" | "price_desc" | "quantity_desc";
+
+const SORT_LABELS: Record<SortOption, string> = {
+  date_desc: "Најнови прво",
+  date_asc: "Најстари прво",
+  price_asc: "Цена (ниска → висока)",
+  price_desc: "Цена (висока → ниска)",
+  quantity_desc: "Количина (најголема)",
+};
+
+// Example searches for browse mode
+const EXAMPLE_SEARCHES = [
+  "парацетамол",
+  "канцелариски мебел",
+  "медицинска опрема",
+  "ИТ услуги",
+  "градежни работи",
+  "храна",
+];
+
 function formatPrice(price: number | undefined): string {
   if (!price) return "-";
   return new Intl.NumberFormat("mk-MK", {
@@ -42,232 +60,313 @@ function formatPrice(price: number | undefined): string {
   }).format(price);
 }
 
-function formatQuantity(qty: number | undefined, unit: string | undefined): string {
-  if (!qty) return "-";
-  return `${qty.toLocaleString("mk-MK")} ${unit || ""}`.trim();
+// Loading fallback for Suspense
+function ProductsLoadingFallback() {
+  return (
+    <div className="p-3 md:p-6 lg:p-8 space-y-6">
+      <div>
+        <Skeleton className="h-8 w-64 mb-2" />
+        <Skeleton className="h-4 w-96" />
+      </div>
+      <Skeleton className="h-12 w-full max-w-2xl mx-auto" />
+      <div className="flex gap-2 justify-center">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-7 w-24 rounded-full" />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {[...Array(12)].map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4">
+              <Skeleton className="h-8 w-8 rounded-md mb-2" />
+              <Skeleton className="h-4 w-3/4 mb-1" />
+              <Skeleton className="h-3 w-1/2" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
 }
-
-interface Filters {
-  year?: number;
-  cpv_code?: string;
-  min_price?: number;
-  max_price?: number;
-  procuring_entity?: string;
-}
-
-type SortOption = "date_desc" | "date_asc" | "price_asc" | "price_desc" | "quantity_desc";
 
 export default function ProductsPage() {
+  return (
+    <Suspense fallback={<ProductsLoadingFallback />}>
+      <ProductsPageContent />
+    </Suspense>
+  );
+}
+
+function ProductsPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   // Hydration guard
   const [isHydrated, setIsHydrated] = useState(false);
 
+  // Browse mode state
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [divisionsLoading, setDivisionsLoading] = useState(true);
+
   // Search state
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const suggestionsTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Data state
+  // Results state
   const [products, setProducts] = useState<ProductSearchResult[]>([]);
   const [aggregations, setAggregations] = useState<ProductAggregation[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [cpvCodes, setCpvCodes] = useState<Array<{ cpv_code: string; title?: string; tender_count?: number; total_value_mkd?: number | null }> | null>(null);
-
-  // Pagination & Filters
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<Filters>({});
-  const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("date_desc");
 
-  // Stats
-  const [stats, setStats] = useState<{
-    total_products: number;
-    tenders_with_products: number;
-    unique_products: number;
-  } | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
+  // Filters
+  const [filters, setFilters] = useState<ProductFilterState>({});
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  // Refs
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Mode: determined by URL params
+  const [categoryName, setCategoryName] = useState<string>("");
 
   const pageSize = 20;
 
-  // Hydration effect
+  // Determine mode from URL
+  const urlSearch = searchParams.get("search") || "";
+  const urlCpv = searchParams.get("cpv_code") || "";
+  const urlYear = searchParams.get("year") || "";
+  const urlMinPrice = searchParams.get("min_price") || "";
+  const urlMaxPrice = searchParams.get("max_price") || "";
+  const urlEntity = searchParams.get("entity") || "";
+  const urlSort = searchParams.get("sort_by") || "";
+  const urlPage = searchParams.get("page") || "";
+  const urlCategoryName = searchParams.get("category_name") || "";
+
+  const isResultsMode = !!(urlSearch || urlCpv);
+
+  // Hydration
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
-  // Load stats on mount
+  // Load divisions on mount (always, for browse mode)
   useEffect(() => {
     if (!isHydrated) return;
-    loadStats();
-    loadCpvCodes();
+    loadDivisions();
   }, [isHydrated]);
 
-  async function loadStats() {
-    try {
-      const result = await api.getProductStats();
-      setStats(result);
-    } catch (error) {
-      console.error("Failed to load product stats:", error);
-    }
-  }
-
-  async function loadCpvCodes() {
-    try {
-      const result = await api.getCPVCodes();
-      setCpvCodes(result.cpv_codes || []);
-    } catch (error) {
-      console.error("Failed to load CPV codes:", error);
-      setCpvCodes(null);
-    }
-  }
-
-  // Debounced search - trigger suggestions and instant search
+  // Initialize from URL params
   useEffect(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
+    if (!isHydrated) return;
+
+    const initialFilters: ProductFilterState = {};
+    if (urlCpv) initialFilters.cpvCode = urlCpv;
+    if (urlYear) initialFilters.year = parseInt(urlYear);
+    if (urlMinPrice) initialFilters.minPrice = parseFloat(urlMinPrice);
+    if (urlMaxPrice) initialFilters.maxPrice = parseFloat(urlMaxPrice);
+    if (urlEntity) initialFilters.procuringEntity = urlEntity;
+    if (urlCategoryName) {
+      initialFilters.cpvName = urlCategoryName;
+      setCategoryName(urlCategoryName);
     }
 
-    if (query.length < 2) {
+    setFilters(initialFilters);
+    if (urlSearch) setSearchInput(urlSearch);
+    if (urlSort && SORT_LABELS[urlSort as SortOption]) setSortBy(urlSort as SortOption);
+    if (urlPage) setPage(parseInt(urlPage) || 1);
+
+    if (isResultsMode) {
+      fetchProducts(
+        urlSearch || undefined,
+        initialFilters,
+        urlSort as SortOption || "date_desc",
+        parseInt(urlPage) || 1
+      );
+    }
+  }, [isHydrated]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadDivisions() {
+    try {
+      setDivisionsLoading(true);
+      const res = await api.getCPVDivisionsWithStats();
+      setDivisions(res.divisions || []);
+    } catch (error) {
+      console.error("Failed to load divisions:", error);
+    } finally {
+      setDivisionsLoading(false);
+    }
+  }
+
+  const syncToURL = useCallback(
+    (search: string | undefined, f: ProductFilterState, sort: SortOption, p: number) => {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (f.cpvCode) params.set("cpv_code", f.cpvCode);
+      if (f.year) params.set("year", f.year.toString());
+      if (f.minPrice) params.set("min_price", f.minPrice.toString());
+      if (f.maxPrice) params.set("max_price", f.maxPrice.toString());
+      if (f.procuringEntity) params.set("entity", f.procuringEntity);
+      if (f.cpvName) params.set("category_name", f.cpvName);
+      if (sort !== "date_desc") params.set("sort_by", sort);
+      if (p > 1) params.set("page", p.toString());
+      const qs = params.toString();
+      router.replace(qs ? `/products?${qs}` : "/products", { scroll: false });
+    },
+    [router]
+  );
+
+  const fetchProducts = useCallback(
+    async (
+      search: string | undefined,
+      f: ProductFilterState,
+      sort: SortOption,
+      p: number
+    ) => {
+      try {
+        setLoading(true);
+
+        const searchParams: Record<string, any> = {
+          page: p,
+          page_size: pageSize,
+          sort_by: sort,
+        };
+        if (search) searchParams.q = search;
+        if (f.cpvCode) searchParams.cpv_code = f.cpvCode;
+        if (f.year) searchParams.year = f.year;
+        if (f.minPrice) searchParams.min_price = f.minPrice;
+        if (f.maxPrice) searchParams.max_price = f.maxPrice;
+        if (f.procuringEntity) searchParams.procuring_entity = f.procuringEntity;
+
+        // Fetch results and aggregations in parallel (aggregations only on first page with search)
+        const [searchResult, aggResult] = await Promise.all([
+          api.searchProducts(searchParams),
+          search && p === 1
+            ? api.getProductAggregations(search).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+
+        setProducts(searchResult.items);
+        setTotal(searchResult.total);
+        setPage(p);
+
+        if (aggResult) {
+          setAggregations(aggResult.aggregations);
+        } else if (p === 1) {
+          setAggregations([]);
+        }
+      } catch (error) {
+        console.error("Product search failed:", error);
+        toast.error("Пребарувањето не успеа. Обидете се повторно.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  // Suggestions
+  useEffect(() => {
+    if (suggestionsTimerRef.current) clearTimeout(suggestionsTimerRef.current);
+    if (searchInput.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
-      setDebouncedQuery("");
       return;
     }
-
-    // Debounce for 300ms
-    debounceTimerRef.current = setTimeout(() => {
-      setDebouncedQuery(query);
+    suggestionsTimerRef.current = setTimeout(async () => {
+      try {
+        const result = await api.getProductSuggestions(searchInput, 8);
+        setSuggestions(result.suggestions);
+        setShowSuggestions(result.suggestions.length > 0);
+      } catch {
+        setSuggestions([]);
+      }
     }, 300);
-
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+      if (suggestionsTimerRef.current) clearTimeout(suggestionsTimerRef.current);
     };
-  }, [query]);
+  }, [searchInput]);
 
-  // Fetch suggestions when debounced query changes
-  useEffect(() => {
-    if (debouncedQuery.length >= 2) {
-      fetchSuggestions(debouncedQuery);
-    }
-  }, [debouncedQuery]);
-
-  // Auto-search when debounced query changes and we have searched before
-  useEffect(() => {
-    if (debouncedQuery.length >= 2 && hasSearched) {
-      searchProducts(debouncedQuery, 1);
-    }
-  }, [debouncedQuery, filters, sortBy]);
-
-  async function fetchSuggestions(searchQuery: string) {
-    if (searchQuery.length < 2) return;
-
-    try {
-      setLoadingSuggestions(true);
-      const result = await api.getProductSuggestions(searchQuery, 10);
-      setSuggestions(result.suggestions);
-      setShowSuggestions(result.suggestions.length > 0);
-    } catch (error) {
-      console.error("Failed to fetch suggestions:", error);
-    } finally {
-      setLoadingSuggestions(false);
-    }
-  }
-
-  const searchProducts = useCallback(async (searchQuery: string, searchPage: number = 1) => {
-    if (!searchQuery.trim()) {
-      toast.error("Please enter a search term");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setHasSearched(true);
-      setShowSuggestions(false);
-
-      const [searchResult, aggResult] = await Promise.all([
-        api.searchProducts({
-          q: searchQuery,
-          page: searchPage,
-          page_size: pageSize,
-          ...filters,
-        }),
-        searchPage === 1 ? api.getProductAggregations(searchQuery) : Promise.resolve(null),
-      ]);
-
-      // Apply client-side sorting
-      let sortedProducts = [...searchResult.items];
-      switch (sortBy) {
-        case "price_asc":
-          sortedProducts.sort((a, b) => (a.unit_price || 0) - (b.unit_price || 0));
-          break;
-        case "price_desc":
-          sortedProducts.sort((a, b) => (b.unit_price || 0) - (a.unit_price || 0));
-          break;
-        case "quantity_desc":
-          sortedProducts.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
-          break;
-        case "date_asc":
-          sortedProducts.sort((a, b) => {
-            const dateA = a.opening_date ? new Date(a.opening_date).getTime() : 0;
-            const dateB = b.opening_date ? new Date(b.opening_date).getTime() : 0;
-            return dateA - dateB;
-          });
-          break;
-        case "date_desc":
-        default:
-          sortedProducts.sort((a, b) => {
-            const dateA = a.opening_date ? new Date(a.opening_date).getTime() : 0;
-            const dateB = b.opening_date ? new Date(b.opening_date).getTime() : 0;
-            return dateB - dateA;
-          });
-          break;
-      }
-
-      setProducts(sortedProducts);
-      setTotal(searchResult.total);
-      setPage(searchPage);
-
-      if (aggResult) {
-        setAggregations(aggResult.aggregations);
-      }
-    } catch (error) {
-      console.error("Product search failed:", error);
-      toast.error("Search failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, sortBy]);
+  // --- Actions ---
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
-      searchProducts(query, 1);
-    }
-  };
-
-  const handlePageChange = (newPage: number) => {
-    searchProducts(query, newPage);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!searchInput.trim()) return;
+    setShowSuggestions(false);
+    const newFilters = { ...filters };
+    syncToURL(searchInput, newFilters, sortBy, 1);
+    fetchProducts(searchInput, newFilters, sortBy, 1);
   };
 
   const handleSuggestionClick = (suggestion: string) => {
-    setQuery(suggestion);
+    setSearchInput(suggestion);
     setShowSuggestions(false);
-    searchProducts(suggestion, 1);
+    syncToURL(suggestion, filters, sortBy, 1);
+    fetchProducts(suggestion, filters, sortBy, 1);
+  };
+
+  const handleExampleClick = (example: string) => {
+    setSearchInput(example);
+    syncToURL(example, filters, sortBy, 1);
+    fetchProducts(example, filters, sortBy, 1);
+  };
+
+  const handleCategorySelect = (cpvCode: string, nameMk: string) => {
+    const newFilters: ProductFilterState = { cpvCode, cpvName: nameMk };
+    setFilters(newFilters);
+    setCategoryName(nameMk);
+    setSearchInput("");
+    syncToURL(undefined, newFilters, "date_desc", 1);
+    fetchProducts(undefined, newFilters, "date_desc", 1);
+  };
+
+  const handleBackToBrowse = () => {
+    setProducts([]);
+    setAggregations([]);
+    setTotal(0);
+    setSearchInput("");
+    setFilters({});
+    setCategoryName("");
+    setSortBy("date_desc");
+    setPage(1);
+    router.replace("/products", { scroll: false });
+  };
+
+  const handleFiltersApply = (newFilters: ProductFilterState) => {
+    setFilters(newFilters);
+    const search = searchInput.trim() || undefined;
+    syncToURL(search, newFilters, sortBy, 1);
+    fetchProducts(search, newFilters, sortBy, 1);
+  };
+
+  const handleFiltersReset = () => {
+    const emptyFilters: ProductFilterState = {};
+    setFilters(emptyFilters);
+    const search = searchInput.trim() || undefined;
+    if (search) {
+      syncToURL(search, emptyFilters, sortBy, 1);
+      fetchProducts(search, emptyFilters, sortBy, 1);
+    } else {
+      handleBackToBrowse();
+    }
+  };
+
+  const handleSortChange = (newSort: SortOption) => {
+    setSortBy(newSort);
+    const search = searchInput.trim() || undefined;
+    syncToURL(search, filters, newSort, 1);
+    fetchProducts(search, filters, newSort, 1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    const search = searchInput.trim() || undefined;
+    syncToURL(search, filters, sortBy, newPage);
+    fetchProducts(search, filters, sortBy, newPage);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showSuggestions || suggestions.length === 0) return;
-
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
@@ -293,142 +392,80 @@ export default function ProductsPage() {
     }
   };
 
-  const clearFilters = () => {
-    setFilters({});
-    toast.success("Filters cleared");
-  };
-
-  const hasActiveFilters = Object.values(filters).some(v => v !== undefined && v !== "");
-
   const totalPages = Math.ceil(total / pageSize);
 
-  // Calculate price statistics from aggregations
-  const priceStats = aggregations.length > 0 ? {
-    min: Math.min(...aggregations.map(a => a.min_unit_price || Infinity).filter(p => p !== Infinity)),
-    max: Math.max(...aggregations.map(a => a.max_unit_price || 0)),
-    avg: aggregations.reduce((sum, a) => sum + (a.avg_unit_price || 0), 0) / aggregations.length,
-  } : null;
-
-  // Get available years from data
-  const availableYears = Array.from(
-    new Set(
-      aggregations.flatMap(a => a.years)
-    )
-  ).sort((a, b) => b - a);
+  // Price stats from aggregations
+  const priceStats =
+    aggregations.length > 0
+      ? {
+          min: Math.min(
+            ...aggregations
+              .map((a) => a.min_unit_price || Infinity)
+              .filter((p) => p !== Infinity)
+          ),
+          max: Math.max(...aggregations.map((a) => a.max_unit_price || 0)),
+          avg:
+            aggregations.reduce((sum, a) => sum + (a.avg_unit_price || 0), 0) /
+            aggregations.length,
+        }
+      : null;
 
   // Wait for hydration
   if (!isHydrated) {
-    return (
-      <div className="flex items-center justify-center h-full p-8">
-        <p className="text-muted-foreground">Се вчитува...</p>
-      </div>
-    );
+    return <ProductsLoadingFallback />;
   }
 
-  return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-          <Package className="h-8 w-8" />
-          Истражување на Производи
-        </h1>
-        <p className="text-sm md:text-base text-muted-foreground mt-1">
-          Пребарувајте и анализирајте производи, лекови, опрема и услуги низ сите тендери
-        </p>
-      </div>
+  // Current label for results header
+  const resultsLabel = searchInput.trim()
+    ? `"${searchInput.trim()}"`
+    : categoryName
+    ? categoryName
+    : "";
 
-      {/* Stats Cards */}
-      {stats && (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{stats.total_products.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Вкупно Производи</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{stats.unique_products.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Уникатни Производи</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{stats.tenders_with_products.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Тендери со Производи</p>
-              </CardContent>
-            </Card>
-      </div>
-          {stats.total_products === 0 && (
-            <Card className="border-dashed">
-              <CardContent className="pt-6 text-center">
-                <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="font-medium mb-2">Податоците за производи се во подготовка</h3>
-                <p className="text-sm text-muted-foreground">
-                  Извлекувањето на детални информации за производи од тендерската документација е во тек.
-                  Оваа функционалност ќе биде достапна наскоро.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
+  // ========== BROWSE MODE ==========
+  if (!isResultsMode) {
+    return (
+      <div className="p-3 md:p-6 lg:p-8 space-y-6">
+        {/* Header */}
+        <div className="text-center max-w-2xl mx-auto">
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center justify-center gap-2">
+            <Package className="h-7 w-7 md:h-8 md:w-8" />
+            Каталог на Производи
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground mt-2">
+            Пребарувајте и споредувајте производи, опрема и услуги низ сите јавни набавки
+          </p>
+        </div>
 
-      {/* CPV Browser (only when data exists) */}
-      {cpvCodes && cpvCodes.length > 0 && (
-        <CPVBrowser onSelect={(code) => {
-          setFilters((prev) => ({ ...prev, cpv_code: code }));
-          // Trigger search with wildcard query if no query exists, or re-search with current query
-          const searchQuery = query.trim() || "*";
-          setQuery(searchQuery);
-          searchProducts(searchQuery, 1);
-        }} />
-      )}
-
-      {/* Search Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Пребарување на Производи</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        {/* Search Bar - Prominent */}
+        <div className="max-w-2xl mx-auto">
           <form onSubmit={handleSearch} className="relative">
             <div className="flex gap-2">
               <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
-                  ref={searchInputRef}
-                  placeholder="Пребарувајте производи (на пр., парацетамол, интраокуларна леќа, медицинска опрема...)"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Пребарувајте производи, опрема, услуги..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                  className="flex-1"
+                  className="pl-10 h-12 text-base"
                   autoComplete="off"
                 />
-                {loadingSuggestions && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
-                  </div>
-                )}
-
-                {/* Auto-suggestions dropdown */}
+                {/* Suggestions dropdown */}
                 {showSuggestions && suggestions.length > 0 && (
-                  <div
-                    ref={suggestionsRef}
-                    className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto"
-                  >
+                  <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
                     {suggestions.map((suggestion, index) => (
                       <button
                         key={index}
                         type="button"
                         onClick={() => handleSuggestionClick(suggestion)}
-                        className={`w-full px-4 py-2 text-left hover:bg-accent transition-colors ${
-                          index === selectedSuggestionIndex ? 'bg-accent' : ''
+                        className={`w-full px-4 py-2.5 text-left hover:bg-accent transition-colors text-sm ${
+                          index === selectedSuggestionIndex ? "bg-accent" : ""
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <Search className="h-4 w-4 text-muted-foreground" />
+                          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
                           <span>{suggestion}</span>
                         </div>
                       </button>
@@ -436,284 +473,280 @@ export default function ProductsPage() {
                   </div>
                 )}
               </div>
-              <Button type="submit" disabled={loading || !query.trim()}>
-                <Search className="h-4 w-4 mr-2" />
-                Пребарај
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowFilters(!showFilters)}
-                className={hasActiveFilters ? "border-primary" : ""}
-              >
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Филтри
-                {hasActiveFilters && (
-                  <Badge variant="default" className="ml-2 h-5 px-1.5">
-                    {Object.values(filters).filter(v => v !== undefined && v !== "").length}
-                  </Badge>
-                )}
+              <Button type="submit" size="lg" disabled={!searchInput.trim()}>
+                <Search className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Пребарај</span>
               </Button>
             </div>
           </form>
 
-          {/* Quick examples */}
-          <div className="flex flex-wrap gap-2">
-            <span className="text-xs text-muted-foreground">Примери:</span>
-            {["парацетамол", "интраокуларна леќа", "медицинска опрема", "ИТ услуги"].map((example) => (
+          {/* Example searches */}
+          <div className="flex flex-wrap gap-2 mt-3 justify-center">
+            {EXAMPLE_SEARCHES.map((example) => (
               <button
                 key={example}
                 type="button"
-                onClick={() => {
-                  setQuery(example);
-                  searchProducts(example, 1);
-                }}
-                className="text-xs text-primary hover:underline"
+                onClick={() => handleExampleClick(example)}
+                className="text-xs px-3 py-1.5 rounded-full border hover:bg-accent hover:border-primary/30 transition-colors text-muted-foreground hover:text-foreground"
               >
                 {example}
               </button>
             ))}
           </div>
+        </div>
 
-          {/* Filters Panel */}
-          {showFilters && (
-            <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
-              <div className="flex items-center justify-between">
-                <h3 className="font-medium flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Напредни Филтри
-                </h3>
-                {hasActiveFilters && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearFilters}
-                    className="text-xs"
+        {/* Category Grid */}
+        <div>
+          <h2 className="text-lg font-semibold mb-3">
+            Пребарувајте по категорија
+          </h2>
+          <CategoryGrid
+            divisions={divisions}
+            loading={divisionsLoading}
+            onSelect={handleCategorySelect}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ========== RESULTS MODE ==========
+  return (
+    <div className="p-3 md:p-6 lg:p-8 space-y-4 md:space-y-6">
+      {/* Results Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleBackToBrowse}
+            className="shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Категории</span>
+          </Button>
+          <div>
+            <h1 className="text-lg md:text-xl font-bold flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              {categoryName || "Резултати"}
+            </h1>
+          </div>
+        </div>
+
+        {/* Compact search in results mode */}
+        <form onSubmit={handleSearch} className="flex gap-2 w-full sm:w-auto sm:max-w-md">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Пребарај..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              className="pl-9 h-9"
+              autoComplete="off"
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-auto">
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className={`w-full px-3 py-2 text-left hover:bg-accent transition-colors text-sm ${
+                      index === selectedSuggestionIndex ? "bg-accent" : ""
+                    }`}
                   >
-                    <X className="h-3 w-3 mr-1" />
-                    Избриши ги сите
-                  </Button>
-                )}
+                    {suggestion}
+                  </button>
+                ))}
               </div>
+            )}
+          </div>
+          <Button type="submit" size="sm" disabled={!searchInput.trim()}>
+            <Search className="h-4 w-4" />
+          </Button>
+        </form>
+      </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Year filter */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Година</label>
-                  <Select
-                    value={filters.year?.toString() || "all"}
-                    onValueChange={(value) =>
-                      setFilters(prev => ({ ...prev, year: value && value !== "all" ? parseInt(value) : undefined }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Сите години" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Сите години</SelectItem>
-                      {availableYears.map(year => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* CPV Code filter */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">CPV Код</label>
-                  <Input
-                    placeholder="на пр., 33600000"
-                    value={filters.cpv_code || ""}
-                    onChange={(e) =>
-                      setFilters(prev => ({ ...prev, cpv_code: e.target.value || undefined }))
-                    }
-                  />
-                </div>
-
-                {/* Procuring Entity filter */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Договорен Орган</label>
-                  <Input
-                    placeholder="на пр., Име на болница"
-                    value={filters.procuring_entity || ""}
-                    onChange={(e) =>
-                      setFilters(prev => ({ ...prev, procuring_entity: e.target.value || undefined }))
-                    }
-                  />
-                </div>
-
-                {/* Min Price filter */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Мин. Цена (МКД)</label>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    value={filters.min_price || ""}
-                    onChange={(e) =>
-                      setFilters(prev => ({
-                        ...prev,
-                        min_price: e.target.value ? parseFloat(e.target.value) : undefined
-                      }))
-                    }
-                  />
-                </div>
-
-                {/* Max Price filter */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Макс. Цена (МКД)</label>
-                  <Input
-                    type="number"
-                    placeholder="Без лимит"
-                    value={filters.max_price || ""}
-                    onChange={(e) =>
-                      setFilters(prev => ({
-                        ...prev,
-                        max_price: e.target.value ? parseFloat(e.target.value) : undefined
-                      }))
-                    }
-                  />
-                </div>
-
-                {/* Sort by */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Сортирај По</label>
-                  <Select
-                    value={sortBy}
-                    onValueChange={(value) => setSortBy(value as SortOption)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="date_desc">Датум (најнови прво)</SelectItem>
-                      <SelectItem value="date_asc">Датум (најстари прво)</SelectItem>
-                      <SelectItem value="price_asc">Цена (од ниска кон висока)</SelectItem>
-                      <SelectItem value="price_desc">Цена (од висока кон ниска)</SelectItem>
-                      <SelectItem value="quantity_desc">Количина (од висока кон ниска)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
+      {/* Mobile filter toggle */}
+      <div className="lg:hidden">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowMobileFilters(!showMobileFilters)}
+          className="w-full"
+        >
+          <SlidersHorizontal className="h-4 w-4 mr-2" />
+          Филтри
+          {Object.values(filters).filter((v) => v !== undefined).length > 0 && (
+            <Badge variant="default" className="ml-2 h-5 px-1.5 text-xs">
+              {Object.values(filters).filter((v) => v !== undefined).length}
+            </Badge>
           )}
-        </CardContent>
-      </Card>
+        </Button>
+      </div>
 
-      {/* Results */}
-      {hasSearched && (
-        <>
-          {/* Price Statistics */}
-          {priceStats && aggregations.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Grid: Sidebar + Main */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
+        {/* Sidebar - Filters */}
+        <div
+          className={`lg:col-span-1 space-y-4 ${
+            showMobileFilters ? "block" : "hidden lg:block"
+          }`}
+        >
+          <ProductFilters
+            filters={filters}
+            onApply={handleFiltersApply}
+            onReset={handleFiltersReset}
+          />
+        </div>
+
+        {/* Main Content */}
+        <div className="lg:col-span-3 space-y-4">
+          {/* Price Statistics (only when aggregations available) */}
+          {priceStats && aggregations.length > 0 && !loading && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-lg font-bold text-green-600">{formatPrice(priceStats.min)}</div>
-                  <p className="text-xs text-muted-foreground">Најниска Цена</p>
+                <CardContent className="p-3 md:p-4">
+                  <div className="text-base md:text-lg font-bold text-green-600 dark:text-green-400">
+                    {formatPrice(priceStats.min)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Најниска цена</p>
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-lg font-bold">{formatPrice(priceStats.avg)}</div>
-                  <p className="text-xs text-muted-foreground">Просечна Цена</p>
+                <CardContent className="p-3 md:p-4">
+                  <div className="text-base md:text-lg font-bold">
+                    {formatPrice(priceStats.avg)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Просечна цена</p>
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-lg font-bold text-red-600">{formatPrice(priceStats.max)}</div>
-                  <p className="text-xs text-muted-foreground">Највисока Цена</p>
+                <CardContent className="p-3 md:p-4">
+                  <div className="text-base md:text-lg font-bold text-red-600 dark:text-red-400">
+                    {formatPrice(priceStats.max)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Највисока цена</p>
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-lg font-bold">{aggregations.length}</div>
+                <CardContent className="p-3 md:p-4">
+                  <div className="text-base md:text-lg font-bold">
+                    {aggregations.length}
+                  </div>
                   <p className="text-xs text-muted-foreground">Варијанти</p>
                 </CardContent>
               </Card>
             </div>
           )}
 
-          {/* Aggregations Table */}
-          {aggregations.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Анализа на Цени по Производ
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2">Производ</th>
-                        <th className="text-right p-2">Просечна Цена</th>
-                        <th className="text-right p-2">Мин. Цена</th>
-                        <th className="text-right p-2">Макс. Цена</th>
-                        <th className="text-right p-2">Вкупна Кол.</th>
-                        <th className="text-right p-2">Тендери</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {aggregations.slice(0, 10).map((agg, i) => (
-                        <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
-                          <td className="p-2 font-medium">{agg.product_name}</td>
-                          <td className="text-right p-2">{formatPrice(agg.avg_unit_price)}</td>
-                          <td className="text-right p-2 text-green-600">{formatPrice(agg.min_unit_price)}</td>
-                          <td className="text-right p-2 text-red-600">{formatPrice(agg.max_unit_price)}</td>
-                          <td className="text-right p-2">{agg.total_quantity?.toLocaleString() || "-"}</td>
-                          <td className="text-right p-2">{agg.tender_count}</td>
+          {/* Aggregations Table (collapsible) */}
+          {aggregations.length > 0 && !loading && (
+            <details className="group">
+              <summary className="cursor-pointer list-none">
+                <Card className="hover:border-primary/30 transition-colors">
+                  <CardContent className="p-3 md:p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">
+                        Анализа на цени по производ
+                      </span>
+                      <Badge variant="secondary" className="text-xs">
+                        {aggregations.length}
+                      </Badge>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90" />
+                  </CardContent>
+                </Card>
+              </summary>
+              <Card className="mt-2">
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/30">
+                          <th className="text-left p-3">Производ</th>
+                          <th className="text-right p-3">Просечна</th>
+                          <th className="text-right p-3 hidden sm:table-cell">Мин</th>
+                          <th className="text-right p-3 hidden sm:table-cell">Макс</th>
+                          <th className="text-right p-3">Тендери</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {aggregations.length > 10 && (
-                  <p className="text-xs text-muted-foreground mt-2 text-center">
-                    Прикажани првите 10 од {aggregations.length} варијанти
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+                      </thead>
+                      <tbody>
+                        {aggregations.slice(0, 10).map((agg, i) => (
+                          <tr
+                            key={i}
+                            className="border-b last:border-0 hover:bg-muted/50"
+                          >
+                            <td className="p-3 font-medium max-w-[200px] truncate">
+                              {agg.product_name}
+                            </td>
+                            <td className="text-right p-3">
+                              {formatPrice(agg.avg_unit_price)}
+                            </td>
+                            <td className="text-right p-3 text-green-600 dark:text-green-400 hidden sm:table-cell">
+                              {formatPrice(agg.min_unit_price)}
+                            </td>
+                            <td className="text-right p-3 text-red-600 dark:text-red-400 hidden sm:table-cell">
+                              {formatPrice(agg.max_unit_price)}
+                            </td>
+                            <td className="text-right p-3">{agg.tender_count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </details>
           )}
 
-          {/* Results Header */}
+          {/* Results header bar */}
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {total.toLocaleString()} резултати за "{query}"
-              </p>
-              {hasActiveFilters && (
-                <p className="text-xs text-muted-foreground">
-                  Филтрирано по: {Object.entries(filters)
-                    .filter(([_, v]) => v !== undefined && v !== "")
-                    .map(([k, v]) => `${k}=${v}`)
-                    .join(", ")}
-                </p>
+            <p className="text-sm text-muted-foreground">
+              {loading ? (
+                "Пребарување..."
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">
+                    {total.toLocaleString()}
+                  </span>{" "}
+                  резултати{resultsLabel ? ` за ${resultsLabel}` : ""}
+                </>
               )}
-            </div>
+            </p>
             <div className="flex items-center gap-2">
-              {totalPages > 1 && (
-                <p className="text-sm text-muted-foreground">
-                  Страна {page} од {totalPages}
-                </p>
-              )}
+              <Select
+                value={sortBy}
+                onValueChange={(v) => handleSortChange(v as SortOption)}
+              >
+                <SelectTrigger className="w-[180px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SORT_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {products.length > 0 && (
                 <ExportButton
                   data={products}
-                  filename={`products-${query.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`}
+                  filename={`производи-${(searchInput || categoryName || "сите").replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}`}
                   columns={[
-                    { key: 'name', label: 'Име на Производ' },
-                    { key: 'quantity', label: 'Количина' },
-                    { key: 'unit', label: 'Единица' },
-                    { key: 'unit_price', label: 'Единечна Цена (МКД)' },
-                    { key: 'total_price', label: 'Вкупна Цена (МКД)' },
-                    { key: 'cpv_code', label: 'CPV Код' },
-                    { key: 'tender_title', label: 'Тендер' },
-                    { key: 'procuring_entity', label: 'Орган' },
-                    { key: 'opening_date', label: 'Датум' },
+                    { key: "name", label: "Име на Производ" },
+                    { key: "quantity", label: "Количина" },
+                    { key: "unit", label: "Единица" },
+                    { key: "unit_price", label: "Единечна Цена (МКД)" },
+                    { key: "total_price", label: "Вкупна Цена (МКД)" },
+                    { key: "cpv_code", label: "CPV Код" },
+                    { key: "tender_title", label: "Тендер" },
+                    { key: "procuring_entity", label: "Орган" },
+                    { key: "opening_date", label: "Датум" },
                   ]}
                 />
               )}
@@ -722,127 +755,60 @@ export default function ProductsPage() {
 
           {/* Product Cards */}
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-                <p className="text-muted-foreground">Пребарување на производи...</p>
-              </div>
-            </div>
-          ) : products.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Package className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Не се пронајдени производи за "{query}"</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Обидете се со различни термини, прилагодете ги филтрите или проверете го пишувањето
-              </p>
-            </div>
-          ) : (
             <div className="space-y-4">
-              {products.map((product) => (
-                <Card key={product.id} className="hover:border-primary/50 transition-colors">
-                  <CardContent className="pt-6">
-                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                      {/* Product Info */}
-                      <div className="flex-1 space-y-2">
-                        <h3 className="font-semibold text-lg">{product.name}</h3>
-
-                        <div className="flex flex-wrap gap-2 text-sm">
-                          {product.quantity && (
-                            <Badge variant="secondary">
-                              Qty: {formatQuantity(product.quantity, product.unit)}
-                            </Badge>
-                          )}
-                          {product.unit_price && (
-                            <Badge variant="outline">
-                              Unit: {formatPrice(product.unit_price)}
-                            </Badge>
-                          )}
-                          {product.total_price && (
-                            <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
-                              Total: {formatPrice(product.total_price)}
-                            </Badge>
-                          )}
-                          {product.cpv_code && (
-                            <Badge variant="outline" className="font-mono">
-                              CPV: {product.cpv_code}
-                            </Badge>
-                          )}
-                        </div>
-
-                        {/* Specifications */}
-                        {product.specifications && Object.keys(product.specifications).length > 0 && (
-                          <div className="text-xs text-muted-foreground pt-1">
-                            <p className="font-medium">Specifications:</p>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {Object.entries(product.specifications).slice(0, 3).map(([key, value]) => (
-                                <span key={key} className="bg-muted px-2 py-1 rounded">
-                                  {key}: {String(value)}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Tender Context */}
-                        <div className="pt-2 border-t mt-2">
-                          <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                            <Building2 className="h-4 w-4 mt-0.5 shrink-0" />
-                            <div>
-                              <p className="font-medium text-foreground">
-                                {product.tender_title || "Untitled Tender"}
-                              </p>
-                              <p>{product.procuring_entity}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
-                            {product.opening_date && (
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatDate(product.opening_date)}
-                              </span>
-                            )}
-                            {product.status && (
-                              <Badge variant="outline" className="text-xs">
-                                {product.status}
-                              </Badge>
-                            )}
-                            {product.winner && (
-                              <span className="text-green-600">
-                                Winner: {product.winner}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex md:flex-col gap-2">
-                        <Link href={`/tenders/${encodeURIComponent(product.tender_id)}`}>
-                          <Button variant="outline" size="sm">
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Погледни Тендер
-                          </Button>
-                        </Link>
-                      </div>
+              {[...Array(5)].map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="p-4 sm:p-6">
+                    <Skeleton className="h-5 w-3/4 mb-3" />
+                    <div className="flex gap-2 mb-3">
+                      <Skeleton className="h-6 w-20 rounded-full" />
+                      <Skeleton className="h-6 w-24 rounded-full" />
+                      <Skeleton className="h-6 w-20 rounded-full" />
                     </div>
+                    <Skeleton className="h-4 w-1/2 mb-2" />
+                    <Skeleton className="h-4 w-1/3" />
                   </CardContent>
                 </Card>
+              ))}
+            </div>
+          ) : products.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Package className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+              <h3 className="font-medium mb-1">Нема пронајдени производи</h3>
+              <p className="text-sm text-muted-foreground max-w-md">
+                {searchInput
+                  ? `Не се пронајдени резултати за "${searchInput}". Обидете се со различни термини или проширете ги филтрите.`
+                  : "Нема извлечени производи за оваа категорија. Податоците се извлекуваат од тендерската документација."}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={handleBackToBrowse}
+              >
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Назад кон категории
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
               ))}
             </div>
           )}
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-4 pt-4">
+          {totalPages > 1 && !loading && (
+            <div className="flex items-center justify-center gap-4 pt-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handlePageChange(page - 1)}
-                disabled={page === 1 || loading}
+                disabled={page === 1}
               >
                 <ChevronLeft className="h-4 w-4 mr-1" />
-                Претходна
+                <span className="hidden sm:inline">Претходна</span>
               </Button>
               <span className="text-sm text-muted-foreground">
                 {page} / {totalPages}
@@ -851,15 +817,15 @@ export default function ProductsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handlePageChange(page + 1)}
-                disabled={page === totalPages || loading}
+                disabled={page === totalPages}
               >
-                Следна
+                <span className="hidden sm:inline">Следна</span>
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
           )}
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }

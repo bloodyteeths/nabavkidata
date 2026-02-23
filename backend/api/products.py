@@ -1,16 +1,19 @@
 """
 Product Search API endpoints
-Provides search capabilities for product items extracted from tender documents
+Provides search and browse capabilities for product items extracted from tender documents
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, func, select, and_, or_
 from typing import Optional, List
 from decimal import Decimal
+from datetime import datetime, timedelta
 import logging
 
 from database import get_db
 from models import ProductItem, Tender
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 from schemas import (
     ProductSearchRequest,
     ProductSearchResponse,
@@ -23,35 +26,58 @@ from schemas import (
 router = APIRouter(prefix="/products", tags=["products"])
 logger = logging.getLogger(__name__)
 
+# Sort options mapping
+SORT_MAP = {
+    "date_desc": "t.opening_date DESC NULLS LAST, p.name",
+    "date_asc": "t.opening_date ASC NULLS LAST, p.name",
+    "price_asc": "p.unit_price ASC NULLS LAST, p.name",
+    "price_desc": "p.unit_price DESC NULLS LAST, p.name",
+    "quantity_desc": "p.quantity DESC NULLS LAST, p.name",
+}
+
+# In-memory cache for stats
+_stats_cache = {"data": None, "expires": None}
+
 
 @router.get("/search", response_model=ProductSearchResponse)
 async def search_products(
-    q: str = Query(..., min_length=1, max_length=500, description="Search query"),
+    q: Optional[str] = Query(None, max_length=500, description="Search query (optional for browse mode)"),
     year: Optional[int] = Query(None, description="Filter by year"),
     cpv_code: Optional[str] = Query(None, description="Filter by CPV code prefix"),
     min_price: Optional[float] = Query(None, description="Minimum unit price"),
     max_price: Optional[float] = Query(None, description="Maximum unit price"),
     procuring_entity: Optional[str] = Query(None, description="Filter by procuring entity"),
+    sort_by: Optional[str] = Query("date_desc", description="Sort: date_desc, date_asc, price_asc, price_desc, quantity_desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Search for products across all tender documents.
+    Search or browse products across all tender documents.
 
-    This endpoint allows searching for specific products like:
-    - "paracetamol" - Find all paracetamol purchases
-    - "intraocular lens" - Find intraocular lens procurements
-    - "medical equipment" - Find medical equipment tenders
+    Can be used in two modes:
+    - Search mode: provide q parameter to search by product name
+    - Browse mode: provide cpv_code to browse products by category
 
-    Returns product items with their tender context including procuring entity,
-    quantities, prices, and specifications.
+    At least one of q or cpv_code must be provided.
     """
+    if not q and not cpv_code:
+        raise HTTPException(status_code=400, detail="At least q or cpv_code must be provided")
+
     offset = (page - 1) * page_size
 
-    # Build dynamic WHERE clause based on provided filters
-    where_clauses = ["(p.name ILIKE :name_pattern OR p.raw_text ILIKE :name_pattern)"]
-    params = {"name_pattern": f"%{q}%", "limit": page_size, "offset": offset}
+    # Build dynamic WHERE clause
+    where_clauses = []
+    params = {"limit": page_size, "offset": offset}
+
+    if q:
+        # Use full-text search with ILIKE fallback
+        where_clauses.append("""(
+            p.search_vector @@ plainto_tsquery('simple', :search_term)
+            OR p.name ILIKE :name_pattern
+        )""")
+        params["search_term"] = q
+        params["name_pattern"] = f"%{q}%"
 
     if year is not None:
         where_clauses.append("EXTRACT(YEAR FROM t.opening_date) = :year")
@@ -69,8 +95,12 @@ async def search_products(
         where_clauses.append("t.procuring_entity ILIKE :entity_pattern")
         params["entity_pattern"] = f"%{procuring_entity}%"
 
-    where_sql = " AND ".join(where_clauses)
+    where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
+    # Server-side sorting
+    order_clause = SORT_MAP.get(sort_by, SORT_MAP["date_desc"])
+
+    # Single query with COUNT(*) OVER() to get total + results in one pass
     search_query = text(f"""
         SELECT
             p.id,
@@ -87,29 +117,20 @@ async def search_products(
             t.procuring_entity,
             t.opening_date,
             t.status,
-            t.winner
+            t.winner,
+            COUNT(*) OVER() as total_count
         FROM product_items p
         JOIN tenders t ON p.tender_id = t.tender_id
         WHERE {where_sql}
-        ORDER BY t.opening_date DESC NULLS LAST, p.name
+        ORDER BY {order_clause}
         LIMIT :limit OFFSET :offset
     """)
 
-    count_query = text(f"""
-        SELECT COUNT(*)
-        FROM product_items p
-        JOIN tenders t ON p.tender_id = t.tender_id
-        WHERE {where_sql}
-    """)
-
     try:
-        # Get total count
-        count_result = await db.execute(count_query, params)
-        total = count_result.scalar() or 0
-
-        # Get results
         result = await db.execute(search_query, params)
         rows = result.fetchall()
+
+        total = rows[0].total_count if rows else 0
 
         items = []
         for row in rows:
@@ -132,7 +153,7 @@ async def search_products(
             ))
 
         return ProductSearchResponse(
-            query=q,
+            query=q or "",
             total=total,
             page=page,
             page_size=page_size,
@@ -144,7 +165,8 @@ async def search_products(
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
-@router.get("/aggregate", response_model=ProductAggregationResponse)
+@router.get("/aggregate", response_model=ProductAggregationResponse,
+            dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def aggregate_products(
     q: str = Query(..., min_length=1, max_length=500, description="Search query"),
     db: AsyncSession = Depends(get_db)
@@ -265,7 +287,13 @@ async def get_product_suggestions(
 async def get_product_stats(
     db: AsyncSession = Depends(get_db)
 ):
-    """Get overall product statistics"""
+    """Get overall product statistics (available to all users)"""
+    global _stats_cache
+
+    # Return cached stats if fresh (15 minute TTL)
+    if _stats_cache["data"] and _stats_cache["expires"] and _stats_cache["expires"] > datetime.now():
+        return _stats_cache["data"]
+
     stats_query = text("""
         SELECT
             COUNT(*) as total_products,
@@ -278,9 +306,12 @@ async def get_product_stats(
     result = await db.execute(stats_query)
     row = result.fetchone()
 
-    return {
+    data = {
         "total_products": row.total_products or 0,
         "tenders_with_products": row.tenders_with_products or 0,
         "unique_products": row.unique_products or 0,
         "avg_confidence": float(row.avg_confidence) if row.avg_confidence else None
     }
+
+    _stats_cache = {"data": data, "expires": datetime.now() + timedelta(minutes=15)}
+    return data

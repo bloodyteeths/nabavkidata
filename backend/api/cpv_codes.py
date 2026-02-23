@@ -7,11 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, List
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database import get_db
 
 router = APIRouter(prefix="/cpv-codes", tags=["cpv-codes"])
+
+# In-memory cache for divisions (rarely changes)
+_divisions_cache = {"data": None, "expires": None}
 
 
 # ============================================================================
@@ -350,6 +353,12 @@ async def get_cpv_divisions(
 
     Returns the main CPV division codes (2-digit) with statistics.
     """
+    global _divisions_cache
+
+    # Return cached data if fresh (1 hour TTL)
+    if _divisions_cache["data"] and _divisions_cache["expires"] and _divisions_cache["expires"] > datetime.now():
+        return _divisions_cache["data"]
+
     query = text("""
         SELECT
             SUBSTRING(cpv_code, 1, 2) as division,
@@ -377,10 +386,13 @@ async def get_cpv_divisions(
             "total_value_mkd": float(row.total_value_mkd) if row.total_value_mkd else None
         })
 
-    return {
+    response_data = {
         "total": len(divisions),
         "divisions": divisions
     }
+
+    _divisions_cache = {"data": response_data, "expires": datetime.now() + timedelta(hours=1)}
+    return response_data
 
 
 @router.get("/{code}", response_model=CPVCodeDetailResponse)

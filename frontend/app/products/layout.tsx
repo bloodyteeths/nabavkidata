@@ -2,8 +2,8 @@ import { Metadata } from "next";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
 export const metadata: Metadata = {
-  title: "Пребарување на Производи | NabavkiData",
-  description: "Пребарувајте и анализирајте производи, медикаменти, опрема и услуги кои се јавувачи во јавни набавки.",
+  title: "Каталог на Производи | NabavkiData",
+  description: "Пребарувајте и споредувајте производи, опрема и услуги низ сите јавни набавки во Македонија.",
 };
 
 export default function ProductsLayout({

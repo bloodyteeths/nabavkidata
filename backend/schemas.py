@@ -328,6 +328,7 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=8, max_length=100)
     full_name: Optional[str] = None
     referral_code: Optional[str] = None
+    device_fingerprint: Optional[str] = None
 
     @validator('password')
     def validate_password(cls, v):
@@ -599,7 +600,7 @@ class ProductSearchResult(BaseModel):
 
 class ProductSearchResponse(BaseModel):
     """Response schema for product search"""
-    query: str
+    query: Optional[str] = ""
     total: int
     page: int
     page_size: int
