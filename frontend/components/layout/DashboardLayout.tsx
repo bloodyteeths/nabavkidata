@@ -119,6 +119,7 @@ export default function DashboardLayout({
                         <span className="font-bold text-foreground">nabavkidata</span>
                     </Link>
                     <div className="flex items-center gap-2">
+                        <ThemeToggle />
                         <NotificationBell />
                         <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
                             {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
