@@ -102,7 +102,7 @@ export function NotificationDropdown({
       case "system":
         return <Info className="h-5 w-5 text-purple-400" />;
       default:
-        return <Bell className="h-5 w-5 text-gray-400" />;
+        return <Bell className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
@@ -120,14 +120,14 @@ export function NotificationDropdown({
   return (
     <div className="flex flex-col max-h-[500px]">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/10">
-        <h3 className="font-semibold text-white">Известувања</h3>
+      <div className="flex items-center justify-between p-4 border-b border-border">
+        <h3 className="font-semibold text-foreground">Известувања</h3>
         {notifications.some((n) => !n.is_read) && (
           <Button
             variant="ghost"
             size="sm"
             onClick={handleMarkAllRead}
-            className="text-xs hover:bg-white/5"
+            className="text-xs hover:bg-foreground/5"
           >
             <Check className="h-3 w-3 mr-1" />
             Означи сè како прочитано
@@ -149,12 +149,12 @@ export function NotificationDropdown({
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div className="divide-y divide-border">
             {notifications.map((notification) => (
               <button
                 key={notification.notification_id}
                 onClick={() => handleNotificationClick(notification)}
-                className={`w-full p-4 text-left transition-colors hover:bg-white/5 ${
+                className={`w-full p-4 text-left transition-colors hover:bg-foreground/5 ${
                   !notification.is_read ? "bg-primary/5" : ""
                 }`}
               >
@@ -167,8 +167,8 @@ export function NotificationDropdown({
                       <p
                         className={`text-sm font-medium ${
                           !notification.is_read
-                            ? "text-white"
-                            : "text-gray-300"
+                            ? "text-foreground"
+                            : "text-muted-foreground"
                         }`}
                       >
                         {notification.title}
@@ -195,7 +195,7 @@ export function NotificationDropdown({
 
       {/* Footer */}
       {notifications.length > 0 && (
-        <div className="p-3 border-t border-white/10 bg-black/20">
+        <div className="p-3 border-t border-border bg-background/20">
           <Link
             href="/notifications"
             onClick={onClose}

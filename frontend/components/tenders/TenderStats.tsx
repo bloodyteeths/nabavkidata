@@ -11,7 +11,7 @@ interface TenderStatsProps {
 
 export function TenderStats({ total, open, closed, awarded, cancelled = 0 }: TenderStatsProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2">

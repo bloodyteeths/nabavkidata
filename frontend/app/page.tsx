@@ -53,9 +53,9 @@ export default function LandingPage() {
             <SocialProofNotifications />
 
             {/* Footer */}
-            <footer className="py-12 border-t border-white/10 bg-black/20">
+            <footer className="py-12 border-t border-border bg-background/20">
                 <div className="container px-4 md:px-6">
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-gray-400">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-muted-foreground">
                         <p className="text-sm">&copy; 2024 Nabavkidata. Сите права се задржани.</p>
                         <nav className="flex gap-6 text-sm">
                             <a

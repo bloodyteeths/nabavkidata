@@ -67,7 +67,7 @@ export default function ValuePropositionSection() {
                     <h2 className="text-3xl md:text-5xl font-bold mb-4">
                         Што <span className="text-red-400">губите</span> без вистински податоци?
                     </h2>
-                    <p className="text-lg text-gray-400 max-w-2xl mx-auto">
+                    <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
                         Вашите конкуренти веќе имаат пристап до информации што вие ги немате. Секој изгубен тендер е пропуштена шанса.
                     </p>
                 </motion.div>
@@ -85,7 +85,7 @@ export default function ValuePropositionSection() {
                                 transition={{ duration: 0.5, delay: index * 0.1 }}
                                 className="relative group"
                             >
-                                <div className="h-full p-6 md:p-8 rounded-2xl bg-white/5 border border-red-500/20 backdrop-blur-sm hover:border-red-500/40 transition-all duration-300">
+                                <div className="h-full p-6 md:p-8 rounded-2xl bg-foreground/5 border border-red-500/20 backdrop-blur-sm hover:border-red-500/40 transition-all duration-300">
                                     {/* Icon */}
                                     <div className={`w-14 h-14 md:w-16 md:h-16 rounded-xl bg-gradient-to-br ${loss.color} p-3 mb-4 shadow-lg`}>
                                         <Icon className="w-full h-full text-white" />
@@ -97,14 +97,14 @@ export default function ValuePropositionSection() {
                                     </h3>
 
                                     {/* Pain Point */}
-                                    <p className="text-white font-medium mb-4">
+                                    <p className="text-foreground font-medium mb-4">
                                         {loss.pain}
                                     </p>
 
                                     {/* Loss List */}
                                     <ul className="space-y-2 mb-6">
                                         {loss.losses.map((item, itemIndex) => (
-                                            <li key={itemIndex} className="flex items-start gap-2 text-sm text-gray-400">
+                                            <li key={itemIndex} className="flex items-start gap-2 text-sm text-muted-foreground">
                                                 <TrendingDown className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
                                                 {item}
                                             </li>
@@ -112,7 +112,7 @@ export default function ValuePropositionSection() {
                                     </ul>
 
                                     {/* Solution */}
-                                    <div className="pt-4 border-t border-white/10">
+                                    <div className="pt-4 border-t border-border">
                                         <p className="text-sm text-primary font-medium">
                                             ✓ {loss.solution}
                                         </p>
@@ -131,10 +131,10 @@ export default function ValuePropositionSection() {
                     transition={{ duration: 0.5, delay: 0.4 }}
                     className="mt-12 md:mt-16 text-center"
                 >
-                    <p className="text-xl md:text-2xl text-white font-bold mb-2">
+                    <p className="text-xl md:text-2xl text-foreground font-bold mb-2">
                         Колку тендери изгубивте минатиот месец?
                     </p>
-                    <p className="text-gray-400">
+                    <p className="text-muted-foreground">
                         Дознајте што ве чини незнаењето. Пробајте бесплатно.
                     </p>
                 </motion.div>

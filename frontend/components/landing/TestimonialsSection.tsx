@@ -112,11 +112,11 @@ export default function TestimonialsSection() {
           <div className="flex items-center justify-center gap-3 mb-4">
             <Quote className="h-8 w-8 text-primary" />
             <h2 className="text-3xl md:text-5xl font-bold">
-              <span className="text-white">Што велат</span>
+              <span className="text-foreground">Што велат</span>
               <span className="text-gradient"> нашите клиенти</span>
             </h2>
           </div>
-          <p className="text-lg text-gray-400 max-w-2xl mx-auto">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Придружете им се на стотици македонски компании што успеваат со Nabavkidata
           </p>
         </motion.div>
@@ -131,7 +131,7 @@ export default function TestimonialsSection() {
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
             >
-              <Card className="h-full bg-white/5 border-white/10 backdrop-blur-sm hover:bg-white/10 transition-all duration-300 hover:border-primary/30">
+              <Card className="h-full bg-foreground/5 border-border backdrop-blur-sm hover:bg-foreground/10 transition-all duration-300 hover:border-primary/30">
                 <CardContent className="p-6 flex flex-col h-full">
                   {/* Rating Stars */}
                   <div className="flex items-center gap-1 mb-4">
@@ -144,12 +144,12 @@ export default function TestimonialsSection() {
                   <Quote className="h-8 w-8 text-primary/30 mb-3" />
 
                   {/* Testimonial Content */}
-                  <p className="text-gray-300 text-sm leading-relaxed mb-6 flex-1">
+                  <p className="text-muted-foreground text-sm leading-relaxed mb-6 flex-1">
                     "{testimonial.content}"
                   </p>
 
                   {/* Author Info */}
-                  <div className="flex items-center gap-3 pt-4 border-t border-white/10">
+                  <div className="flex items-center gap-3 pt-4 border-t border-border">
                     {/* Avatar */}
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                       {testimonial.avatar}
@@ -157,14 +157,14 @@ export default function TestimonialsSection() {
 
                     {/* Name and Company */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-semibold text-sm truncate">
+                      <p className="text-foreground font-semibold text-sm truncate">
                         {testimonial.name}
                       </p>
-                      <div className="flex items-center gap-1 text-xs text-gray-400">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <User className="h-3 w-3" />
                         <span className="truncate">{testimonial.role}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                         <Building2 className="h-3 w-3" />
                         <span className="truncate">{testimonial.company}</span>
                       </div>
@@ -184,14 +184,14 @@ export default function TestimonialsSection() {
           transition={{ duration: 0.5, delay: 0.6 }}
           className="text-center mt-12"
         >
-          <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white/5 border border-white/10">
+          <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-foreground/5 border border-border">
             <div className="flex items-center gap-1">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Star key={i} className="h-4 w-4 fill-yellow-500 text-yellow-500" />
               ))}
             </div>
-            <span className="text-white font-semibold">5.0</span>
-            <span className="text-gray-400">од {testimonials.length} рецензии</span>
+            <span className="text-foreground font-semibold">5.0</span>
+            <span className="text-muted-foreground">од {testimonials.length} рецензии</span>
           </div>
         </motion.div>
 
@@ -203,12 +203,12 @@ export default function TestimonialsSection() {
           transition={{ duration: 0.5, delay: 0.7 }}
           className="text-center mt-12"
         >
-          <p className="text-gray-400 mb-4">
+          <p className="text-muted-foreground mb-4">
             Подготвени да станете дел од успешната приказна?
           </p>
           <a
             href="/auth/register"
-            className="inline-flex items-center justify-center px-8 py-3 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium transition-all duration-300 shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)]"
+            className="inline-flex items-center justify-center px-8 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all duration-300 shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)]"
           >
             Започни бесплатно денес
           </a>

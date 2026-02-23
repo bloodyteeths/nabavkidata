@@ -17,6 +17,7 @@ import httpx
 from urllib.parse import urlencode
 from collections import defaultdict
 from time import time
+from api.clawd_monitor import notify_clawd
 
 import logging
 
@@ -359,11 +360,10 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
 
-    # TEMPORARILY DISABLED: Single device enforcement
-    # TODO: Re-enable once token sync issues are resolved
-    # session_valid = await validate_session(db, user_id, token)
-    # if not session_valid:
-    #     raise session_kicked_exception
+    # Single device enforcement - one session per account
+    session_valid = await validate_session(db, user_id, token)
+    if not session_valid:
+        raise session_kicked_exception
 
     return user
 
@@ -405,6 +405,45 @@ async def register(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many registration attempts. Please try again later."
         )
+
+    # Block disposable emails using existing fraud prevention system
+    try:
+        from services.fraud_prevention import is_email_allowed
+        email_ok, email_reason = await is_email_allowed(db, user_data.email)
+        if not email_ok:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=email_reason
+            )
+    except ImportError:
+        pass  # fraud_prevention module not available, skip check
+
+    # Check device fingerprint for duplicate free accounts
+    device_fp = getattr(user_data, 'device_fingerprint', None) or ""
+    if device_fp:
+        try:
+            from sqlalchemy import text as sa_text
+            dup_check = await db.execute(
+                sa_text("""
+                    SELECT COUNT(*) FROM fraud_detection
+                    WHERE device_fingerprint = :fp
+                    AND user_id IN (
+                        SELECT CAST(user_id AS TEXT) FROM users
+                        WHERE subscription_tier = 'free'
+                    )
+                """),
+                {"fp": device_fp}
+            )
+            if dup_check.scalar() > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Веќе имате бесплатна сметка на овој уред. Најавете се или надградете."
+                )
+        except Exception as e:
+            # Don't block registration if fraud check fails (table might not exist yet)
+            if "fraud_detection" not in str(e):
+                raise
+            logger.warning(f"Fraud detection table not available: {e}")
 
     # Check if user exists
     existing_user = await get_user_by_email(db, user_data.email)
@@ -472,6 +511,9 @@ async def register(
         client_ip
     )
 
+    # Notify Clawd VA monitoring
+    await notify_clawd("new_user", {"email": user_data.email, "name": user_data.full_name})
+
     return MessageResponse(
         message="Registration successful",
         detail="Please check your email to verify your account"
@@ -535,7 +577,8 @@ async def login(
     refresh_token = create_refresh_token(data={"sub": str(user.user_id)})
 
     # Create session (invalidates any existing sessions - single device enforcement)
-    device_info = request.headers.get("User-Agent", "Unknown") if request else "Unknown"
+    device_fp = request.headers.get("x-device-fingerprint", "") if request else ""
+    device_info = f"{request.headers.get('User-Agent', 'Unknown') if request else 'Unknown'}|fp:{device_fp}"
     await create_session(
         db,
         str(user.user_id),
@@ -755,8 +798,9 @@ async def forgot_password(
             message="If the email exists, a password reset link has been sent"
         )
 
-    # Generate reset token
-    reset_token = create_verification_token()
+    # Generate reset token and store it
+    from services.auth_service import request_password_reset
+    reset_token = await request_password_reset(db, email)
 
     # Send reset email
     await send_password_reset_email_task(email, reset_token, user.full_name or "User", background_tasks)
@@ -776,10 +820,15 @@ async def forgot_password(
     )
 
 
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
 @router.post("/reset-password", response_model=MessageResponse)
-async def reset_password(
-    token: str,
-    new_password: str,
+async def reset_password_endpoint(
+    data: ResetPasswordRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -788,11 +837,19 @@ async def reset_password(
     - Validates reset token
     - Updates password
     """
-    # TODO: Implement token storage and validation
-    # For now, this is a placeholder
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Password reset token validation not yet implemented"
+    from services.auth_service import reset_password as reset_password_service
+
+    success = await reset_password_service(db, data.token, data.new_password)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token. Please request a new password reset."
+        )
+
+    return MessageResponse(
+        message="Password reset successful",
+        detail="You can now log in with your new password"
     )
 
 
@@ -1049,12 +1106,13 @@ async def google_callback(
         jwt_refresh_token = create_refresh_token(data={"sub": str(user.user_id)})
 
         # Create session (invalidates any existing sessions - single device enforcement)
+        google_fp = request.headers.get("x-device-fingerprint", "") if request else ""
         await create_session(
             db,
             str(user.user_id),
             jwt_access_token,
-            device_info="Google OAuth Login",
-            ip_address=None
+            device_info=f"Google OAuth Login|fp:{google_fp}",
+            ip_address=request.client.host if request and request.client else None
         )
 
         # Redirect to frontend with tokens

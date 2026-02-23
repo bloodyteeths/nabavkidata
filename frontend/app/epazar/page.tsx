@@ -381,7 +381,7 @@ export default function EPazarPage() {
           <CardContent className="pt-6">
             <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
                   placeholder="Пребарај тендери (кирилица или латиница)..."
@@ -462,7 +462,7 @@ export default function EPazarPage() {
                           ) : null}
                         </div>
                         <div className="flex justify-between items-center mt-3">
-                          <span className="text-xs text-gray-400">{tender.cpv_code || ''}</span>
+                          <span className="text-xs text-muted-foreground">{tender.cpv_code || ''}</span>
                           <AlertBellButton
                             tenderId={tender.tender_id}
                             cpvCode={tender.cpv_code}

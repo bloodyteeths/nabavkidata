@@ -30,10 +30,10 @@ export default function HeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5 }}
-                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 mb-8"
+                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-foreground/5 border border-border mb-8"
                 >
                     <Sparkles className="w-4 h-4 text-primary" />
-                    <span className="text-sm text-gray-300">AI-Powered Tender Intelligence</span>
+                    <span className="text-sm text-muted-foreground">AI-Powered Tender Intelligence</span>
                 </motion.div>
 
                 {/* Stylized Flag - Absolute on Desktop, Flow on Mobile */}
@@ -50,7 +50,7 @@ export default function HeroSection() {
                     transition={{ duration: 0.5, delay: 0.1 }}
                     className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 min-h-[180px] md:min-h-[200px] flex items-center justify-center"
                 >
-                    <span className="text-white notranslate">
+                    <span className="text-foreground notranslate">
                         {typedText}
                         <span className="inline-block w-1 h-12 md:h-16 bg-primary ml-1 animate-pulse" />
                     </span>
@@ -60,7 +60,7 @@ export default function HeroSection() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.2 }}
-                    className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10"
+                    className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10"
                 >
                     Анализирајте 270,000+ тендери, 40,000+ документи и 17 години историја со AI. Предвидете цени, победете конкуренти.
                 </motion.p>
@@ -73,13 +73,13 @@ export default function HeroSection() {
                 >
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <Link href="/auth/register" className="flex flex-col items-center">
-                            <Button size="lg" className="h-12 px-8 text-lg bg-primary hover:bg-primary/90 text-white shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300" aria-label="Започни бесплатна регистрација">
+                            <Button size="lg" className="h-12 px-8 text-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300" aria-label="Започни бесплатна регистрација">
                                 Почни Бесплатно <ArrowRight className="ml-2 h-5 w-5" />
                             </Button>
-                            <span className="text-xs text-gray-400 mt-2">Не е потребна картичка</span>
+                            <span className="text-xs text-muted-foreground mt-2">Не е потребна картичка</span>
                         </Link>
                         <Link href="#how-it-works">
-                            <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/10 hover:bg-white/5 text-gray-300" aria-label="Дознајте како работи платформата">
+                            <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-border hover:bg-foreground/5 text-muted-foreground" aria-label="Дознајте како работи платформата">
                                 Како работи?
                             </Button>
                         </Link>
@@ -87,13 +87,13 @@ export default function HeroSection() {
 
                     {/* Try it now hook */}
                     <div className="mt-8 w-full max-w-md mx-auto">
-                        <p className="text-sm text-gray-400 mb-2">Или пробајте веднаш:</p>
+                        <p className="text-sm text-muted-foreground mb-2">Или пробајте веднаш:</p>
                         <div className="flex gap-2">
                             <input
                                 type="text"
                                 placeholder="Внесете клучен збор (пр. Лаптопи)"
                                 aria-label="Внесете клучен збор за пребарување на тендери"
-                                className="flex-1 h-12 rounded-lg bg-white/5 border border-white/10 px-4 text-white placeholder:text-gray-500 focus:outline-none focus:border-primary/50 transition-colors"
+                                className="flex-1 h-12 rounded-lg bg-foreground/5 border border-border px-4 text-foreground placeholder:text-gray-500 focus:outline-none focus:border-primary/50 transition-colors"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                         const target = e.target as HTMLInputElement;
@@ -104,7 +104,7 @@ export default function HeroSection() {
                                 }}
                             />
                             <Button
-                                className="h-12 px-6 bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                                className="h-12 px-6 bg-foreground/10 hover:bg-foreground/20 text-foreground border border-border"
                                 aria-label="Пребарај тендери"
                                 onClick={(e) => {
                                     const input = e.currentTarget.previousElementSibling as HTMLInputElement;

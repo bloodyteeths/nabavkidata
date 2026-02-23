@@ -15,7 +15,7 @@ export default function GlobalError({
 
   return (
     <html lang="mk">
-      <body className="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+      <body className="bg-gray-900 text-foreground min-h-screen flex items-center justify-center">
         <div className="max-w-md w-full p-8 text-center">
           <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-6">
             <svg className="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -24,7 +24,7 @@ export default function GlobalError({
           </div>
 
           <h1 className="text-2xl font-bold mb-2">Критична грешка</h1>
-          <p className="text-gray-400 mb-6">
+          <p className="text-muted-foreground mb-6">
             Апликацијата наиде на неочекуван проблем. Обидете се да ја освежите страницата.
           </p>
 

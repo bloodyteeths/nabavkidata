@@ -1,6 +1,7 @@
 import { Inter } from "next/font/google";
 import { Metadata } from "next";
 import Script from "next/script";
+import { ThemeProvider } from "next-themes";
 import { AuthProviderWrapper } from "@/lib/auth-wrapper";
 import "@/styles/globals.css";
 
@@ -65,6 +66,7 @@ export const metadata: Metadata = {
 import { Toaster } from "sonner";
 import { Suspense } from "react";
 import ReferralCapture from "@/components/ReferralCapture";
+import { PaywallModal } from "@/components/billing/PaywallModal";
 
 export default function RootLayout({
   children,
@@ -141,11 +143,14 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className} suppressHydrationWarning>
-        <AuthProviderWrapper>
-          <Suspense fallback={null}><ReferralCapture /></Suspense>
-          {children}
-          <Toaster position="top-center" richColors />
-        </AuthProviderWrapper>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <AuthProviderWrapper>
+            <Suspense fallback={null}><ReferralCapture /></Suspense>
+            {children}
+            <PaywallModal />
+            <Toaster position="top-center" richColors />
+          </AuthProviderWrapper>
+        </ThemeProvider>
       </body>
     </html>
   );

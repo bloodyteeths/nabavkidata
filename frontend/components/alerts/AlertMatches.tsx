@@ -189,7 +189,7 @@ export function AlertMatches() {
                       </Badge>
                       <Badge
                         variant={getScoreBadgeVariant(match.match_score)}
-                        className={`${getScoreColor(match.match_score)} text-white`}
+                        className={`${getScoreColor(match.match_score)} text-primary-foreground`}
                       >
                         {match.match_score}% совпаѓање
                       </Badge>

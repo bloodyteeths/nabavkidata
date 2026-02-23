@@ -44,7 +44,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
   return (
     <main className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="border-b border-white/10 bg-black/20">
+      <header className="border-b border-border bg-background/20">
         <div className="container mx-auto px-4 md:px-6 py-6">
           <Link
             href="/blog"
@@ -96,7 +96,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
 
       {/* Related Posts */}
       {relatedPosts.length > 0 && (
-        <section className="border-t border-white/10 bg-black/10">
+        <section className="border-t border-border bg-background/10">
           <div className="container mx-auto px-4 md:px-6 py-10 max-w-3xl">
             <h2 className="text-xl font-semibold mb-6">Поврзани статии</h2>
             <div className="grid gap-4 sm:grid-cols-2">

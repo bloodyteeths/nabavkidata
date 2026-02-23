@@ -76,35 +76,35 @@ export function SupplierRankings({
                 {Array.from({ length: 5 }).map((_, idx) => (
                   <TableRow key={idx}>
                     <TableCell>
-                      <div className="animate-pulse h-4 bg-gray-200 rounded w-6" />
+                      <div className="animate-pulse h-4 bg-muted rounded w-6" />
                     </TableCell>
                     <TableCell>
                       <div className="animate-pulse space-y-2">
-                        <div className="h-4 bg-gray-200 rounded w-32" />
-                        <div className="h-3 bg-gray-200 rounded w-20" />
+                        <div className="h-4 bg-muted rounded w-32" />
+                        <div className="h-3 bg-muted rounded w-20" />
                       </div>
                     </TableCell>
                     {showCity && (
                       <TableCell>
-                        <div className="animate-pulse h-4 bg-gray-200 rounded w-16" />
+                        <div className="animate-pulse h-4 bg-muted rounded w-16" />
                       </TableCell>
                     )}
                     <TableCell className="text-right">
                       <div className="animate-pulse space-y-1">
-                        <div className="h-4 bg-gray-200 rounded w-12 ml-auto" />
-                        <div className="h-3 bg-gray-200 rounded w-10 ml-auto" />
+                        <div className="h-4 bg-muted rounded w-12 ml-auto" />
+                        <div className="h-3 bg-muted rounded w-10 ml-auto" />
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="animate-pulse flex items-center justify-center gap-2">
-                        <div className="h-4 bg-gray-200 rounded w-12" />
-                        <div className="h-5 bg-gray-200 rounded w-16" />
+                        <div className="h-4 bg-muted rounded w-12" />
+                        <div className="h-5 bg-muted rounded w-16" />
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="animate-pulse space-y-1">
-                        <div className="h-4 bg-gray-200 rounded w-24 ml-auto" />
-                        <div className="h-3 bg-gray-200 rounded w-20 ml-auto" />
+                        <div className="h-4 bg-muted rounded w-24 ml-auto" />
+                        <div className="h-3 bg-muted rounded w-20 ml-auto" />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -140,7 +140,7 @@ export function SupplierRankings({
   });
 
   const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 text-muted-foreground" />;
     return sortOrder === 'asc'
       ? <ArrowUp className="h-4 w-4 text-primary" />
       : <ArrowDown className="h-4 w-4 text-primary" />;
@@ -167,7 +167,7 @@ export function SupplierRankings({
           {description && <CardDescription>{description}</CardDescription>}
         </CardHeader>
         <CardContent>
-          <p className="text-center text-gray-500 py-8">Нема податоци за добавувачи</p>
+          <p className="text-center text-muted-foreground py-8">Нема податоци за добавувачи</p>
         </CardContent>
       </Card>
     );
@@ -238,9 +238,9 @@ export function SupplierRankings({
             <TableBody>
               {sortedSuppliers.map((supplier, idx) => (
                 <TableRow key={supplier.supplier_id} className="hover:bg-muted/50">
-                  <TableCell className="font-medium text-gray-500">
+                  <TableCell className="font-medium text-muted-foreground">
                     {idx < 3 && (
-                      <Trophy className={`h-4 w-4 inline ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-gray-400' : 'text-amber-600'}`} />
+                      <Trophy className={`h-4 w-4 inline ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-muted-foreground' : 'text-amber-600'}`} />
                     )}
                     {idx >= 3 && idx + 1}
                   </TableCell>
@@ -253,19 +253,19 @@ export function SupplierRankings({
                         {supplier.company_name}
                       </Link>
                       {supplier.tax_id && (
-                        <div className="text-xs text-gray-500">ДБ: {supplier.tax_id}</div>
+                        <div className="text-xs text-muted-foreground">ДБ: {supplier.tax_id}</div>
                       )}
                     </div>
                   </TableCell>
                   {showCity && (
-                    <TableCell className="text-sm text-gray-600">
+                    <TableCell className="text-sm text-muted-foreground">
                       {supplier.city || '-'}
                     </TableCell>
                   )}
                   <TableCell className="text-right">
                     <div>
                       <div className="font-semibold">{supplier.total_wins}</div>
-                      <div className="text-xs text-gray-500">од {supplier.total_offers}</div>
+                      <div className="text-xs text-muted-foreground">од {supplier.total_offers}</div>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
@@ -279,7 +279,7 @@ export function SupplierRankings({
                       {formatCurrency(supplier.total_contract_value_mkd)}
                     </div>
                     {supplier.avg_bid_amount_mkd && (
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-muted-foreground">
                         Просек: {formatCurrency(supplier.avg_bid_amount_mkd)}
                       </div>
                     )}

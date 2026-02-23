@@ -73,11 +73,11 @@ export default function FAQSection() {
           <div className="flex items-center justify-center gap-3 mb-4">
             <MessageCircle className="h-8 w-8 text-primary" />
             <h2 className="text-3xl md:text-5xl font-bold">
-              <span className="text-white">Најчесто</span>
+              <span className="text-foreground">Најчесто</span>
               <span className="text-gradient"> Поставувани Прашања</span>
             </h2>
           </div>
-          <p className="text-lg text-gray-400 max-w-2xl mx-auto">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Дознајте повеќе за јавните набавки и како Nabavkidata може да ви помогне
           </p>
         </motion.div>
@@ -90,18 +90,18 @@ export default function FAQSection() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="max-w-3xl mx-auto"
         >
-          <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm p-6 md:p-8">
+          <div className="rounded-2xl bg-foreground/5 border border-border backdrop-blur-sm p-6 md:p-8">
             <Accordion type="single" collapsible className="space-y-4">
               {faqs.map((faq, index) => (
                 <AccordionItem
                   key={index}
                   value={`item-${index}`}
-                  className="border-b border-white/10 last:border-0"
+                  className="border-b border-border last:border-0"
                 >
-                  <AccordionTrigger className="text-left text-white hover:text-primary transition-colors text-base md:text-lg font-semibold py-4">
+                  <AccordionTrigger className="text-left text-foreground hover:text-primary transition-colors text-base md:text-lg font-semibold py-4">
                     {faq.question}
                   </AccordionTrigger>
-                  <AccordionContent className="text-gray-400 leading-relaxed text-sm md:text-base pb-4">
+                  <AccordionContent className="text-muted-foreground leading-relaxed text-sm md:text-base pb-4">
                     {faq.answer}
                   </AccordionContent>
                 </AccordionItem>
@@ -118,12 +118,12 @@ export default function FAQSection() {
           transition={{ duration: 0.5, delay: 0.4 }}
           className="text-center mt-12"
         >
-          <p className="text-gray-400 mb-4">
+          <p className="text-muted-foreground mb-4">
             Имате друго прашање?
           </p>
           <a
             href="mailto:support@nabavkidata.com"
-            className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary/50 text-white font-medium transition-all duration-300"
+            className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg bg-foreground/5 hover:bg-foreground/10 border border-border hover:border-primary/50 text-foreground font-medium transition-all duration-300"
           >
             <MessageCircle className="h-4 w-4 mr-2" />
             Контактирајте не

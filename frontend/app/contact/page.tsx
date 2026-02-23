@@ -53,11 +53,11 @@ export default function ContactPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-background flex items-center justify-center px-4">
         <div className="max-w-md text-center">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
-          <h1 className="text-2xl font-bold text-white mb-4">Благодариме!</h1>
-          <p className="text-gray-400 mb-8">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Благодариме!</h1>
+          <p className="text-muted-foreground mb-8">
             Вашата порака е успешно испратена. Ќе ви одговориме наскоро.
           </p>
           <Link href="/">
@@ -69,7 +69,7 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black py-16 px-4">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-background py-16 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
@@ -79,10 +79,10 @@ export default function ContactPage() {
               <span className="text-sm font-medium">Enterprise Plan</span>
             </div>
           )}
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
             {isEnterprise ? 'Enterprise решение' : 'Контактирајте не'}
           </h1>
-          <p className="text-gray-400 max-w-xl mx-auto">
+          <p className="text-muted-foreground max-w-xl mx-auto">
             {isEnterprise
               ? 'Добијте прилагодено решение за вашата организација со неограничен пристап, API интеграција и посветен менаџер.'
               : 'Имате прашање? Пополнете го формуларот и ќе ви одговориме наскоро.'}
@@ -92,26 +92,26 @@ export default function ContactPage() {
         <div className="grid md:grid-cols-3 gap-8">
           {/* Contact Info */}
           <div className="space-y-6">
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div className="bg-foreground/5 border border-border rounded-xl p-6">
               <Mail className="w-6 h-6 text-primary mb-3" />
-              <h3 className="text-white font-semibold mb-1">Email</h3>
-              <a href="mailto:support@nabavkidata.com" className="text-gray-400 hover:text-primary transition-colors">
+              <h3 className="text-foreground font-semibold mb-1">Email</h3>
+              <a href="mailto:support@nabavkidata.com" className="text-muted-foreground hover:text-primary transition-colors">
                 support@nabavkidata.com
               </a>
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div className="bg-foreground/5 border border-border rounded-xl p-6">
               <Phone className="w-6 h-6 text-primary mb-3" />
-              <h3 className="text-white font-semibold mb-1">Телефон</h3>
-              <a href="tel:+38976355089" className="text-gray-400 hover:text-primary transition-colors">
+              <h3 className="text-foreground font-semibold mb-1">Телефон</h3>
+              <a href="tel:+38976355089" className="text-muted-foreground hover:text-primary transition-colors">
                 +389 76 355 089
               </a>
             </div>
 
             {isEnterprise && (
               <div className="bg-primary/10 border border-primary/30 rounded-xl p-6">
-                <h3 className="text-white font-semibold mb-3">Enterprise вклучува:</h3>
-                <ul className="space-y-2 text-gray-300 text-sm">
+                <h3 className="text-foreground font-semibold mb-3">Enterprise вклучува:</h3>
+                <ul className="space-y-2 text-muted-foreground text-sm">
                   <li>• 1000 AI прашања дневно</li>
                   <li>• API пристап</li>
                   <li>• До 10 членови на тим</li>
@@ -125,7 +125,7 @@ export default function ContactPage() {
 
           {/* Contact Form */}
           <div className="md:col-span-2">
-            <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-xl p-8 space-y-6">
+            <form onSubmit={handleSubmit} className="bg-foreground/5 border border-border rounded-xl p-8 space-y-6">
               {error && (
                 <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -134,7 +134,7 @@ export default function ContactPage() {
               )}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Име и презиме *
                   </label>
                   <Input
@@ -142,25 +142,25 @@ export default function ContactPage() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Вашето име"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                    className="bg-foreground/5 border-border text-foreground placeholder:text-gray-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Компанија
                   </label>
                   <Input
                     value={formData.company}
                     onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                     placeholder="Име на компанија"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                    className="bg-foreground/5 border-border text-foreground placeholder:text-gray-500"
                   />
                 </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Email *
                   </label>
                   <Input
@@ -169,24 +169,24 @@ export default function ContactPage() {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="email@example.com"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                    className="bg-foreground/5 border-border text-foreground placeholder:text-gray-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Телефон
                   </label>
                   <Input
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+389 7X XXX XXX"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                    className="bg-foreground/5 border-border text-foreground placeholder:text-gray-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Порака *
                 </label>
                 <Textarea
@@ -195,7 +195,7 @@ export default function ContactPage() {
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                   placeholder="Како можеме да ви помогнеме?"
-                  className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 resize-none"
+                  className="bg-foreground/5 border-border text-foreground placeholder:text-gray-500 resize-none"
                 />
               </div>
 
@@ -206,7 +206,7 @@ export default function ContactPage() {
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                     Се испраќа...
                   </span>
                 ) : (

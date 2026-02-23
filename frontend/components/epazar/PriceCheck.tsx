@@ -49,7 +49,7 @@ export function PriceCheck() {
       <CardContent className="space-y-4">
         <form onSubmit={handleSearch} className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="пр. хартија А4, тонер, гориво..."
@@ -68,7 +68,7 @@ export function PriceCheck() {
         )}
 
         {searched && !loading && results.length === 0 && !error && (
-          <p className="text-gray-500 text-center py-4">
+          <p className="text-muted-foreground text-center py-4">
             Нема резултати за "{search}"
           </p>
         )}
@@ -76,32 +76,32 @@ export function PriceCheck() {
         {results.length > 0 && (
           <div className="space-y-3">
             {results.slice(0, 5).map((item, idx) => (
-              <div key={idx} className="p-3 bg-gray-50 rounded-lg">
+              <div key={idx} className="p-3 bg-muted rounded-lg">
                 <div className="font-medium">{item.item_name}</div>
                 {item.unit && (
-                  <div className="text-xs text-gray-500 mb-2">Единица: {item.unit}</div>
+                  <div className="text-xs text-muted-foreground mb-2">Единица: {item.unit}</div>
                 )}
                 <div className="grid grid-cols-3 gap-2 text-sm">
                   <div>
-                    <span className="text-gray-500">Мин:</span>
+                    <span className="text-muted-foreground">Мин:</span>
                     <span className="ml-1 font-medium text-green-600">
                       {formatCurrency(item.min_unit_price)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Просек:</span>
+                    <span className="text-muted-foreground">Просек:</span>
                     <span className="ml-1 font-medium">
                       {formatCurrency(item.avg_unit_price)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Макс:</span>
+                    <span className="text-muted-foreground">Макс:</span>
                     <span className="ml-1 font-medium text-red-600">
                       {formatCurrency(item.max_unit_price)}
                     </span>
                   </div>
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
+                <div className="text-xs text-muted-foreground mt-1">
                   Базирано на {item.tender_count} тендери
                 </div>
               </div>

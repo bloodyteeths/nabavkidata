@@ -181,7 +181,7 @@ export default function UserTable({
                   {user.verified ? (
                     <CheckCircle className="w-5 h-5 text-green-600" />
                   ) : (
-                    <span className="text-gray-400">-</span>
+                    <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
                 <TableCell className="text-gray-700">

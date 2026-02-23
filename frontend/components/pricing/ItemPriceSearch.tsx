@@ -150,7 +150,7 @@ export default function ItemPriceSearch() {
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) {
-      return <span className="ml-1 text-gray-400">⇅</span>;
+      return <span className="ml-1 text-muted-foreground">⇅</span>;
     }
     return sortOrder === 'asc'
       ? <span className="ml-1">↑</span>
@@ -174,7 +174,7 @@ export default function ItemPriceSearch() {
       <form onSubmit={handleSearch} className="mb-6">
         <div className="flex gap-3">
           <div className="flex-1 relative">
-            <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl">
+            <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground text-xl">
               🔍
             </span>
             <input
@@ -188,7 +188,7 @@ export default function ItemPriceSearch() {
           <button
             type="submit"
             disabled={loading || searchInput.length < 3}
-            className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-3 bg-blue-600 text-primary-foreground font-semibold rounded-lg hover:bg-blue-700 disabled:bg-muted-foreground disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Пребарува...' : 'Барај'}
           </button>

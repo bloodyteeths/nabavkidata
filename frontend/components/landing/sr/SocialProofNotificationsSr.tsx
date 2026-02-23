@@ -95,20 +95,20 @@ export default function SocialProofNotificationsSr() {
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, x: 100, scale: 0.8 }}
                             transition={{ duration: 0.3 }}
-                            className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-lg p-3 md:p-4 shadow-2xl w-64 md:w-80"
+                            className="bg-foreground/10 backdrop-blur-xl border border-border rounded-lg p-3 md:p-4 shadow-2xl w-64 md:w-80"
                         >
                             <div className="flex items-start gap-2 md:gap-3">
                                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                                     <Icon className="w-4 h-4 md:w-5 md:h-5 text-primary" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-xs md:text-sm font-medium text-white">
+                                    <p className="text-xs md:text-sm font-medium text-foreground">
                                         {notification.company}
                                     </p>
-                                    <p className="text-xs text-gray-300 mt-0.5">
+                                    <p className="text-xs text-muted-foreground mt-0.5">
                                         {notification.action}
                                     </p>
-                                    <p className="text-xs text-gray-400 mt-1">
+                                    <p className="text-xs text-muted-foreground mt-1">
                                         {notification.time}
                                     </p>
                                 </div>

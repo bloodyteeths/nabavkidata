@@ -103,7 +103,7 @@ function PriorityTenderCard({ match, rank }: PriorityTenderCardProps) {
     <div className="border border-orange-200 dark:border-orange-800 rounded-lg p-4 bg-gradient-to-r from-orange-50/50 to-transparent dark:from-orange-950/20 dark:to-transparent hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-4">
         {/* Rank Badge */}
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 text-white font-bold text-lg flex-shrink-0">
+        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 text-primary-foreground font-bold text-lg flex-shrink-0">
           {rank}
         </div>
 

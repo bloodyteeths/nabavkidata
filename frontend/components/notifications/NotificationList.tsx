@@ -175,7 +175,7 @@ export function NotificationList() {
       case "system":
         return <Info className="h-5 w-5 text-purple-400" />;
       default:
-        return <Bell className="h-5 w-5 text-gray-400" />;
+        return <Bell className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
@@ -254,7 +254,7 @@ export function NotificationList() {
 
       {/* Bulk Select */}
       {notifications.length > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg">
+        <div className="flex items-center gap-2 px-4 py-2 bg-foreground/5 rounded-lg">
           <input
             type="checkbox"
             checked={selected.size === notifications.length}
@@ -288,8 +288,8 @@ export function NotificationList() {
               className={`flex gap-4 p-4 rounded-lg border transition-colors ${
                 !notification.is_read
                   ? "bg-primary/5 border-primary/20"
-                  : "bg-card/50 border-white/10"
-              } hover:bg-white/5`}
+                  : "bg-card/50 border-border"
+              } hover:bg-foreground/5`}
             >
               <input
                 type="checkbox"
@@ -310,7 +310,7 @@ export function NotificationList() {
                   <div className="flex items-start justify-between gap-2">
                     <p
                       className={`text-sm font-medium ${
-                        !notification.is_read ? "text-white" : "text-gray-300"
+                        !notification.is_read ? "text-foreground" : "text-muted-foreground"
                       }`}
                     >
                       {notification.title}

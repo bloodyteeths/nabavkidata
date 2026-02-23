@@ -188,7 +188,7 @@ export default function WhistleblowerPage() {
                 <span className="text-2xl font-mono font-bold tracking-wider text-green-300">
                   {trackingCode}
                 </span>
-                <Button variant="ghost" size="sm" onClick={copyTrackingCode} className="text-slate-400 hover:text-white">
+                <Button variant="ghost" size="sm" onClick={copyTrackingCode} className="text-slate-400 hover:text-foreground">
                   {copied ? <CheckCircle2 className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>

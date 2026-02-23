@@ -38,10 +38,10 @@ export default function LiveUserCounter() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.5 }}
-            className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm relative"
+            className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-full bg-foreground/5 border border-border backdrop-blur-sm relative"
         >
             <Users className="w-4 h-4 md:w-5 md:h-5 text-primary flex-shrink-0" />
-            <span className="text-sm md:text-base text-gray-300">
+            <span className="text-sm md:text-base text-muted-foreground">
                 <motion.span
                     key={count}
                     initial={{ scale: 1.3, color: "#7c3aed" }}

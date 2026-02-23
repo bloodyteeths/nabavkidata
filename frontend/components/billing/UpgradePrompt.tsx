@@ -84,7 +84,7 @@ export function UpgradePrompt({
         <Button
           onClick={handleUpgrade}
           disabled={loading}
-          className="bg-amber-600 hover:bg-amber-700 text-white"
+          className="bg-amber-600 hover:bg-amber-700 text-primary-foreground"
         >
           {loading ? 'Се вчитува...' : 'Надогради'}
           <ArrowRight className="ml-2 h-4 w-4" />
@@ -95,19 +95,19 @@ export function UpgradePrompt({
 
   if (variant === 'modal') {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-background/50 flex items-center justify-center z-50 p-4">
         <Card className="max-w-md w-full relative">
           {onClose && (
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
             >
               <X className="h-5 w-5" />
             </button>
           )}
           <CardHeader className="text-center pb-2">
             <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
-              <Zap className="h-8 w-8 text-white" />
+              <Zap className="h-8 w-8 text-primary-foreground" />
             </div>
             <CardTitle className="text-xl">Надградете го вашиот план</CardTitle>
           </CardHeader>
@@ -116,21 +116,21 @@ export function UpgradePrompt({
               <Badge variant="secondary" className="bg-amber-100 text-amber-700">
                 {featureLabel}
               </Badge>
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 {creditsUsed !== undefined && creditsTotal !== undefined
                   ? `Ги искористивте сите ${creditsTotal} кредити за ${featureLabel}.`
                   : `Оваа функција не е достапна на ${TIER_LABELS[currentTier] || currentTier} план.`}
               </p>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="font-semibold text-gray-900">
+            <div className="bg-muted rounded-lg p-4">
+              <p className="font-semibold text-foreground">
                 {requiredTierLabel} план
               </p>
               <p className="text-2xl font-bold text-blue-600 mt-1">
                 {requiredTierPrice}
               </p>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Добијте пристап до сите Pro функции
               </p>
             </div>
@@ -162,12 +162,12 @@ export function UpgradePrompt({
       <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
         <Zap className="h-6 w-6 text-blue-600" />
       </div>
-      <h3 className="font-semibold text-gray-900 mb-2">
+      <h3 className="font-semibold text-foreground mb-2">
         {creditsUsed !== undefined
           ? 'Кредитите се искористени'
           : 'Надградете за пристап'}
       </h3>
-      <p className="text-sm text-gray-600 mb-4">
+      <p className="text-sm text-muted-foreground mb-4">
         {message ||
           `${featureLabel} е достапна од ${requiredTierLabel} план (${requiredTierPrice})`}
       </p>
@@ -205,19 +205,19 @@ export function CreditDisplay({ creditType, used, total, daysRemaining }: Credit
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
-        <span className="text-sm font-medium text-gray-700">{label}</span>
+        <span className="text-sm font-medium text-foreground">{label}</span>
         <span className={`text-sm font-semibold ${isDepleted ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-green-600'}`}>
           {remaining}/{total}
         </span>
       </div>
-      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
         <div
           className={`h-full transition-all ${isDepleted ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-green-500'}`}
           style={{ width: `${Math.min(percentage, 100)}%` }}
         />
       </div>
       {daysRemaining !== undefined && daysRemaining > 0 && (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted-foreground">
           Истекува за {daysRemaining} {daysRemaining === 1 ? 'ден' : 'дена'}
         </p>
       )}

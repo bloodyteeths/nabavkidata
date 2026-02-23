@@ -9,7 +9,7 @@ export default function BlogPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="border-b border-white/10 bg-black/20">
+      <header className="border-b border-border bg-background/20">
         <div className="container mx-auto px-4 md:px-6 py-6">
           <Link
             href="/"

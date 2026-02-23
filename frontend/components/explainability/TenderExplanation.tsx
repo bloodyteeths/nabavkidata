@@ -215,7 +215,7 @@ export function TenderExplanation({
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Badge className={`${RISK_COLORS[data.risk.level]} text-white`}>
+            <Badge className={`${RISK_COLORS[data.risk.level]} text-primary-foreground`}>
               {RISK_LABELS[data.risk.level] || data.risk.level}
             </Badge>
             <span className="text-2xl font-bold" style={{ color: data.risk.color || RISK_TEXT_COLORS[data.risk.level] || '#6b7280' }}>

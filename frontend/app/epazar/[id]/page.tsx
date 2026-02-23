@@ -156,7 +156,7 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
                   ) : market ? (
                     <div className="text-xs">
                       <div>{formatCurrency(market.min)} - {formatCurrency(market.max)}</div>
-                      <div className="text-gray-400">({market.count} тенд.)</div>
+                      <div className="text-muted-foreground">({market.count} тенд.)</div>
                     </div>
                   ) : (
                     '-'
@@ -167,7 +167,7 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
           })}
         </tbody>
       </table>
-      <p className="text-xs text-gray-400 mt-2">* Пазарни цени базирани на претходни е-Пазар тендери</p>
+      <p className="text-xs text-muted-foreground mt-2">* Пазарни цени базирани на претходни е-Пазар тендери</p>
     </div>
   );
 }
@@ -341,7 +341,7 @@ function EvaluationItemsTable({ items }: { items: EPazarEvaluationItem[] }) {
                   <div className="text-xs">
                     <div>{formatCurrency(item.market_min)} - {formatCurrency(item.market_max)}</div>
                     {item.market_count && (
-                      <div className="text-gray-400">({item.market_count} тенд.)</div>
+                      <div className="text-muted-foreground">({item.market_count} тенд.)</div>
                     )}
                   </div>
                 ) : '-'}
@@ -350,7 +350,7 @@ function EvaluationItemsTable({ items }: { items: EPazarEvaluationItem[] }) {
           ))}
         </tbody>
       </table>
-      <p className="text-xs text-gray-400 mt-2">* Пазарни цени базирани на победнички понуди од други е-Пазар тендери</p>
+      <p className="text-xs text-muted-foreground mt-2">* Пазарни цени базирани на победнички понуди од други е-Пазар тендери</p>
     </div>
   );
 }
@@ -370,7 +370,7 @@ function getFileIcon(fileName?: string, mimeType?: string) {
     return <FileSpreadsheet className="h-5 w-5 text-green-600 flex-shrink-0" />;
   }
   // Default file icon
-  return <File className="h-5 w-5 text-gray-400 flex-shrink-0" />;
+  return <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />;
 }
 
 function formatFileSize(bytes?: number): string {

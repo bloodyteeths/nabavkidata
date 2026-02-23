@@ -53,11 +53,11 @@ export function NotificationBell() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative hover:bg-white/5"
+          className="relative hover:bg-foreground/5"
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs font-bold text-white flex items-center justify-center border-2 border-background">
+            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs font-bold text-primary-foreground flex items-center justify-center border-2 border-background">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -65,7 +65,7 @@ export function NotificationBell() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-96 p-0 bg-card/95 backdrop-blur-xl border-white/10"
+        className="w-96 p-0 bg-card/95 backdrop-blur-xl border-border"
       >
         <NotificationDropdown
           onNotificationRead={fetchUnreadCount}

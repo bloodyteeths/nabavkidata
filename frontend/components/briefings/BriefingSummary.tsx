@@ -50,7 +50,7 @@ export function BriefingSummary({ briefing }: BriefingSummaryProps) {
         {/* AI Summary */}
         {briefing.ai_summary && (
           <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg p-4 border border-blue-100 dark:border-blue-900">
-            <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+            <p className="text-sm leading-relaxed text-foreground dark:text-muted-foreground">
               {briefing.ai_summary}
             </p>
           </div>

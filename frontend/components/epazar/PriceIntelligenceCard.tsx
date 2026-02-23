@@ -30,19 +30,19 @@ export function PriceIntelligenceCard({ data, loading = false, showProductName =
       <Card className="border-primary/30 bg-gradient-to-br from-blue-50/50 to-purple-50/50">
         <CardHeader className="pb-3">
           <div className="animate-pulse space-y-2">
-            <div className="h-4 bg-gray-200 rounded w-1/3" />
-            <div className="h-3 bg-gray-200 rounded w-1/2" />
+            <div className="h-4 bg-muted rounded w-1/3" />
+            <div className="h-3 bg-muted rounded w-1/2" />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="animate-pulse space-y-4">
-            <div className="h-20 bg-gray-200 rounded" />
+            <div className="h-20 bg-muted rounded" />
             <div className="grid grid-cols-3 gap-2">
-              <div className="h-16 bg-gray-200 rounded" />
-              <div className="h-16 bg-gray-200 rounded" />
-              <div className="h-16 bg-gray-200 rounded" />
+              <div className="h-16 bg-muted rounded" />
+              <div className="h-16 bg-muted rounded" />
+              <div className="h-16 bg-muted rounded" />
             </div>
-            <div className="h-8 bg-gray-200 rounded" />
+            <div className="h-8 bg-muted rounded" />
           </div>
         </CardContent>
       </Card>
@@ -60,7 +60,7 @@ export function PriceIntelligenceCard({ data, loading = false, showProductName =
       case 'down':
         return <TrendingDown className="h-4 w-4 text-green-500" />;
       case 'stable':
-        return <Minus className="h-4 w-4 text-gray-500" />;
+        return <Minus className="h-4 w-4 text-muted-foreground" />;
       default:
         return null;
     }
@@ -86,9 +86,9 @@ export function PriceIntelligenceCard({ data, loading = false, showProductName =
       case 'down':
         return 'text-green-600';
       case 'stable':
-        return 'text-gray-600';
+        return 'text-muted-foreground';
       default:
-        return 'text-gray-600';
+        return 'text-muted-foreground';
     }
   };
 
@@ -125,19 +125,19 @@ export function PriceIntelligenceCard({ data, loading = false, showProductName =
         {/* Recommended Bid Range */}
         <div className="bg-white/80 p-4 rounded-lg border border-blue-200">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-600">Препорачан опсег на понуда</span>
+            <span className="text-sm font-medium text-muted-foreground">Препорачан опсег на понуда</span>
             <AlertCircle className="h-4 w-4 text-blue-500" />
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-blue-600">
               {formatCurrency(data.recommended_bid_min_mkd)}
             </span>
-            <span className="text-gray-400">-</span>
+            <span className="text-muted-foreground">-</span>
             <span className="text-2xl font-bold text-blue-600">
               {formatCurrency(data.recommended_bid_max_mkd)}
             </span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Базирано на {data.sample_size} слични тендери
           </p>
         </div>
@@ -145,19 +145,19 @@ export function PriceIntelligenceCard({ data, loading = false, showProductName =
         {/* Market Price Stats */}
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-white/60 p-3 rounded-lg border">
-            <p className="text-xs text-gray-500 mb-1">Мин. цена</p>
+            <p className="text-xs text-muted-foreground mb-1">Мин. цена</p>
             <p className="text-sm font-semibold text-green-600">
               {formatCurrency(data.market_min_mkd)}
             </p>
           </div>
           <div className="bg-white/60 p-3 rounded-lg border">
-            <p className="text-xs text-gray-500 mb-1">Просечна</p>
+            <p className="text-xs text-muted-foreground mb-1">Просечна</p>
             <p className="text-sm font-semibold text-blue-600">
               {formatCurrency(data.market_avg_mkd)}
             </p>
           </div>
           <div className="bg-white/60 p-3 rounded-lg border">
-            <p className="text-xs text-gray-500 mb-1">Макс. цена</p>
+            <p className="text-xs text-muted-foreground mb-1">Макс. цена</p>
             <p className="text-sm font-semibold text-red-600">
               {formatCurrency(data.market_max_mkd)}
             </p>

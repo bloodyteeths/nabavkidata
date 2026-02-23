@@ -190,7 +190,7 @@ export function AlertsFeed() {
                 </div>
                 <div className="flex items-center gap-2">
                   <BellRing className="h-4 w-4 text-red-500" />
-                  <Badge className="bg-red-500 text-white hover:bg-red-600">
+                  <Badge className="bg-red-500 text-primary-foreground hover:bg-red-600">
                     {stats.unread_count} непрочитани
                   </Badge>
                 </div>

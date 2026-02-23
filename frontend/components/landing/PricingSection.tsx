@@ -153,7 +153,7 @@ export default function PricingSection() {
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ delay: 0.1 }}
-                        className="text-gray-400 max-w-2xl mx-auto text-lg mb-8"
+                        className="text-muted-foreground max-w-2xl mx-auto text-lg mb-8"
                     >
                         Изберете го планот кој најмногу одговара на вашите потреби. Без скриени трошоци.
                     </motion.p>
@@ -168,8 +168,8 @@ export default function PricingSection() {
                     >
                         <Sparkles className="w-5 h-5 text-primary" />
                         <div className="text-left">
-                            <p className="text-white font-semibold">7-дневна бесплатна проба на Про план</p>
-                            <p className="text-gray-400 text-sm">25 AI пораки • 10 екстракции • 10 извози</p>
+                            <p className="text-foreground font-semibold">7-дневна бесплатна проба на Про план</p>
+                            <p className="text-muted-foreground text-sm">25 AI пораки • 10 екстракции • 10 извози</p>
                         </div>
                         <Button
                             onClick={handleStartTrial}
@@ -190,13 +190,13 @@ export default function PricingSection() {
                         className="flex flex-col sm:flex-row items-center justify-center gap-6"
                     >
                         {/* Currency Toggle */}
-                        <div className="flex items-center gap-3 bg-white/5 rounded-full px-4 py-2 border border-white/10">
-                            <span className={`text-sm font-medium transition-colors ${currency === "mkd" ? "text-white" : "text-gray-500"}`}>
+                        <div className="flex items-center gap-3 bg-foreground/5 rounded-full px-4 py-2 border border-border">
+                            <span className={`text-sm font-medium transition-colors ${currency === "mkd" ? "text-foreground" : "text-gray-500"}`}>
                                 МКД
                             </span>
                             <button
                                 onClick={() => setCurrency(currency === "mkd" ? "eur" : "mkd")}
-                                className="relative w-12 h-6 rounded-full bg-white/10 p-0.5 transition-colors hover:bg-white/20"
+                                className="relative w-12 h-6 rounded-full bg-foreground/10 p-0.5 transition-colors hover:bg-foreground/20"
                             >
                                 <motion.div
                                     className="w-5 h-5 rounded-full bg-primary shadow-lg"
@@ -204,19 +204,19 @@ export default function PricingSection() {
                                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                 />
                             </button>
-                            <span className={`text-sm font-medium transition-colors ${currency === "eur" ? "text-white" : "text-gray-500"}`}>
+                            <span className={`text-sm font-medium transition-colors ${currency === "eur" ? "text-foreground" : "text-gray-500"}`}>
                                 EUR
                             </span>
                         </div>
 
                         {/* Billing Toggle */}
-                        <div className="flex items-center gap-3 bg-white/5 rounded-full px-4 py-2 border border-white/10">
-                            <span className={`text-sm font-medium transition-colors ${billingCycle === "monthly" ? "text-white" : "text-gray-500"}`}>
+                        <div className="flex items-center gap-3 bg-foreground/5 rounded-full px-4 py-2 border border-border">
+                            <span className={`text-sm font-medium transition-colors ${billingCycle === "monthly" ? "text-foreground" : "text-gray-500"}`}>
                                 Месечно
                             </span>
                             <button
                                 onClick={() => setBillingCycle(billingCycle === "monthly" ? "yearly" : "monthly")}
-                                className="relative w-12 h-6 rounded-full bg-white/10 p-0.5 transition-colors hover:bg-white/20"
+                                className="relative w-12 h-6 rounded-full bg-foreground/10 p-0.5 transition-colors hover:bg-foreground/20"
                             >
                                 <motion.div
                                     className="w-5 h-5 rounded-full bg-primary shadow-lg"
@@ -224,7 +224,7 @@ export default function PricingSection() {
                                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                 />
                             </button>
-                            <span className={`text-sm font-medium transition-colors ${billingCycle === "yearly" ? "text-white" : "text-gray-500"}`}>
+                            <span className={`text-sm font-medium transition-colors ${billingCycle === "yearly" ? "text-foreground" : "text-gray-500"}`}>
                                 Годишно
                                 <span className="ml-1 text-xs text-primary font-bold">-17%</span>
                             </span>
@@ -258,31 +258,31 @@ export default function PricingSection() {
                                 className={`relative p-6 rounded-2xl border backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] flex flex-col h-full ${
                                     plan.popular
                                         ? "bg-gradient-to-b from-primary/20 to-primary/5 border-primary shadow-[0_0_40px_rgba(124,58,237,0.15)]"
-                                        : "bg-white/5 border-white/10 hover:border-white/20"
+                                        : "bg-foreground/5 border-border hover:border-foreground/20"
                                 }`}
                             >
                                 {plan.popular && (
-                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-primary to-purple-500 text-white text-xs font-bold rounded-full shadow-lg">
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-primary to-purple-500 text-primary-foreground text-xs font-bold rounded-full shadow-lg">
                                         НАЈПОПУЛАРЕН
                                     </div>
                                 )}
 
                                 <div className="mb-6">
                                     <div className={`inline-flex p-2.5 rounded-xl mb-4 ${
-                                        plan.popular ? "bg-primary/20" : "bg-white/10"
+                                        plan.popular ? "bg-primary/20" : "bg-foreground/10"
                                     }`}>
-                                        <Icon className={`w-5 h-5 ${plan.popular ? "text-primary" : "text-gray-400"}`} />
+                                        <Icon className={`w-5 h-5 ${plan.popular ? "text-primary" : "text-muted-foreground"}`} />
                                     </div>
-                                    <h3 className="text-xl font-bold mb-1 text-white">{plan.name}</h3>
-                                    <p className="text-gray-400 text-sm">{plan.description}</p>
+                                    <h3 className="text-xl font-bold mb-1 text-foreground">{plan.name}</h3>
+                                    <p className="text-muted-foreground text-sm">{plan.description}</p>
                                 </div>
 
                                 <div className="mb-6">
                                     <div className="flex items-baseline gap-1">
-                                        <span className="text-4xl font-bold text-white">
+                                        <span className="text-4xl font-bold text-foreground">
                                             {formatPrice(monthlyEquivalent, currency)}
                                         </span>
-                                        <span className="text-gray-400 text-sm">
+                                        <span className="text-muted-foreground text-sm">
                                             {currency === "mkd" ? "ден" : ""}/{billingCycle === "monthly" ? "мес" : "мес"}
                                         </span>
                                     </div>
@@ -295,7 +295,7 @@ export default function PricingSection() {
 
                                 <ul className="space-y-3 mb-6 flex-grow">
                                     {plan.features.map((feature, idx) => (
-                                        <li key={idx} className="flex items-start gap-2.5 text-gray-300 text-sm">
+                                        <li key={idx} className="flex items-start gap-2.5 text-muted-foreground text-sm">
                                             <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
                                                 plan.popular ? "text-primary" : "text-green-500"
                                             }`} />
@@ -309,13 +309,13 @@ export default function PricingSection() {
                                     disabled={loading === plan.id}
                                     className={`w-full transition-all mt-auto ${
                                         plan.popular
-                                            ? "bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25"
-                                            : "bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                                            ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25"
+                                            : "bg-foreground/10 hover:bg-foreground/20 text-foreground border border-border"
                                     }`}
                                 >
                                     {loading === plan.id ? (
                                         <span className="flex items-center gap-2">
-                                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            <span className="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
                                             Се вчитува...
                                         </span>
                                     ) : (

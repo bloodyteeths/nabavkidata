@@ -184,7 +184,7 @@ export default function HeadToHead({ initialCompanyA, initialCompanyB }: HeadToH
                       </div>
                       <div className="h-12 bg-muted rounded-lg overflow-hidden relative">
                         <div
-                          className="h-full bg-blue-500 dark:bg-blue-600 flex items-center justify-center text-white font-bold transition-all"
+                          className="h-full bg-blue-500 dark:bg-blue-600 flex items-center justify-center text-primary-foreground font-bold transition-all"
                           style={{
                             width: `${getCompanyWinRate(data.company_a_wins, data.total_confrontations)}%`,
                           }}
@@ -206,7 +206,7 @@ export default function HeadToHead({ initialCompanyA, initialCompanyB }: HeadToH
                       </div>
                       <div className="h-12 bg-muted rounded-lg overflow-hidden relative">
                         <div
-                          className="h-full bg-green-500 dark:bg-green-600 flex items-center justify-center text-white font-bold transition-all"
+                          className="h-full bg-green-500 dark:bg-green-600 flex items-center justify-center text-primary-foreground font-bold transition-all"
                           style={{
                             width: `${getCompanyWinRate(data.company_b_wins, data.total_confrontations)}%`,
                           }}

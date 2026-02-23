@@ -126,7 +126,7 @@ export default function DashboardPage() {
                     <Sparkles className="h-4 w-4 md:h-6 md:w-6 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-sm md:text-lg font-bold text-white">Вие сте на FREE планот</h3>
+                    <h3 className="text-sm md:text-lg font-bold text-foreground">Вие сте на FREE планот</h3>
                     <p className="text-xs md:text-sm text-muted-foreground mt-1">
                       Надоградете за целосен пристап до напредна аналитика, неограничени пребарувања и повеќе функции
                     </p>
@@ -156,7 +156,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
         <div>
-          <h1 className="text-xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+          <h1 className="text-xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-muted-foreground">
             Персонализирана Табла
           </h1>
           <p className="text-xs md:text-base text-muted-foreground mt-1">
@@ -166,7 +166,7 @@ export default function DashboardPage() {
         <Button
           onClick={() => loadDashboard()}
           disabled={loading}
-          className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(124,58,237,0.3)] h-9 md:h-10 text-xs md:text-sm"
+          className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(124,58,237,0.3)] h-9 md:h-10 text-xs md:text-sm"
         >
           <Sparkles className={`mr-2 h-3 w-3 md:h-4 md:w-4 ${loading ? 'animate-spin' : ''}`} />
           <span className="hidden sm:inline">{loading ? 'Анализирам...' : 'Освежи'}</span>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-              <div className="text-2xl md:text-3xl font-bold text-white">
+              <div className="text-2xl md:text-3xl font-bold text-foreground">
                 {data?.stats.recommended_count || 0}
               </div>
               <p className="text-[10px] md:text-xs text-primary/70 mt-1">Тендери за вас</p>
@@ -202,7 +202,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-              <div className="text-2xl md:text-3xl font-bold text-white">
+              <div className="text-2xl md:text-3xl font-bold text-foreground">
                 {data?.stats.competitor_activity_count || 0}
               </div>
               <p className="text-[10px] md:text-xs text-muted-foreground mt-1">Активности</p>
@@ -219,7 +219,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-              <div className="text-2xl md:text-3xl font-bold text-white">
+              <div className="text-2xl md:text-3xl font-bold text-foreground">
                 {data?.stats.insights_count || 0}
               </div>
               <p className="text-[10px] md:text-xs text-muted-foreground mt-1">AI анализи</p>
@@ -236,7 +236,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-              <div className="text-2xl md:text-3xl font-bold text-white">
+              <div className="text-2xl md:text-3xl font-bold text-foreground">
                 {data?.recommended_tenders?.filter(t => t.status === 'open').length || 0}
               </div>
               <p className="text-[10px] md:text-xs text-muted-foreground mt-1">Активни тендери</p>
@@ -282,11 +282,11 @@ export default function DashboardPage() {
                   <Link
                     key={tender.tender_id}
                     href={`/tenders/${encodeURIComponent(tender.tender_id)}`}
-                    className="group flex items-start justify-between p-3 md:p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all hover:border-primary/20 cursor-pointer block"
+                    className="group flex items-start justify-between p-3 md:p-4 rounded-xl border border-border bg-foreground/5 hover:bg-foreground/10 transition-all hover:border-primary/20 cursor-pointer block"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h4 className="font-medium text-sm md:text-base text-white group-hover:text-primary transition-colors line-clamp-2">
+                        <h4 className="font-medium text-sm md:text-base text-foreground group-hover:text-primary transition-colors line-clamp-2">
                           {tender.title}
                         </h4>
                         <span className="px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] md:text-xs font-medium border border-green-500/20 whitespace-nowrap">
@@ -386,7 +386,7 @@ export default function DashboardPage() {
                       <Link
                         key={idx}
                         href={getInsightUrl()}
-                        className="group block p-3 md:p-4 rounded-xl bg-background/50 border border-white/5 hover:bg-background/80 hover:border-primary/20 transition-all cursor-pointer"
+                        className="group block p-3 md:p-4 rounded-xl bg-background/50 border border-border hover:bg-background/80 hover:border-primary/20 transition-all cursor-pointer"
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[10px] md:text-xs font-medium px-2 py-1 rounded bg-primary/10 text-primary">
@@ -398,7 +398,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
-                            <h4 className="font-medium text-xs md:text-sm text-white mb-1 group-hover:text-primary transition-colors">{insight.title}</h4>
+                            <h4 className="font-medium text-xs md:text-sm text-foreground mb-1 group-hover:text-primary transition-colors">{insight.title}</h4>
                             <p className="text-[10px] md:text-xs text-muted-foreground">{insight.description}</p>
                           </div>
                           <ArrowRight className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0 hidden sm:block" />
@@ -424,10 +424,10 @@ export default function DashboardPage() {
                       <Link
                         key={idx}
                         href={`/tenders/${encodeURIComponent(activity.tender_id)}`}
-                        className="group flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 hover:border-primary/20 transition-all cursor-pointer block"
+                        className="group flex items-center justify-between p-3 rounded-lg border border-border bg-foreground/5 hover:bg-foreground/10 hover:border-primary/20 transition-all cursor-pointer block"
                       >
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-xs md:text-sm text-white group-hover:text-primary transition-colors line-clamp-2">{activity.title}</h4>
+                          <h4 className="font-medium text-xs md:text-sm text-foreground group-hover:text-primary transition-colors line-clamp-2">{activity.title}</h4>
                           <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
                             {activity.competitor_name}
                           </p>

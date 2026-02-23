@@ -46,10 +46,10 @@ export default function HowItWorksSection() {
                     className="text-center mb-16"
                 >
                     <h2 className="text-3xl md:text-5xl font-bold mb-4">
-                        <span className="text-white">Како работи</span>
+                        <span className="text-foreground">Како работи</span>
                         <span className="text-gradient"> Nabavkidata</span>?
                     </h2>
-                    <p className="text-lg text-gray-400 max-w-2xl mx-auto">
+                    <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
                         Од регистрација до победа - едноставен процес во 4 чекори
                     </p>
                 </motion.div>
@@ -68,7 +68,7 @@ export default function HowItWorksSection() {
                                 className="relative group"
                             >
                                 {/* Card */}
-                                <div className="relative h-full p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm hover:bg-white/10 transition-all duration-300">
+                                <div className="relative h-full p-6 rounded-2xl bg-foreground/5 border border-border backdrop-blur-sm hover:bg-foreground/10 transition-all duration-300">
                                     {/* Step Number */}
                                     <div className="absolute -top-4 -left-4 w-12 h-12 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">
                                         {index + 1}
@@ -80,10 +80,10 @@ export default function HowItWorksSection() {
                                     </div>
 
                                     {/* Content */}
-                                    <h3 className="text-xl font-semibold text-white mb-3">
+                                    <h3 className="text-xl font-semibold text-foreground mb-3">
                                         {step.title}
                                     </h3>
-                                    <p className="text-gray-400 text-sm leading-relaxed">
+                                    <p className="text-muted-foreground text-sm leading-relaxed">
                                         {step.description}
                                     </p>
 
@@ -105,12 +105,12 @@ export default function HowItWorksSection() {
                     transition={{ duration: 0.5, delay: 0.4 }}
                     className="text-center mt-16"
                 >
-                    <p className="text-gray-400 mb-4">
+                    <p className="text-muted-foreground mb-4">
                         Подготвени да започнете?
                     </p>
                     <a
                         href="/auth/register"
-                        className="inline-flex items-center justify-center px-8 py-3 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium transition-all duration-300 shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)]"
+                        className="inline-flex items-center justify-center px-8 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all duration-300 shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)]"
                     >
                         Започни бесплатно денес
                     </a>

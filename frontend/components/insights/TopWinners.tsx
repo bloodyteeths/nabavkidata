@@ -73,7 +73,7 @@ export function TopWinners() {
             rank === 1
               ? "text-yellow-500 fill-yellow-500"
               : rank === 2
-              ? "text-gray-400 fill-gray-400"
+              ? "text-muted-foreground fill-muted-foreground"
               : "text-orange-600 fill-orange-600"
           }`}
         />

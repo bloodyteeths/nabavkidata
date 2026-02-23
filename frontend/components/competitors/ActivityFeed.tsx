@@ -66,9 +66,9 @@ export default function ActivityFeed({ companyNames, limit = 50 }: ActivityFeedP
       case "bid":
         return <FileText className="h-5 w-5 text-blue-500" />;
       case "lost":
-        return <XCircle className="h-5 w-5 text-gray-400" />;
+        return <XCircle className="h-5 w-5 text-muted-foreground" />;
       default:
-        return <FileText className="h-5 w-5 text-gray-400" />;
+        return <FileText className="h-5 w-5 text-muted-foreground" />;
     }
   }
 

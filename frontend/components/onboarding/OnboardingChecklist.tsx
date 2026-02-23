@@ -132,7 +132,7 @@ export function OnboardingChecklist({
               className={`group flex items-start gap-3 p-3 rounded-lg border transition-all ${
                 step.completed
                   ? "bg-green-500/5 border-green-500/20"
-                  : "bg-background/50 border-white/10 hover:border-primary/30 hover:bg-white/5"
+                  : "bg-background/50 border-border hover:border-primary/30 hover:bg-foreground/5"
               }`}
             >
               <div
