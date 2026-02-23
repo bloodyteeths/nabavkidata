@@ -7,8 +7,9 @@
 # 2. Extracts text and product data using financial_bid_extractor
 # 3. Populates product_items table with extracted products
 #
-# Recommended crontab entry (every 2 hours):
-# 0 */2 * * * /home/ubuntu/nabavkidata/scraper/cron/process_documents.sh >> /var/log/nabavkidata/documents_$(date +\%Y\%m\%d).log 2>&1
+# Schedule: every 4 hours at :30 (30 2,6,10,14,18,22 * * *)
+#
+# Safety: lock max-age (4h) + per-phase timeout (1h)
 #
 
 set -e
@@ -32,22 +33,49 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
+# Prevent duplicate instances with max-age protection
+LOCKFILE="/tmp/process_documents.lock"
+MAX_LOCK_AGE=14400  # 4 hours max for document processing
+
+if [ -f "$LOCKFILE" ]; then
+    OTHER_PID=$(cat "$LOCKFILE" 2>/dev/null)
+    if [ -n "$OTHER_PID" ] && [[ "$OTHER_PID" =~ ^[0-9]+$ ]] && kill -0 "$OTHER_PID" 2>/dev/null; then
+        # PID is alive -- check how long it has been running
+        ELAPSED=$(ps -o etimes= -p "$OTHER_PID" 2>/dev/null | tr -d ' ')
+        if [ -n "$ELAPSED" ] && [ "$ELAPSED" -gt "$MAX_LOCK_AGE" ]; then
+            log "STALE: Document processor PID $OTHER_PID running for ${ELAPSED}s (max ${MAX_LOCK_AGE}s), killing..."
+            kill -TERM "$OTHER_PID" 2>/dev/null
+            sleep 5
+            if kill -0 "$OTHER_PID" 2>/dev/null; then
+                kill -9 "$OTHER_PID" 2>/dev/null
+            fi
+            rm -f "$LOCKFILE"
+        else
+            log "Another document processor is running (PID $OTHER_PID, ${ELAPSED:-?}s), skipping."
+            exit 0
+        fi
+    else
+        log "Stale lock found (PID $OTHER_PID not running), removing."
+        rm -f "$LOCKFILE"
+    fi
+fi
+echo $$ > "$LOCKFILE"
+trap "rm -f '$LOCKFILE'" EXIT
+
 log "Starting document processing..."
 log "FILES_STORE: $FILES_STORE"
-
-# Activate virtual environment
 
 # Change to scraper directory
 cd /home/ubuntu/nabavkidata/scraper
 
 # Process documents in batches
-# Start with bid documents (most valuable) then others
-BATCH_SIZE=50
+BATCH_SIZE=200
 
 log "========================================"
 log "Phase 1: Processing Bid Documents"
 log "========================================"
 
+timeout --signal=TERM --kill-after=30 3600 \
 /usr/bin/python3 -c "
 import asyncio
 import sys
@@ -89,12 +117,13 @@ async def process_bid_docs():
     return success, failed
 
 asyncio.run(process_bid_docs())
-"
+" || log "WARNING: Phase 1 failed or timed out"
 
 log "========================================"
 log "Phase 2: Processing Contract Documents"
 log "========================================"
 
+timeout --signal=TERM --kill-after=30 3600 \
 /usr/bin/python3 -c "
 import asyncio
 import sys
@@ -136,12 +165,13 @@ async def process_contract_docs():
     return success, failed
 
 asyncio.run(process_contract_docs())
-"
+" || log "WARNING: Phase 2 failed or timed out"
 
 log "========================================"
 log "Phase 3: Processing Other Documents"
 log "========================================"
 
+timeout --signal=TERM --kill-after=30 3600 \
 /usr/bin/python3 -c "
 import asyncio
 import sys
@@ -186,14 +216,14 @@ async def process_other_docs():
     return success, failed
 
 asyncio.run(process_other_docs())
-"
+" || log "WARNING: Phase 3 failed or timed out"
 
 log "========================================"
 log "Phase 4: PDF Metadata Extraction (Backfill)"
 log "========================================"
 
 # Run the backfill script to extract CPV codes, emails, phones from PDFs
-# This processes documents that have file_path but no specifications_json
+timeout --signal=TERM --kill-after=30 3600 \
 /usr/bin/python3 backfill_pdf_extraction.py 200 || {
     RC=$?
     log "WARNING: PDF backfill failed with exit code $RC"
