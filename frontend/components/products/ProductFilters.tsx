@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Filter, X, RotateCcw, Search } from "lucide-react";
+import { Filter, X, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 
 export interface ProductFilterState {
@@ -29,16 +29,12 @@ interface ProductFiltersProps {
   filters: ProductFilterState;
   onApply: (filters: ProductFilterState) => void;
   onReset: () => void;
-  /** Current search query from the main search bar */
-  currentSearch?: string;
-  /** Callback to update the main search bar */
-  onSearchChange?: (search: string) => void;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 2017 }, (_, i) => CURRENT_YEAR - i);
 
-export function ProductFilters({ filters, onApply, onReset, currentSearch, onSearchChange }: ProductFiltersProps) {
+export function ProductFilters({ filters, onApply, onReset }: ProductFiltersProps) {
   const [local, setLocal] = useState<ProductFilterState>(filters);
 
   // CPV autocomplete state
@@ -55,13 +51,6 @@ export function ProductFilters({ filters, onApply, onReset, currentSearch, onSea
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
   const entityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Product search autocomplete state
-  const [localSearch, setLocalSearch] = useState(currentSearch || "");
-  const [productSuggestions, setProductSuggestions] = useState<string[]>([]);
-  const [productSuggestionsLoading, setProductSuggestionsLoading] = useState(false);
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
-  const productTimerRef = useRef<NodeJS.Timeout | null>(null);
-
   const [hasChanges, setHasChanges] = useState(false);
 
   // Sync external filter changes
@@ -70,10 +59,6 @@ export function ProductFilters({ filters, onApply, onReset, currentSearch, onSea
     setHasChanges(false);
   }, [filters]);
 
-  useEffect(() => {
-    setLocalSearch(currentSearch || "");
-  }, [currentSearch]);
-
   // Track unsaved changes
   useEffect(() => {
     const changed =
@@ -81,10 +66,9 @@ export function ProductFilters({ filters, onApply, onReset, currentSearch, onSea
       local.minPrice !== filters.minPrice ||
       local.maxPrice !== filters.maxPrice ||
       local.procuringEntity !== filters.procuringEntity ||
-      local.cpvCode !== filters.cpvCode ||
-      localSearch !== (currentSearch || "");
+      local.cpvCode !== filters.cpvCode;
     setHasChanges(changed);
-  }, [local, filters, localSearch, currentSearch]);
+  }, [local, filters]);
 
   // CPV autocomplete
   useEffect(() => {
@@ -141,33 +125,7 @@ export function ProductFilters({ filters, onApply, onReset, currentSearch, onSea
     return () => { if (entityTimerRef.current) clearTimeout(entityTimerRef.current); };
   }, [entitySearch, searchEntity]);
 
-  // Product name suggestions autocomplete
-  useEffect(() => {
-    if (productTimerRef.current) clearTimeout(productTimerRef.current);
-    if (localSearch.length < 2) {
-      setProductSuggestions([]);
-      setShowProductDropdown(false);
-      return;
-    }
-    productTimerRef.current = setTimeout(async () => {
-      try {
-        setProductSuggestionsLoading(true);
-        const res = await api.getProductSuggestions(localSearch, 8);
-        setProductSuggestions(res.suggestions || []);
-        setShowProductDropdown((res.suggestions || []).length > 0);
-      } catch {
-        setProductSuggestions([]);
-      } finally {
-        setProductSuggestionsLoading(false);
-      }
-    }, 300);
-    return () => { if (productTimerRef.current) clearTimeout(productTimerRef.current); };
-  }, [localSearch]);
-
   const handleApply = () => {
-    if (onSearchChange && localSearch !== (currentSearch || "")) {
-      onSearchChange(localSearch);
-    }
     onApply(local);
     setHasChanges(false);
   };
@@ -176,8 +134,6 @@ export function ProductFilters({ filters, onApply, onReset, currentSearch, onSea
     setLocal({});
     setCpvSearch("");
     setEntitySearch("");
-    setLocalSearch("");
-    if (onSearchChange) onSearchChange("");
     onReset();
   };
 
@@ -211,57 +167,6 @@ export function ProductFilters({ filters, onApply, onReset, currentSearch, onSea
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Search within category - searchable dropdown */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Пребарај производ</label>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Внесете букви за опции..."
-              value={localSearch}
-              onChange={(e) => {
-                setLocalSearch(e.target.value);
-                if (!e.target.value) setShowProductDropdown(false);
-              }}
-              onFocus={() => productSuggestions.length > 0 && setShowProductDropdown(true)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  setShowProductDropdown(false);
-                  handleApply();
-                }
-                if (e.key === "Escape") {
-                  setShowProductDropdown(false);
-                }
-              }}
-              className="text-sm pl-8"
-            />
-            {productSuggestionsLoading && (
-              <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                <div className="animate-spin h-3 w-3 border-2 border-primary border-t-transparent rounded-full" />
-              </div>
-            )}
-            {showProductDropdown && productSuggestions.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-auto">
-                {productSuggestions.map((suggestion, i) => (
-                  <button
-                    key={i}
-                    className="block w-full text-left px-3 py-2 hover:bg-accent text-sm truncate"
-                    onClick={() => {
-                      setLocalSearch(suggestion);
-                      setShowProductDropdown(false);
-                      if (onSearchChange) onSearchChange(suggestion);
-                      onApply(local);
-                    }}
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* CPV Code */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">CPV Категорија</label>

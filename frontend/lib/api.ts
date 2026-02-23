@@ -1685,6 +1685,15 @@ class APIClient {
     );
   }
 
+  async getTopProductNames(cpvCode?: string, limit: number = 15) {
+    const params = new URLSearchParams();
+    if (cpvCode) params.set('cpv_code', cpvCode);
+    params.set('limit', String(limit));
+    return this.request<{ names: Array<{ name: string; count: number }> }>(
+      `/api/products/top-names?${params.toString()}`
+    );
+  }
+
   async getProductStats() {
     return this.request<{
       total_products: number;

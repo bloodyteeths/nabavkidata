@@ -283,6 +283,48 @@ async def get_product_suggestions(
     return {"suggestions": [row.name for row in rows]}
 
 
+@router.get("/top-names")
+async def get_top_product_names(
+    cpv_code: Optional[str] = Query(None, description="CPV division prefix to filter (e.g. '33')"),
+    limit: int = Query(15, ge=1, le=30),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get the most frequently occurring product names, optionally within a CPV division.
+
+    Returns popular product names as clickable quick-filter chips.
+    """
+    where_clauses = [
+        "name IS NOT NULL",
+        "name != ''",
+        "LENGTH(name) BETWEEN 3 AND 120",
+        "name !~ '^[0-9]+\\.'",  # exclude legal clause text like "1.3. ..."
+    ]
+    params: dict = {"limit": limit}
+
+    if cpv_code:
+        where_clauses.append("cpv_code LIKE :cpv_prefix")
+        params["cpv_prefix"] = f"{cpv_code}%"
+
+    where_sql = " AND ".join(where_clauses)
+
+    query = text(f"""
+        SELECT name, COUNT(*) as cnt
+        FROM product_items
+        WHERE {where_sql}
+        GROUP BY name
+        ORDER BY cnt DESC
+        LIMIT :limit
+    """)
+
+    result = await db.execute(query, params)
+    rows = result.fetchall()
+
+    return {
+        "names": [{"name": row.name, "count": row.cnt} for row in rows]
+    }
+
+
 @router.get("/stats")
 async def get_product_stats(
     db: AsyncSession = Depends(get_db)

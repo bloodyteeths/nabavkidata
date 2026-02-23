@@ -127,6 +127,10 @@ function ProductsPageContent() {
   const [filters, setFilters] = useState<ProductFilterState>({});
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
+  // Popular product names for current category
+  const [popularNames, setPopularNames] = useState<Array<{ name: string; count: number }>>([]);
+  const [popularNamesLoading, setPopularNamesLoading] = useState(false);
+
   // Mode: determined by URL params
   const [categoryName, setCategoryName] = useState<string>("");
 
@@ -183,6 +187,10 @@ function ProductsPageContent() {
         urlSort as SortOption || "date_desc",
         parseInt(urlPage) || 1
       );
+      // Load popular product names for category browsing
+      if (urlCpv && !urlSearch) {
+        loadPopularNames(urlCpv);
+      }
     }
   }, [isHydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -195,6 +203,18 @@ function ProductsPageContent() {
       console.error("Failed to load divisions:", error);
     } finally {
       setDivisionsLoading(false);
+    }
+  }
+
+  async function loadPopularNames(cpvCode?: string) {
+    try {
+      setPopularNamesLoading(true);
+      const res = await api.getTopProductNames(cpvCode, 12);
+      setPopularNames(res.names || []);
+    } catch {
+      setPopularNames([]);
+    } finally {
+      setPopularNamesLoading(false);
     }
   }
 
@@ -318,6 +338,7 @@ function ProductsPageContent() {
     setSearchInput("");
     syncToURL(undefined, newFilters, "date_desc", 1);
     fetchProducts(undefined, newFilters, "date_desc", 1);
+    loadPopularNames(cpvCode);
   };
 
   const handleBackToBrowse = () => {
@@ -329,11 +350,14 @@ function ProductsPageContent() {
     setCategoryName("");
     setSortBy("date_desc");
     setPage(1);
+    setPopularNames([]);
     router.replace("/products", { scroll: false });
   };
 
-  const handleFiltersSearchChange = (search: string) => {
-    setSearchInput(search);
+  const handlePopularNameClick = (name: string) => {
+    setSearchInput(name);
+    syncToURL(name, filters, sortBy, 1);
+    fetchProducts(name, filters, sortBy, 1);
   };
 
   const handleFiltersApply = (newFilters: ProductFilterState) => {
@@ -591,6 +615,35 @@ function ProductsPageContent() {
         </Button>
       </div>
 
+      {/* Popular product quick-filters (when browsing a category without search) */}
+      {popularNames.length > 0 && !searchInput.trim() && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Популарни производи во категоријата:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {popularNames.map((item) => (
+              <button
+                key={item.name}
+                type="button"
+                onClick={() => handlePopularNameClick(item.name)}
+                className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border hover:bg-accent hover:border-primary/30 transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <span className="max-w-[200px] truncate">{item.name}</span>
+                <Badge variant="secondary" className="h-4 px-1 text-[10px] shrink-0">
+                  {item.count}
+                </Badge>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {popularNamesLoading && !searchInput.trim() && (
+        <div className="flex flex-wrap gap-1.5">
+          {[...Array(8)].map((_, i) => (
+            <Skeleton key={i} className="h-7 w-28 rounded-full" />
+          ))}
+        </div>
+      )}
+
       {/* Grid: Sidebar + Main */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
         {/* Sidebar - Filters */}
@@ -603,8 +656,6 @@ function ProductsPageContent() {
             filters={filters}
             onApply={handleFiltersApply}
             onReset={handleFiltersReset}
-            currentSearch={searchInput}
-            onSearchChange={handleFiltersSearchChange}
           />
         </div>
 
