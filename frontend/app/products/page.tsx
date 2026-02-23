@@ -332,6 +332,10 @@ function ProductsPageContent() {
     router.replace("/products", { scroll: false });
   };
 
+  const handleFiltersSearchChange = (search: string) => {
+    setSearchInput(search);
+  };
+
   const handleFiltersApply = (newFilters: ProductFilterState) => {
     setFilters(newFilters);
     const search = searchInput.trim() || undefined;
@@ -538,7 +542,7 @@ function ProductsPageContent() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Пребарај..."
+              placeholder={categoryName ? `Пребарај во ${categoryName}...` : "Пребарај..."}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -599,6 +603,8 @@ function ProductsPageContent() {
             filters={filters}
             onApply={handleFiltersApply}
             onReset={handleFiltersReset}
+            currentSearch={searchInput}
+            onSearchChange={handleFiltersSearchChange}
           />
         </div>
 

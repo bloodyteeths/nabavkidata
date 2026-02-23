@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Filter, X, RotateCcw } from "lucide-react";
+import { Filter, X, RotateCcw, Search } from "lucide-react";
 import { api } from "@/lib/api";
 
 export interface ProductFilterState {
@@ -29,18 +29,35 @@ interface ProductFiltersProps {
   filters: ProductFilterState;
   onApply: (filters: ProductFilterState) => void;
   onReset: () => void;
+  /** Current search query from the main search bar */
+  currentSearch?: string;
+  /** Callback to update the main search bar */
+  onSearchChange?: (search: string) => void;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 2017 }, (_, i) => CURRENT_YEAR - i);
 
-export function ProductFilters({ filters, onApply, onReset }: ProductFiltersProps) {
+export function ProductFilters({ filters, onApply, onReset, currentSearch, onSearchChange }: ProductFiltersProps) {
   const [local, setLocal] = useState<ProductFilterState>(filters);
+
+  // CPV autocomplete state
   const [cpvSearch, setCpvSearch] = useState("");
   const [cpvResults, setCpvResults] = useState<Array<{ code: string; name_mk?: string; name?: string }>>([]);
   const [cpvLoading, setCpvLoading] = useState(false);
   const [showCpvDropdown, setShowCpvDropdown] = useState(false);
   const cpvTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Entity autocomplete state
+  const [entitySearch, setEntitySearch] = useState("");
+  const [entityOptions, setEntityOptions] = useState<Array<{ entity_id: string; entity_name: string }>>([]);
+  const [entityLoading, setEntityLoading] = useState(false);
+  const [showEntityDropdown, setShowEntityDropdown] = useState(false);
+  const entityTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Search within category
+  const [localSearch, setLocalSearch] = useState(currentSearch || "");
+
   const [hasChanges, setHasChanges] = useState(false);
 
   // Sync external filter changes
@@ -49,6 +66,10 @@ export function ProductFilters({ filters, onApply, onReset }: ProductFiltersProp
     setHasChanges(false);
   }, [filters]);
 
+  useEffect(() => {
+    setLocalSearch(currentSearch || "");
+  }, [currentSearch]);
+
   // Track unsaved changes
   useEffect(() => {
     const changed =
@@ -56,9 +77,10 @@ export function ProductFilters({ filters, onApply, onReset }: ProductFiltersProp
       local.minPrice !== filters.minPrice ||
       local.maxPrice !== filters.maxPrice ||
       local.procuringEntity !== filters.procuringEntity ||
-      local.cpvCode !== filters.cpvCode;
+      local.cpvCode !== filters.cpvCode ||
+      localSearch !== (currentSearch || "");
     setHasChanges(changed);
-  }, [local, filters]);
+  }, [local, filters, localSearch, currentSearch]);
 
   // CPV autocomplete
   useEffect(() => {
@@ -83,7 +105,42 @@ export function ProductFilters({ filters, onApply, onReset }: ProductFiltersProp
     return () => { if (cpvTimerRef.current) clearTimeout(cpvTimerRef.current); };
   }, [cpvSearch]);
 
+  // Entity autocomplete
+  const searchEntity = useCallback(async (search: string) => {
+    if (search.length < 2) {
+      setEntityOptions([]);
+      setShowEntityDropdown(false);
+      return;
+    }
+    try {
+      setEntityLoading(true);
+      const response = await api.searchEntities(search, 10);
+      setEntityOptions(response.items || []);
+      setShowEntityDropdown((response.items || []).length > 0);
+    } catch {
+      setEntityOptions([]);
+    } finally {
+      setEntityLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (entityTimerRef.current) clearTimeout(entityTimerRef.current);
+    if (entitySearch.length < 2) {
+      setEntityOptions([]);
+      setShowEntityDropdown(false);
+      return;
+    }
+    entityTimerRef.current = setTimeout(() => {
+      searchEntity(entitySearch);
+    }, 300);
+    return () => { if (entityTimerRef.current) clearTimeout(entityTimerRef.current); };
+  }, [entitySearch, searchEntity]);
+
   const handleApply = () => {
+    if (onSearchChange && localSearch !== (currentSearch || "")) {
+      onSearchChange(localSearch);
+    }
     onApply(local);
     setHasChanges(false);
   };
@@ -91,6 +148,9 @@ export function ProductFilters({ filters, onApply, onReset }: ProductFiltersProp
   const handleReset = () => {
     setLocal({});
     setCpvSearch("");
+    setEntitySearch("");
+    setLocalSearch("");
+    if (onSearchChange) onSearchChange("");
     onReset();
   };
 
@@ -124,6 +184,26 @@ export function ProductFilters({ filters, onApply, onReset }: ProductFiltersProp
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Search within category */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Пребарај во категорија</label>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder={local.cpvName ? `Пребарај во ${local.cpvName}...` : "Пребарај производи..."}
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleApply();
+                }
+              }}
+              className="text-sm pl-8"
+            />
+          </div>
+        </div>
+
         {/* CPV Code */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">CPV Категорија</label>
@@ -145,7 +225,7 @@ export function ProductFilters({ filters, onApply, onReset }: ProductFiltersProp
           ) : (
             <div className="relative">
               <Input
-                placeholder="Пребарај CPV код..."
+                placeholder="Внесете букви за опции..."
                 value={cpvSearch}
                 onChange={(e) => setCpvSearch(e.target.value)}
                 onFocus={() => cpvResults.length > 0 && setShowCpvDropdown(true)}
@@ -232,20 +312,59 @@ export function ProductFilters({ filters, onApply, onReset }: ProductFiltersProp
           </div>
         </div>
 
-        {/* Procuring Entity */}
+        {/* Procuring Entity - with autocomplete */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Договорен орган</label>
-          <Input
-            placeholder="Име на институција..."
-            value={local.procuringEntity || ""}
-            onChange={(e) =>
-              setLocal((prev) => ({
-                ...prev,
-                procuringEntity: e.target.value || undefined,
-              }))
-            }
-            className="text-sm"
-          />
+          {local.procuringEntity ? (
+            <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+              <span className="text-sm flex-1 truncate">
+                {local.procuringEntity}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={() => {
+                  setLocal((prev) => ({ ...prev, procuringEntity: undefined }));
+                  setEntitySearch("");
+                }}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : (
+            <div className="relative">
+              <Input
+                placeholder="Внесете букви за опции..."
+                value={entitySearch}
+                onChange={(e) => setEntitySearch(e.target.value)}
+                onFocus={() => entityOptions.length > 0 && setShowEntityDropdown(true)}
+                className="text-sm"
+              />
+              {entityLoading && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin h-3 w-3 border-2 border-primary border-t-transparent rounded-full" />
+                </div>
+              )}
+              {showEntityDropdown && entityOptions.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-auto">
+                  {entityOptions.map((opt) => (
+                    <button
+                      key={opt.entity_id}
+                      className="block w-full text-left px-3 py-2 hover:bg-accent text-sm truncate"
+                      onClick={() => {
+                        setLocal((prev) => ({ ...prev, procuringEntity: opt.entity_name }));
+                        setEntitySearch("");
+                        setShowEntityDropdown(false);
+                      }}
+                    >
+                      {opt.entity_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Apply Button */}
