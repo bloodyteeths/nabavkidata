@@ -17,6 +17,8 @@ from database import get_db
 from models import User
 from api.auth import get_current_user
 from utils.timezone import get_ai_date_context
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
 router = APIRouter(prefix="/ai", tags=["pricing"])
 
@@ -85,7 +87,8 @@ class BidAdvisorResponse(BaseModel):
 # PRICE HISTORY ENDPOINT
 # ============================================================================
 
-@router.get("/price-history/{cpv_code}", response_model=PriceHistoryResponse)
+@router.get("/price-history/{cpv_code}", response_model=PriceHistoryResponse,
+            dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 async def get_price_history(
     cpv_code: str,
     months: int = Query(24, ge=1, le=120, description="Number of months to look back"),
@@ -374,7 +377,8 @@ async def _get_cpv_description(db: AsyncSession, cpv_code: str) -> Optional[str]
 # BID ADVISOR ENDPOINT
 # ============================================================================
 
-@router.get("/bid-advisor/{number}/{year}", response_model=BidAdvisorResponse)
+@router.get("/bid-advisor/{number}/{year}", response_model=BidAdvisorResponse,
+            dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
 async def get_bid_advisor(
     number: str,
     year: str,

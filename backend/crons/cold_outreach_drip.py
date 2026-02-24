@@ -26,16 +26,27 @@ import random
 import hashlib
 import logging
 import argparse
+import re
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
 import httpx
 import asyncpg
+import dns.resolver
 from dotenv import load_dotenv
 load_dotenv()
 
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Email validation regex
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
+# MX record cache: domain -> bool (has valid MX)
+_mx_cache: Dict[str, bool] = {}
+
+# Bounce rate threshold — auto-pause if exceeded during a run
+BOUNCE_RATE_THRESHOLD = 0.08  # 8% within a single run
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,10 +66,10 @@ POSTMARK_MESSAGE_STREAM = 'broadcast'
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://nabavkidata.com')
 UNSUBSCRIBE_SECRET = os.getenv('UNSUBSCRIBE_SECRET', 'nabavki-unsub-secret-2025')
 
-DAILY_LIMIT = int(os.getenv('COLD_OUTREACH_DAILY_LIMIT', '3000'))
-HOURLY_LIMIT = int(os.getenv('COLD_OUTREACH_HOURLY_LIMIT', '200'))
-MIN_JITTER = 5    # seconds between sends
-MAX_JITTER = 15
+DAILY_LIMIT = int(os.getenv('COLD_OUTREACH_DAILY_LIMIT', '5000'))
+HOURLY_LIMIT = int(os.getenv('COLD_OUTREACH_HOURLY_LIMIT', '400'))
+MIN_JITTER = 3    # seconds between sends
+MAX_JITTER = 8
 
 
 # =============================================================================
@@ -572,6 +583,97 @@ async def is_suppressed(conn, email: str) -> bool:
     return bool(unsubbed)
 
 
+def is_valid_email(email: str) -> bool:
+    """Basic email format validation — catches Cyrillic chars, spaces, missing TLD."""
+    if not email or len(email) < 5:
+        return False
+    if not EMAIL_REGEX.match(email):
+        return False
+    # Reject Cyrillic characters in email
+    if any('\u0400' <= c <= '\u04FF' for c in email):
+        return False
+    return True
+
+
+def has_valid_mx(domain: str) -> bool:
+    """Check if domain has valid MX (or A) records. Results are cached."""
+    if domain in _mx_cache:
+        return _mx_cache[domain]
+
+    try:
+        dns.resolver.resolve(domain, 'MX', lifetime=5)
+        _mx_cache[domain] = True
+        return True
+    except Exception:
+        pass
+
+    # Fallback: check A record (some domains accept mail without MX)
+    try:
+        dns.resolver.resolve(domain, 'A', lifetime=5)
+        _mx_cache[domain] = True
+        return True
+    except Exception:
+        _mx_cache[domain] = False
+        return False
+
+
+async def sync_postmark_suppressions(conn):
+    """Fetch fresh Postmark suppression list and mark leads as bounced.
+    Runs at the start of each drip cycle to catch new bounces."""
+    logger.info("Syncing Postmark suppression list...")
+    suppressed = set()
+    headers = {"Accept": "application/json", "X-Postmark-Server-Token": POSTMARK_API_TOKEN}
+
+    for stream in ["outbound", "broadcast"]:
+        try:
+            import requests as req
+            resp = req.get(
+                f"https://api.postmarkapp.com/message-streams/{stream}/suppressions/dump",
+                headers=headers,
+                params={"count": 5000, "offset": 0},
+                timeout=15
+            )
+            for s in resp.json().get("Suppressions", []):
+                suppressed.add(s["EmailAddress"].lower())
+        except Exception as e:
+            logger.warning(f"Failed to fetch {stream} suppressions: {e}")
+
+    if not suppressed:
+        logger.info("  No suppressions fetched (or API error)")
+        return 0
+
+    # Bulk mark suppressed leads as bounced
+    await conn.execute("CREATE TEMP TABLE IF NOT EXISTS tmp_sync_supp (email TEXT)")
+    await conn.execute("DELETE FROM tmp_sync_supp")
+    await conn.executemany(
+        "INSERT INTO tmp_sync_supp (email) VALUES ($1)",
+        [(e,) for e in suppressed]
+    )
+    result = await conn.execute("""
+        UPDATE outreach_leads ol
+        SET outreach_status = 'bounced',
+            is_bounced = true,
+            bounced_at = COALESCE(ol.bounced_at, NOW()),
+            updated_at = NOW()
+        FROM tmp_sync_supp ts
+        WHERE LOWER(ol.email) = ts.email
+        AND ol.outreach_status != 'bounced'
+    """)
+    count = int(result.split()[-1]) if result else 0
+    if count > 0:
+        logger.info(f"  Synced {len(suppressed)} suppressions, marked {count} new bounces")
+        # Also add to suppression_list
+        await conn.execute("""
+            INSERT INTO suppression_list (email, reason, source)
+            SELECT email, 'postmark_suppressed', 'drip_sync'
+            FROM tmp_sync_supp
+            ON CONFLICT (email) DO NOTHING
+        """)
+    else:
+        logger.info(f"  {len(suppressed)} suppressions checked, no new bounces")
+    return count
+
+
 # =============================================================================
 # SENDING
 # =============================================================================
@@ -660,6 +762,10 @@ async def process_drip(args):
     conn = await asyncpg.connect(DATABASE_URL)
 
     try:
+        # Sync Postmark suppressions before sending
+        if not args.dry_run:
+            await sync_postmark_suppressions(conn)
+
         # Check rate limits first
         can_send, rate_msg = await check_rate_limits(conn)
         logger.info(f"Rate limits: {rate_msg}")
@@ -692,6 +798,7 @@ async def process_drip(args):
         sent = 0
         errors = 0
         skipped = 0
+        bounced_this_run = 0
 
         async with httpx.AsyncClient() as client:
             for lead in leads:
@@ -704,6 +811,62 @@ async def process_drip(args):
                     if not can_send:
                         logger.info(f"Rate limit reached after {sent} sends")
                         break
+
+                # Auto-pause if bounce rate too high during this run
+                total_attempted = sent + errors
+                if total_attempted >= 20 and not args.dry_run:
+                    run_bounce_rate = bounced_this_run / total_attempted
+                    if run_bounce_rate > BOUNCE_RATE_THRESHOLD:
+                        logger.warning(
+                            f"PAUSE: Bounce rate {run_bounce_rate:.1%} exceeds "
+                            f"{BOUNCE_RATE_THRESHOLD:.0%} threshold after {total_attempted} "
+                            f"attempts ({bounced_this_run} bounces). Stopping to protect sender reputation."
+                        )
+                        break
+
+                # Email format validation
+                if not is_valid_email(email):
+                    logger.info(f"  SKIP invalid email format: {email}")
+                    await conn.execute("""
+                        UPDATE outreach_leads
+                        SET outreach_status = 'bounced', is_bounced = true,
+                            bounced_at = NOW(), updated_at = NOW()
+                        WHERE lead_id = $1
+                    """, lead['lead_id'])
+                    skipped += 1
+                    continue
+
+                # MX record validation (cached per domain)
+                domain = email.split('@')[1].lower() if '@' in email else ''
+                if domain and not has_valid_mx(domain):
+                    logger.info(f"  SKIP dead domain (no MX): {email}")
+                    await conn.execute("""
+                        UPDATE outreach_leads
+                        SET outreach_status = 'bounced', is_bounced = true,
+                            bounced_at = NOW(), updated_at = NOW()
+                        WHERE lead_id = $1
+                    """, lead['lead_id'])
+                    await conn.execute("""
+                        INSERT INTO suppression_list (email, reason, source)
+                        VALUES ($1, 'dead_domain', 'mx_check')
+                        ON CONFLICT (email) DO NOTHING
+                    """, email.lower())
+                    skipped += 1
+                    continue
+
+                # Skip if user already converted (signed up)
+                is_user = await conn.fetchval(
+                    "SELECT 1 FROM users WHERE LOWER(email) = LOWER($1)", email
+                )
+                if is_user:
+                    logger.info(f"  SKIP converted user: {email}")
+                    await conn.execute("""
+                        UPDATE outreach_leads
+                        SET outreach_status = 'converted', converted_at = NOW(), updated_at = NOW()
+                        WHERE lead_id = $1
+                    """, lead['lead_id'])
+                    skipped += 1
+                    continue
 
                 # Check suppression
                 if not args.dry_run and await is_suppressed(conn, email):
@@ -748,14 +911,27 @@ async def process_drip(args):
                     )
                 else:
                     errors += 1
-                    error_msg = result.get('error', 'Unknown')[:80]
+                    full_error = result.get('error', 'Unknown')
+                    error_msg = full_error[:80]
                     logger.error(f"  FAIL [{lead['segment']}/{step}] {email}: {error_msg}")
 
-                    # Mark bounced if applicable
-                    if 'inactive' in error_msg.lower() or 'bounce' in error_msg.lower():
+                    # Mark bounced if Postmark rejects (406=inactive, 300=bad email, hard bounce)
+                    full_error_lower = full_error.lower()
+                    is_permanent_fail = (
+                        'inactive' in full_error_lower
+                        or 'bounce' in full_error_lower
+                        or 'ErrorCode":406' in full_error
+                        or 'ErrorCode":300' in full_error
+                        or 'illegal email' in full_error_lower
+                    )
+                    if is_permanent_fail:
+                        bounced_this_run += 1
                         await conn.execute("""
                             UPDATE outreach_leads
-                            SET outreach_status = 'bounced', updated_at = NOW()
+                            SET outreach_status = 'bounced',
+                                is_bounced = true,
+                                bounced_at = NOW(),
+                                updated_at = NOW()
                             WHERE lead_id = $1
                         """, lead['lead_id'])
                         await conn.execute("""

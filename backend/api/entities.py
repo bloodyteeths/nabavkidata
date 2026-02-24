@@ -12,6 +12,8 @@ from uuid import UUID
 
 from database import get_db
 from models import ProcuringEntity, Tender
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
 router = APIRouter(prefix="/entities", tags=["entities"])
 
@@ -145,7 +147,8 @@ async def list_entities(
 # GET ENTITY BY ID
 # ============================================================================
 
-@router.get("/{entity_id}", response_model=EntityWithTendersResponse)
+@router.get("/{entity_id}", response_model=EntityWithTendersResponse,
+            dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
 async def get_entity(
     entity_id: str,
     include_tenders: bool = Query(True, description="Include recent tenders"),
@@ -230,7 +233,8 @@ async def get_entity(
 # GET ENTITY BY NAME
 # ============================================================================
 
-@router.get("/by-name/{entity_name}", response_model=EntityWithTendersResponse)
+@router.get("/by-name/{entity_name}", response_model=EntityWithTendersResponse,
+            dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
 async def get_entity_by_name(
     entity_name: str,
     include_tenders: bool = Query(True),

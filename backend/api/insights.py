@@ -11,8 +11,11 @@ from datetime import datetime, date, timedelta
 
 from database import get_db
 from models import Tender, TenderBidder, ProcuringEntity
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
-router = APIRouter(prefix="/insights", tags=["insights"])
+router = APIRouter(prefix="/insights", tags=["insights"],
+                   dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 
 
 # ============================================================================

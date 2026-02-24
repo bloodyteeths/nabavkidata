@@ -189,21 +189,40 @@ class CheckoutRequest(BaseModel):
     currency: str = "mkd"  # mkd or eur
 
 
-# EUR Price IDs from Stripe
-EUR_PRICE_IDS = {
-    "starter": {
-        "monthly": "price_1ShtEpHkVI5icjTlOJKgga8k",
-        "yearly": "price_1ShtFLHkVI5icjTlpxJhTCuH"
+# Stripe Price IDs by currency
+PRICE_IDS_BY_CURRENCY = {
+    "mkd": {
+        "starter": {
+            "monthly": "price_1Si1UMHkVI5icjTlgX63qyG6",
+            "yearly": "price_1Si1UMHkVI5icjTlrze0oUdX"
+        },
+        "professional": {
+            "monthly": "price_1Si1UNHkVI5icjTlaKDnWZuE",
+            "yearly": "price_1Si1UNHkVI5icjTlRiW5safT"
+        },
+        "enterprise": {
+            "monthly": "price_1Si1UNHkVI5icjTlJrHnLL7K",
+            "yearly": "price_1Si1UOHkVI5icjTlhmTPVZSv"
+        }
     },
-    "professional": {
-        "monthly": "price_1ShtHSHkVI5icjTlbtO73TdR",
-        "yearly": "price_1ShtHlHkVI5icjTlcoBNfY4V"
-    },
-    "enterprise": {
-        "monthly": "price_1ShtIVHkVI5icjTlxdB46YKO",
-        "yearly": "price_1ShtIrHkVI5icjTlvYtX3Fwi"
+    "eur": {
+        "starter": {
+            "monthly": "price_1ShtEpHkVI5icjTlOJKgga8k",
+            "yearly": "price_1ShtFLHkVI5icjTlpxJhTCuH"
+        },
+        "professional": {
+            "monthly": "price_1ShtHSHkVI5icjTlbtO73TdR",
+            "yearly": "price_1ShtHlHkVI5icjTlcoBNfY4V"
+        },
+        "enterprise": {
+            "monthly": "price_1ShtIVHkVI5icjTlxdB46YKO",
+            "yearly": "price_1ShtIrHkVI5icjTlvYtX3Fwi"
+        }
     }
 }
+
+# Keep backward compat alias
+EUR_PRICE_IDS = PRICE_IDS_BY_CURRENCY["eur"]
 
 
 class UpgradeRequest(BaseModel):
@@ -780,12 +799,16 @@ async def create_checkout_session(
         success_url = f"{FRONTEND_URL}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{FRONTEND_URL}/billing/cancel"
 
-        # Get price ID - prefer EUR prices (hardcoded), fallback to MKD from env
+        # Get price ID based on user's currency selection
         price_id_override = None
-        if tier in EUR_PRICE_IDS:
-            # Always use EUR prices as they are reliably configured
-            # MKD prices from env vars may not be set
-            price_id_override = EUR_PRICE_IDS[tier].get(interval)
+        currency_prices = PRICE_IDS_BY_CURRENCY.get(currency, PRICE_IDS_BY_CURRENCY["mkd"])
+        if tier in currency_prices:
+            price_id_override = currency_prices[tier].get(interval)
+
+        # Payment methods: MKD = card only, EUR = card + SEPA
+        payment_methods = ["card"]
+        if currency == "eur":
+            payment_methods = ["card", "sepa_debit"]
 
         # Create checkout session with trial if eligible
         checkout_session = await billing_service.create_checkout_session(
@@ -795,7 +818,8 @@ async def create_checkout_session(
             interval=interval,
             success_url=success_url,
             cancel_url=cancel_url,
-            price_id_override=price_id_override
+            price_id_override=price_id_override,
+            payment_methods=payment_methods
         )
 
         # If trial eligible, add trial to the session

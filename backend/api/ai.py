@@ -44,6 +44,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../ai'))
 from database import get_db
 from models import Tender, TenderBidder, Supplier, User
 from api.auth import get_current_user
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -190,7 +192,8 @@ CPV_CODES_MK = {
 }
 
 
-@router.post("/cpv-suggest", response_model=CPVSuggestResponse)
+@router.post("/cpv-suggest", response_model=CPVSuggestResponse,
+             dependencies=[Depends(require_module(ModuleName.RAG_SEARCH))])
 async def suggest_cpv_codes(
     request: CPVSuggestRequest,
     db: AsyncSession = Depends(get_db),
@@ -309,7 +312,8 @@ Use 8-digit CPV codes (main category level).
 # REQUIREMENTS EXTRACTION
 # ============================================================================
 
-@router.post("/extract-requirements", response_model=ExtractRequirementsResponse)
+@router.post("/extract-requirements", response_model=ExtractRequirementsResponse,
+             dependencies=[Depends(require_module(ModuleName.RAG_SEARCH))])
 async def extract_requirements(
     request: ExtractRequirementsRequest,
     db: AsyncSession = Depends(get_db),
@@ -421,7 +425,8 @@ Return maximum 20 most important requirements.
 # COMPETITOR SUMMARY
 # ============================================================================
 
-@router.post("/competitor-summary", response_model=CompetitorSummaryResponse)
+@router.post("/competitor-summary", response_model=CompetitorSummaryResponse,
+             dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
 async def get_competitor_summary(
     request: CompetitorSummaryRequest,
     db: AsyncSession = Depends(get_db),
@@ -581,7 +586,8 @@ class ChatResponse(BaseModel):
     confidence: str
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse,
+             dependencies=[Depends(require_module(ModuleName.RAG_SEARCH))])
 async def rag_chat(
     request: ChatRequest,
     db: AsyncSession = Depends(get_db),
@@ -775,7 +781,8 @@ def normalize_category(category: str) -> str:
     return category  # Return as-is if not recognized
 
 
-@router.post("/company-analysis", response_model=CompanyAnalysisResponse)
+@router.post("/company-analysis", response_model=CompanyAnalysisResponse,
+             dependencies=[Depends(require_module(ModuleName.RAG_SEARCH))])
 async def analyze_company(
     request: CompanyAnalysisRequest,
     db: AsyncSession = Depends(get_db),
@@ -1060,7 +1067,8 @@ class ItemPriceSearchResponse(BaseModel):
     statistics: dict  # {min_price, max_price, avg_price, median_price, count}
 
 
-@router.get("/item-prices", response_model=ItemPriceSearchResponse)
+@router.get("/item-prices", response_model=ItemPriceSearchResponse,
+            dependencies=[Depends(require_module(ModuleName.DOCUMENT_EXTRACTION))])
 async def search_item_prices(
     query: str = Query(..., min_length=3, description="Search term for item (e.g., 'CT Scanner')"),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),

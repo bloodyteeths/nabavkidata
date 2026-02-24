@@ -597,8 +597,11 @@ class NabavkiSpider(scrapy.Spider):
                     if 'од вкупно 0 записи' in table_info or 'of 0 entries' in table_info.lower():
                         archive_recovery_attempts += 1
                         if archive_recovery_attempts > max_archive_recoveries:
-                            logger.error(f"Filter state lost too many times ({archive_recovery_attempts}), stopping")
-                            break
+                            logger.error(f"Filter state lost too many times ({archive_recovery_attempts}), stopping spider")
+                            # Force-close spider to cancel queued Playwright requests
+                            # (just 'break' leaves detail page requests running for hours)
+                            self.crawler.engine.close_spider(self, reason='filter_corruption_unrecoverable')
+                            return
 
                         filter_type = "archive year" if self.year else "date filter" if self.year_filter else "unknown"
                         logger.warning(f"Filter state lost ({filter_type}, showing 0 records), attempting recovery #{archive_recovery_attempts}...")

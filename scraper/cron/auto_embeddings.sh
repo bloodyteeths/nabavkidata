@@ -12,8 +12,13 @@ NABAVKI_DIR="/home/ubuntu/nabavkidata"
 AI_DIR="$NABAVKI_DIR/ai"
 LOG_FILE="/var/log/embeddings.log"
 
-# Load environment variables
-source "$NABAVKI_DIR/.env"
+# Env vars loaded by run-cron.sh from backend/.env
+# Fallback: try loading from root .env if vars not set
+if [ -z "$GEMINI_API_KEY" ] && [ -f "$NABAVKI_DIR/backend/.env" ]; then
+    set -a
+    source "$NABAVKI_DIR/backend/.env"
+    set +a
+fi
 export GEMINI_API_KEY DATABASE_URL
 
 # Check required variables

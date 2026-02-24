@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Postmark API Configuration
 POSTMARK_API_URL = "https://api.postmarkapp.com/email"
 POSTMARK_API_TOKEN = os.getenv("POSTMARK_API_TOKEN", "")
-POSTMARK_FROM_EMAIL = os.getenv("POSTMARK_FROM_EMAIL", "noreply@nabavkidata.com")
+POSTMARK_FROM_EMAIL = os.getenv("POSTMARK_FROM_EMAIL", "hello@nabavkidata.com")
 POSTMARK_FROM_NAME = os.getenv("POSTMARK_FROM_NAME", "NabavkiData")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://nabavkidata.com")
 

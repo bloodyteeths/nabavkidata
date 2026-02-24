@@ -109,4 +109,15 @@ if __name__ == '__main__':
     except Exception as e:
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print(f"[{timestamp}] Job failed: {e}")
+        try:
+            import httpx
+            webhook_url = os.getenv("CLAWD_WEBHOOK_URL")
+            if webhook_url:
+                httpx.post(webhook_url, json={
+                    "app": "nabavkidata", "type": "cron_failed",
+                    "job": "close_expired_tenders", "error": str(e),
+                    "at": datetime.now().isoformat()
+                }, headers={"X-Monitor-Token": os.getenv("CLAWD_MONITOR_TOKEN", "")}, timeout=5.0)
+        except Exception:
+            pass
         sys.exit(1)

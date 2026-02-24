@@ -31,8 +31,11 @@ def set_cached(key: str, value: Any):
 
 from models import User
 from api.auth import get_current_user
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
-router = APIRouter(prefix="/analytics", tags=["market-analytics"])
+router = APIRouter(prefix="/analytics", tags=["market-analytics"],
+                   dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 
 
 # ============================================================================

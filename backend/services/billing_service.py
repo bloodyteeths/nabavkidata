@@ -82,7 +82,8 @@ class BillingService:
         interval: str = 'monthly',
         success_url: str = None,
         cancel_url: str = None,
-        price_id_override: str = None
+        price_id_override: str = None,
+        payment_methods: list = None
     ) -> Dict[str, Any]:
         """
         Create a Stripe Checkout session for subscription purchase
@@ -94,6 +95,7 @@ class BillingService:
             interval: Billing interval (monthly or yearly)
             success_url: URL to redirect after successful payment
             cancel_url: URL to redirect if payment cancelled
+            payment_methods: List of payment method types (e.g. ['card'] or ['card', 'sepa_debit'])
 
         Returns:
             Dict containing checkout session details
@@ -103,6 +105,9 @@ class BillingService:
             if not price_id:
                 raise ValueError(f"Invalid tier or interval: {tier}/{interval}")
 
+            if not payment_methods:
+                payment_methods = ['card']
+
             # Default URLs
             if not success_url:
                 success_url = os.getenv('FRONTEND_URL', 'http://localhost:3000') + '/billing/success?session_id={CHECKOUT_SESSION_ID}'
@@ -110,19 +115,18 @@ class BillingService:
                 cancel_url = os.getenv('FRONTEND_URL', 'http://localhost:3000') + '/billing/cancel'
 
             # Create checkout session
-            # Enable both card and SEPA Direct Debit for EUR payments
             session = self.stripe.checkout.Session.create(
                 customer_email=email,
                 client_reference_id=user_id,
                 mode='subscription',
-                payment_method_types=['card', 'sepa_debit'],
+                payment_method_types=payment_methods,
                 line_items=[{
                     'price': price_id,
                     'quantity': 1
                 }],
                 success_url=success_url,
                 cancel_url=cancel_url,
-                locale='auto',  # Auto-detect user's language (Stripe doesn't support Macedonian)
+                locale='auto',
                 metadata={
                     'user_id': user_id,
                     'tier': tier,

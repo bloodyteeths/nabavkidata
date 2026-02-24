@@ -4,21 +4,18 @@
 
 set -e
 
-# Load environment
-source /home/ubuntu/.bashrc
-
 LOG_FILE="/var/log/nabavkidata/close_expired_tenders.log"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 echo "[$TIMESTAMP] Starting close_expired_tenders job" >> "$LOG_FILE"
 
-# Database connection
-DB_HOST="nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com"
-DB_NAME="nabavkidata"
-DB_USER="nabavki_user"
+# Use env vars from .env (loaded by run-cron.sh)
+DB_HOST="${POSTGRES_HOST:?POSTGRES_HOST must be set}"
+DB_NAME="${POSTGRES_DB:?POSTGRES_DB must be set}"
+DB_USER="${POSTGRES_USER:?POSTGRES_USER must be set}"
 
 # Run the update query
-RESULT=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "
+RESULT=$(PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -t -c "
 UPDATE tenders
 SET status = 'closed',
     updated_at = NOW()

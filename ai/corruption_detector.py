@@ -2071,11 +2071,11 @@ class CorruptionAnalyzer:
                 logger.error(f"✗ {detector_name} failed: {e}")
                 stats[detector_name] = 0
 
-        # Clear old flags
+        # Clear old flags (TRUNCATE is instant vs DELETE which times out on 100K+ rows)
         logger.info("Clearing old corruption flags...")
         async with self.pool.acquire() as conn:
-            await conn.execute("DELETE FROM corruption_flags")
-            await conn.execute("DELETE FROM tender_risk_scores")
+            await conn.execute("TRUNCATE corruption_flags")
+            await conn.execute("TRUNCATE tender_risk_scores")
 
         # Save all flags to database
         logger.info(f"Saving {len(all_flags)} flags to database...")

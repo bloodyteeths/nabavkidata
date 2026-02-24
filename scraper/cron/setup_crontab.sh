@@ -68,8 +68,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/ubuntu/.
 # Document text extraction - every hour at :30
 30 * * * * /opt/clawd/run-cron.sh doc-extract $CRON_DIR/process_documents.sh >> $LOG_DIR/doc_extract.log 2>&1
 
-# Auto-generate embeddings - every 4 hours
-0 */4 * * * /opt/clawd/run-cron.sh auto-embeddings $CRON_DIR/auto_embeddings.sh >> $LOG_DIR/embeddings.log 2>&1
+# Auto-generate embeddings - every 4 hours (offset from scrapers to avoid DB connection exhaustion)
+0 1,5,9,13,17,21 * * * /opt/clawd/run-cron.sh auto-embeddings $CRON_DIR/auto_embeddings.sh >> $LOG_DIR/embeddings.log 2>&1
 
 # ============================================================================
 # ML & ANALYSIS

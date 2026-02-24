@@ -25,6 +25,7 @@ import json
 
 from database import get_db
 from models import User, Subscription
+from api.clawd_monitor import notify_clawd
 
 # ============================================================================
 # CONFIGURATION
@@ -434,6 +435,11 @@ async def handle_subscription_deleted(db: AsyncSession, subscription_obj: Dict[s
 
         logger.info(f"Successfully deleted subscription {subscription_id} and downgraded user to free tier")
 
+        # Notify Clawd VA
+        user = await get_user_by_customer_id(db, subscription_obj["customer"])
+        if user:
+            await notify_clawd("subscription_cancelled", {"email": user.email})
+
     except Exception as e:
         logger.error(f"Error handling subscription.deleted: {e}", exc_info=True)
         await db.rollback()
@@ -490,6 +496,9 @@ async def handle_invoice_payment_succeeded(db: AsyncSession, invoice_obj: Dict[s
 
         logger.info(f"Successfully processed payment of {amount_paid} {currency} for user {user.user_id}")
 
+        # Notify Clawd VA
+        await notify_clawd("payment_success", {"email": user.email, "amount": amount_paid, "currency": currency})
+
     except Exception as e:
         logger.error(f"Error handling invoice.payment_succeeded: {e}", exc_info=True)
         await db.rollback()
@@ -545,6 +554,9 @@ async def handle_invoice_payment_failed(db: AsyncSession, invoice_obj: Dict[str,
         await db.commit()
 
         logger.info(f"Processed failed payment of {amount_due} {currency} for user {user.user_id}")
+
+        # Notify Clawd VA
+        await notify_clawd("payment_failed", {"email": user.email, "amount": amount_due, "currency": currency})
 
     except Exception as e:
         logger.error(f"Error handling invoice.payment_failed: {e}", exc_info=True)

@@ -120,8 +120,8 @@ class EntitlementChecker:
         tier = user.subscription_tier or "free"
         return tier.lower()
 
-    def _get_upgrade_message(self, current_tier: str, module: ModuleName) -> str:
-        """Generate upgrade suggestion message"""
+    def _get_upgrade_message(self, current_tier: str, module: ModuleName) -> dict:
+        """Generate structured upgrade suggestion for frontend PaywallModal"""
         module_to_tier = {
             ModuleName.ANALYTICS: "starter",
             ModuleName.RISK_ANALYSIS: "professional",
@@ -129,9 +129,19 @@ class EntitlementChecker:
             ModuleName.EXPORT_PDF: "professional",
             ModuleName.API_ACCESS: "enterprise",
             ModuleName.TEAM_MANAGEMENT: "enterprise",
+            ModuleName.DOCUMENT_EXTRACTION: "starter",
+            ModuleName.ALERTS: "starter",
+            ModuleName.RAG_SEARCH: "starter",
         }
-        suggested_tier = module_to_tier.get(module, "professional")
-        return f"Оваа функција бара {suggested_tier.upper()} план. Надградете го вашиот план за пристап."
+        suggested_tier = module_to_tier.get(module, "starter")
+        return {
+            "error": "upgrade_required",
+            "message": f"Оваа функција бара {suggested_tier.upper()} план. Надградете за пристап.",
+            "feature": module.value,
+            "tier_required": suggested_tier,
+            "current_tier": current_tier,
+            "upgrade_url": "/settings#plans"
+        }
 
 
 def require_module(

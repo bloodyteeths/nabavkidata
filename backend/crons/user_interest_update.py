@@ -74,6 +74,11 @@ async def update_all_user_vectors():
         except Exception as e:
             print(f"Error in user interest update: {e}")
             await log_cron_failed(db, execution_id, str(e))
+            try:
+                from api.clawd_monitor import notify_clawd
+                await notify_clawd("cron_failed", {"job": job_name, "error": str(e)})
+            except Exception:
+                pass
             raise
 
 

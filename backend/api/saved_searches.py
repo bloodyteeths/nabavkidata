@@ -17,9 +17,12 @@ import os
 from database import get_db
 from models import User, Alert
 from api.auth import get_current_user
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
 # Note: Using "/queries" instead of "/search" to avoid ad-blocker keyword filters
-router = APIRouter(prefix="/queries", tags=["saved-queries"])
+router = APIRouter(prefix="/queries", tags=["saved-queries"],
+                   dependencies=[Depends(require_module(ModuleName.ALERTS))])
 
 # JWT Configuration (same as auth.py)
 SECRET_KEY = os.getenv("SECRET_KEY", "")

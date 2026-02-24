@@ -20,10 +20,13 @@ from database import get_db
 from utils.timezone import now_mk, today_mk, format_mk_datetime, get_ai_date_context
 from models import User, Alert
 from api.auth import get_current_user
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/briefings", tags=["briefings"])
+router = APIRouter(prefix="/briefings", tags=["briefings"],
+                   dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
 
 # Import Gemini
 try:

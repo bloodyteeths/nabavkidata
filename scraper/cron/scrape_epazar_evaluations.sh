@@ -19,11 +19,6 @@ echo "========================================" >> "$LOG_FILE"
 
 cd "$PROJECT_DIR"
 
-# Activate virtual environment if exists
-if [ -f "/home/ubuntu/nabavkidata/venv/bin/activate" ]; then
-    
-fi
-
 # Run evaluation extractor
 # --discover: Find evaluation report URLs from finished tenders
 # --limit 50: Process up to 50 tenders per run

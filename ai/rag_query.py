@@ -5466,7 +5466,7 @@ class LLMDrivenAgent:
                 final_prompt,
                 generation_config=genai.GenerationConfig(
                     temperature=0.3,
-                    max_output_tokens=800
+                    max_output_tokens=4096
                 ),
                 safety_settings=SAFETY_SETTINGS
             )
@@ -8146,7 +8146,7 @@ CPV код: {cpv_code}
                 prompt,
                 generation_config=genai.GenerationConfig(
                     temperature=0.3,
-                    max_output_tokens=800
+                    max_output_tokens=4096
                 ),
                 safety_settings=SAFETY_SETTINGS
             )

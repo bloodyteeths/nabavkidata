@@ -29,8 +29,16 @@ from uuid import UUID
 from decimal import Decimal
 from pydantic import BaseModel, Field
 import asyncpg
+import importlib.util as _ilu
+from pathlib import Path as _Path
 
-from db_pool import get_asyncpg_pool
+# Explicit import from backend/db_pool.py to avoid conflict with ai/db_pool.py
+# (api/rag.py adds ai/ to sys.path which shadows backend's db_pool)
+_backend_db_pool = _Path(__file__).resolve().parent.parent / "db_pool.py"
+_spec = _ilu.spec_from_file_location("db_pool", str(_backend_db_pool))
+_db_pool_mod = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_db_pool_mod)
+get_asyncpg_pool = _db_pool_mod.get_asyncpg_pool
 from utils.risk_levels import calculate_risk_level
 from utils.confidence import bootstrap_cri_confidence, compute_data_completeness, classify_uncertainty
 from utils.weight_calibration import (

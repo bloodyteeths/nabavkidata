@@ -91,9 +91,9 @@ class AutoEmbeddingPipeline:
                 t.title as tender_title,
                 t.category as tender_category
             FROM documents d
-            JOIN tenders t ON d.tender_id = t.tender_id
-            WHERE d.extraction_status = 'success'
-            AND d.content_text IS NOT NULL
+            LEFT JOIN tenders t ON d.tender_id = t.tender_id
+            WHERE d.content_text IS NOT NULL
+            AND LENGTH(d.content_text) > 50
             AND NOT EXISTS (
                 SELECT 1 FROM embeddings e WHERE e.doc_id = d.doc_id
             )
@@ -146,9 +146,9 @@ class AutoEmbeddingPipeline:
                 t.title as tender_title,
                 t.category as tender_category
             FROM documents d
-            JOIN tenders t ON d.tender_id = t.tender_id
-            WHERE d.extraction_status = 'success'
-            AND d.content_text IS NOT NULL
+            LEFT JOIN tenders t ON d.tender_id = t.tender_id
+            WHERE d.content_text IS NOT NULL
+            AND LENGTH(d.content_text) > 50
             AND d.uploaded_at >= $1
             AND NOT EXISTS (
                 SELECT 1 FROM embeddings e WHERE e.doc_id = d.doc_id

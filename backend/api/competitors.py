@@ -12,8 +12,11 @@ from decimal import Decimal
 
 from database import get_db
 from api.auth import get_current_user
+from middleware.entitlements import require_module
+from config.plans import ModuleName
 
-router = APIRouter(prefix="/competitors", tags=["competitors"])
+router = APIRouter(prefix="/competitors", tags=["competitors"],
+                   dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
 
 
 # ============================================================================
