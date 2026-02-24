@@ -886,7 +886,7 @@ export default function TenderDetailPage() {
 
 
       {/* Bid Recommendation */}
-      {bidAdviceLoading || bidAdvice || bidAdviceError ? (
+      {bidAdviceLoading || bidAdvice ? (
         <BidRecommendation
           tenderId={tenderId}
           estimatedValue={bidAdvice?.estimated_value || tender?.estimated_value_mkd}

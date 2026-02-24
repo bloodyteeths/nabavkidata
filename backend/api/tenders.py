@@ -2016,8 +2016,12 @@ async def get_tender_bid_advice_by_id(
 
     # Get historical data for similar tenders (same CPV code)
     historical_bids = []
+    historical_data = []
     avg_discount = 0.0
     competition_level = "unknown"
+    winning_bids = []
+    discounts = []
+    bidder_counts = []
 
     if tender.cpv_code:
         # Get similar tenders from last 2 years
@@ -2074,7 +2078,7 @@ async def get_tender_bid_advice_by_id(
 
     # Build historical data summary
     historical_summary = {
-        "similar_tenders": len(set(r.tender_id for r in historical_data)) if 'historical_data' in dir() and historical_data else 0,
+        "similar_tenders": len(set(r.tender_id for r in historical_data)) if historical_data else 0,
         "avg_winning_bid": round(statistics.mean(winning_bids), 0) if winning_bids else None,
         "min_bid": round(min(winning_bids), 0) if winning_bids else None,
         "max_bid": round(max(winning_bids), 0) if winning_bids else None,
