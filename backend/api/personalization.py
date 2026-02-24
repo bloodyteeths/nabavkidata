@@ -311,7 +311,8 @@ async def get_personalized_dashboard(
             estimated_value_mkd=tender.estimated_value_mkd,
             closing_date=tender.closing_date,
             score=score,
-            match_reasons=match_reasons
+            match_reasons=match_reasons,
+            status=getattr(tender, 'status', None)
         ))
 
     # Run competitor activity and insights in parallel (they're independent)

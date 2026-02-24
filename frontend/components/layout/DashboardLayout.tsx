@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { navigation } from "@/config/navigation";
+import { navigationGroups } from "@/config/navigation";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -49,25 +49,48 @@ export default function DashboardLayout({
                 <p className="text-xs text-muted-foreground ml-10">Тендер Интелигенција</p>
             </div>
 
-            <nav className="flex-1 px-4 space-y-1">
-                {navigation.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href;
-                    return (
-                        <Link
-                            key={item.name}
-                            href={item.href}
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                ? "bg-primary text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]"
-                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                                }`}
-                        >
-                            <Icon className="h-5 w-5" />
-                            {item.name}
-                        </Link>
-                    );
-                })}
+            <nav className="flex-1 px-4 space-y-4 overflow-y-auto">
+                {navigationGroups.map((group) => (
+                    <div key={group.label}>
+                        <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                            {group.label}
+                        </p>
+                        <div className="space-y-0.5">
+                            {group.items.map((item) => {
+                                const Icon = item.icon;
+                                const isActive = pathname === item.href;
+                                return (
+                                    <Link
+                                        key={item.name}
+                                        href={item.href}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
+                                            ? "bg-primary text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]"
+                                            : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                                            }`}
+                                    >
+                                        <Icon className="h-5 w-5" />
+                                        {item.name}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+                {/* Settings at bottom, separated */}
+                <div className="pt-2 border-t border-border/40">
+                    <Link
+                        href="/settings"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${pathname === '/settings'
+                            ? "bg-primary text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]"
+                            : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                            }`}
+                    >
+                        <Settings className="h-5 w-5" />
+                        Поставки
+                    </Link>
+                </div>
             </nav>
 
             <div className="p-4 border-t border-border bg-muted/20">

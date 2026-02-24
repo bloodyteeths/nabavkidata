@@ -1324,7 +1324,7 @@ class APIClient {
   }
 
   async getCurrentSubscription() {
-    return this.request<UserSubscription | null>('/api/billing/subscription');
+    return this.request<UserSubscription | null>('/api/billing/status');
   }
 
   async createCheckoutSession(tier: string, interval: 'monthly' | 'yearly' = 'monthly', currency: 'mkd' | 'eur' = 'mkd') {

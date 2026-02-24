@@ -57,7 +57,10 @@ function SuppliersContent() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api.nabavkidata.com'}/api/suppliers/stats`);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api.nabavkidata.com'}/api/suppliers/stats`, { headers });
       if (response.ok) {
         const data = await response.json();
         setStats(data);

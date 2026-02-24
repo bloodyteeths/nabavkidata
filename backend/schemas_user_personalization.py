@@ -86,6 +86,7 @@ class RecommendedTender(BaseModel):
     closing_date: Optional[datetime]
     score: float
     match_reasons: List[str]
+    status: Optional[str] = None
 
 
 class CompetitorActivity(BaseModel):

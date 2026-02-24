@@ -64,7 +64,8 @@ export default function SupplierDetailPage() {
 
   const formatPercent = (value?: number) => {
     if (value === null || value === undefined) return '-';
-    return `${(value * 100).toFixed(1)}%`;
+    const capped = Math.min(value, 100);
+    return `${capped.toFixed(1)}%`;
   };
 
   if (loading) {
