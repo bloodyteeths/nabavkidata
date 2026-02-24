@@ -2,8 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Building2, Calendar, ExternalLink } from "lucide-react";
+import { Building2, Calendar, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import type { ProductSearchResult } from "@/lib/api";
@@ -28,96 +27,67 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   return (
-    <Card className="hover:border-primary/50 transition-colors">
-      <CardContent className="p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
-          {/* Product Info */}
-          <div className="flex-1 space-y-2 min-w-0">
-            <h3 className="font-semibold text-base sm:text-lg leading-tight">
+    <Link href={`/tenders/${encodeURIComponent(product.tender_id)}`} className="block group">
+      <Card className="hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer">
+        <CardContent className="p-4 sm:p-5">
+          {/* Product name + arrow */}
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="font-semibold text-sm sm:text-base leading-snug flex-1">
               {product.name}
             </h3>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5 group-hover:text-primary transition-colors" />
+          </div>
 
-            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-              {product.quantity != null && (
-                <Badge variant="secondary" className="text-xs">
-                  Кол: {formatQuantity(product.quantity, product.unit)}
-                </Badge>
-              )}
-              {product.unit_price != null && (
-                <Badge variant="outline" className="text-xs">
-                  Ед. цена: {formatPrice(product.unit_price)}
-                </Badge>
-              )}
-              {product.total_price != null && (
-                <Badge className="bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-950 dark:text-green-300 text-xs">
-                  Вкупно: {formatPrice(product.total_price)}
-                </Badge>
-              )}
-              {product.cpv_code && (
-                <Badge variant="outline" className="font-mono text-xs">
-                  CPV: {product.cpv_code}
-                </Badge>
-              )}
-            </div>
-
-            {/* Specifications */}
-            {product.specifications && Object.keys(product.specifications).length > 0 && (
-              <div className="text-xs text-muted-foreground">
-                <p className="font-medium">Спецификации:</p>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {Object.entries(product.specifications).slice(0, 3).map(([key, value]) => (
-                    <span key={key} className="bg-muted px-2 py-0.5 rounded text-xs">
-                      {key}: {String(value)}
-                    </span>
-                  ))}
-                </div>
-              </div>
+          {/* Price & quantity badges */}
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {product.unit_price != null && (
+              <Badge variant="outline" className="text-xs font-medium">
+                {formatPrice(product.unit_price)}
+                {product.unit ? ` / ${product.unit}` : ""}
+              </Badge>
             )}
-
-            {/* Tender Context */}
-            <div className="pt-2 border-t">
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Building2 className="h-4 w-4 mt-0.5 shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-medium text-foreground truncate">
-                    {product.tender_title || "Без наслов"}
-                  </p>
-                  <p className="truncate">{product.procuring_entity}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-muted-foreground">
-                {product.opening_date && (
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(product.opening_date)}
-                  </span>
-                )}
-                {product.status && (
-                  <Badge variant="outline" className="text-xs">
-                    {product.status}
-                  </Badge>
-                )}
-                {product.winner && (
-                  <span className="text-green-600 dark:text-green-400 truncate max-w-[200px]">
-                    Добитник: {product.winner}
-                  </span>
-                )}
-              </div>
-            </div>
+            {product.total_price != null && (
+              <Badge className="bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-950 dark:text-green-300 text-xs font-medium">
+                Вкупно: {formatPrice(product.total_price)}
+              </Badge>
+            )}
+            {product.quantity != null && (
+              <Badge variant="secondary" className="text-xs">
+                {formatQuantity(product.quantity, product.unit)}
+              </Badge>
+            )}
+            {product.cpv_code && (
+              <Badge variant="outline" className="font-mono text-[11px] text-muted-foreground">
+                {product.cpv_code}
+              </Badge>
+            )}
           </div>
 
-          {/* Action */}
-          <div className="shrink-0">
-            <Link href={`/tenders/${encodeURIComponent(product.tender_id)}`}>
-              <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                <ExternalLink className="h-4 w-4 mr-1.5" />
-                Тендер
-              </Button>
-            </Link>
+          {/* Tender context — subtle footer */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 pt-2 border-t text-xs text-muted-foreground">
+            <span className="flex items-center gap-1 truncate max-w-[250px] sm:max-w-[350px]">
+              <Building2 className="h-3 w-3 shrink-0" />
+              {product.procuring_entity}
+            </span>
+            {product.opening_date && (
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3 shrink-0" />
+                {formatDate(product.opening_date)}
+              </span>
+            )}
+            {product.status && (
+              <Badge variant="outline" className="text-[11px] h-5">
+                {product.status}
+              </Badge>
+            )}
+            {product.winner && (
+              <span className="text-green-600 dark:text-green-400 truncate max-w-[180px]">
+                Добитник: {product.winner}
+              </span>
+            )}
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
