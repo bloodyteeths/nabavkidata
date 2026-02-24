@@ -206,6 +206,23 @@ export default function EPazarPage() {
           <p className="text-gray-500">Тендери и цени од e-pazar.gov.mk</p>
         </div>
 
+        {/* Explainer - what is e-Pazar */}
+        <Card className="border-blue-500/20 bg-blue-500/5">
+          <CardContent className="p-4 flex items-start gap-3">
+            <div className="h-8 w-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Sparkles className="h-4 w-4 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Што е е-Пазар?</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                е-Пазар е систем за <strong>мали набавки</strong> (обично под 500,000 ден) каде институциите директно бараат понуди за производи и услуги.
+                За разлика од формалните тендери на <Link href="/tenders" className="text-primary hover:underline">Тендери</Link>, тука процесот е побрз и поедноставен -
+                идеално за фирми кои продаваат стандардни производи.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>

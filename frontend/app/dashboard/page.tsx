@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { api, type DashboardData } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Bell, Search } from "lucide-react";
+import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Bell, Search, Clock, Package, DollarSign, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
@@ -245,6 +245,58 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Closing Soon - Urgency Section */}
+      {(() => {
+        const now = new Date();
+        const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const closingSoon = (data?.recommended_tenders || []).filter(t => {
+          if (!t.closing_date) return false;
+          const cd = new Date(t.closing_date);
+          return cd > now && cd <= weekFromNow;
+        }).sort((a, b) => new Date(a.closing_date!).getTime() - new Date(b.closing_date!).getTime());
+
+        if (closingSoon.length > 0) return (
+          <Card className="border-orange-500/30 bg-gradient-to-r from-orange-500/5 to-red-500/5">
+            <CardHeader className="p-4 md:p-6 pb-3">
+              <CardTitle className="text-base md:text-lg flex items-center gap-2 text-orange-400">
+                <Clock className="h-5 w-5" />
+                Затвораат наскоро
+                <span className="ml-auto text-xs font-normal text-muted-foreground">следните 7 дена</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 md:p-6 pt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {closingSoon.slice(0, 3).map(tender => {
+                  const daysLeft = Math.ceil((new Date(tender.closing_date!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                  return (
+                    <Link key={tender.tender_id} href={`/tenders/${encodeURIComponent(tender.tender_id)}`}
+                      className="group p-3 rounded-xl border border-orange-500/20 bg-background/50 hover:bg-foreground/5 hover:border-orange-500/40 transition-all">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${daysLeft <= 2 ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                          {daysLeft <= 1 ? 'УТРЕ!' : `${daysLeft} дена`}
+                        </span>
+                        <span className="text-[10px] text-green-400">{Math.round(tender.score * 100)}% match</span>
+                      </div>
+                      <h4 className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">{tender.title}</h4>
+                      <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1">{tender.procuring_entity}</p>
+                      {tender.estimated_value_mkd && (
+                        <p className="text-xs font-medium text-primary mt-2">{formatCurrency(tender.estimated_value_mkd)}</p>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+              {closingSoon.length > 3 && (
+                <Link href="/trends" className="flex items-center justify-center gap-1 mt-3 text-xs text-orange-400 hover:text-orange-300 transition-colors">
+                  Уште {closingSoon.length - 3} тендери затвораат наскоро <ArrowRight className="h-3 w-3" />
+                </Link>
+              )}
+            </CardContent>
+          </Card>
+        );
+        return null;
+      })()}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6 lg:gap-8">
         {/* Recommended Tenders */}
         <div className="lg:col-span-2">
@@ -336,17 +388,35 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="p-4 md:p-6 pt-0 space-y-3 md:space-y-4">
                 {(!data?.insights || data.insights.length === 0) ? (
-                  <div className="text-center py-4">
-                    <Sparkles className="h-6 w-6 md:h-8 md:w-8 mx-auto mb-2 text-primary/50" />
-                    <p className="text-xs font-medium mb-1">AI инсајти</p>
-                    <p className="text-[10px] text-muted-foreground mb-3">
-                      Креирајте алерт за персонализирани анализи
-                    </p>
-                    <Link href="/alerts?tab=create">
-                      <Button size="sm" variant="outline" className="h-7 text-xs">
-                        <Bell className="h-3 w-3 mr-1" />
-                        Креирај алерт
-                      </Button>
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-muted-foreground mb-3">Брзи акции:</p>
+                    <Link href="/products" className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:bg-foreground/5 hover:border-primary/20 transition-all group">
+                      <DollarSign className="h-4 w-4 text-green-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium group-hover:text-primary transition-colors">Провери цени</p>
+                        <p className="text-[10px] text-muted-foreground">Пазарни цени за производи</p>
+                      </div>
+                    </Link>
+                    <Link href="/trends" className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:bg-foreground/5 hover:border-primary/20 transition-all group">
+                      <TrendingUp className="h-4 w-4 text-blue-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium group-hover:text-primary transition-colors">Бизнис трендови</p>
+                        <p className="text-[10px] text-muted-foreground">Итни можности во 7 дена</p>
+                      </div>
+                    </Link>
+                    <Link href="/competitors" className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:bg-foreground/5 hover:border-primary/20 transition-all group">
+                      <Users className="h-4 w-4 text-orange-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium group-hover:text-primary transition-colors">Анализа на конкуренти</p>
+                        <p className="text-[10px] text-muted-foreground">Кој понудува во вашиот сектор</p>
+                      </div>
+                    </Link>
+                    <Link href="/alerts?tab=create" className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:bg-foreground/5 hover:border-primary/20 transition-all group">
+                      <Bell className="h-4 w-4 text-purple-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium group-hover:text-primary transition-colors">Креирај алерт</p>
+                        <p className="text-[10px] text-muted-foreground">Известувања за нови тендери</p>
+                      </div>
                     </Link>
                   </div>
                 ) : (

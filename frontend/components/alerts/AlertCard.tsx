@@ -43,18 +43,31 @@ export function AlertCard({ alert, onToggle, onEdit, onDelete }: AlertCardProps)
 
   const getCriteriaSummary = () => {
     const parts: string[] = [];
+    const MAX_ITEMS = 5;
 
     if (alert.criteria.keywords?.length > 0) {
-      parts.push(`Клучни зборови: ${alert.criteria.keywords.join(', ')}`);
+      const kw = alert.criteria.keywords;
+      const shown = kw.slice(0, MAX_ITEMS).join(', ');
+      const extra = kw.length > MAX_ITEMS ? ` +${kw.length - MAX_ITEMS} повеќе` : '';
+      parts.push(`Клучни зборови: ${shown}${extra}`);
     }
     if (alert.criteria.cpv_codes?.length > 0) {
-      parts.push(`CPV: ${alert.criteria.cpv_codes.join(', ')}`);
+      const codes = alert.criteria.cpv_codes;
+      const shown = codes.slice(0, 3).join(', ');
+      const extra = codes.length > 3 ? ` +${codes.length - 3}` : '';
+      parts.push(`CPV: ${shown}${extra}`);
     }
     if (alert.criteria.entities?.length > 0) {
-      parts.push(`Институции: ${alert.criteria.entities.join(', ')}`);
+      const ent = alert.criteria.entities;
+      const shown = ent.slice(0, 2).join(', ');
+      const extra = ent.length > 2 ? ` +${ent.length - 2}` : '';
+      parts.push(`Институции: ${shown}${extra}`);
     }
     if (alert.criteria.competitors?.length > 0) {
-      parts.push(`Конкуренти: ${alert.criteria.competitors.join(', ')}`);
+      const comp = alert.criteria.competitors;
+      const shown = comp.slice(0, 2).join(', ');
+      const extra = comp.length > 2 ? ` +${comp.length - 2}` : '';
+      parts.push(`Конкуренти: ${shown}${extra}`);
     }
     if (alert.criteria.min_budget || alert.criteria.max_budget) {
       const min = alert.criteria.min_budget ? `${alert.criteria.min_budget.toLocaleString()} МКД` : '∞';
