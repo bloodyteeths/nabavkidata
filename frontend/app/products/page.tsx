@@ -27,8 +27,10 @@ import {
   TrendingUp,
   ArrowLeft,
   SlidersHorizontal,
+  DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 // Sort options
 type SortOption = "date_desc" | "date_asc" | "price_asc" | "price_desc" | "quantity_desc";
@@ -521,6 +523,19 @@ function ProductsPageContent() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Cross-link to e-Pazar for price check */}
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+          <DollarSign className="h-5 w-5 text-primary flex-shrink-0" />
+          <p className="text-sm text-muted-foreground flex-1">
+            Сакате да ја проверите <strong>пазарната цена</strong> за одреден производ?
+          </p>
+          <Link href="/epazar">
+            <Button variant="outline" size="sm" className="whitespace-nowrap">
+              Провери на е-Пазар
+            </Button>
+          </Link>
         </div>
 
         {/* Category Grid */}

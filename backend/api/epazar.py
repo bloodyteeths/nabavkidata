@@ -2301,16 +2301,30 @@ async def get_price_intelligence(
         # Get bilingual search variants
         search_variants = get_search_variants(search)
 
-        # Build search condition for bilingual support
+        # Build search condition with word-level matching for better fuzzy results
+        # Split search into words and match ALL words (AND logic)
+        # This handles "хартија А4" matching "Хартија за копирање формат А4"
+        def build_word_conditions(variant: str, prefix: str) -> tuple:
+            """Build AND conditions for each word in the search."""
+            words = [w.strip() for w in variant.split() if len(w.strip()) >= 2]
+            if not words:
+                return f"i.item_name ILIKE :{prefix}", {prefix: f"%{variant}%"}
+            conditions = []
+            word_params = {}
+            for i, word in enumerate(words):
+                param_name = f"{prefix}_w{i}"
+                conditions.append(f"i.item_name ILIKE :{param_name}")
+                word_params[param_name] = f"%{word}%"
+            return " AND ".join(conditions), word_params
+
         if len(search_variants) == 1:
-            search_condition = "i.item_name ILIKE :search"
-            params = {'search': f"%{search_variants[0]}%"}
+            word_cond, params = build_word_conditions(search_variants[0], "s")
+            search_condition = f"({word_cond})"
         else:
-            search_condition = "(i.item_name ILIKE :search_latin OR i.item_name ILIKE :search_cyrillic)"
-            params = {
-                'search_latin': f"%{search_variants[0]}%",
-                'search_cyrillic': f"%{search_variants[1]}%"
-            }
+            cond_latin, params_latin = build_word_conditions(search_variants[0], "lat")
+            cond_cyrillic, params_cyrillic = build_word_conditions(search_variants[1], "cyr")
+            search_condition = f"(({cond_latin}) OR ({cond_cyrillic}))"
+            params = {**params_latin, **params_cyrillic}
 
         category_filter = ""
         if category:

@@ -244,6 +244,39 @@ export default function InsightsPage() {
               Филтрирано по CPV: <span className="font-mono font-medium">{appliedCpv}</span>
             </p>
           )}
+
+          {/* Quick industry preset buttons */}
+          {!appliedCpv && (
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground mb-2">Брз избор по индустрија:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { code: "33", label: "Медицинска" },
+                  { code: "45", label: "Градежни" },
+                  { code: "30", label: "Канцелариска" },
+                  { code: "72", label: "ИТ услуги" },
+                  { code: "34", label: "Транспорт" },
+                  { code: "15", label: "Храна" },
+                  { code: "50", label: "Одржување" },
+                  { code: "79", label: "Деловни услуги" },
+                ].map((preset) => (
+                  <button
+                    key={preset.code}
+                    type="button"
+                    onClick={() => {
+                      setCpvFilter(preset.code);
+                      setAppliedCpv(preset.code);
+                      setShowCpvDropdown(false);
+                    }}
+                    className="text-xs px-2.5 py-1.5 rounded-full border hover:bg-accent hover:border-primary/30 transition-colors text-muted-foreground hover:text-foreground"
+                  >
+                    <span className="font-mono text-primary mr-1">{preset.code}</span>
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

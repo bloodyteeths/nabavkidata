@@ -322,9 +322,26 @@ export default function EPazarPage() {
               </div>
             )}
 
-            {/* No results */}
+            {/* No results - with fallback links */}
             {priceSearched && !priceLoading && !showSuggestions && productSuggestions.length === 0 && !priceIntelligence && (
-              <p className="text-muted-foreground text-center py-2">Нема резултати за "{priceSearch}"</p>
+              <div className="text-center py-4 space-y-2">
+                <p className="text-muted-foreground">Нема резултати за &ldquo;{priceSearch}&rdquo; во е-Пазар</p>
+                <p className="text-xs text-muted-foreground">Обидете се со пократок збор (пр. &ldquo;хартија&rdquo; наместо &ldquo;хартија А4&rdquo;)</p>
+                <div className="flex justify-center gap-2 mt-3">
+                  <Link href={`/products?search=${encodeURIComponent(priceSearch)}`}>
+                    <Button variant="outline" size="sm">
+                      <Package className="h-3 w-3 mr-1" />
+                      Барај во Каталог на Производи
+                    </Button>
+                  </Link>
+                  <Link href={`/tenders?search=${encodeURIComponent(priceSearch)}`}>
+                    <Button variant="outline" size="sm">
+                      <Search className="h-3 w-3 mr-1" />
+                      Барај во Тендери
+                    </Button>
+                  </Link>
+                </div>
+              </div>
             )}
 
             {/* Price Intelligence Results */}

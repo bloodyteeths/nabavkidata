@@ -788,8 +788,12 @@ class APIClient {
     return this.request<{ cards: any; charts: any }>(`/api/analytics/market-overview${query ? `?${query}` : ''}`);
   }
 
-  async getCompetitorAnalysis(params?: { period?: string; limit?: number }) {
-    const query = new URLSearchParams(params as any).toString();
+  async getCompetitorAnalysis(params?: { period?: string; limit?: number; cpv_prefix?: string }) {
+    const filteredParams: Record<string, string> = {};
+    if (params?.period) filteredParams.period = params.period;
+    if (params?.limit) filteredParams.limit = String(params.limit);
+    if (params?.cpv_prefix) filteredParams.cpv_prefix = params.cpv_prefix;
+    const query = new URLSearchParams(filteredParams).toString();
     return this.request<{ competitors: any[]; summary: any }>(`/api/analytics/top-competitors${query ? `?${query}` : ''}`);
   }
 

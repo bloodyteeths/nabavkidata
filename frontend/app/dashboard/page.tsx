@@ -3,18 +3,31 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { api, type DashboardData } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Bell, Search, Clock, Package, DollarSign, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
+
+const SEARCH_CHIPS = [
+  "канцелариски материјали",
+  "медицинска опрема",
+  "ИТ услуги",
+  "градежни работи",
+  "храна и пијалоци",
+  "транспорт",
+];
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const { user } = useAuth();
+  const router = useRouter();
 
   // Onboarding state
   const [onboardingData, setOnboardingData] = useState({
@@ -152,6 +165,47 @@ export default function DashboardPage() {
         hasTrackedCompetitors={onboardingData.hasTrackedCompetitors}
         hasSetPreferences={onboardingData.hasSetPreferences}
       />
+
+      {/* Search Hero */}
+      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-purple-500/5 to-primary/5">
+        <CardContent className="p-4 md:p-6">
+          <h2 className="text-sm md:text-base font-medium text-foreground mb-3">
+            Што продавате? Пребарајте тендери за вашите производи:
+          </h2>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (searchQuery.trim()) {
+              router.push(`/tenders?search=${encodeURIComponent(searchQuery.trim())}`);
+            }
+          }} className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+              <Input
+                placeholder="пр. канцелариски материјали, медицинска опрема, ИТ услуги..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 md:pl-11 h-10 md:h-12 text-sm md:text-base"
+              />
+            </div>
+            <Button type="submit" disabled={!searchQuery.trim()} className="h-10 md:h-12 px-4 md:px-6">
+              <Search className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Пребарај</span>
+            </Button>
+          </form>
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {SEARCH_CHIPS.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => router.push(`/tenders?search=${encodeURIComponent(chip)}`)}
+                className="text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-primary/20 hover:bg-primary/10 hover:border-primary/40 transition-colors text-muted-foreground hover:text-foreground"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">

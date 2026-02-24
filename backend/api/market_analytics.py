@@ -445,6 +445,7 @@ async def get_competitor_analysis(
 async def get_top_competitors(
     period: str = Query("1y", description="Period: 30d, 90d, 6m, 1y, all"),
     limit: int = Query(20, ge=1, le=50, description="Number of competitors to return"),
+    cpv_prefix: Optional[str] = Query(None, description="Filter by CPV code prefix (e.g. '30' for office equipment)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -469,8 +470,8 @@ async def get_top_competitors(
             }
         )
 
-    # Check cache first (cache by period)
-    cache_key = f"top_competitors_{period}_{limit}"
+    # Check cache first (cache by period + cpv)
+    cache_key = f"top_competitors_{period}_{limit}_{cpv_prefix or 'all'}"
     cached = get_cached(cache_key)
     if cached:
         return cached
@@ -479,24 +480,49 @@ async def get_top_competitors(
 
     # For "all" period, use suppliers table (complete historical data)
     if period == "all":
-        query = text("""
-            SELECT
-                company_name as name,
-                total_bids as bids_count,
-                total_wins as wins,
-                total_contract_value_mkd as total_value_mkd,
-                win_rate,
-                city
-            FROM suppliers
-            WHERE total_wins > 0
-              AND company_name IS NOT NULL
-              AND company_name != ''
-              AND company_name != 'null'
-              AND LENGTH(company_name) > 2
-            ORDER BY total_wins DESC
-            LIMIT :limit
-        """)
-        result = await db.execute(query, {"limit": limit})
+        if cpv_prefix:
+            # CPV-filtered query: join with tender_bidders and tenders to filter by CPV
+            query = text("""
+                SELECT
+                    b.company_name as name,
+                    COUNT(*) as bids_count,
+                    COUNT(*) FILTER (WHERE b.is_winner = TRUE) as wins,
+                    COALESCE(SUM(b.bid_amount_mkd) FILTER (WHERE b.is_winner = TRUE), 0) as total_value_mkd,
+                    CASE WHEN COUNT(*) > 0
+                         THEN ROUND(COUNT(*) FILTER (WHERE b.is_winner = TRUE)::numeric / COUNT(*) * 100, 1)
+                         ELSE 0 END as win_rate,
+                    NULL as city
+                FROM tender_bidders b
+                JOIN tenders t ON b.tender_id = t.tender_id
+                WHERE b.company_name IS NOT NULL
+                  AND b.company_name != ''
+                  AND LENGTH(b.company_name) > 2
+                  AND t.cpv_code LIKE :cpv_pattern
+                GROUP BY b.company_name
+                HAVING COUNT(*) FILTER (WHERE b.is_winner = TRUE) > 0
+                ORDER BY wins DESC
+                LIMIT :limit
+            """)
+            result = await db.execute(query, {"limit": limit, "cpv_pattern": f"{cpv_prefix}%"})
+        else:
+            query = text("""
+                SELECT
+                    company_name as name,
+                    total_bids as bids_count,
+                    total_wins as wins,
+                    total_contract_value_mkd as total_value_mkd,
+                    win_rate,
+                    city
+                FROM suppliers
+                WHERE total_wins > 0
+                  AND company_name IS NOT NULL
+                  AND company_name != ''
+                  AND company_name != 'null'
+                  AND LENGTH(company_name) > 2
+                ORDER BY total_wins DESC
+                LIMIT :limit
+            """)
+            result = await db.execute(query, {"limit": limit})
         rows = result.fetchall()
 
         competitors = []
@@ -525,8 +551,8 @@ async def get_top_competitors(
 
     else:
         # For recent periods, combine main + summary in one CTE to avoid double scan.
-        # Use OR instead of COALESCE to allow index usage on opening_date.
-        combined_query = text("""
+        cpv_condition = "AND t.cpv_code LIKE :cpv_pattern" if cpv_prefix else ""
+        combined_query = text(f"""
             WITH filtered AS (
                 SELECT tb.company_name, tb.is_winner, tb.bid_amount_mkd
                 FROM tender_bidders tb
@@ -536,6 +562,7 @@ async def get_top_competitors(
                   AND tb.company_name != ''
                   AND tb.company_name != 'null'
                   AND LENGTH(tb.company_name) > 2
+                  {cpv_condition}
             ),
             top AS (
                 SELECT
@@ -568,10 +595,14 @@ async def get_top_competitors(
             FROM summary
         """)
 
-        result = await db.execute(combined_query, {
+        query_params = {
             "start_date": start_date.date(),
             "limit": limit
-        })
+        }
+        if cpv_prefix:
+            query_params["cpv_pattern"] = f"{cpv_prefix}%"
+
+        result = await db.execute(combined_query, query_params)
         rows = result.fetchall()
 
         competitors = []

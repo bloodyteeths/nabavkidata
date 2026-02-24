@@ -119,6 +119,9 @@ export default function CompetitorsPage() {
   const [trackedCompetitors, setTrackedCompetitors] = useState<string[]>([]);
   const [trackingLoading, setTrackingLoading] = useState<string | null>(null);
 
+  // Sector filter state
+  const [sectorCpv, setSectorCpv] = useState<string | undefined>(undefined);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Array<{
@@ -163,13 +166,14 @@ export default function CompetitorsPage() {
     }
   }
 
-  async function load(selectedPeriod?: string) {
+  async function load(selectedPeriod?: string, cpvFilter?: string) {
     try {
       setLoading(true);
       setError(null);
       const result = await api.getCompetitorAnalysis({
         limit: 20,
-        period: selectedPeriod ?? period
+        period: selectedPeriod ?? period,
+        cpv_prefix: cpvFilter !== undefined ? cpvFilter : sectorCpv
       });
       setData(result);
     } catch (err: any) {
@@ -184,12 +188,12 @@ export default function CompetitorsPage() {
     }
   }
 
-  // Reload when period changes
+  // Reload when period or sector changes
   useEffect(() => {
     if (isLoggedIn && tier !== "free") {
-      load(period);
+      load(period, sectorCpv);
     }
-  }, [period]);
+  }, [period, sectorCpv]);
 
   async function loadTrackedCompetitors() {
     try {
@@ -549,6 +553,41 @@ export default function CompetitorsPage() {
 
         {/* Top Competitors Tab */}
         <TabsContent value="top" className="space-y-4">
+          {/* Sector Filter */}
+          <Card>
+            <CardContent className="py-3 px-4">
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                Филтрирај по индустрија - видете кој конкурира во вашиот сектор:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { code: undefined as string | undefined, label: "Сите сектори" },
+                  { code: "33", label: "Медицинска" },
+                  { code: "45", label: "Градежни" },
+                  { code: "30", label: "Канцелариска" },
+                  { code: "72", label: "ИТ услуги" },
+                  { code: "34", label: "Транспорт" },
+                  { code: "15", label: "Храна" },
+                  { code: "50", label: "Одржување" },
+                ].map((preset) => (
+                  <button
+                    key={preset.code || "all"}
+                    type="button"
+                    onClick={() => setSectorCpv(preset.code)}
+                    className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                      sectorCpv === preset.code
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "hover:bg-accent hover:border-primary/30 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {preset.code && <span className="font-mono text-[10px] mr-1">{preset.code}</span>}
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {loading && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {[1, 2, 3].map((i) => (
