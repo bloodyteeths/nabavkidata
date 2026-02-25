@@ -33,7 +33,9 @@ def _product_quality_filter(alias: str = "pi", level: str = "moderate") -> str:
     moderate = f"""
             AND {col}extraction_confidence >= 0.5
             AND LENGTH({col}name) BETWEEN 5 AND 200
-            AND {col}name !~ '^[0-9]+\\.'"""
+            AND {col}name !~ '^[0-9]+\\.'
+            AND {col}name !~ '^[0-9]{{6,}}'
+            AND {col}name !~ '^0{{3,}}'"""
     if level == "moderate":
         return moderate
     # strict — adds legal clause exclusions

@@ -31,7 +31,9 @@ load_dotenv()
 _PRODUCT_QUALITY_MODERATE = """
             AND pi.extraction_confidence >= 0.5
             AND LENGTH(pi.name) BETWEEN 5 AND 200
-            AND pi.name !~ '^[0-9]+\\.'"""
+            AND pi.name !~ '^[0-9]+\\.'
+            AND pi.name !~ '^[0-9]{6,}'
+            AND pi.name !~ '^0{3,}'"""
 
 # Configure logging
 logging.basicConfig(

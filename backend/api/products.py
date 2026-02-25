@@ -291,7 +291,7 @@ async def get_products_by_tender(
             specifications, cpv_code, extraction_confidence, created_at
         FROM product_items
         WHERE tender_id = :tender_id
-            {product_quality_filter("", "moderate")}
+            {product_quality_filter("", "strict")}
         ORDER BY lot_number NULLS LAST, item_number NULLS LAST, name
     """)
 
@@ -342,7 +342,7 @@ async def get_product_suggestions(
         SELECT DISTINCT name
         FROM product_items
         WHERE name ILIKE :pattern
-            {product_quality_filter("", "moderate")}
+            {product_quality_filter("", "strict")}
         ORDER BY name
         LIMIT :limit
     """)
@@ -364,25 +364,19 @@ async def get_top_product_names(
 
     Returns popular product names as clickable quick-filter chips.
     """
-    where_clauses = [
-        "name IS NOT NULL",
-        "name != ''",
-        "extraction_confidence >= 0.5",
-        "LENGTH(name) BETWEEN 5 AND 200",
-        "name !~ '^[0-9]+\\.'",  # exclude legal clause text like "1.3. ..."
-    ]
     params: dict = {"limit": limit}
 
+    cpv_filter = ""
     if cpv_code:
-        where_clauses.append("cpv_code LIKE :cpv_prefix")
+        cpv_filter = "AND cpv_code LIKE :cpv_prefix"
         params["cpv_prefix"] = f"{cpv_code}%"
-
-    where_sql = " AND ".join(where_clauses)
 
     query = text(f"""
         SELECT name, COUNT(*) as cnt
         FROM product_items
-        WHERE {where_sql}
+        WHERE name IS NOT NULL AND name != ''
+            {product_quality_filter("", "strict")}
+            {cpv_filter}
         GROUP BY name
         ORDER BY cnt DESC
         LIMIT :limit
