@@ -34,9 +34,10 @@ export default function VerifyEmailPage() {
       setStatus('success');
       setMessage('Вашата е-пошта е успешно верификувана!');
 
+      // Auto-logged in via verify-email response, redirect to dashboard
       setTimeout(() => {
-        router.push('/auth/login');
-      }, 3000);
+        router.push('/');
+      }, 2000);
     } catch (error) {
       setStatus('error');
       setMessage('Токенот е невалиден или истечен. Ве молиме побарајте нов.');
@@ -130,7 +131,7 @@ export default function VerifyEmailPage() {
           <CardContent>
             <div className="bg-green-50 dark:bg-green-950 p-4 rounded-md">
               <p className="text-sm text-green-900 dark:text-green-200 text-center">
-                Ве пренасочуваме кон страната за најава...
+                Ве пренасочуваме кон контролната табла...
               </p>
             </div>
           </CardContent>

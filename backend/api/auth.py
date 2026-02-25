@@ -448,6 +448,15 @@ async def register(
     # Check if user exists
     existing_user = await get_user_by_email(db, user_data.email)
     if existing_user:
+        if not existing_user.email_verified:
+            # User exists but never verified - resend verification email
+            from services.auth_service import generate_verification_token
+            verification_token = await generate_verification_token(db, existing_user.user_id, existing_user.email)
+            await send_verification_email_task(existing_user.email, verification_token, existing_user.full_name or "User", background_tasks)
+            return MessageResponse(
+                message="Корисникот е веќе регистриран. Испративме нов верификациски линк на вашата е-пошта.",
+                detail="Please check your email to verify your account"
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
@@ -691,9 +700,10 @@ class VerifyEmailRequest(BaseModel):
     token: str
 
 
-@router.post("/verify-email", response_model=MessageResponse)
+@router.post("/verify-email", response_model=TokenResponse)
 async def verify_email(
     data: VerifyEmailRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -701,20 +711,31 @@ async def verify_email(
 
     - Validates verification token
     - Marks email as verified
+    - Returns access/refresh tokens for auto-login
     """
     from services.auth_service import verify_email as verify_email_service
 
-    success = await verify_email_service(db, data.token)
+    user = await verify_email_service(db, data.token)
 
-    if not success:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired verification token"
         )
 
-    return MessageResponse(
-        message="Email verified successfully",
-        detail="You can now log in to your account"
+    # Auto-login: create tokens and session
+    access_token = create_access_token(data={"sub": str(user.user_id)})
+    refresh_token = create_refresh_token(data={"sub": str(user.user_id)})
+
+    client_ip = request.client.host if request else "unknown"
+    device_info = f"{request.headers.get('User-Agent', 'Unknown') if request else 'Unknown'}"
+    await create_session(db, str(user.user_id), access_token, device_info=device_info, ip_address=client_ip)
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        user=UserResponse.model_validate(user)
     )
 
 

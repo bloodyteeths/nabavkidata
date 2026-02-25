@@ -314,9 +314,10 @@ async def generate_verification_token(db: AsyncSession, user_id: UUID, email: st
     return token
 
 
-async def verify_email(db: AsyncSession, token: str) -> bool:
+async def verify_email(db: AsyncSession, token: str) -> Optional[User]:
     """
     Verify user's email with token (DB-backed lookup).
+    Returns the User object on success for auto-login, or None on failure.
     """
     result = await db.execute(
         select(User).where(User.verification_token == token)
@@ -324,7 +325,7 @@ async def verify_email(db: AsyncSession, token: str) -> bool:
     user = result.scalar_one_or_none()
 
     if not user:
-        return False
+        return None
 
     # Check if token expired
     if user.verification_token_expires_at and datetime.utcnow() > user.verification_token_expires_at:
@@ -335,7 +336,7 @@ async def verify_email(db: AsyncSession, token: str) -> bool:
             .values(verification_token=None, verification_token_expires_at=None)
         )
         await db.commit()
-        return False
+        return None
 
     # Mark email as verified and clear token
     await db.execute(
@@ -350,7 +351,9 @@ async def verify_email(db: AsyncSession, token: str) -> bool:
     )
     await db.commit()
 
-    return True
+    # Refresh user object to get updated email_verified=True
+    await db.refresh(user)
+    return user
 
 
 # ============================================================================

@@ -351,7 +351,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(errorData.detail || 'Email verification failed');
       }
 
-      await fetchUser();
+      // Backend now returns tokens for auto-login
+      const data = await response.json();
+      storeTokens({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        token_type: data.token_type
+      });
+      setUser(data.user);
+      scheduleTokenRefresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Email verification failed';
       setError(message);
