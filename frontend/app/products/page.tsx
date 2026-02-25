@@ -28,9 +28,11 @@ import {
   ArrowLeft,
   SlidersHorizontal,
   DollarSign,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { UpgradePrompt } from "@/components/billing/UpgradePrompt";
 
 // Sort options
 type SortOption = "date_desc" | "date_asc" | "price_asc" | "price_desc" | "quantity_desc";
@@ -128,6 +130,11 @@ function ProductsPageContent() {
   // Filters
   const [filters, setFilters] = useState<ProductFilterState>({});
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+  // Price gating & quota
+  const [priceGated, setPriceGated] = useState(false);
+  const [priceViewsRemaining, setPriceViewsRemaining] = useState<number | null>(null);
+  const [priceViewsLimit, setPriceViewsLimit] = useState<number | null>(null);
 
   // Popular product names for current category
   const [popularNames, setPopularNames] = useState<Array<{ name: string; count: number }>>([]);
@@ -270,6 +277,9 @@ function ProductsPageContent() {
 
         setProducts(searchResult.items);
         setTotal(searchResult.total);
+        setPriceGated(searchResult.price_gated ?? false);
+        setPriceViewsRemaining(searchResult.price_views_remaining ?? null);
+        setPriceViewsLimit(searchResult.price_views_limit ?? null);
         setPage(p);
 
         if (aggResult) {
@@ -676,46 +686,87 @@ function ProductsPageContent() {
 
         {/* Main Content */}
         <div className="lg:col-span-3 space-y-4">
-          {/* Price Statistics (only when aggregations available) */}
-          {priceStats && aggregations.length > 0 && !loading && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Card>
-                <CardContent className="p-3 md:p-4">
-                  <div className="text-base md:text-lg font-bold text-green-600 dark:text-green-400">
-                    {formatPrice(priceStats.min)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Најниска цена</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 md:p-4">
-                  <div className="text-base md:text-lg font-bold">
-                    {formatPrice(priceStats.avg)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Просечна цена</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 md:p-4">
-                  <div className="text-base md:text-lg font-bold text-red-600 dark:text-red-400">
-                    {formatPrice(priceStats.max)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Највисока цена</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 md:p-4">
-                  <div className="text-base md:text-lg font-bold">
-                    {aggregations.length}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Варијанти</p>
-                </CardContent>
-              </Card>
-            </div>
+          {/* Price quota indicator */}
+          {!loading && priceViewsLimit !== null && priceViewsLimit !== undefined && (
+            priceGated ? (
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
+                <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+                <p className="text-sm text-amber-800 dark:text-amber-300 flex-1">
+                  Ги искористивте <strong>{priceViewsLimit}/{priceViewsLimit}</strong> ценовни прегледи денес.
+                  {" "}
+                  <Link href="/billing/plans" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+                    Надградете за повеќе
+                  </Link>
+                </p>
+              </div>
+            ) : priceViewsRemaining !== null && (
+              <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-muted/30">
+                <DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
+                <p className="text-xs text-muted-foreground">
+                  Преостануваат <strong className="text-foreground">{priceViewsRemaining}</strong> од {priceViewsLimit} ценовни прегледи денес
+                </p>
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[120px] ml-auto">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      priceViewsRemaining <= Math.ceil(priceViewsLimit * 0.2) ? "bg-amber-500" : "bg-green-500"
+                    }`}
+                    style={{ width: `${Math.round((priceViewsRemaining / priceViewsLimit) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )
           )}
 
-          {/* Aggregations Table (collapsible) */}
-          {aggregations.length > 0 && !loading && (
+          {/* Price Statistics or Upgrade Prompt */}
+          {!loading && aggregations.length > 0 && (
+            priceGated ? (
+              <UpgradePrompt
+                feature="price_intelligence"
+                currentTier="free"
+                tierRequired="starter"
+                message="Надградете за да видите цени, ценовна статистика и споредба на цени по производи."
+                variant="inline"
+              />
+            ) : priceStats ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card>
+                  <CardContent className="p-3 md:p-4">
+                    <div className="text-base md:text-lg font-bold text-green-600 dark:text-green-400">
+                      {formatPrice(priceStats.min)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Најниска цена</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3 md:p-4">
+                    <div className="text-base md:text-lg font-bold">
+                      {formatPrice(priceStats.avg)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Просечна цена</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3 md:p-4">
+                    <div className="text-base md:text-lg font-bold text-red-600 dark:text-red-400">
+                      {formatPrice(priceStats.max)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Највисока цена</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3 md:p-4">
+                    <div className="text-base md:text-lg font-bold">
+                      {aggregations.length}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Варијанти</p>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : null
+          )}
+
+          {/* Aggregations Table (collapsible, only for paid users) */}
+          {aggregations.length > 0 && !loading && !priceGated && (
             <details className="group">
               <summary className="cursor-pointer list-none">
                 <Card className="hover:border-primary/30 transition-colors">
@@ -798,7 +849,9 @@ function ProductsPageContent() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(SORT_LABELS).map(([value, label]) => (
+                  {Object.entries(SORT_LABELS)
+                    .filter(([value]) => !priceGated || !value.startsWith("price_"))
+                    .map(([value, label]) => (
                     <SelectItem key={value} value={value}>
                       {label}
                     </SelectItem>
@@ -865,7 +918,7 @@ function ProductsPageContent() {
           ) : (
             <div className="space-y-3">
               {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product.id} product={product} priceGated={priceGated} />
               ))}
             </div>
           )}

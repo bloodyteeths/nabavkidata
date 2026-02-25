@@ -42,6 +42,7 @@ class ModuleName(str, Enum):
     PRIORITY_SUPPORT = "priority_support"
     TEAM_MANAGEMENT = "team_management"
     CUSTOM_INTEGRATIONS = "custom_integrations"
+    PRICE_INTELLIGENCE = "price_intelligence"
     DEDICATED_SUPPORT = "dedicated_support"
 
 
@@ -130,22 +131,26 @@ FREE_PLAN = PlanDefinition(
         ModuleName.COMPETITOR_TRACKING: AccessLevel.NONE,
         ModuleName.ALERTS: AccessLevel.NONE,
         ModuleName.API_ACCESS: AccessLevel.NONE,
+        ModuleName.PRICE_INTELLIGENCE: AccessLevel.LIMITED,
     },
     limits={
         "rag_queries": UsageLimit(daily=2, monthly=None),
         "alerts": UsageLimit(daily=0, monthly=0),
         "exports": UsageLimit(daily=0, monthly=0),
         "document_views": UsageLimit(daily=3, monthly=None),
+        "price_views": UsageLimit(daily=3, monthly=None),
     },
     features=[
         "Basic tender listing",
         "2 AI queries per day",
+        "3 price views / day",
         "No exports",
         "No saved alerts",
     ],
     features_mk=[
         "Преглед на листа тендери",
         "2 AI прашања дневно",
+        "3 ценовни прегледи дневно",
         "Без извоз",
         "Без зачувани известувања",
     ],
@@ -170,16 +175,19 @@ TRIAL_PLAN = PlanDefinition(
         ModuleName.COMPETITOR_TRACKING: AccessLevel.FULL,
         ModuleName.ALERTS: AccessLevel.FULL,
         ModuleName.API_ACCESS: AccessLevel.NONE,
+        ModuleName.PRICE_INTELLIGENCE: AccessLevel.FULL,
     },
     limits={
         "rag_queries": UsageLimit(daily=None, monthly=50),  # Credit-based
         "alerts": UsageLimit(daily=None, monthly=20),
         "exports": UsageLimit(daily=None, monthly=5),
         "document_extractions": UsageLimit(daily=None, monthly=15),
+        "price_views": UsageLimit(daily=25, monthly=None),
     },
     features=[
         "All Pro features for 7 days",
         "50 AI message credits",
+        "25 price views / day",
         "15 document extraction credits",
         "5 export credits",
         "20 competitor alert credits",
@@ -187,6 +195,7 @@ TRIAL_PLAN = PlanDefinition(
     features_mk=[
         "Сите Pro функции за 7 дена",
         "50 кредити за AI пораки",
+        "25 ценовни прегледи дневно",
         "15 кредити за екстракција на документи",
         "5 кредити за извоз",
         "20 кредити за известувања за конкуренти",
@@ -220,6 +229,7 @@ START_PLAN = PlanDefinition(
         ModuleName.COMPETITOR_TRACKING: AccessLevel.LIMITED,
         ModuleName.ALERTS: AccessLevel.LIMITED,
         ModuleName.API_ACCESS: AccessLevel.NONE,
+        ModuleName.PRICE_INTELLIGENCE: AccessLevel.FULL,
     },
     limits={
         "rag_queries": UsageLimit(daily=5, monthly=None),
@@ -227,10 +237,12 @@ START_PLAN = PlanDefinition(
         "exports": UsageLimit(daily=2, monthly=None),
         "document_extractions": UsageLimit(daily=2, monthly=None),
         "competitor_alerts": UsageLimit(daily=None, monthly=2),
+        "price_views": UsageLimit(daily=50, monthly=None),
     },
     features=[
         "5 AI queries per day",
         "AI tender summaries",
+        "50 price views / day",
         "Basic analytics",
         "Supplier profiles",
         "Document content",
@@ -241,6 +253,7 @@ START_PLAN = PlanDefinition(
     features_mk=[
         "5 AI прашања дневно",
         "AI резимеа на тендери",
+        "50 ценовни прегледи дневно",
         "Основна аналитика",
         "Профили на добавувачи",
         "Содржина на документи",
@@ -274,6 +287,7 @@ PRO_PLAN = PlanDefinition(
         ModuleName.COMPETITOR_TRACKING: AccessLevel.FULL,
         ModuleName.ALERTS: AccessLevel.FULL,
         ModuleName.API_ACCESS: AccessLevel.NONE,
+        ModuleName.PRICE_INTELLIGENCE: AccessLevel.FULL,
     },
     limits={
         "rag_queries": UsageLimit(daily=25, monthly=None),
@@ -281,12 +295,13 @@ PRO_PLAN = PlanDefinition(
         "exports": UsageLimit(daily=10, monthly=None),
         "document_extractions": UsageLimit(daily=10, monthly=None),
         "competitor_alerts": UsageLimit(daily=None, monthly=10),
+        "price_views": UsageLimit(daily=200, monthly=None),
     },
     features=[
         "25 AI queries per day",
         "Risk analysis & corruption detection",
         "AI bid advice",
-        "Price intelligence & trends",
+        "200 price views / day",
         "Tender comparison",
         "CSV & PDF export (10/day)",
         "15 saved alerts",
@@ -296,7 +311,7 @@ PRO_PLAN = PlanDefinition(
         "25 AI прашања дневно",
         "Анализа на ризик и корупција",
         "AI совети за понуди",
-        "Ценовна интелигенција и трендови",
+        "200 ценовни прегледи дневно",
         "Споредба на тендери",
         "CSV и PDF извоз (10/ден)",
         "15 зачувани известувања",
@@ -332,6 +347,7 @@ TEAM_PLAN = PlanDefinition(
         ModuleName.ALERTS: AccessLevel.UNLIMITED,
         ModuleName.API_ACCESS: AccessLevel.LIMITED,
         ModuleName.TEAM_MANAGEMENT: AccessLevel.FULL,
+        ModuleName.PRICE_INTELLIGENCE: AccessLevel.FULL,
     },
     limits={
         "rag_queries": UsageLimit(daily=100, monthly=None),
@@ -341,10 +357,12 @@ TEAM_PLAN = PlanDefinition(
         "competitor_alerts": UsageLimit(daily=None, monthly=None),
         "team_members": UsageLimit(daily=None, monthly=5),
         "api_calls": UsageLimit(daily=100, monthly=None),
+        "price_views": UsageLimit(daily=None, monthly=None),
     },
     features=[
         "Everything in Pro",
         "100 AI queries per day",
+        "Unlimited price views",
         "Unlimited alerts & exports",
         "Up to 5 team members",
         "API access (100 calls/day)",
@@ -353,6 +371,7 @@ TEAM_PLAN = PlanDefinition(
     features_mk=[
         "Сè од Про планот",
         "100 AI прашања дневно",
+        "Неограничени ценовни прегледи",
         "Неограничени известувања и извоз",
         "До 5 членови на тим",
         "API пристап (100 повици/ден)",
@@ -380,15 +399,18 @@ ENTERPRISE_PLAN = PlanDefinition(
         ModuleName.ALERTS: AccessLevel.UNLIMITED,
         ModuleName.API_ACCESS: AccessLevel.UNLIMITED,
         ModuleName.TEAM_MANAGEMENT: AccessLevel.UNLIMITED,
+        ModuleName.PRICE_INTELLIGENCE: AccessLevel.UNLIMITED,
         ModuleName.CUSTOM_INTEGRATIONS: AccessLevel.FULL,
         ModuleName.DEDICATED_SUPPORT: AccessLevel.FULL,
     },
     limits={
         "rag_queries": UsageLimit(daily=500, monthly=None),
+        "price_views": UsageLimit(daily=None, monthly=None),
     },
     features=[
         "Everything in Team",
         "500 AI queries per day",
+        "Unlimited price views",
         "Unlimited team members",
         "Unlimited API access",
         "Custom integrations",
@@ -399,6 +421,7 @@ ENTERPRISE_PLAN = PlanDefinition(
     features_mk=[
         "Се од Team пакетот",
         "500 AI прашања дневно",
+        "Неограничени ценовни прегледи",
         "Неограничен број членови на тим",
         "Неограничен API пристап",
         "Прилагодени интеграции",

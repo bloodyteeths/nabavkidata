@@ -25,6 +25,7 @@ const FEATURE_LABELS: Record<string, string> = {
   exports: 'Извоз на податоци',
   competitor_alerts: 'Следење конкуренти',
   risk_analysis: 'Анализа на ризик',
+  price_intelligence: 'Ценовна интелигенција',
 };
 
 const TIER_LABELS: Record<string, string> = {

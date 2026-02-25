@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Calendar, ChevronRight } from "lucide-react";
+import { Building2, Calendar, ChevronRight, Lock } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import type { ProductSearchResult } from "@/lib/api";
@@ -23,9 +23,10 @@ function formatQuantity(qty: number | undefined, unit: string | undefined): stri
 
 interface ProductCardProps {
   product: ProductSearchResult;
+  priceGated?: boolean;
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ product, priceGated }: ProductCardProps) {
   return (
     <Link href={`/tenders/${encodeURIComponent(product.tender_id)}`} className="block group">
       <Card className="hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer">
@@ -40,16 +41,25 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {/* Price & quantity badges */}
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {product.unit_price != null && (
-              <Badge variant="outline" className="text-xs font-medium">
-                {formatPrice(product.unit_price)}
-                {product.unit ? ` / ${product.unit}` : ""}
+            {priceGated ? (
+              <Badge variant="outline" className="text-xs font-medium text-muted-foreground gap-1">
+                <Lock className="h-3 w-3" />
+                Цена — Надградете
               </Badge>
-            )}
-            {product.total_price != null && (
-              <Badge className="bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-950 dark:text-green-300 text-xs font-medium">
-                Вкупно: {formatPrice(product.total_price)}
-              </Badge>
+            ) : (
+              <>
+                {product.unit_price != null && (
+                  <Badge variant="outline" className="text-xs font-medium">
+                    {formatPrice(product.unit_price)}
+                    {product.unit ? ` / ${product.unit}` : ""}
+                  </Badge>
+                )}
+                {product.total_price != null && (
+                  <Badge className="bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-950 dark:text-green-300 text-xs font-medium">
+                    Вкупно: {formatPrice(product.total_price)}
+                  </Badge>
+                )}
+              </>
             )}
             {product.quantity != null && (
               <Badge variant="secondary" className="text-xs">

@@ -44,10 +44,12 @@ import {
   CreditCard,
   FileSpreadsheet,
   FileType,
+  Lock,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { UpgradePrompt } from "@/components/billing/UpgradePrompt";
 
 // Compute effective status based on closing_date
 // If status is 'open' but closing_date has passed, it's actually 'closed'
@@ -183,6 +185,10 @@ export default function TenderDetailPage() {
     summary?: string;
     extraction_status: string;
     source_documents: number;
+    price_gated?: boolean;
+    price_views_remaining?: number | null;
+    price_views_limit?: number | null;
+    price_views_used?: number;
   } | null>(null);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -445,7 +451,8 @@ export default function TenderDetailPage() {
         products: result.products || [],
         summary: result.summary,
         extraction_status: result.extraction_status,
-        source_documents: result.source_documents
+        source_documents: result.source_documents,
+        price_gated: result.price_gated,
       });
     } catch (error) {
       console.error("Failed to load AI products:", error);
@@ -1738,6 +1745,36 @@ export default function TenderDetailPage() {
                         </div>
                       )}
 
+                      {/* Price gating / quota notice */}
+                      {aiProducts.price_gated && (
+                        aiProducts.price_views_limit != null && aiProducts.price_views_limit > 0 ? (
+                          <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
+                            <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+                            <p className="text-sm text-amber-800 dark:text-amber-300">
+                              Ги искористивте <strong>{aiProducts.price_views_limit}/{aiProducts.price_views_limit}</strong> ценовни прегледи денес.
+                              {" "}
+                              <a href="/billing/plans" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+                                Надградете за повеќе
+                              </a>
+                            </p>
+                          </div>
+                        ) : (
+                          <UpgradePrompt
+                            feature="price_intelligence"
+                            currentTier="free"
+                            tierRequired="starter"
+                            message="Регистрирајте се за да видите цени на производите од овој тендер."
+                            variant="banner"
+                          />
+                        )
+                      )}
+                      {/* Remaining quota indicator (when not gated) */}
+                      {!aiProducts.price_gated && aiProducts.price_views_remaining != null && aiProducts.price_views_limit != null && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>Преостануваат {aiProducts.price_views_remaining} од {aiProducts.price_views_limit} ценовни прегледи денес</span>
+                        </div>
+                      )}
+
                       {/* Products List */}
                       <div className="space-y-3">
                         {aiProducts.products.map((product, idx) => (
@@ -1762,17 +1799,28 @@ export default function TenderDetailPage() {
                                   </p>
                                 </div>
                               )}
-                              {product.unit_price && (
+                              {aiProducts.price_gated ? (
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Единечна цена</p>
-                                  <p className="font-medium">{product.unit_price}</p>
+                                  <p className="text-xs text-muted-foreground">Цена</p>
+                                  <p className="font-medium text-muted-foreground flex items-center gap-1">
+                                    <Lock className="h-3 w-3" /> Надградете
+                                  </p>
                                 </div>
-                              )}
-                              {product.total_price && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Вкупна цена</p>
-                                  <p className="font-semibold text-primary">{product.total_price}</p>
-                                </div>
+                              ) : (
+                                <>
+                                  {product.unit_price && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Единечна цена</p>
+                                      <p className="font-medium">{product.unit_price}</p>
+                                    </div>
+                                  )}
+                                  {product.total_price && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Вкупна цена</p>
+                                      <p className="font-semibold text-primary">{product.total_price}</p>
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                             {product.specifications && (

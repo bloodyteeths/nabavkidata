@@ -11,9 +11,10 @@ from datetime import datetime, timedelta
 import logging
 
 from database import get_db
-from models import ProductItem, Tender
-from middleware.entitlements import require_module
-from config.plans import ModuleName
+from models import ProductItem, Tender, User
+from middleware.entitlements import require_module, check_price_view_quota
+from middleware.rbac import get_optional_user
+from config.plans import ModuleName, has_module_access
 from schemas import (
     ProductSearchRequest,
     ProductSearchResponse,
@@ -49,6 +50,11 @@ QUALITY_FILTER = """
 _stats_cache = {"data": None, "expires": None}
 
 
+async def _check_prices(user: Optional[User], db: AsyncSession) -> dict:
+    """Check price view quota for user. Returns quota info dict."""
+    return await check_price_view_quota(user, db, increment=True)
+
+
 @router.get("/search")
 async def search_products(
     q: Optional[str] = Query(None, max_length=500, description="Search query (optional for browse mode)"),
@@ -60,7 +66,8 @@ async def search_products(
     sort_by: Optional[str] = Query("relevance", description="Sort: relevance, date_desc, date_asc, price_asc, price_desc, quantity_desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     Search or browse products across all tender documents.
@@ -156,12 +163,12 @@ async def search_products(
     """)
 
     try:
+        # Check price view quota (rate-limited per tier)
+        quota = await _check_prices(current_user, db)
+        has_prices = quota["has_quota"]
+
         result = await db.execute(search_query, params)
         rows = result.fetchall()
-
-        # Run price summary
-        price_result = await db.execute(price_summary_query, params)
-        price_row = price_result.fetchone()
 
         total = rows[0].total_count if rows else 0
 
@@ -172,8 +179,8 @@ async def search_products(
                 name=row.name,
                 quantity=row.quantity,
                 unit=row.unit,
-                unit_price=row.unit_price,
-                total_price=row.total_price,
+                unit_price=row.unit_price if has_prices else None,
+                total_price=row.total_price if has_prices else None,
                 specifications=row.specifications,
                 cpv_code=row.cpv_code,
                 extraction_confidence=row.extraction_confidence,
@@ -185,17 +192,20 @@ async def search_products(
                 winner=row.winner
             ))
 
-        # Build price summary
+        # Build price summary (only for users with price access)
         price_summary = None
-        if price_row and price_row.items_with_price and price_row.items_with_price > 0:
-            price_summary = {
-                "items_with_price": price_row.items_with_price,
-                "min_price": round(float(price_row.min_price), 2) if price_row.min_price else None,
-                "max_price": round(float(price_row.max_price), 2) if price_row.max_price else None,
-                "avg_price": round(float(price_row.avg_price), 2) if price_row.avg_price else None,
-                "median_price": round(float(price_row.median_price), 2) if price_row.median_price else None,
-                "common_unit": price_row.common_unit,
-            }
+        if has_prices:
+            price_result = await db.execute(price_summary_query, params)
+            price_row = price_result.fetchone()
+            if price_row and price_row.items_with_price and price_row.items_with_price > 0:
+                price_summary = {
+                    "items_with_price": price_row.items_with_price,
+                    "min_price": round(float(price_row.min_price), 2) if price_row.min_price else None,
+                    "max_price": round(float(price_row.max_price), 2) if price_row.max_price else None,
+                    "avg_price": round(float(price_row.avg_price), 2) if price_row.avg_price else None,
+                    "median_price": round(float(price_row.median_price), 2) if price_row.median_price else None,
+                    "common_unit": price_row.common_unit,
+                }
 
         response = {
             "query": q or "",
@@ -204,6 +214,10 @@ async def search_products(
             "page_size": page_size,
             "items": [item.dict() if hasattr(item, 'dict') else item.model_dump() for item in items],
             "price_summary": price_summary,
+            "price_gated": not has_prices,
+            "price_views_remaining": quota["remaining"],
+            "price_views_limit": quota["limit"],
+            "price_views_used": quota["used"],
         }
         return response
 
@@ -263,13 +277,16 @@ async def aggregate_products(
     )
 
 
-@router.get("/by-tender/{tender_number}/{tender_year}", response_model=List[ProductItemResponse])
+@router.get("/by-tender/{tender_number}/{tender_year}")
 async def get_products_by_tender(
     tender_number: str,
     tender_year: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """Get all product items for a specific tender"""
+    quota = await _check_prices(current_user, db)
+    has_prices = quota["has_quota"]
     tender_id = f"{tender_number}/{tender_year}"
     query = text("""
         SELECT
@@ -284,7 +301,7 @@ async def get_products_by_tender(
     result = await db.execute(query, {"tender_id": tender_id})
     rows = result.fetchall()
 
-    return [
+    items = [
         ProductItemResponse(
             id=row.id,
             tender_id=row.tender_id,
@@ -294,8 +311,8 @@ async def get_products_by_tender(
             name=row.name,
             quantity=row.quantity,
             unit=row.unit,
-            unit_price=row.unit_price,
-            total_price=row.total_price,
+            unit_price=row.unit_price if has_prices else None,
+            total_price=row.total_price if has_prices else None,
             specifications=row.specifications,
             cpv_code=row.cpv_code,
             extraction_confidence=row.extraction_confidence,
@@ -303,6 +320,14 @@ async def get_products_by_tender(
         )
         for row in rows
     ]
+
+    return {
+        "items": [item.dict() if hasattr(item, 'dict') else item.model_dump() for item in items],
+        "price_gated": not has_prices,
+        "price_views_remaining": quota["remaining"],
+        "price_views_limit": quota["limit"],
+        "price_views_used": quota["used"],
+    }
 
 
 @router.get("/suggestions")

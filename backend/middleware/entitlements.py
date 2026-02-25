@@ -132,6 +132,7 @@ class EntitlementChecker:
             ModuleName.DOCUMENT_EXTRACTION: "starter",
             ModuleName.ALERTS: "starter",
             ModuleName.RAG_SEARCH: "starter",
+            ModuleName.PRICE_INTELLIGENCE: "starter",
         }
         suggested_tier = module_to_tier.get(module, "starter")
         return {
@@ -487,6 +488,66 @@ require_competitor_tracking = require_module(ModuleName.COMPETITOR_TRACKING)
 require_api_access = require_module(ModuleName.API_ACCESS, AccessLevel.LIMITED)
 require_export_pdf = require_module(ModuleName.EXPORT_PDF)
 require_team_management = require_module(ModuleName.TEAM_MANAGEMENT)
+
+
+# ============================================================================
+# PRICE VIEW QUOTA
+# ============================================================================
+
+async def check_price_view_quota(
+    user: Optional[User],
+    db: AsyncSession,
+    increment: bool = True,
+) -> Dict[str, Any]:
+    """
+    Check if user has remaining daily price view quota.
+
+    Counting strategy: 1 price view = 1 search page or 1 tender detail view.
+
+    Args:
+        user: User object (None for anonymous)
+        db: Database session
+        increment: Whether to consume a view if quota available
+
+    Returns:
+        Dict with has_quota, remaining, limit, used
+    """
+    # Anonymous users get no price views
+    if not user:
+        return {"has_quota": False, "remaining": 0, "limit": 0, "used": 0}
+
+    tier = (user.subscription_tier or "free").lower()
+    daily_limit = get_daily_limit(tier, "price_views")
+
+    # None means unlimited
+    if daily_limit is None:
+        return {"has_quota": True, "remaining": None, "limit": None, "used": 0}
+
+    # Zero means no access
+    if daily_limit == 0:
+        return {"has_quota": False, "remaining": 0, "limit": 0, "used": 0}
+
+    daily_count = await get_usage_count(db, str(user.user_id), "price_views", "daily")
+
+    if daily_count >= daily_limit:
+        return {
+            "has_quota": False,
+            "remaining": 0,
+            "limit": daily_limit,
+            "used": daily_count,
+        }
+
+    # Increment counter if requested
+    if increment:
+        await increment_usage(db, str(user.user_id), "price_views", daily_limit, None)
+
+    remaining = daily_limit - daily_count - (1 if increment else 0)
+    return {
+        "has_quota": True,
+        "remaining": remaining,
+        "limit": daily_limit,
+        "used": daily_count + (1 if increment else 0),
+    }
 
 
 async def require_paid_plan(

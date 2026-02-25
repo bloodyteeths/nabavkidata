@@ -59,6 +59,7 @@ SUBSCRIPTION_PLANS = {
             "Преглед на листа тендери",
             "Основно пребарување",
             "2 AI прашања дневно",
+            "3 ценовни прегледи дневно",
             "Без извоз и известувања"
         ],
         "limits": {
@@ -68,7 +69,8 @@ SUBSCRIPTION_PLANS = {
             "doc_extractions_per_day": 0,
             "competitor_alerts": 0,
             "ai_summary": False,
-            "risk_analysis": False
+            "risk_analysis": False,
+            "price_views_per_day": 3
         }
     },
     "trial": {
@@ -78,6 +80,7 @@ SUBSCRIPTION_PLANS = {
         "stripe_price_id": None,
         "features": [
             "50 AI пораки (кредит)",
+            "25 ценовни прегледи дневно",
             "15 екстракции на документи",
             "5 извози",
             "20 известувања за конкуренти",
@@ -90,7 +93,8 @@ SUBSCRIPTION_PLANS = {
             "doc_extractions_per_day": 15,
             "competitor_alerts": 20,
             "ai_summary": True,
-            "risk_analysis": True
+            "risk_analysis": True,
+            "price_views_per_day": 25
         }
     },
     "starter": {
@@ -103,6 +107,7 @@ SUBSCRIPTION_PLANS = {
         "features": [
             "5 AI прашања дневно",
             "AI резимеа на тендери",
+            "50 ценовни прегледи дневно",
             "Основна аналитика",
             "Профили на добавувачи",
             "Содржина на документи",
@@ -118,7 +123,8 @@ SUBSCRIPTION_PLANS = {
             "competitor_alerts": 2,
             "ai_summary": True,
             "risk_analysis": False,
-            "team_members": 1
+            "team_members": 1,
+            "price_views_per_day": 50
         }
     },
     "professional": {
@@ -132,7 +138,7 @@ SUBSCRIPTION_PLANS = {
             "25 AI прашања дневно",
             "Анализа на ризик и корупција",
             "AI совети за понуди",
-            "Ценовна интелигенција и трендови",
+            "200 ценовни прегледи дневно",
             "Споредба на тендери",
             "CSV и PDF извоз (10/ден)",
             "15 зачувани известувања",
@@ -146,7 +152,8 @@ SUBSCRIPTION_PLANS = {
             "competitor_alerts": 10,
             "ai_summary": True,
             "risk_analysis": True,
-            "team_members": 1
+            "team_members": 1,
+            "price_views_per_day": 200
         }
     },
     "enterprise": {
@@ -159,6 +166,7 @@ SUBSCRIPTION_PLANS = {
         "features": [
             "Сè од Про планот",
             "100 AI прашања дневно",
+            "Неограничени ценовни прегледи",
             "API пристап (100 повици/ден)",
             "До 5 членови на тим",
             "Неограничени известувања и извоз",
@@ -173,7 +181,8 @@ SUBSCRIPTION_PLANS = {
             "ai_summary": True,
             "risk_analysis": True,
             "api_access": True,
-            "team_members": 10
+            "team_members": 10,
+            "price_views_per_day": -1
         }
     }
 }

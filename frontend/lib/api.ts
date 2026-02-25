@@ -337,6 +337,10 @@ export interface ProductSearchResponse {
   page: number;
   page_size: number;
   items: ProductSearchResult[];
+  price_gated?: boolean;
+  price_views_remaining?: number | null;
+  price_views_limit?: number | null;
+  price_views_used?: number;
 }
 
 export interface ProductAggregation {
@@ -1722,6 +1726,10 @@ class APIClient {
       }>;
       summary?: string;
       source_documents: number;
+      price_gated?: boolean;
+      price_views_remaining?: number | null;
+      price_views_limit?: number | null;
+      price_views_used?: number;
     }>(`/api/tenders/by-id/${encodeURIComponent(tenderId)}/ai-products`);
   }
 

@@ -11,7 +11,9 @@ from datetime import datetime
 from decimal import Decimal
 
 from database import get_db
-from models import Tender
+from models import Tender, User
+from middleware.rbac import get_optional_user
+from middleware.entitlements import check_price_view_quota
 from utils.timezone import get_ai_date_context
 
 router = APIRouter(prefix="/tenders", tags=["tender-details"])
@@ -437,33 +439,29 @@ class AIProductsResponse(BaseModel):
     source_documents: int = 0
 
 
-@router.get("/by-id/{tender_number}/{tender_year}/ai-products", response_model=AIProductsResponse)
+@router.get("/by-id/{tender_number}/{tender_year}/ai-products")
 async def extract_products_with_ai(
     tender_number: str,
     tender_year: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
-    Extract products/services from tender documents using AI.
+    Get products/services for a tender.
 
-    This endpoint:
-    1. Fetches all documents for the tender with content_text
-    2. Sends the content to Gemini AI for extraction
-    3. Returns structured product data (items, quantities, prices, specifications)
-
-    Parameters:
-    - tender_number: The tender number part (e.g., "21307")
-    - tender_year: The tender year part (e.g., "2025")
-
-    Returns:
-    - List of AI-extracted products with quantities, prices, specifications
+    Strategy:
+    1. Return pre-extracted products from product_items table (fast, free)
+    2. Only fall back to real-time Gemini if no pre-extracted data exists
     """
     import os
     import json
     import asyncio
-    import google.generativeai as genai
 
     tender_id = f"{tender_number}/{tender_year}"
+
+    # Check price view quota (rate-limited per tier)
+    price_quota = await check_price_view_quota(current_user, db, increment=True)
+    price_access = price_quota["has_quota"]
 
     # Verify tender exists
     tender = await db.execute(
@@ -472,6 +470,73 @@ async def extract_products_with_ai(
     tender_row = tender.scalar_one_or_none()
     if not tender_row:
         raise HTTPException(status_code=404, detail="Tender not found")
+
+    # ── Step 1: Check product_items table for pre-extracted data ──
+    items_query = text("""
+        SELECT pi.name, pi.quantity, pi.unit, pi.unit_price, pi.total_price,
+               pi.specifications, pi.cpv_code, pi.extraction_method
+        FROM product_items pi
+        WHERE pi.tender_id = :tender_id
+          AND pi.name IS NOT NULL
+          AND LENGTH(pi.name) >= 3
+        ORDER BY pi.item_number
+    """)
+    items_result = await db.execute(items_query, {"tender_id": tender_id})
+    pre_extracted = items_result.fetchall()
+
+    if pre_extracted:
+        products = []
+        for item in pre_extracted:
+            specs = item.specifications
+            if isinstance(specs, str):
+                try:
+                    specs_data = json.loads(specs)
+                    specs = specs_data.get('specifications', specs)
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+            elif isinstance(specs, dict):
+                specs = specs.get('specifications', json.dumps(specs, ensure_ascii=False))
+
+            products.append(AIExtractedProduct(
+                name=item.name,
+                quantity=str(item.quantity) if item.quantity else None,
+                unit=item.unit,
+                unit_price=str(item.unit_price) if item.unit_price else None,
+                total_price=str(item.total_price) if item.total_price else None,
+                specifications=specs if isinstance(specs, str) else None,
+                category=item.cpv_code
+            ))
+
+        # Count source documents
+        doc_count_q = text("""
+            SELECT COUNT(DISTINCT document_id) FROM product_items
+            WHERE tender_id = :tender_id
+        """)
+        doc_count_result = await db.execute(doc_count_q, {"tender_id": tender_id})
+        source_docs = doc_count_result.scalar() or 0
+
+        items_with_price = sum(1 for p in products if p.unit_price)
+        summary = f"Извлечени {len(products)} производи/услуги ({items_with_price} со цена) од тендерската документација."
+
+        if not price_access:
+            for p in products:
+                p.unit_price = None
+                p.total_price = None
+
+        return {
+            "tender_id": tender_id,
+            "extraction_status": "success",
+            "products": [p.dict() if hasattr(p, 'dict') else p.model_dump() for p in products],
+            "summary": summary,
+            "source_documents": source_docs,
+            "price_gated": not price_access,
+            "price_views_remaining": price_quota["remaining"],
+            "price_views_limit": price_quota["limit"],
+            "price_views_used": price_quota["used"],
+        }
+
+    # ── Step 2: Fall back to real-time Gemini extraction ──
+    import google.generativeai as genai
 
     # Get documents with content_text
     docs_query = text("""
@@ -503,7 +568,6 @@ async def extract_products_with_ai(
         if len(combined_content) + len(content) < 15000:
             combined_content += f"\n\n=== Документ: {doc.file_name} ===\n{content}"
         else:
-            # Add truncated content
             remaining = 15000 - len(combined_content)
             if remaining > 500:
                 combined_content += f"\n\n=== Документ: {doc.file_name} ===\n{content[:remaining]}..."
@@ -518,18 +582,20 @@ async def extract_products_with_ai(
             source_documents=len(docs)
         )
 
-    # Configure Gemini
     gemini_api_key = os.getenv('GEMINI_API_KEY')
     if not gemini_api_key:
-        raise HTTPException(status_code=503, detail="AI service not configured")
+        return AIProductsResponse(
+            tender_id=tender_id,
+            extraction_status="extraction_failed",
+            products=[],
+            summary="AI сервисот не е конфигуриран.",
+            source_documents=len(docs)
+        )
 
     genai.configure(api_key=gemini_api_key)
     model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
-
-    # Add date context
     date_context = get_ai_date_context()
 
-    # Build extraction prompt
     extraction_prompt = f"""{date_context}
 
 Ти си експерт за анализа на тендерска документација. Од следниот текст извлечен од PDF документи, идентификувај ги сите ПРОИЗВОДИ, УСЛУГИ или СТАВКИ што се бараат во тендерот.
@@ -575,39 +641,29 @@ async def extract_products_with_ai(
 
     try:
         def _sync_generate():
-            # No safety settings to avoid blocks
             model_obj = genai.GenerativeModel(model_name)
             response = model_obj.generate_content(
                 extraction_prompt,
                 generation_config=genai.GenerationConfig(
-                    temperature=0.1,  # Low temperature for structured extraction
-                    max_output_tokens=2000
+                    temperature=0.1,
+                    max_output_tokens=8192
                 )
             )
-
-            # Handle safety blocks (finish_reason=2 means SAFETY)
             if hasattr(response, 'candidates') and response.candidates:
                 candidate = response.candidates[0]
                 if hasattr(candidate, 'finish_reason'):
-                    # finish_reason: 1=STOP (normal), 2=SAFETY, 3=RECITATION, 4=OTHER
-                    if candidate.finish_reason == 2:
-                        return None  # Safety block
-                    elif candidate.finish_reason in [3, 4]:
-                        return None  # Other block
-
-            # Try to get text, handle empty responses
+                    if candidate.finish_reason in [2, 3, 4]:
+                        return None
             try:
-                text = response.text
-                if not text or not text.strip():
+                resp_text = response.text
+                if not resp_text or not resp_text.strip():
                     return None
-                return text
+                return resp_text
             except ValueError:
-                # No valid response parts
                 return None
 
         response_text = await asyncio.to_thread(_sync_generate)
 
-        # Handle blocked or empty responses
         if response_text is None:
             return AIProductsResponse(
                 tender_id=tender_id,
@@ -617,7 +673,6 @@ async def extract_products_with_ai(
                 source_documents=len(docs)
             )
 
-        # Clean up response - extract JSON from markdown if needed
         response_text = response_text.strip()
         if response_text.startswith("```json"):
             response_text = response_text[7:]
@@ -627,11 +682,9 @@ async def extract_products_with_ai(
             response_text = response_text[:-3]
         response_text = response_text.strip()
 
-        # Parse JSON response
         try:
             extracted_data = json.loads(response_text)
         except json.JSONDecodeError:
-            # Try to find JSON in the response
             import re
             json_match = re.search(r'\{[\s\S]*\}', response_text)
             if json_match:
@@ -645,26 +698,29 @@ async def extract_products_with_ai(
                     source_documents=len(docs)
                 )
 
-        # Convert to response model
         products = []
         for p in extracted_data.get("products", []):
             products.append(AIExtractedProduct(
                 name=p.get("name", "Непознат производ"),
                 quantity=p.get("quantity"),
                 unit=p.get("unit"),
-                unit_price=p.get("unit_price"),
-                total_price=p.get("total_price"),
+                unit_price=p.get("unit_price") if price_access else None,
+                total_price=p.get("total_price") if price_access else None,
                 specifications=p.get("specifications"),
                 category=p.get("category")
             ))
 
-        return AIProductsResponse(
-            tender_id=tender_id,
-            extraction_status="success",
-            products=products,
-            summary=extracted_data.get("summary"),
-            source_documents=len(docs)
-        )
+        return {
+            "tender_id": tender_id,
+            "extraction_status": "success",
+            "products": [p.dict() if hasattr(p, 'dict') else p.model_dump() for p in products],
+            "summary": extracted_data.get("summary"),
+            "source_documents": len(docs),
+            "price_gated": not price_access,
+            "price_views_remaining": price_quota["remaining"],
+            "price_views_limit": price_quota["limit"],
+            "price_views_used": price_quota["used"],
+        }
 
     except Exception as e:
         import traceback
