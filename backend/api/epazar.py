@@ -608,32 +608,44 @@ async def get_epazar_items_aggregations_batch(
         if not item_names or len(item_names) > 100:
             return {"aggregations": {}}
 
-        # Build a query that matches each item name using first 3 words
-        # and excludes the current tender
-        results = {}
+        # Build search terms (first 3 words of each item name)
         search_terms = []
         for name in item_names:
             words = name.strip().split()[:3]
             search_terms.append(" ".join(words))
 
-        # Single query: for each search term, find aggregated prices
-        # Use UNNEST to pass all search terms at once
+        # Deduplicate search terms
+        unique_terms = list(set(search_terms))
+
+        # Build VALUES clause with numbered params: VALUES (:t0), (:t1), ...
+        values_parts = []
+        params = {}
+        for idx, term in enumerate(unique_terms):
+            param_name = f"t{idx}"
+            values_parts.append(f"(:{param_name})")
+            params[param_name] = term
+
+        exclude_clause = "AND i.tender_id != :exclude_tender" if tender_id else ""
+        if tender_id:
+            params["exclude_tender"] = tender_id
+
+        values_sql = ", ".join(values_parts)
+
         result = await db.execute(
-            text("""
-                WITH search_terms AS (
-                    SELECT unnest(:terms::text[]) AS term
+            text(f"""
+                WITH search_terms(term) AS (
+                    VALUES {values_sql}
                 ),
                 matched AS (
                     SELECT
                         st.term AS search_term,
-                        i.item_name,
                         i.estimated_unit_price_mkd,
                         i.tender_id
                     FROM search_terms st
                     JOIN epazar_items i ON i.item_name ILIKE '%' || st.term || '%'
                     WHERE i.estimated_unit_price_mkd IS NOT NULL
                       AND i.estimated_unit_price_mkd > 0
-                      AND (:exclude_tender IS NULL OR i.tender_id != :exclude_tender)
+                      {exclude_clause}
                 )
                 SELECT
                     search_term,
@@ -644,7 +656,7 @@ async def get_epazar_items_aggregations_batch(
                 FROM matched
                 GROUP BY search_term
             """),
-            {"terms": search_terms, "exclude_tender": tender_id}
+            params
         )
 
         rows = result.fetchall()
