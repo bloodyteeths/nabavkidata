@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Building2, TrendingUp, Award, Package, ChevronLeft, ChevronRight, Sparkles, Tag } from 'lucide-react';
+import { Search, Building2, TrendingUp, Award, Package, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Sparkles, Tag, Lock } from 'lucide-react';
 import { api, EPazarTender, EPazarStats } from '@/lib/api';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,6 +47,7 @@ export default function EPazarPage() {
   const pageSize = 12;
 
   // Price check state
+  const [priceCheckOpen, setPriceCheckOpen] = useState(false);
   const [priceSearch, setPriceSearch] = useState('');
   const [productSuggestions, setProductSuggestions] = useState<Array<{
     name: string;
@@ -82,6 +83,7 @@ export default function EPazarPage() {
   } | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceSearched, setPriceSearched] = useState(false);
+  const [priceAuthRequired, setPriceAuthRequired] = useState(false);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -141,27 +143,28 @@ export default function EPazarPage() {
     setPriceSearched(true);
     setPriceIntelligence(null);
     setShowSuggestions(false);
+    setPriceAuthRequired(false);
 
     try {
-      // First search for matching products
       const searchResult = await api.searchEPazarProducts(priceSearch);
 
       if (searchResult.products.length === 0) {
-        // No products found
         setProductSuggestions([]);
         setPriceIntelligence(null);
       } else if (searchResult.products.length === 1) {
-        // Only one product - show prices directly
         setProductSuggestions([]);
         const data = await api.getEPazarPriceIntelligence({ search: searchResult.products[0].name });
         setPriceIntelligence(data);
       } else {
-        // Multiple products - show suggestions
         setProductSuggestions(searchResult.products);
         setShowSuggestions(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to search prices:', err);
+      const isAuthError = err?.message?.includes('401') || err?.message?.includes('Unauthorized') || err?.message?.includes('403') || err?.status === 401 || err?.status === 403;
+      if (isAuthError) {
+        setPriceAuthRequired(true);
+      }
       setPriceIntelligence(null);
       setProductSuggestions([]);
     } finally {
@@ -177,8 +180,12 @@ export default function EPazarPage() {
     try {
       const data = await api.getEPazarPriceIntelligence({ search: productName });
       setPriceIntelligence(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to get prices:', err);
+      const isAuthError = err?.message?.includes('401') || err?.message?.includes('Unauthorized') || err?.message?.includes('403') || err?.status === 401 || err?.status === 403;
+      if (isAuthError) {
+        setPriceAuthRequired(true);
+      }
       setPriceIntelligence(null);
     } finally {
       setPriceLoading(false);
@@ -199,242 +206,66 @@ export default function EPazarPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 p-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold">е-Пазар - Електронски Пазар</h1>
-          <p className="text-gray-500">Тендери и цени од e-pazar.gov.mk</p>
-        </div>
-
-        {/* Explainer - what is e-Pazar */}
-        <Card className="border-blue-500/20 bg-blue-500/5">
-          <CardContent className="p-4 flex items-start gap-3">
-            <div className="h-8 w-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <Sparkles className="h-4 w-4 text-blue-400" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Што е е-Пазар?</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                е-Пазар е систем за <strong>мали набавки</strong> (обично под 500,000 ден) каде институциите директно бараат понуди за производи и услуги.
-                За разлика од формалните тендери на <Link href="/tenders" className="text-primary hover:underline">Тендери</Link>, тука процесот е побрз и поедноставен -
-                идеално за фирми кои продаваат стандардни производи.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Тендери</p>
-                  <p className="text-2xl font-bold">{stats?.total_tenders?.toLocaleString() || '-'}</p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-blue-500 opacity-80" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Ставки</p>
-                  <p className="text-2xl font-bold">{stats?.total_items?.toLocaleString() || '-'}</p>
-                </div>
-                <Package className="h-8 w-8 text-green-500 opacity-80" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Добавувачи</p>
-                  <p className="text-2xl font-bold">{stats?.total_suppliers?.toLocaleString() || '-'}</p>
-                </div>
-                <Building2 className="h-8 w-8 text-purple-500 opacity-80" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Вкупна вредност</p>
-                  <p className="text-2xl font-bold">{formatCurrency(stats?.total_value_mkd || 0)}</p>
-                </div>
-                <Award className="h-8 w-8 text-yellow-500 opacity-80" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Price Check Tool */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Провери пазарна цена
-            </CardTitle>
-            <CardDescription>
-              Внесете производ за да видите мин/просек/макс цени (работи кирилица и латиница)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <form onSubmit={handlePriceSearch} className="flex gap-2">
+      <div className="space-y-4 p-6">
+        {/* Header + Search */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">е-Пазар</h1>
+            <p className="text-sm text-muted-foreground">Мали набавки од e-pazar.gov.mk</p>
+          </div>
+          <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto md:min-w-[320px]">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="пр. хартија А4, тонер, гориво, канцелариски..."
-                value={priceSearch}
-                onChange={(e) => setPriceSearch(e.target.value)}
-                className="flex-1"
+                placeholder="Пребарај тендери..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-10"
               />
-              <Button type="submit" disabled={priceLoading}>
-                {priceLoading ? 'Барам...' : 'Провери'}
-              </Button>
-            </form>
+            </div>
+            <Button type="submit">Барај</Button>
+          </form>
+        </div>
 
-            {/* Product Suggestions - like Google search */}
-            {priceSearched && !priceLoading && showSuggestions && productSuggestions.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Пронајдени {productSuggestions.length} производи - изберете:</p>
-                <div className="grid gap-2">
-                  {productSuggestions.map((product, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => selectProduct(product.name)}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-                    >
-                      <div>
-                        <span className="font-medium">{product.name}</span>
-                        <span className="text-xs text-muted-foreground ml-2">({product.count} понуди)</span>
-                      </div>
-                      {product.avg_price && (
-                        <span className="text-sm font-semibold text-primary">
-                          ~{formatCurrency(product.avg_price)}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* Compact Stats Strip */}
+        <div className="flex flex-wrap gap-4 p-3 rounded-lg border bg-card">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-blue-500" />
+            <div>
+              <p className="text-xs text-muted-foreground">Тендери</p>
+              <p className="text-sm font-bold">{stats?.total_tenders?.toLocaleString() || '-'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-green-500" />
+            <div>
+              <p className="text-xs text-muted-foreground">Ставки</p>
+              <p className="text-sm font-bold">{stats?.total_items?.toLocaleString() || '-'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-purple-500" />
+            <div>
+              <p className="text-xs text-muted-foreground">Добавувачи</p>
+              <p className="text-sm font-bold">{stats?.total_suppliers?.toLocaleString() || '-'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Award className="h-4 w-4 text-yellow-500" />
+            <div>
+              <p className="text-xs text-muted-foreground">Вкупна вредност</p>
+              <p className="text-sm font-bold">{stats?.total_value_mkd ? formatCurrency(stats.total_value_mkd) : '-'}</p>
+            </div>
+          </div>
+        </div>
 
-            {/* No results - with fallback links */}
-            {priceSearched && !priceLoading && !showSuggestions && productSuggestions.length === 0 && !priceIntelligence && (
-              <div className="text-center py-4 space-y-2">
-                <p className="text-muted-foreground">Нема резултати за &ldquo;{priceSearch}&rdquo; во е-Пазар</p>
-                <p className="text-xs text-muted-foreground">Обидете се со пократок збор (пр. &ldquo;хартија&rdquo; наместо &ldquo;хартија А4&rdquo;)</p>
-                <div className="flex justify-center gap-2 mt-3">
-                  <Link href={`/products?search=${encodeURIComponent(priceSearch)}`}>
-                    <Button variant="outline" size="sm">
-                      <Package className="h-3 w-3 mr-1" />
-                      Барај во Каталог на Производи
-                    </Button>
-                  </Link>
-                  <Link href={`/tenders?search=${encodeURIComponent(priceSearch)}`}>
-                    <Button variant="outline" size="sm">
-                      <Search className="h-3 w-3 mr-1" />
-                      Барај во Тендери
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            {/* Price Intelligence Results */}
-            {priceSearched && !priceLoading && priceIntelligence && priceIntelligence.sample_size > 0 && (
-              <div className="space-y-4">
-                {/* Main Price Stats - using P25/P75 for typical range */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-muted/50 rounded-lg p-4 text-center border">
-                    <p className="text-xs text-muted-foreground uppercase font-medium">Ниска цена</p>
-                    <p className="text-xl font-bold text-foreground">
-                      {formatCurrency(priceIntelligence.actual_prices?.p25 || priceIntelligence.recommended_bid_min_mkd || 0)}
-                    </p>
-                  </div>
-                  <div className="bg-primary/10 rounded-lg p-4 text-center border border-primary/20">
-                    <p className="text-xs text-primary uppercase font-medium">Просек</p>
-                    <p className="text-xl font-bold text-primary">
-                      {formatCurrency(priceIntelligence.actual_prices?.avg || priceIntelligence.market_avg_mkd || 0)}
-                    </p>
-                  </div>
-                  <div className="bg-muted/50 rounded-lg p-4 text-center border">
-                    <p className="text-xs text-muted-foreground uppercase font-medium">Висока цена</p>
-                    <p className="text-xl font-bold text-foreground">
-                      {formatCurrency(priceIntelligence.actual_prices?.p75 || priceIntelligence.recommended_bid_max_mkd || 0)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Product name that was matched */}
-                {priceIntelligence.product_name && (
-                  <p className="text-sm text-muted-foreground">
-                    Производ: <span className="font-medium text-foreground">{priceIntelligence.product_name}</span>
-                  </p>
-                )}
-
-                  {/* Winning Brands from Evaluation Data */}
-                  {priceIntelligence.winning_brands && priceIntelligence.winning_brands.length > 0 && (
-                    <div className="bg-muted/30 rounded-lg p-3 border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium">Победнички брендови</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {priceIntelligence.winning_brands.slice(0, 5).map((brand, idx) => (
-                          <Badge key={idx} variant="secondary">
-                            <Tag className="h-3 w-3 mr-1" />
-                            {brand.brand}
-                            <span className="text-xs text-muted-foreground ml-1">({brand.wins}x)</span>
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* AI Recommendation */}
-                  {priceIntelligence.ai_recommendation && (
-                    <div className="text-sm text-muted-foreground border-t pt-3">
-                      {priceIntelligence.ai_recommendation}
-                    </div>
-                  )}
-
-                <p className="text-xs text-muted-foreground text-right">
-                  Базирано на {priceIntelligence.actual_prices?.sample_size || priceIntelligence.sample_size} тендери
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Tender Search */}
-        <Card>
-          <CardContent className="pt-6">
-            <form onSubmit={handleSearch} className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Пребарај тендери (кирилица или латиница)..."
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Button type="submit">Барај</Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Tenders List */}
+        {/* Tender List */}
         <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-lg font-semibold">
               {search ? `Резултати за "${search}"` : 'Последни тендери'}
-              <span className="text-sm font-normal text-gray-500 ml-2">({tendersTotal} вкупно)</span>
+              <span className="text-sm font-normal text-muted-foreground ml-2">({tendersTotal})</span>
             </h2>
           </div>
 
@@ -443,18 +274,18 @@ export default function EPazarPage() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i} className="animate-pulse">
                   <CardHeader>
-                    <div className="h-5 bg-gray-200 rounded w-1/4 mb-2" />
-                    <div className="h-6 bg-gray-200 rounded w-3/4" />
+                    <div className="h-5 bg-muted rounded w-1/4 mb-2" />
+                    <div className="h-6 bg-muted rounded w-3/4" />
                   </CardHeader>
                   <CardContent>
-                    <div className="h-4 bg-gray-200 rounded w-full" />
+                    <div className="h-4 bg-muted rounded w-full" />
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : tenders.length === 0 ? (
             <Card>
-              <CardContent className="pt-6 text-center text-gray-500">
+              <CardContent className="pt-6 text-center text-muted-foreground">
                 {search ? `Нема резултати за "${search}"` : 'Нема тендери'}
               </CardContent>
             </Card>
@@ -469,7 +300,7 @@ export default function EPazarPage() {
                           <Badge variant={getStatusVariant(tender.status)}>
                             {getStatusLabel(tender.status)}
                           </Badge>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-muted-foreground">
                             {tender.publication_date ? formatDate(tender.publication_date) : ''}
                           </span>
                         </div>
@@ -485,15 +316,17 @@ export default function EPazarPage() {
                         <div className="text-sm">
                           {tender.estimated_value_mkd ? (
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Вредност:</span>
+                              <span className="text-muted-foreground">Вредност:</span>
                               <span className="font-semibold">{formatCurrency(tender.estimated_value_mkd)}</span>
                             </div>
                           ) : tender.awarded_value_mkd ? (
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Доделено:</span>
+                              <span className="text-muted-foreground">Доделено:</span>
                               <span className="font-semibold text-green-600">{formatCurrency(tender.awarded_value_mkd)}</span>
                             </div>
-                          ) : null}
+                          ) : (
+                            <div className="text-xs text-muted-foreground italic">Вредноста не е наведена</div>
+                          )}
                         </div>
                         <div className="flex justify-between items-center mt-3">
                           <span className="text-xs text-muted-foreground">{tender.cpv_code || ''}</span>
@@ -523,7 +356,7 @@ export default function EPazarPage() {
                     <ChevronLeft className="h-4 w-4" />
                     Претходна
                   </Button>
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-muted-foreground">
                     Страна {page} од {totalPages}
                   </span>
                   <Button
@@ -540,6 +373,157 @@ export default function EPazarPage() {
             </>
           )}
         </div>
+
+        {/* Price Check Tool - Collapsible, below tenders */}
+        <Card>
+          <button
+            onClick={() => setPriceCheckOpen(!priceCheckOpen)}
+            className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors rounded-lg"
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Провери пазарна цена</span>
+              <span className="text-xs text-muted-foreground">— мин/просек/макс за производ</span>
+            </div>
+            {priceCheckOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          {priceCheckOpen && (
+            <CardContent className="pt-0 space-y-4">
+              <form onSubmit={handlePriceSearch} className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="пр. хартија А4, тонер, гориво, канцелариски..."
+                  value={priceSearch}
+                  onChange={(e) => setPriceSearch(e.target.value)}
+                  className="flex-1"
+                />
+                <Button type="submit" disabled={priceLoading}>
+                  {priceLoading ? 'Барам...' : 'Провери'}
+                </Button>
+              </form>
+
+              {/* Product Suggestions */}
+              {priceSearched && !priceLoading && showSuggestions && productSuggestions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Пронајдени {productSuggestions.length} производи — изберете:</p>
+                  <div className="grid gap-2">
+                    {productSuggestions.map((product, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => selectProduct(product.name)}
+                        className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+                      >
+                        <div>
+                          <span className="font-medium">{product.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">({product.count} понуди)</span>
+                        </div>
+                        {product.avg_price && (
+                          <span className="text-sm font-semibold text-primary">
+                            ~{formatCurrency(product.avg_price)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Auth required — upgrade prompt */}
+              {priceAuthRequired && !priceLoading && (
+                <div className="text-center py-6 space-y-3">
+                  <Lock className="h-8 w-8 text-muted-foreground mx-auto" />
+                  <p className="font-medium">Ценовната анализа е достапна за претплатници</p>
+                  <p className="text-sm text-muted-foreground">Надградете го вашиот план за пристап до пазарни цени, препорачани понуди и победнички брендови.</p>
+                  <Link href="/billing/plans">
+                    <Button size="sm" className="mt-2">Прегледај планови</Button>
+                  </Link>
+                </div>
+              )}
+
+              {/* No results */}
+              {priceSearched && !priceLoading && !showSuggestions && productSuggestions.length === 0 && !priceIntelligence && !priceAuthRequired && (
+                <div className="text-center py-4 space-y-2">
+                  <p className="text-muted-foreground">Нема резултати за &ldquo;{priceSearch}&rdquo; во е-Пазар</p>
+                  <p className="text-xs text-muted-foreground">Обидете се со пократок збор (пр. &ldquo;хартија&rdquo; наместо &ldquo;хартија А4&rdquo;)</p>
+                  <div className="flex justify-center gap-2 mt-3">
+                    <Link href={`/products?search=${encodeURIComponent(priceSearch)}`}>
+                      <Button variant="outline" size="sm">
+                        <Package className="h-3 w-3 mr-1" />
+                        Барај во Каталог
+                      </Button>
+                    </Link>
+                    <Link href={`/tenders?search=${encodeURIComponent(priceSearch)}`}>
+                      <Button variant="outline" size="sm">
+                        <Search className="h-3 w-3 mr-1" />
+                        Барај во Тендери
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Price Intelligence Results */}
+              {priceSearched && !priceLoading && priceIntelligence && priceIntelligence.sample_size > 0 && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-muted/50 rounded-lg p-4 text-center border">
+                      <p className="text-xs text-muted-foreground uppercase font-medium">Ниска цена</p>
+                      <p className="text-xl font-bold text-foreground">
+                        {formatCurrency(priceIntelligence.actual_prices?.p25 || priceIntelligence.recommended_bid_min_mkd || 0)}
+                      </p>
+                    </div>
+                    <div className="bg-primary/10 rounded-lg p-4 text-center border border-primary/20">
+                      <p className="text-xs text-primary uppercase font-medium">Просек</p>
+                      <p className="text-xl font-bold text-primary">
+                        {formatCurrency(priceIntelligence.actual_prices?.avg || priceIntelligence.market_avg_mkd || 0)}
+                      </p>
+                    </div>
+                    <div className="bg-muted/50 rounded-lg p-4 text-center border">
+                      <p className="text-xs text-muted-foreground uppercase font-medium">Висока цена</p>
+                      <p className="text-xl font-bold text-foreground">
+                        {formatCurrency(priceIntelligence.actual_prices?.p75 || priceIntelligence.recommended_bid_max_mkd || 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {priceIntelligence.product_name && (
+                    <p className="text-sm text-muted-foreground">
+                      Производ: <span className="font-medium text-foreground">{priceIntelligence.product_name}</span>
+                    </p>
+                  )}
+
+                  {priceIntelligence.winning_brands && priceIntelligence.winning_brands.length > 0 && (
+                    <div className="bg-muted/30 rounded-lg p-3 border">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">Победнички брендови</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {priceIntelligence.winning_brands.slice(0, 5).map((brand, idx) => (
+                          <Badge key={idx} variant="secondary">
+                            <Tag className="h-3 w-3 mr-1" />
+                            {brand.brand}
+                            <span className="text-xs text-muted-foreground ml-1">({brand.wins}x)</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {priceIntelligence.ai_recommendation && (
+                    <div className="text-sm text-muted-foreground border-t pt-3">
+                      {priceIntelligence.ai_recommendation}
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground text-right">
+                    Базирано на {priceIntelligence.actual_prices?.sample_size || priceIntelligence.sample_size} тендери
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
       </div>
     </DashboardLayout>
   );
