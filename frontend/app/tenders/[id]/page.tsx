@@ -245,8 +245,6 @@ export default function TenderDetailPage() {
     loadNotifyPreference();
     loadSavedPreference();
     loadDocuments();
-    loadProducts();
-    loadBidAdvice();
   }, [tenderId]);
 
   // Load bidders and lots after tender is loaded (to use embedded data first)
@@ -329,15 +327,9 @@ export default function TenderDetailPage() {
       setTier(status.tier || "free");
       const gated = status.tier === "free";
       setSummaryGated(gated);
-      if (!gated) {
-        await loadAISummary();
-      } else {
-        setAiSummaryError("AI резимето е достапно на Pro/Premium план.");
-      }
     } catch {
       setTier("free");
       setSummaryGated(true);
-      setAiSummaryError("AI резимето е достапно на Pro/Premium план.");
     }
   }
 
@@ -748,380 +740,55 @@ export default function TenderDetailPage() {
         </div>
       </div>
 
-      {/* AI Summary */}
-      <Card className="border-primary/50 bg-primary/5">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            AI Резиме
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {summaryGated ? (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">AI резимето е достапно за Pro/Premium корисници. Ваш план: {tier}.</p>
-              <Link href="/settings">
-                <Button size="sm" variant="outline">Upgrade</Button>
-              </Link>
-            </div>
-          ) : aiSummaryLoading ? (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">AI ги пребарува документите...</p>
-              <div className="h-2 w-full rounded bg-white/40 animate-pulse" />
-              <div className="h-2 w-5/6 rounded bg-white/30 animate-pulse" />
-            </div>
-          ) : aiSummaryError ? (
-            <p className="text-sm text-destructive">{aiSummaryError}</p>
-          ) : aiSummaryData ? (
-            <div className="space-y-4">
-              {/* Overview */}
-              <p className="text-sm">{aiSummaryData.overview}</p>
-
-              {/* Key Requirements */}
-              {aiSummaryData.key_requirements && aiSummaryData.key_requirements.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Клучни барања:</p>
-                  <ul className="list-disc list-inside text-sm space-y-0.5">
-                    {aiSummaryData.key_requirements.map((req, idx) => (
-                      <li key={idx}>{req}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Quick Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-                {/* Complexity */}
-                <div
-                  className="text-center p-2 rounded-md bg-background/50 cursor-help"
-                  title="Комплексност на тендерот базирано на број на документи, технички барања, финансиски услови. Висока = повеќе од 10 документи или сложени барања. Средна = стандардна сложеност. Ниска = едноставен тендер."
-                >
-                  <p className="text-xs text-muted-foreground">Комплексност</p>
-                  <Badge variant={
-                    aiSummaryData.estimated_complexity === 'high' ? 'destructive' :
-                      aiSummaryData.estimated_complexity === 'medium' ? 'default' : 'secondary'
-                  } className="mt-1">
-                    {aiSummaryData.estimated_complexity === 'high' ? 'Висока' :
-                      aiSummaryData.estimated_complexity === 'medium' ? 'Средна' : 'Ниска'}
-                  </Badge>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {aiSummaryData.estimated_complexity === 'high' ? 'Потребна детална подготовка' :
-                      aiSummaryData.estimated_complexity === 'medium' ? 'Стандардна подготовка' : 'Брза подготовка'}
-                  </p>
-                </div>
-
-                {/* Competition */}
-                <div
-                  className="text-center p-2 rounded-md bg-background/50 cursor-help"
-                  title="Ниво на конкуренција базирано на историски податоци за слични тендери. Висока = очекувани 5+ понудувачи. Средна = 2-4 понудувачи. Ниска = 1-2 понудувачи."
-                >
-                  <p className="text-xs text-muted-foreground">Конкуренција</p>
-                  <Badge variant={
-                    aiSummaryData.competition_level === 'high' ? 'destructive' :
-                      aiSummaryData.competition_level === 'medium' ? 'default' : 'secondary'
-                  } className="mt-1">
-                    {aiSummaryData.competition_level === 'high' ? 'Висока' :
-                      aiSummaryData.competition_level === 'medium' ? 'Средна' :
-                        aiSummaryData.competition_level === 'low' ? 'Ниска' : 'Непозната'}
-                  </Badge>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {aiSummaryData.competition_level === 'high' ? 'Потребна агресивна понуда' :
-                      aiSummaryData.competition_level === 'medium' ? 'Балансирана понуда' :
-                        aiSummaryData.competition_level === 'low' ? 'Добра шанса за победа' : 'Нема историски податоци'}
-                  </p>
-                </div>
-
-                {/* Deadline Urgency */}
-                <div
-                  className="text-center p-2 rounded-md bg-background/50 cursor-help"
-                  title="Итност за поднесување понуда. Критична = помалку од 3 дена. Итна = 3-7 дена. Наскоро = 7-14 дена. Нормална = повеќе од 14 дена."
-                >
-                  <p className="text-xs text-muted-foreground">Итност</p>
-                  <Badge variant={
-                    aiSummaryData.deadline_urgency === 'critical' ? 'destructive' :
-                      aiSummaryData.deadline_urgency === 'urgent' ? 'default' :
-                        aiSummaryData.deadline_urgency === 'closed' ? 'secondary' : 'outline'
-                  } className="mt-1">
-                    {aiSummaryData.deadline_urgency === 'critical' ? 'Критична' :
-                      aiSummaryData.deadline_urgency === 'urgent' ? 'Итна' :
-                        aiSummaryData.deadline_urgency === 'soon' ? 'Наскоро' :
-                          aiSummaryData.deadline_urgency === 'closed' ? 'Затворен' : 'Нормална'}
-                  </Badge>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {aiSummaryData.deadline_urgency === 'critical' ? 'Итно поднесете понуда!' :
-                      aiSummaryData.deadline_urgency === 'urgent' ? 'Побрзајте со подготовка' :
-                        aiSummaryData.deadline_urgency === 'soon' ? 'Планирајте ја понудата' :
-                          aiSummaryData.deadline_urgency === 'closed' ? 'Рокот помина' : 'Имате време'}
-                  </p>
-                </div>
-
-                {/* Days Remaining */}
-                <div
-                  className="text-center p-2 rounded-md bg-background/50 cursor-help"
-                  title="Број на денови до краен рок за поднесување понуда"
-                >
-                  <p className="text-xs text-muted-foreground">Преостанати денови</p>
-                  <p className="text-lg font-bold mt-1">
-                    {aiSummaryData.days_remaining !== null && aiSummaryData.days_remaining >= 0
-                      ? aiSummaryData.days_remaining
-                      : '—'}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {aiSummaryData.days_remaining !== null && aiSummaryData.days_remaining >= 0
-                      ? (aiSummaryData.days_remaining === 0 ? 'Последен ден!' :
-                         aiSummaryData.days_remaining === 1 ? 'Остана 1 ден' :
-                         `до краен рок`)
-                      : 'Рокот помина'}
-                  </p>
-                </div>
+      {/* Compact Key Metrics Strip */}
+      {(tender.estimated_value_mkd || tender.actual_value_mkd || bidders.length > 0 || tender.closing_date) && (
+        <div className="flex flex-wrap gap-4 p-4 rounded-lg border bg-card">
+          {tender.estimated_value_mkd && (
+            <div className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Буџет</p>
+                <p className="text-sm font-bold">{formatCurrency(tender.estimated_value_mkd)}</p>
               </div>
-
-              {/* Complexity Factors */}
-              {aiSummaryData.complexity_factors && aiSummaryData.complexity_factors.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {aiSummaryData.complexity_factors.map((factor, idx) => (
-                    <Badge key={idx} variant="outline" className="text-xs">{factor}</Badge>
-                  ))}
-                </div>
-              )}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Нема достапно резиме.</p>
           )}
-        </CardContent>
-      </Card>
-
-
-      {/* Bid Recommendation */}
-      {bidAdviceLoading || bidAdvice ? (
-        <BidRecommendation
-          tenderId={tenderId}
-          estimatedValue={bidAdvice?.estimated_value || tender?.estimated_value_mkd}
-          marketAnalysis={bidAdvice?.market_analysis}
-          recommendations={bidAdvice?.recommendations || []}
-          competitorInsights={bidAdvice?.competitor_insights}
-          itemPrices={bidAdvice?.item_prices}
-          aiSummary={bidAdvice?.ai_summary}
-          loading={bidAdviceLoading}
-        />
-      ) : null}
-
-      {/* Quick Actions for AI Chat */}
-      <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
-        <CardContent className="pt-6">
-          <QuickActions
-            tenderId={tenderId}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Price Analysis Cards */}
-      {(tender.estimated_value_mkd || tender.actual_value_mkd || bidders.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Budget Card */}
-          {(tender.estimated_value_mkd || tender.actual_value_mkd) && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Tag className="h-4 w-4" />
-                  БУЏЕТ
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {tender.estimated_value_mkd && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">Проценет:</p>
-                    <p className="text-lg font-bold">{formatCurrency(tender.estimated_value_mkd)}</p>
-                  </div>
-                )}
-                {tender.actual_value_mkd && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">Доделен:</p>
-                    <p className="text-lg font-bold text-green-600">{formatCurrency(tender.actual_value_mkd)}</p>
-                  </div>
-                )}
-                {tender.estimated_value_mkd && tender.actual_value_mkd && (
-                  <div className="pt-2 border-t">
-                    <p className="text-xs text-muted-foreground">Заштеда:</p>
-                    <p className="text-lg font-bold text-primary">
-                      {((1 - tender.actual_value_mkd / tender.estimated_value_mkd) * 100).toFixed(1)}%
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {tender.actual_value_mkd && (
+            <div className="flex items-center gap-2">
+              <Award className="h-4 w-4 text-green-600" />
+              <div>
+                <p className="text-xs text-muted-foreground">Доделен</p>
+                <p className="text-sm font-bold text-green-600">{formatCurrency(tender.actual_value_mkd)}</p>
+              </div>
+            </div>
           )}
-
-          {/* Bid Range Card */}
           {bidders.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  ПОНУДИ
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {(() => {
-                  const bidsWithAmounts = bidders.filter(b => b.bid_amount_mkd);
-                  const lowest = bidsWithAmounts.length > 0
-                    ? Math.min(...bidsWithAmounts.map(b => b.bid_amount_mkd!))
-                    : null;
-                  const highest = bidsWithAmounts.length > 0
-                    ? Math.max(...bidsWithAmounts.map(b => b.bid_amount_mkd!))
-                    : null;
-
-                  return (
-                    <>
-                      {lowest && (
-                        <div>
-                          <p className="text-xs text-muted-foreground">Најниска:</p>
-                          <p className="text-lg font-bold text-green-600">{formatCurrency(lowest)}</p>
-                        </div>
-                      )}
-                      {highest && lowest !== highest && (
-                        <div>
-                          <p className="text-xs text-muted-foreground">Највисока:</p>
-                          <p className="text-lg font-bold">{formatCurrency(highest)}</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-                <div className="pt-2 border-t">
-                  <p className="text-xs text-muted-foreground">Број на понуди:</p>
-                  <p className="text-lg font-bold">{bidders.length}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Data Completeness Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                КОМПЛЕТНОСТ
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(() => {
-                // Calculate data completeness based on available fields
-                const fields = [
-                  tender.title,
-                  tender.description,
-                  tender.procuring_entity,
-                  tender.category,
-                  tender.cpv_code,
-                  tender.estimated_value_mkd,
-                  tender.opening_date,
-                  tender.closing_date,
-                  tender.procedure_type,
-                  documents.length > 0,
-                  bidders.length > 0
-                ];
-                const filledFields = fields.filter(f => f !== null && f !== undefined && f !== '').length;
-                const completeness = (filledFields / fields.length) * 100;
-
-                return (
-                  <>
-                    <div className="mb-3">
-                      <p className="text-2xl font-bold">{Math.round(completeness)}%</p>
-                      <p className="text-xs text-muted-foreground">Податоци достапни</p>
-                    </div>
-                    <div className="w-full bg-secondary rounded-full h-2">
-                      <div
-                        className="bg-primary rounded-full h-2 transition-all"
-                        style={{ width: `${completeness}%` }}
-                      />
-                    </div>
-                  </>
-                );
-              })()}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Bidders Analysis Section - Inline on Page */}
-      {bidders.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              АНАЛИЗА НА ПОНУДУВАЧИ ({bidders.length} {bidders.length === 1 ? 'понудувач' : 'понудувачи'})
-            </CardTitle>
-            <CardDescription>
-              Сите компании кои поднеле понуди за овој тендер
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Компанија</th>
-                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Понуда</th>
-                    <th className="text-center py-3 px-2 font-medium text-muted-foreground">Ранг</th>
-                    <th className="text-center py-3 px-2 font-medium text-muted-foreground">Статус</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bidders
-                    .sort((a, b) => (a.rank || 999) - (b.rank || 999))
-                    .map((bidder) => (
-                      <tr key={bidder.bidder_id} className="border-b hover:bg-accent/50 transition-colors">
-                        <td className="py-3 px-2">
-                          <div className="flex items-center gap-2">
-                            {bidder.is_winner && <Trophy className="h-4 w-4 text-green-600 flex-shrink-0" />}
-                            <span className={bidder.is_winner ? "font-semibold" : ""}>
-                              {bidder.company_name}
-                            </span>
-                          </div>
-                          {bidder.tax_id && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              ЕДБ: {bidder.tax_id}
-                            </p>
-                          )}
-                        </td>
-                        <td className="text-right py-3 px-2">
-                          {bidder.bid_amount_mkd ? (
-                            <span className={bidder.is_winner ? "font-bold text-green-600" : "font-medium"}>
-                              {formatCurrency(bidder.bid_amount_mkd)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="text-center py-3 px-2">
-                          {bidder.rank ? (
-                            <Badge variant={bidder.rank === 1 ? "default" : "outline"}>
-                              #{bidder.rank}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="text-center py-3 px-2">
-                          {bidder.is_winner ? (
-                            <Badge variant="default" className="bg-green-600">
-                              Добитник
-                            </Badge>
-                          ) : bidder.is_disqualified ? (
-                            <Badge variant="destructive">
-                              Дисквалификуван
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Понуди</p>
+                <p className="text-sm font-bold">{bidders.length}</p>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          )}
+          {tender.closing_date && (
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Краен рок</p>
+                <p className="text-sm font-bold">{formatDate(tender.closing_date)}</p>
+              </div>
+            </div>
+          )}
+          {documents.length > 0 && (
+            <div className="flex items-center gap-2">
+              <File className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Документи</p>
+                <p className="text-sm font-bold">{documents.length}</p>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Main Content */}
@@ -1153,9 +820,9 @@ export default function TenderDetailPage() {
                   <ShoppingCart className="h-4 w-4 mr-2" />
                   Производи {aiProducts?.products?.length ? `(${aiProducts.products.length})` : ''}
                 </TabsTrigger>
-                <TabsTrigger value="chat">
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  AI Асистент
+                <TabsTrigger value="ai-analysis">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  AI Анализа
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -1694,19 +1361,18 @@ export default function TenderDetailPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    AI Извлечени Производи / Ставки
+                    <ShoppingCart className="h-5 w-5" />
+                    Производи / Ставки
                   </CardTitle>
                   <CardDescription>
-                    Производи и услуги автоматски извлечени од тендерската документација со помош на AI
+                    Производи и услуги извлечени од тендерската документација
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {productsLoading ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
-                      <p className="text-sm text-muted-foreground">AI анализира документи...</p>
-                      <p className="text-xs text-muted-foreground mt-1">Ова може да потрае неколку секунди</p>
+                      <p className="text-sm text-muted-foreground">Се извлекуваат производи...</p>
                     </div>
                   ) : productsError ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -1716,10 +1382,19 @@ export default function TenderDetailPage() {
                         Обиди се повторно
                       </Button>
                     </div>
-                  ) : !aiProducts || aiProducts.extraction_status === 'no_documents' ? (
+                  ) : !aiProducts ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <ShoppingCart className="h-12 w-12 mb-2 opacity-20 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mb-3">Извлечи производи и ставки од тендерската документација</p>
+                      <Button onClick={loadProducts} disabled={productsLoading} size="sm">
+                        <ShoppingCart className="h-4 w-4 mr-2" />
+                        Извлечи производи
+                      </Button>
+                    </div>
+                  ) : aiProducts.extraction_status === 'no_documents' ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
                       <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
-                      <p className="text-sm">{aiProducts?.summary || "Нема достапни документи за анализа"}</p>
+                      <p className="text-sm">{aiProducts.summary || "Нема достапни документи за анализа"}</p>
                     </div>
                   ) : aiProducts.products.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
@@ -1729,17 +1404,11 @@ export default function TenderDetailPage() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {/* AI Summary */}
+                      {/* Summary */}
                       {aiProducts.summary && (
-                        <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                          <div className="flex items-start gap-2">
-                            <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium text-primary mb-1">AI Резиме</p>
-                              <p className="text-sm text-muted-foreground">{aiProducts.summary}</p>
-                            </div>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-2 text-right">
+                        <div className="p-3 rounded-lg bg-muted/50 border">
+                          <p className="text-sm text-muted-foreground">{aiProducts.summary}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
                             Извор: {aiProducts.source_documents} документ(и)
                           </p>
                         </div>
@@ -1768,7 +1437,6 @@ export default function TenderDetailPage() {
                           />
                         )
                       )}
-                      {/* Remaining quota indicator (when not gated) */}
                       {!aiProducts.price_gated && aiProducts.price_views_remaining != null && aiProducts.price_views_limit != null && (
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>Преостануваат {aiProducts.price_views_remaining} од {aiProducts.price_views_limit} ценовни прегледи денес</span>
@@ -1794,9 +1462,7 @@ export default function TenderDetailPage() {
                               {product.quantity && (
                                 <div>
                                   <p className="text-xs text-muted-foreground">Количина</p>
-                                  <p className="font-medium">
-                                    {product.quantity} {product.unit || ''}
-                                  </p>
+                                  <p className="font-medium">{product.quantity} {product.unit || ''}</p>
                                 </div>
                               )}
                               {aiProducts.price_gated ? (
@@ -1823,7 +1489,7 @@ export default function TenderDetailPage() {
                                 </>
                               )}
                             </div>
-                            {product.specifications && (
+                            {product.specifications && product.specifications !== '{}' && product.specifications !== 'null' && product.specifications.trim() !== '' && (
                               <div className="mt-2 pt-2 border-t">
                                 <p className="text-xs text-muted-foreground mb-1">Спецификации:</p>
                                 <p className="text-xs">{product.specifications}</p>
@@ -1836,8 +1502,8 @@ export default function TenderDetailPage() {
                       {/* Refresh button */}
                       <div className="flex justify-center pt-4">
                         <Button variant="outline" size="sm" onClick={loadProducts} disabled={productsLoading}>
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Анализирај повторно
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                          Извлечи повторно
                         </Button>
                       </div>
                     </div>
@@ -1846,53 +1512,165 @@ export default function TenderDetailPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="chat" className="mt-4">
+            <TabsContent value="ai-analysis" className="mt-4 space-y-4">
+              {/* AI Summary — click to load */}
+              <Card className="border-primary/50 bg-primary/5">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    AI Резиме
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {summaryGated ? (
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground">AI резимето е достапно за платени корисници.</p>
+                      <Link href="/settings">
+                        <Button size="sm" variant="outline">Надградете</Button>
+                      </Link>
+                    </div>
+                  ) : aiSummaryLoading ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">AI ги анализира документите...</p>
+                      <div className="h-2 w-full rounded bg-white/40 animate-pulse" />
+                      <div className="h-2 w-5/6 rounded bg-white/30 animate-pulse" />
+                    </div>
+                  ) : aiSummaryData ? (
+                    <div className="space-y-4">
+                      <p className="text-sm">{aiSummaryData.overview}</p>
+                      {aiSummaryData.key_requirements && aiSummaryData.key_requirements.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Клучни барања:</p>
+                          <ul className="list-disc list-inside text-sm space-y-0.5">
+                            {aiSummaryData.key_requirements.map((req: string, idx: number) => (
+                              <li key={idx}>{req}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                        <div className="text-center p-2 rounded-md bg-background/50">
+                          <p className="text-xs text-muted-foreground">Комплексност</p>
+                          <Badge variant={aiSummaryData.estimated_complexity === 'high' ? 'destructive' : aiSummaryData.estimated_complexity === 'medium' ? 'default' : 'secondary'} className="mt-1">
+                            {aiSummaryData.estimated_complexity === 'high' ? 'Висока' : aiSummaryData.estimated_complexity === 'medium' ? 'Средна' : 'Ниска'}
+                          </Badge>
+                        </div>
+                        <div className="text-center p-2 rounded-md bg-background/50">
+                          <p className="text-xs text-muted-foreground">Конкуренција</p>
+                          <Badge variant={aiSummaryData.competition_level === 'high' ? 'destructive' : aiSummaryData.competition_level === 'medium' ? 'default' : 'secondary'} className="mt-1">
+                            {aiSummaryData.competition_level === 'high' ? 'Висока' : aiSummaryData.competition_level === 'medium' ? 'Средна' : 'Ниска'}
+                          </Badge>
+                        </div>
+                        <div className="text-center p-2 rounded-md bg-background/50">
+                          <p className="text-xs text-muted-foreground">Итност</p>
+                          <Badge variant={aiSummaryData.deadline_urgency === 'critical' ? 'destructive' : aiSummaryData.deadline_urgency === 'urgent' ? 'default' : 'outline'} className="mt-1">
+                            {aiSummaryData.deadline_urgency === 'critical' ? 'Критична' : aiSummaryData.deadline_urgency === 'urgent' ? 'Итна' : aiSummaryData.deadline_urgency === 'soon' ? 'Наскоро' : aiSummaryData.deadline_urgency === 'closed' ? 'Затворен' : 'Нормална'}
+                          </Badge>
+                        </div>
+                        <div className="text-center p-2 rounded-md bg-background/50">
+                          <p className="text-xs text-muted-foreground">Преостанати денови</p>
+                          <p className="text-lg font-bold mt-1">
+                            {aiSummaryData.days_remaining !== null && aiSummaryData.days_remaining >= 0 ? aiSummaryData.days_remaining : '—'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center py-4">
+                      <p className="text-sm text-muted-foreground mb-3">Генерирај AI резиме за овој тендер</p>
+                      <Button onClick={loadAISummary} disabled={aiSummaryLoading} size="sm">
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Генерирај резиме
+                      </Button>
+                      {aiSummaryError && <p className="text-sm text-destructive mt-2">{aiSummaryError}</p>}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Bid Recommendation — click to load */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Briefcase className="h-4 w-4" />
+                    Препорака за понуда
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {bidAdviceLoading ? (
+                    <div className="flex items-center gap-2 py-4">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+                      <p className="text-sm text-muted-foreground">Се анализираат историски податоци...</p>
+                    </div>
+                  ) : bidAdvice ? (
+                    <BidRecommendation
+                      tenderId={tenderId}
+                      estimatedValue={bidAdvice.estimated_value || tender?.estimated_value_mkd}
+                      marketAnalysis={bidAdvice.market_analysis}
+                      recommendations={bidAdvice.recommendations || []}
+                      competitorInsights={bidAdvice.competitor_insights}
+                      itemPrices={bidAdvice.item_prices}
+                      aiSummary={bidAdvice.ai_summary}
+                      loading={false}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center py-4">
+                      <p className="text-sm text-muted-foreground mb-3">Анализирај конкуренција и добиј препорака за цена</p>
+                      <Button onClick={loadBidAdvice} disabled={bidAdviceLoading} size="sm" variant="outline">
+                        <Briefcase className="h-4 w-4 mr-2" />
+                        Анализирај понуди
+                      </Button>
+                      {bidAdviceError && <p className="text-sm text-destructive mt-2">{bidAdviceError}</p>}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Quick Actions */}
+              <Card>
+                <CardContent className="pt-6">
+                  <QuickActions tenderId={tenderId} />
+                </CardContent>
+              </Card>
+
+              {/* Chat */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">AI Асистент за Тендери</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    AI Асистент
+                  </CardTitle>
                   <CardDescription>
-                    Постави прашања за овој тендер и добиј одговори базирани на документите и историските податоци
+                    Постави прашања за овој тендер
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Quick prompts - show at top when no messages */}
                   {chatMessages.length === 0 && (
-                    <div className="space-y-3">
-                      <p className="text-sm text-muted-foreground">Почни со некое од овие прашања:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {quickPrompts.map((prompt) => (
-                          <Button
-                            key={prompt}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleChatSend(prompt)}
-                            disabled={chatLoading}
-                            className="text-left h-auto py-2"
-                          >
-                            {prompt}
-                          </Button>
-                        ))}
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      {quickPrompts.map((prompt) => (
+                        <Button
+                          key={prompt}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleChatSend(prompt)}
+                          disabled={chatLoading}
+                          className="text-left h-auto py-2"
+                        >
+                          {prompt}
+                        </Button>
+                      ))}
                     </div>
                   )}
-
-                  {/* Chat messages - only show when there are messages */}
                   {chatMessages.length > 0 && (
                     <div className="space-y-4 max-h-[400px] overflow-y-auto border rounded-lg p-3 bg-muted/20">
                       {chatMessages.map((msg, idx) => (
-                        <ChatMessage
-                          key={idx}
-                          role={msg.role}
-                          content={msg.content}
-                        />
+                        <ChatMessage key={idx} role={msg.role} content={msg.content} />
                       ))}
                       {chatLoading && (
                         <div className="text-sm text-muted-foreground animate-pulse">AI пишува...</div>
                       )}
                     </div>
                   )}
-
-                  {/* Chat Input - always visible */}
                   <div className="pt-2 border-t">
                     <ChatInput
                       onSend={handleChatSend}

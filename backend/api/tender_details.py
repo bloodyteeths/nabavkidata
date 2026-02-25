@@ -474,11 +474,13 @@ async def extract_products_with_ai(
     # ── Step 1: Check product_items table for pre-extracted data ──
     items_query = text("""
         SELECT pi.name, pi.quantity, pi.unit, pi.unit_price, pi.total_price,
-               pi.specifications, pi.cpv_code, pi.extraction_method
+               pi.specifications, pi.cpv_code
         FROM product_items pi
         WHERE pi.tender_id = :tender_id
           AND pi.name IS NOT NULL
-          AND LENGTH(pi.name) >= 3
+          AND LENGTH(pi.name) >= 5
+          AND pi.extraction_confidence >= 0.5
+          AND pi.name !~ '^[0-9]+\\.'
         ORDER BY pi.item_number
     """)
     items_result = await db.execute(items_query, {"tender_id": tender_id})
@@ -491,11 +493,20 @@ async def extract_products_with_ai(
             if isinstance(specs, str):
                 try:
                     specs_data = json.loads(specs)
-                    specs = specs_data.get('specifications', specs)
+                    if isinstance(specs_data, dict):
+                        specs = specs_data.get('specifications', '') or ''
+                    else:
+                        specs = str(specs_data) if specs_data else ''
                 except (json.JSONDecodeError, AttributeError):
                     pass
             elif isinstance(specs, dict):
-                specs = specs.get('specifications', json.dumps(specs, ensure_ascii=False))
+                specs = specs.get('specifications', '') or ''
+                if not specs:
+                    specs = ''
+
+            # Filter out empty/useless specs
+            if not specs or specs in ('{}', 'null', '""', '{}'):
+                specs = None
 
             products.append(AIExtractedProduct(
                 name=item.name,
@@ -503,7 +514,7 @@ async def extract_products_with_ai(
                 unit=item.unit,
                 unit_price=str(item.unit_price) if item.unit_price else None,
                 total_price=str(item.total_price) if item.total_price else None,
-                specifications=specs if isinstance(specs, str) else None,
+                specifications=specs if isinstance(specs, str) and specs else None,
                 category=item.cpv_code
             ))
 
