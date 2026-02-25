@@ -331,15 +331,20 @@ export default function PricingSection() {
                 </div>
 
                 {/* Bottom note */}
-                <motion.p
+                <motion.div
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.5 }}
-                    className="text-center text-gray-500 text-sm mt-10"
+                    className="text-center text-sm mt-10 space-y-2"
                 >
-                    Сите плаќања се безбедни и процесирани преку Stripe. Откажете во секое време.
-                </motion.p>
+                    <p className="text-muted-foreground">
+                        Цените се за <strong className="text-foreground">месечна или годишна претплата</strong> — автоматски се обновува додека не откажете.
+                    </p>
+                    <p className="text-gray-500">
+                        Сите плаќања се безбедни и процесирани преку Stripe. Откажете во секое време — без обврзувачки договор.
+                    </p>
+                </motion.div>
             </div>
         </section>
     );

@@ -239,8 +239,11 @@ export default function PlansPage() {
         </CardContent>
       </Card>
 
-      <div className="mt-12 text-center">
-        <p className="text-muted-foreground mb-4">
+      <div className="mt-12 text-center space-y-2">
+        <p className="text-muted-foreground">
+          Цените се за <strong>месечна претплата</strong> — автоматски се обновува додека не откажете.
+        </p>
+        <p className="text-muted-foreground">
           Сите планови вклучуваат 14-дневна гаранција за враќање на пари
         </p>
         <p className="text-sm text-muted-foreground">
