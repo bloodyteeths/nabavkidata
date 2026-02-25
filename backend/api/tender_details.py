@@ -513,8 +513,14 @@ async def extract_products_with_ai(
           AND UPPER(pi.name) NOT LIKE '%ЕКОНОМСКИОТ ОПЕРАТОР%'
           AND UPPER(pi.name) NOT LIKE '%ЖАЛИТЕЛОТ%'
           AND UPPER(pi.name) NOT LIKE '%НЕУСОГЛАСЕНОСТИ%'
-          -- Must have at least one of: quantity, price, or be short enough to be a real item
-          AND (pi.quantity IS NOT NULL OR pi.unit_price IS NOT NULL OR LENGTH(pi.name) <= 80)
+          AND UPPER(pi.name) NOT LIKE '%ОБЈАВУВАЊЕ%ОГЛАС%'
+          AND UPPER(pi.name) NOT LIKE '%ИЗВЕСТУВАЊ%'
+          AND UPPER(pi.name) NOT LIKE '%ОДЛУКАТА ЗА ИЗБОР%'
+          AND UPPER(pi.name) NOT LIKE '%ВКУПНИОТ ИЗНОС%'
+          AND UPPER(pi.name) NOT LIKE '%ВО ОДНОС НА%'
+          AND UPPER(pi.name) NOT LIKE '%ДОКОЛКУ ИМА%'
+          -- Must have at least quantity or price; without them only very short names qualify as real items
+          AND (pi.quantity IS NOT NULL OR pi.unit_price IS NOT NULL OR LENGTH(pi.name) <= 50)
         ORDER BY pi.item_number
     """)
     items_result = await db.execute(items_query, {"tender_id": tender_id})
