@@ -1824,6 +1824,16 @@ class APIClient {
     return this.request<EPazarItemsAggregationsResponse>(`/api/epazar/items/aggregations${query}`);
   }
 
+  async getEPazarItemsAggregationsBatch(itemNames: string[], tenderId?: string) {
+    return this.request<{ aggregations: Record<string, { min_price: number; max_price: number; avg_price: number; tender_count: number }> }>(
+      `/api/epazar/items/aggregations/batch`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ items: itemNames, tender_id: tenderId }),
+      }
+    );
+  }
+
   async summarizeEPazarTender(tenderId: string) {
     const encodedId = encodeURIComponent(tenderId);
     return this.request<{ tender_id: string; summary: string; items_count: number; offers_count: number }>(

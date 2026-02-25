@@ -103,7 +103,7 @@ interface MarketPrice {
   count: number;
 }
 
-function ItemsTable({ items }: { items: EPazarItem[] }) {
+function ItemsTable({ items, tenderId }: { items: EPazarItem[]; tenderId?: string }) {
   const [marketPrices, setMarketPrices] = useState<Record<string, MarketPrice>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
 
@@ -113,27 +113,30 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
 
   async function loadMarketPrices() {
     setPricesLoading(true);
-    const prices: Record<string, MarketPrice> = {};
-    const itemsToCheck = items.slice(0, 5);
+    try {
+      const itemNames = items.filter(i => i.item_name).map(i => i.item_name);
+      if (itemNames.length === 0) return;
 
-    for (const item of itemsToCheck) {
-      if (!item.item_name) continue;
-      try {
-        const searchTerm = item.item_name.split(' ').slice(0, 3).join(' ');
-        const data = await api.getEPazarItemsAggregations(searchTerm);
-        if (data.aggregations && data.aggregations.length > 0) {
-          const agg = data.aggregations[0];
+      const data = await api.getEPazarItemsAggregationsBatch(itemNames, tenderId);
+      const prices: Record<string, MarketPrice> = {};
+
+      for (const item of items) {
+        const agg = data.aggregations[item.item_name];
+        if (agg) {
           prices[item.item_id || item.item_name] = {
-            min: agg.min_unit_price || 0,
-            max: agg.max_unit_price || 0,
-            avg: agg.avg_unit_price || 0,
-            count: agg.tender_count || 0
+            min: agg.min_price || 0,
+            max: agg.max_price || 0,
+            avg: agg.avg_price || 0,
+            count: agg.tender_count || 0,
           };
         }
-      } catch { /* skip */ }
+      }
+      setMarketPrices(prices);
+    } catch {
+      /* market prices are non-critical */
+    } finally {
+      setPricesLoading(false);
     }
-    setMarketPrices(prices);
-    setPricesLoading(false);
   }
 
   if (!items || items.length === 0)
@@ -173,7 +176,7 @@ function ItemsTable({ items }: { items: EPazarItem[] }) {
                 </td>
                 <td className="py-3 px-4 text-right text-sm font-medium">{formatCurrency(item.estimated_total_price_mkd)}</td>
                 <td className="py-3 px-4 text-right text-sm text-muted-foreground">
-                  {pricesLoading && idx < 5 ? (
+                  {pricesLoading ? (
                     <span className="animate-pulse">...</span>
                   ) : market ? (
                     <div className="text-xs">
@@ -668,7 +671,7 @@ export default function EPazarDetailPage() {
                   {hasEvaluation ? (
                     <EvaluationItemsTable items={evaluation.items} />
                   ) : (
-                    <ItemsTable items={tender.items || []} />
+                    <ItemsTable items={tender.items || []} tenderId={tenderId} />
                   )}
 
                   {/* Awarded Items summary (if different from evaluation) */}

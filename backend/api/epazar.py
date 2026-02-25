@@ -1,7 +1,7 @@
 """
 API endpoints for e-Pazar electronic marketplace data
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, desc, asc, text
 from sqlalchemy.orm import selectinload
@@ -589,6 +589,93 @@ async def get_epazar_items_aggregations(
 
     except Exception as e:
         logger.error(f"Error getting e-Pazar items aggregations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/items/aggregations/batch", response_model=dict)
+async def get_epazar_items_aggregations_batch(
+    body: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get price aggregations for multiple item names in one query.
+    Body: { "items": ["Тонер", "Хартија А4", ...], "tender_id": "EPAZAR-1180" }
+    Returns: { "aggregations": { "Тонер": { min, max, avg, count }, ... } }
+    """
+    try:
+        item_names = body.get("items", [])
+        tender_id = body.get("tender_id")
+        if not item_names or len(item_names) > 100:
+            return {"aggregations": {}}
+
+        # Build a query that matches each item name using first 3 words
+        # and excludes the current tender
+        results = {}
+        search_terms = []
+        for name in item_names:
+            words = name.strip().split()[:3]
+            search_terms.append(" ".join(words))
+
+        # Single query: for each search term, find aggregated prices
+        # Use UNNEST to pass all search terms at once
+        result = await db.execute(
+            text("""
+                WITH search_terms AS (
+                    SELECT unnest(:terms::text[]) AS term
+                ),
+                matched AS (
+                    SELECT
+                        st.term AS search_term,
+                        i.item_name,
+                        i.estimated_unit_price_mkd,
+                        i.tender_id
+                    FROM search_terms st
+                    JOIN epazar_items i ON i.item_name ILIKE '%' || st.term || '%'
+                    WHERE i.estimated_unit_price_mkd IS NOT NULL
+                      AND i.estimated_unit_price_mkd > 0
+                      AND (:exclude_tender IS NULL OR i.tender_id != :exclude_tender)
+                )
+                SELECT
+                    search_term,
+                    MIN(estimated_unit_price_mkd) AS min_price,
+                    MAX(estimated_unit_price_mkd) AS max_price,
+                    AVG(estimated_unit_price_mkd) AS avg_price,
+                    COUNT(DISTINCT tender_id) AS tender_count
+                FROM matched
+                GROUP BY search_term
+            """),
+            {"terms": search_terms, "exclude_tender": tender_id}
+        )
+
+        rows = result.fetchall()
+
+        # Map search terms back to original item names
+        term_to_names = {}
+        for name in item_names:
+            words = name.strip().split()[:3]
+            term = " ".join(words)
+            if term not in term_to_names:
+                term_to_names[term] = []
+            term_to_names[term].append(name)
+
+        aggregations = {}
+        for row in rows:
+            mapping = dict(row._mapping)
+            term = mapping["search_term"]
+            agg_data = {
+                "min_price": float(mapping["min_price"]) if mapping["min_price"] else None,
+                "max_price": float(mapping["max_price"]) if mapping["max_price"] else None,
+                "avg_price": float(mapping["avg_price"]) if mapping["avg_price"] else None,
+                "tender_count": mapping["tender_count"],
+            }
+            # Assign to all item names that matched this search term
+            for name in term_to_names.get(term, []):
+                aggregations[name] = agg_data
+
+        return {"aggregations": aggregations}
+
+    except Exception as e:
+        logger.error(f"Error getting batch items aggregations: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
