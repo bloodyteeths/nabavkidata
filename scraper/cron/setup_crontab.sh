@@ -11,6 +11,7 @@
 set -e
 
 CRON_DIR="/home/ubuntu/nabavkidata/scraper/cron"
+PROJECT_DIR="/home/ubuntu/nabavkidata"
 LOG_DIR="/var/log/nabavkidata"
 
 echo "Setting up nabavkidata cron jobs..."
@@ -98,10 +99,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/ubuntu/.
 0 2 * * * /opt/clawd/run-cron.sh user-interest-update \"cd /home/ubuntu/nabavkidata/backend && python3 crons/user_interest_update.py\" >> $LOG_DIR/interest_update.log 2>&1
 
 # Welcome series - hourly
-0 * * * * /opt/clawd/run-cron.sh welcome-series $CRON_DIR/../backend/scripts/run_welcome_series.sh >> $LOG_DIR/welcome_series.log 2>&1
+0 * * * * /opt/clawd/run-cron.sh welcome-series $PROJECT_DIR/backend/scripts/run_welcome_series.sh >> $LOG_DIR/welcome_series.log 2>&1
 
-# Cold outreach drip - every 30 min
-*/30 * * * * /opt/clawd/run-cron.sh cold-outreach \"cd /home/ubuntu/nabavkidata/backend && python3 crons/cold_outreach_drip.py --limit 250\" >> $LOG_DIR/cold_outreach.log 2>&1
+# Cold outreach drip - every 30 min during Skopje business hours (Mon-Fri 08:00-17:00 CET = 07:00-16:00 UTC)
+*/30 7-16 * * 1-5 /opt/clawd/run-cron.sh cold-outreach \"cd /home/ubuntu/nabavkidata/backend && python3 crons/cold_outreach_drip.py --limit 250\" >> $LOG_DIR/cold_outreach.log 2>&1
 
 # ============================================================================
 # MAINTENANCE
