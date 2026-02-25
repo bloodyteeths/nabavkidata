@@ -18,6 +18,7 @@ from database import get_db
 
 # Security scheme
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 
 # Import UserRole from models_auth for consistency
@@ -317,7 +318,7 @@ async def require_admin(current_user: User = Depends(get_current_active_user)) -
 # ============================================================================
 
 async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
     db: AsyncSession = Depends(get_db)
 ) -> Optional[User]:
     """
