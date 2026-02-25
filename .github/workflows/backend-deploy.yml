@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy via SSH
+      - name: Setup SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_KEY }}
           HOST: ${{ secrets.HETZNER_HOST }}
@@ -26,36 +26,41 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
 
-          ssh -i ~/.ssh/deploy_key ubuntu@$HOST << 'ENDSSH'
-            set -e
-            cd /home/ubuntu/nabavkidata
+      - name: Pull latest code
+        env:
+          HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@$HOST "cd /home/ubuntu/nabavkidata && git pull origin main"
 
-            echo "Pulling latest code..."
-            git pull origin main
+      - name: Install dependencies
+        env:
+          HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@$HOST "pip3 install -r /home/ubuntu/nabavkidata/backend/requirements.txt --quiet --break-system-packages 2>/dev/null; pip3 install -r /home/ubuntu/nabavkidata/ai/requirements.txt --quiet --break-system-packages 2>/dev/null; true"
 
-            echo "Installing dependencies..."
-            pip3 install -r backend/requirements.txt --quiet --break-system-packages 2>/dev/null || true
-            pip3 install -r ai/requirements.txt --quiet --break-system-packages 2>/dev/null || true
+      - name: Restart backend service
+        env:
+          HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@$HOST "sudo systemctl restart nabavkidata-api"
 
-            echo "Restarting backend..."
-            sudo systemctl restart nabavkidata-api
-
-            echo "Waiting for service to start..."
-            for i in 1 2 3 4 5 6; do
-              sleep 5
-              if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
-                echo "Deploy successful!"
-                exit 0
-              fi
-              echo "Attempt $i: not ready yet, waiting..."
-            done
-            echo "Health check failed after 30s"
-            exit 1
-          ENDSSH
+      - name: Health check (with retry)
+        env:
+          HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            sleep 5
+            if ssh -i ~/.ssh/deploy_key ubuntu@$HOST "curl -sf http://localhost:8000/api/health" > /dev/null 2>&1; then
+              echo "Health check passed on attempt $i"
+              exit 0
+            fi
+            echo "Attempt $i: service not ready yet..."
+          done
+          echo "Health check failed after 30s"
+          exit 1
 
       - name: Verify external health
         run: |
-          sleep 5
           curl -f https://api.nabavkidata.com/api/health
 
       - name: Notify on Failure
