@@ -1,86 +1,57 @@
-name: Deploy Backend to EC2
+name: Deploy Backend to Hetzner
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'backend/**'
       - 'ai/**'
-      - '.env.production'
+      - 'scraper/**'
+      - 'scripts/**'
       - '.github/workflows/backend-deploy.yml'
 
 jobs:
   deploy:
-    name: Deploy to Production EC2
+    name: Deploy to Hetzner Production
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Deploy to EC2
+      - name: Deploy via SSH
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ubuntu
+          SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          HOST: ${{ secrets.HETZNER_HOST }}
         run: |
-          # Setup SSH
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
 
-          # Add EC2 to known hosts
-          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
-
-          # Deploy script
-          ssh -i ~/.ssh/deploy_key $EC2_USER@$EC2_HOST << 'ENDSSH'
+          ssh -i ~/.ssh/deploy_key ubuntu@$HOST << 'ENDSSH'
             set -e
-
-            echo "🚀 Starting deployment..."
-
-            # Navigate to project directory
             cd /home/ubuntu/nabavkidata
 
-            # Pull latest changes
-            echo "📥 Pulling latest code..."
+            echo "Pulling latest code..."
             git pull origin main
 
-            # Activate virtual environment
-            source venv/bin/activate
+            echo "Installing dependencies..."
+            pip3 install -r backend/requirements.txt --quiet --break-system-packages 2>/dev/null || true
+            pip3 install -r ai/requirements.txt --quiet --break-system-packages 2>/dev/null || true
 
-            # Install/update Python dependencies
-            echo "📦 Installing dependencies..."
-            pip install -r backend/requirements.txt --quiet
-            pip install -r ai/requirements.txt --quiet
-
-            # Run database migrations if any
-            echo "🗄️  Running migrations..."
-            cd backend
-            alembic upgrade head || echo "No migrations to run"
-            cd ..
-
-            # Restart backend service
-            echo "🔄 Restarting backend service..."
-            sudo systemctl restart nabavkidata-backend
-
-            # Wait for service to start
+            echo "Restarting backend..."
+            sudo systemctl restart nabavkidata-api
             sleep 5
 
-            # Health check
-            echo "🏥 Running health check..."
-            curl -f https://api.nabavkidata.com/health || exit 1
-
-            echo "✅ Deployment successful!"
+            echo "Health check..."
+            curl -f http://localhost:8000/api/health || exit 1
+            echo "Deploy successful!"
           ENDSSH
 
-      - name: Verify Deployment
+      - name: Verify external health
         run: |
-          echo "Checking API health..."
-          sleep 10
-          curl -f https://api.nabavkidata.com/health
+          sleep 5
+          curl -f https://api.nabavkidata.com/api/health
 
       - name: Notify on Failure
         if: failure()
         run: |
-          echo "❌ Deployment failed! Please check the logs."
+          echo "Deployment failed! Check the logs."

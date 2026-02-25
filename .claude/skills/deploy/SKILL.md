@@ -1,52 +1,43 @@
 ---
 name: deploy
-description: Deploy nabavkidata changes to production. Frontend deploys via Vercel on git push. Backend deploys via rsync to Hetzner. Use when user wants to deploy, push changes, or update production.
+description: Deploy nabavkidata changes to production. Frontend deploys via Vercel on git push. Backend auto-deploys via GitHub Actions on push to main. Use when user wants to deploy, push changes, or update production.
 allowed-tools: Bash
 ---
 
 # Deploy Skill
 
-## Frontend (Vercel - Automatic)
+## Automatic Deployment (Preferred)
 
-Frontend auto-deploys when pushed to main:
+Push to `main` triggers GitHub Actions which auto-deploys:
+
+- **Frontend**: Vercel (instant, automatic)
+- **Backend/AI/Scraper**: GitHub Actions SSHs to Hetzner, runs `git pull`, restarts service
 
 ```bash
-cd /Users/tamsar/Downloads/nabavkidata/frontend
-npm run build
-cd ..
-git add frontend/
+git add <files>
 git commit -m "feat: description"
 git push origin main
 ```
 
-Vercel will automatically deploy. Check: https://vercel.com/dashboard
+Monitor: https://github.com/bloodyteeths/nabavkidata/actions
 
-## Backend (Manual to Hetzner)
+## Manual Fallback (if GitHub Actions fails)
 
-### 1. Sync backend code
+### Backend
 ```bash
-rsync -avz --exclude='__pycache__' --exclude='*.pyc' --exclude='venv' \
-  /Users/tamsar/Downloads/nabavkidata/backend/ \
-  ubuntu@46.224.89.197:/home/ubuntu/nabavkidata/backend/
+ssh ubuntu@46.224.89.197 'cd /home/ubuntu/nabavkidata && git pull origin main && sudo systemctl restart nabavkidata-api && sleep 3 && curl -s http://localhost:8000/api/health'
 ```
 
-### 2. Restart backend service
+### Restart only (no code change)
 ```bash
 ssh ubuntu@46.224.89.197 'sudo systemctl restart nabavkidata-api && sleep 3 && curl -s http://localhost:8000/api/health'
 ```
 
-## Scraper Code
-
+### Rsync fallback (if git pull is broken)
 ```bash
-rsync -avz --exclude='__pycache__' --exclude='*.pyc' \
-  /Users/tamsar/Downloads/nabavkidata/scraper/ \
-  ubuntu@46.224.89.197:/home/ubuntu/nabavkidata/scraper/
-```
+rsync -avz --exclude='__pycache__' --exclude='*.pyc' --exclude='venv' --exclude='.git' \
+  /Users/tamsar/Downloads/nabavkidata/backend/ \
+  ubuntu@46.224.89.197:/home/ubuntu/nabavkidata/backend/
 
-## AI Code
-
-```bash
-rsync -avz --exclude='__pycache__' --exclude='*.pyc' \
-  /Users/tamsar/Downloads/nabavkidata/ai/ \
-  ubuntu@46.224.89.197:/home/ubuntu/nabavkidata/ai/
+ssh ubuntu@46.224.89.197 'sudo systemctl restart nabavkidata-api'
 ```
