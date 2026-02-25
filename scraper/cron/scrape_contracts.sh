@@ -53,7 +53,7 @@ LOG_FILE="$LOG_DIR/scrapy_contracts_$(date +%Y%m%d_%H%M%S).log"
 
 # timeout: 2.5h hard kill as fallback for CLOSESPIDER_TIMEOUT
 timeout --signal=TERM --kill-after=60 9000 \
-/home/ubuntu/.local/bin/scrapy crawl contracts \
+/usr/local/bin/scrapy crawl contracts \
     -a max_pages=500 \
     -s LOG_LEVEL=INFO \
     -s LOG_FILE="$LOG_FILE" \

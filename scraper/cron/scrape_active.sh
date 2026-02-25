@@ -45,7 +45,7 @@ log "Running scrapy crawl nabavki -a category=active"
 
 # timeout: 2.5h hard kill as fallback for CLOSESPIDER_TIMEOUT
 timeout --signal=TERM --kill-after=60 9000 \
-/home/ubuntu/.local/bin/scrapy crawl nabavki \
+/usr/local/bin/scrapy crawl nabavki \
     -a category=active \
     -s LOG_LEVEL=INFO \
     -s LOG_FILE="$LOG_FILE" \

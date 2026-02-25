@@ -125,7 +125,7 @@ scrape_year() {
         BATCH_START=$(date +%s)
 
         # Run scraper with year parameter for historical data
-        /home/ubuntu/.local/bin/scrapy crawl nabavki \
+        /usr/local/bin/scrapy crawl nabavki \
             -a category=awarded \
             -a year=$YEAR \
             -a start_page=$BATCH_START_PAGE \

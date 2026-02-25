@@ -42,9 +42,9 @@ cd /home/ubuntu/nabavkidata/scraper
 RUN_START=$(date -Iseconds)
 LOG_FILE="$LOG_DIR/scrapy_epazar_$(date +%Y%m%d_%H%M%S).log"
 
-log "Running /home/ubuntu/.local/bin/scrapy crawl epazar_api -a category=all"
+log "Running /usr/local/bin/scrapy crawl epazar_api -a category=all"
 
-/home/ubuntu/.local/bin/scrapy crawl epazar_api \
+/usr/local/bin/scrapy crawl epazar_api \
     -a category=all \
     -s LOG_LEVEL=INFO \
     -s LOG_FILE="$LOG_FILE"

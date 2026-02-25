@@ -144,7 +144,7 @@ for batch in $(seq 1 $MAX_BATCHES); do
 
     # Run scraper with REVERSE pagination
     # reverse=True starts from last page and goes backwards
-    /home/ubuntu/.local/bin/scrapy crawl nabavki \
+    /usr/local/bin/scrapy crawl nabavki \
         -a category=awarded \
         -a reverse=True \
         -a max_listing_pages=$PAGES_PER_BATCH \

@@ -48,7 +48,7 @@ log "Running scrapy crawl nabavki -a category=cancelled"
 
 # timeout: 2.5h hard kill as fallback for CLOSESPIDER_TIMEOUT
 timeout --signal=TERM --kill-after=60 9000 \
-/home/ubuntu/.local/bin/scrapy crawl nabavki \
+/usr/local/bin/scrapy crawl nabavki \
     -a category=cancelled \
     -a max_listing_pages=$MAX_PAGES \
     -s LOG_LEVEL=INFO \

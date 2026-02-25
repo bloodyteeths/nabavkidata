@@ -69,7 +69,7 @@ for CATEGORY in $CATEGORIES; do
 
     LOG_FILE="$LOG_DIR/scrapy_nabavki_${CATEGORY}_$(date +%Y%m%d_%H%M%S).log"
 
-    /home/ubuntu/.local/bin/scrapy crawl nabavki_auth \
+    /usr/local/bin/scrapy crawl nabavki_auth \
         -a category=$CATEGORY \
         -s LOG_LEVEL=INFO \
         -s LOG_FILE="$LOG_FILE" || {
