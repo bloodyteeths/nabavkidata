@@ -5,7 +5,14 @@ import { useRouter } from 'next/navigation';
 import { api, SubscriptionPlan, UserSubscription } from '@/lib/api';
 import { PlanCard } from '@/components/billing/PlanCard';
 import { Card, CardContent } from '@/components/ui/card';
-import { Check, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Check, AlertCircle, ArrowUp, ArrowDown, CheckCircle2 } from 'lucide-react';
+
+const TIER_NAMES: Record<string, string> = {
+  starter: 'Стартер',
+  professional: 'Професионален',
+  enterprise: 'Ентерпрајз',
+};
 
 export default function PlansPage() {
   const router = useRouter();
@@ -14,6 +21,9 @@ export default function PlansPage() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [changingPlan, setChangingPlan] = useState(false);
+  const [confirmPlanId, setConfirmPlanId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -39,7 +49,7 @@ export default function PlansPage() {
   };
 
   const handleSubscribe = async (planId: string) => {
-    if (planId === 'FREE') {
+    if (planId === 'FREE' || planId === 'free') {
       return;
     }
 
@@ -53,6 +63,45 @@ export default function PlansPage() {
       setError(err.message || 'Грешка при креирање на сесија');
       setSubscribing(false);
     }
+  };
+
+  const handleChangePlan = (planId: string) => {
+    setConfirmPlanId(planId);
+    setError(null);
+    setSuccessMessage(null);
+  };
+
+  const confirmChangePlan = async () => {
+    if (!confirmPlanId) return;
+
+    try {
+      setChangingPlan(true);
+      setError(null);
+
+      const result = await api.upgradeSubscription(confirmPlanId);
+
+      setSuccessMessage(
+        result.change_type === 'upgrade'
+          ? `Успешно надградивте на ${TIER_NAMES[result.new_tier] || result.new_tier}!`
+          : `Успешно го променивте планот на ${TIER_NAMES[result.new_tier] || result.new_tier}.`
+      );
+      setConfirmPlanId(null);
+
+      // Reload data to reflect the change
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Грешка при промена на планот');
+    } finally {
+      setChangingPlan(false);
+    }
+  };
+
+  const getConfirmPlan = () => plans.find(p => p.id === confirmPlanId);
+
+  const isUpgrade = () => {
+    if (!confirmPlanId || !currentSubscription) return true;
+    const tierOrder: Record<string, number> = { free: 0, FREE: 0, starter: 1, professional: 2, enterprise: 3 };
+    return (tierOrder[confirmPlanId] ?? 0) > (tierOrder[currentSubscription.plan.id] ?? 0);
   };
 
   if (loading) {
@@ -86,6 +135,66 @@ export default function PlansPage() {
         </Card>
       )}
 
+      {successMessage && (
+        <Card className="mb-8 border-green-500 max-w-2xl mx-auto">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-5 w-5" />
+              <p>{successMessage}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Plan change confirmation dialog */}
+      {confirmPlanId && (
+        <Card className="mb-8 max-w-lg mx-auto border-primary">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              {isUpgrade() ? (
+                <ArrowUp className="h-10 w-10 text-primary mx-auto" />
+              ) : (
+                <ArrowDown className="h-10 w-10 text-orange-500 mx-auto" />
+              )}
+              <h3 className="text-lg font-semibold">
+                {isUpgrade() ? 'Надградба на план' : 'Намалување на план'}
+              </h3>
+              <p className="text-muted-foreground">
+                {isUpgrade()
+                  ? `Дали сакате да надградите на ${getConfirmPlan()?.name} (${getConfirmPlan()?.price_mkd.toLocaleString()} ден/мес)?`
+                  : `Дали сакате да го намалите планот на ${getConfirmPlan()?.name} (${getConfirmPlan()?.price_mkd.toLocaleString()} ден/мес)?`
+                }
+              </p>
+              {isUpgrade() ? (
+                <p className="text-sm text-muted-foreground">
+                  Разликата во цена ќе биде пресметана пропорционално за остатокот од периодот.
+                </p>
+              ) : (
+                <p className="text-sm text-orange-600">
+                  Со намалување ќе изгубите пристап до некои функции. Промената важи веднаш.
+                </p>
+              )}
+              <div className="flex gap-3 justify-center pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setConfirmPlanId(null)}
+                  disabled={changingPlan}
+                >
+                  Откажи
+                </Button>
+                <Button
+                  onClick={confirmChangePlan}
+                  disabled={changingPlan}
+                  variant={isUpgrade() ? 'default' : 'outline'}
+                >
+                  {changingPlan ? 'Се менува...' : isUpgrade() ? 'Надгради' : 'Потврди промена'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4 mb-12">
         {plans.map((plan) => (
           <PlanCard
@@ -93,7 +202,8 @@ export default function PlansPage() {
             plan={plan}
             currentPlanId={currentSubscription?.plan.id}
             onSubscribe={handleSubscribe}
-            loading={subscribing}
+            onChangePlan={handleChangePlan}
+            loading={subscribing || changingPlan}
           />
         ))}
       </div>

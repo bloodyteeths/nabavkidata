@@ -3,19 +3,61 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check } from 'lucide-react';
+import { Check, ArrowUp, ArrowDown } from 'lucide-react';
 import { SubscriptionPlan } from '@/lib/api';
+
+const TIER_ORDER: Record<string, number> = {
+  FREE: 0,
+  free: 0,
+  starter: 1,
+  professional: 2,
+  enterprise: 3,
+};
 
 interface PlanCardProps {
   plan: SubscriptionPlan;
   currentPlanId?: string;
   onSubscribe: (planId: string) => void;
+  onChangePlan?: (planId: string) => void;
   loading?: boolean;
 }
 
-export function PlanCard({ plan, currentPlanId, onSubscribe, loading }: PlanCardProps) {
+export function PlanCard({ plan, currentPlanId, onSubscribe, onChangePlan, loading }: PlanCardProps) {
   const isCurrentPlan = currentPlanId === plan.id;
-  const isFree = plan.id === 'FREE';
+  const isFree = plan.id === 'FREE' || plan.id === 'free';
+  const hasSubscription = currentPlanId && currentPlanId !== 'FREE' && currentPlanId !== 'free';
+
+  const currentTierLevel = TIER_ORDER[currentPlanId || 'free'] ?? 0;
+  const planTierLevel = TIER_ORDER[plan.id] ?? 0;
+  const isUpgrade = planTierLevel > currentTierLevel;
+  const isDowngrade = planTierLevel < currentTierLevel;
+
+  const getButtonContent = () => {
+    if (loading) return 'Се вчитува...';
+    if (isFree) return 'Бесплатно';
+    if (!hasSubscription) return 'Претплати се';
+    if (isUpgrade) return (
+      <span className="flex items-center gap-1.5">
+        <ArrowUp className="h-4 w-4" />
+        Надгради
+      </span>
+    );
+    if (isDowngrade) return (
+      <span className="flex items-center gap-1.5">
+        <ArrowDown className="h-4 w-4" />
+        Намали план
+      </span>
+    );
+    return 'Промени план';
+  };
+
+  const handleClick = () => {
+    if (hasSubscription && onChangePlan && !isFree) {
+      onChangePlan(plan.id);
+    } else {
+      onSubscribe(plan.id);
+    }
+  };
 
   return (
     <Card className={`relative ${plan.is_popular ? 'border-primary shadow-lg' : ''}`}>
@@ -60,12 +102,12 @@ export function PlanCard({ plan, currentPlanId, onSubscribe, loading }: PlanCard
           </Badge>
         ) : (
           <Button
-            onClick={() => onSubscribe(plan.id)}
+            onClick={handleClick}
             disabled={loading || isFree}
             className="w-full"
-            variant={plan.is_popular ? 'default' : 'outline'}
+            variant={isDowngrade ? 'outline' : plan.is_popular ? 'default' : 'outline'}
           >
-            {loading ? 'Се вчитува...' : isFree ? 'Бесплатно' : 'Претплати се'}
+            {getButtonContent()}
           </Button>
         )}
       </CardFooter>

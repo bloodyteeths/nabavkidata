@@ -206,6 +206,14 @@ export default function BillingPage() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                  {subscription.status === 'active' && !subscription.cancel_at_period_end && (
+                    <Button
+                      onClick={() => router.push('/billing/plans')}
+                      className="flex-1 text-xs md:text-sm h-9 md:h-10"
+                    >
+                      Промени план
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={handleManagePayment}

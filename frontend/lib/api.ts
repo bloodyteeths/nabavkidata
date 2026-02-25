@@ -1367,6 +1367,20 @@ class APIClient {
     });
   }
 
+  async upgradeSubscription(newTier: string, interval: 'monthly' | 'yearly' = 'monthly') {
+    return this.request<{
+      message: string;
+      old_tier: string;
+      new_tier: string;
+      change_type: 'upgrade' | 'downgrade' | 'change';
+      prorated: boolean;
+      next_billing_date: string | null;
+    }>('/api/billing/upgrade', {
+      method: 'POST',
+      body: JSON.stringify({ new_tier: newTier, interval }),
+    });
+  }
+
   async getInvoices() {
     return this.request<Invoice[]>('/api/billing/invoices');
   }
