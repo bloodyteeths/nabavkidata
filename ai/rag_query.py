@@ -5048,6 +5048,135 @@ class LLMDrivenAgent:
                                 for item in items:
                                     price = f"{item['estimated_unit_price_mkd']:,.0f} МКД/ед" if item['estimated_unit_price_mkd'] else "N/A"
                                     tender_context += f"  - {item['item_name']} (x{item['quantity']} {item['unit'] or ''}) - {price}\n"
+
+                                # ============================================================
+                                # HISTORICAL PRICE DATA for e-Pazar items
+                                # Fetch market prices from other tenders + evaluation winners
+                                # ============================================================
+                                try:
+                                    # Build search keys: first 3 words of each item name
+                                    item_search_keys = {}
+                                    for item in items:
+                                        name = item['item_name']
+                                        if name:
+                                            words = name.strip().split()[:3]
+                                            search_key = ' '.join(words)
+                                            if len(search_key) >= 3:
+                                                item_search_keys[name] = search_key
+
+                                    if item_search_keys:
+                                        # A. Market prices from epazar_items in other tenders
+                                        market_prices = {}
+                                        for item_name, search_key in item_search_keys.items():
+                                            row = await conn.fetchrow("""
+                                                SELECT
+                                                    COUNT(DISTINCT i.tender_id) as tender_count,
+                                                    MIN(i.estimated_unit_price_mkd) FILTER (WHERE i.estimated_unit_price_mkd > 0) as min_price,
+                                                    MAX(i.estimated_unit_price_mkd) FILTER (WHERE i.estimated_unit_price_mkd > 0) as max_price,
+                                                    AVG(i.estimated_unit_price_mkd) FILTER (WHERE i.estimated_unit_price_mkd > 0) as avg_price,
+                                                    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY i.estimated_unit_price_mkd)
+                                                        FILTER (WHERE i.estimated_unit_price_mkd > 0) as p25,
+                                                    PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY i.estimated_unit_price_mkd)
+                                                        FILTER (WHERE i.estimated_unit_price_mkd > 0) as p75
+                                                FROM epazar_items i
+                                                WHERE i.item_name ILIKE '%' || $1 || '%'
+                                                  AND i.tender_id != $2
+                                            """, search_key, tender_id)
+                                            if row and row['tender_count'] and row['tender_count'] > 0:
+                                                market_prices[item_name] = dict(row)
+
+                                        # B. Evaluation data (actual winning prices + brands)
+                                        eval_prices = {}
+                                        eval_brands = {}
+                                        for item_name, search_key in item_search_keys.items():
+                                            erow = await conn.fetchrow("""
+                                                SELECT
+                                                    COUNT(*) as eval_count,
+                                                    MIN(e.unit_price_without_vat) FILTER (WHERE e.unit_price_without_vat > 0) as actual_min,
+                                                    AVG(e.unit_price_without_vat) FILTER (WHERE e.unit_price_without_vat > 0) as actual_avg,
+                                                    MAX(e.unit_price_without_vat) FILTER (WHERE e.unit_price_without_vat > 0) as actual_max,
+                                                    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY e.unit_price_without_vat)
+                                                        FILTER (WHERE e.unit_price_without_vat > 0) as actual_p25,
+                                                    PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY e.unit_price_without_vat)
+                                                        FILTER (WHERE e.unit_price_without_vat > 0) as actual_p75
+                                                FROM epazar_item_evaluations e
+                                                WHERE e.product_name ILIKE '%' || $1 || '%'
+                                                  AND e.tender_id != $2
+                                            """, search_key, tender_id)
+                                            if erow and erow['eval_count'] and erow['eval_count'] > 0:
+                                                eval_prices[item_name] = dict(erow)
+
+                                            # Winning brands
+                                            brand_rows = await conn.fetch("""
+                                                SELECT e.offered_brand, COUNT(*) as wins,
+                                                       AVG(e.unit_price_without_vat) as avg_price
+                                                FROM epazar_item_evaluations e
+                                                WHERE e.product_name ILIKE '%' || $1 || '%'
+                                                  AND e.tender_id != $2
+                                                  AND e.offered_brand IS NOT NULL
+                                                  AND e.offered_brand != ''
+                                                  AND LENGTH(e.offered_brand) >= 2
+                                                  AND LENGTH(e.offered_brand) <= 50
+                                                  AND e.offered_brand !~ '[:\)\(\[\]0-9]'
+                                                  AND e.offered_brand NOT ILIKE '%производот нема%'
+                                                  AND e.unit_price_without_vat > 0
+                                                GROUP BY e.offered_brand
+                                                ORDER BY wins DESC
+                                                LIMIT 5
+                                            """, search_key, tender_id)
+                                            if brand_rows:
+                                                eval_brands[item_name] = [
+                                                    {"brand": r['offered_brand'], "wins": r['wins'], "avg_price": float(r['avg_price'])}
+                                                    for r in brand_rows
+                                                    if r['offered_brand'] and len(r['offered_brand'].strip()) >= 2
+                                                ]
+
+                                        # C. Format historical price context
+                                        if market_prices or eval_prices:
+                                            tender_context += f"\n=== ИСТОРИСКИ ЦЕНИ ОД Е-ПАЗАР (за препораки при понуди) ===\n"
+                                            for item_name in item_search_keys:
+                                                mp = market_prices.get(item_name)
+                                                ep = eval_prices.get(item_name)
+                                                brands = eval_brands.get(item_name, [])
+
+                                                if not mp and not ep:
+                                                    continue
+
+                                                tender_context += f"\nАртикл: {item_name}\n"
+                                                if mp:
+                                                    tender_context += (
+                                                        f"  Пазарна цена: {mp['min_price']:,.0f} - {mp['max_price']:,.0f} МКД "
+                                                        f"(просек: {mp['avg_price']:,.0f} МКД, P25: {mp['p25']:,.0f}, P75: {mp['p75']:,.0f}) "
+                                                        f"| {mp['tender_count']} тендери\n"
+                                                    )
+                                                if ep:
+                                                    tender_context += (
+                                                        f"  Реални победнички цени: {ep['actual_min']:,.0f} - {ep['actual_max']:,.0f} МКД "
+                                                        f"(просек: {ep['actual_avg']:,.0f} МКД, P25: {ep['actual_p25']:,.0f}, P75: {ep['actual_p75']:,.0f}) "
+                                                        f"| {ep['eval_count']} евалуации\n"
+                                                    )
+                                                if brands:
+                                                    brands_str = ", ".join(
+                                                        f"{b['brand']} ({b['wins']}x, ~{b['avg_price']:,.0f} МКД)"
+                                                        for b in brands
+                                                    )
+                                                    tender_context += f"  Победнички брендови: {brands_str}\n"
+
+                                            tender_context += (
+                                                f"\n=== УПАТСТВО ЗА ЦЕНОВНИ ПРЕПОРАКИ ===\n"
+                                                f"Кога корисникот прашува за цена или колку да понуди:\n"
+                                                f"1. Користи ги ИСТОРИСКИТЕ ЦЕНИ горе за точни препораки\n"
+                                                f"2. Дај 3 стратегии: Агресивна (под P25), Балансирана (просек), Сигурна (над P75)\n"
+                                                f"3. Секогаш наведи колку податочни точки имаш (број тендери/евалуации)\n"
+                                                f"4. Ако нема историски податоци за артикл, кажи дека немаш доволно податоци\n"
+                                                f"5. Победничките цени (евалуации) се попрецизни од пазарните проценки\n"
+                                            )
+
+                                        logger.info(f"[EPAZAR-PRICES] Loaded market prices for {len(market_prices)} items, "
+                                                   f"eval prices for {len(eval_prices)} items, brands for {len(eval_brands)} items")
+                                except Exception as price_err:
+                                    logger.warning(f"[EPAZAR-PRICES] Failed to fetch historical prices: {price_err}")
+
                             elif tender_data.get('items_data'):
                                 # Fallback: Parse items from JSON column
                                 try:
