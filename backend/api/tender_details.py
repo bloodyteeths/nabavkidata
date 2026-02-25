@@ -376,10 +376,21 @@ async def get_tender_documents(
 
     rows = result.fetchall()
 
+    # Deduplicate documents by file_name: keep the version with best extraction
+    # (same document often appears twice with different download URLs)
+    seen_names = {}  # file_name -> (priority, row)
+    extraction_priority = {'success': 3, 'pending': 2, 'failed': 1, 'auth_required': 0}
+
+    for row in rows:
+        fname = (row.file_name or '').strip().lower()
+        prio = extraction_priority.get(row.extraction_status, 0) + (1 if row.has_content else 0)
+        if fname not in seen_names or prio > seen_names[fname][0]:
+            seen_names[fname] = (prio, row)
+
     documents = []
     docs_by_category = {}
 
-    for row in rows:
+    for _, row in seen_names.values():
         doc = DocumentResponse(
             doc_id=str(row.doc_id),
             tender_id=tender_id,
@@ -472,6 +483,7 @@ async def extract_products_with_ai(
         raise HTTPException(status_code=404, detail="Tender not found")
 
     # ── Step 1: Check product_items table for pre-extracted data ──
+    # Strong quality filters: exclude section headings, legal clauses, and garbage
     items_query = text("""
         SELECT pi.name, pi.quantity, pi.unit, pi.unit_price, pi.total_price,
                pi.specifications, pi.cpv_code
@@ -479,8 +491,30 @@ async def extract_products_with_ai(
         WHERE pi.tender_id = :tender_id
           AND pi.name IS NOT NULL
           AND LENGTH(pi.name) >= 5
-          AND pi.extraction_confidence >= 0.5
+          AND LENGTH(pi.name) <= 200
+          AND pi.extraction_confidence >= 0.7
           AND pi.name !~ '^[0-9]+\\.'
+          AND pi.name !~ '^[а-яА-Яa-zA-Z]\\)'
+          -- Exclude ALL-CAPS section headings (3+ consecutive uppercase Cyrillic words)
+          AND pi.name !~ '^[А-Ш\\s]{10,}$'
+          -- Exclude common legal/admin section headings
+          AND UPPER(pi.name) NOT LIKE '%ПОДНЕСУВАЊЕ%ПОНУДИ%'
+          AND UPPER(pi.name) NOT LIKE '%ЕВАЛУАЦИЈА%'
+          AND UPPER(pi.name) NOT LIKE '%КРИТЕРИУМ%ИЗБОР%'
+          AND UPPER(pi.name) NOT LIKE '%СКЛУЧУВАЊЕ%ДОГОВОР%'
+          AND UPPER(pi.name) NOT LIKE '%ПРАВО НА ЖАЛБА%'
+          AND UPPER(pi.name) NOT LIKE '%ЗАДОЛЖИТЕЛНИ ЕЛЕМЕНТИ%'
+          AND UPPER(pi.name) NOT LIKE '%УТВРДУВАЊЕ СПОСОБНОСТ%'
+          AND UPPER(pi.name) NOT LIKE '%ПОДГОТОВКА НА ПОНУДАТА%'
+          AND UPPER(pi.name) NOT LIKE '%ОПШТИ ИНФОРМАЦИИ%'
+          AND UPPER(pi.name) NOT LIKE '%ПОЈАСНУВАЊЕ%ИЗМЕНУВАЊЕ%'
+          AND UPPER(pi.name) NOT LIKE '%ТЕНДЕРСКА%ДОКУМЕНТАЦИЈА%'
+          AND UPPER(pi.name) NOT LIKE '%ДОГОВОРНИОТ ОРГАН%'
+          AND UPPER(pi.name) NOT LIKE '%ЕКОНОМСКИОТ ОПЕРАТОР%'
+          AND UPPER(pi.name) NOT LIKE '%ЖАЛИТЕЛОТ%'
+          AND UPPER(pi.name) NOT LIKE '%НЕУСОГЛАСЕНОСТИ%'
+          -- Must have at least one of: quantity, price, or be short enough to be a real item
+          AND (pi.quantity IS NOT NULL OR pi.unit_price IS NOT NULL OR LENGTH(pi.name) <= 80)
         ORDER BY pi.item_number
     """)
     items_result = await db.execute(items_query, {"tender_id": tender_id})

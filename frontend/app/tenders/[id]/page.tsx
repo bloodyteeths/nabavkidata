@@ -1399,8 +1399,8 @@ export default function TenderDetailPage() {
                   ) : aiProducts.products.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
                       <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
-                      <p className="text-sm">{aiProducts.summary || "Не се пронајдени производи во документацијата"}</p>
-                      <p className="text-xs mt-2">Анализирани документи: {aiProducts.source_documents}</p>
+                      <p className="text-sm">Нема конкретни производи или услуги извлечени од документацијата</p>
+                      <p className="text-xs mt-2">Овој тендер можеби нема детална спецификација на ставки, или ставките се опишани само во PDF документите. Проверете го табот Документи за детали.</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -1557,8 +1557,8 @@ export default function TenderDetailPage() {
                         </div>
                         <div className="text-center p-2 rounded-md bg-background/50">
                           <p className="text-xs text-muted-foreground">Конкуренција</p>
-                          <Badge variant={aiSummaryData.competition_level === 'high' ? 'destructive' : aiSummaryData.competition_level === 'medium' ? 'default' : 'secondary'} className="mt-1">
-                            {aiSummaryData.competition_level === 'high' ? 'Висока' : aiSummaryData.competition_level === 'medium' ? 'Средна' : 'Ниска'}
+                          <Badge variant={aiSummaryData.competition_level === 'high' ? 'destructive' : aiSummaryData.competition_level === 'medium' ? 'default' : 'outline'} className="mt-1">
+                            {aiSummaryData.competition_level === 'high' ? 'Висока' : aiSummaryData.competition_level === 'medium' ? 'Средна' : aiSummaryData.competition_level === 'low' ? 'Ниска' : 'Нема податоци'}
                           </Badge>
                         </div>
                         <div className="text-center p-2 rounded-md bg-background/50">

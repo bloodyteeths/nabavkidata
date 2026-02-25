@@ -2025,6 +2025,13 @@ async def get_tender_bid_advice_by_id(
 
     if tender.cpv_code:
         # Get similar tenders from last 2 years
+        # Use full CPV code (or first 6 chars) for more specific matching
+        # Also filter by value range (0.1x to 10x of current estimate) to avoid
+        # comparing 120K tenders with 138M tenders
+        cpv_prefix = tender.cpv_code[:6] + "%" if len(tender.cpv_code) >= 6 else tender.cpv_code[:4] + "%"
+        value_low = float(tender.estimated_value_mkd) * 0.1 if tender.estimated_value_mkd else 0
+        value_high = float(tender.estimated_value_mkd) * 10 if tender.estimated_value_mkd else 999999999
+
         hist_query = text("""
             SELECT t.tender_id, t.estimated_value_mkd, t.actual_value_mkd,
                    t.num_bidders, tb.bid_amount_mkd, tb.is_winner
@@ -2034,12 +2041,15 @@ async def get_tender_bid_advice_by_id(
               AND t.tender_id != :current_tender
               AND t.publication_date > NOW() - INTERVAL '2 years'
               AND t.actual_value_mkd IS NOT NULL
+              AND t.estimated_value_mkd BETWEEN :value_low AND :value_high
             ORDER BY t.publication_date DESC
             LIMIT 100
         """)
         hist_result = await db.execute(hist_query, {
-            "cpv_prefix": tender.cpv_code[:4] + "%",
-            "current_tender": tender_id
+            "cpv_prefix": cpv_prefix,
+            "current_tender": tender_id,
+            "value_low": value_low,
+            "value_high": value_high,
         })
         historical_data = hist_result.fetchall()
 
@@ -2140,10 +2150,14 @@ async def get_tender_bid_advice_by_id(
                 })
 
     # Generate AI summary
+    similar_count = len(set(r.tender_id for r in historical_data)) if historical_data else 0
     ai_summary = f"За овој тендер има {len(bidders)} понудувачи. "
-    if avg_discount > 0:
-        ai_summary += f"Историски просечен попуст за слични тендери е {round(avg_discount, 1)}%. "
-    ai_summary += f"Ниво на конкуренција: {competition_level}."
+    if similar_count > 0 and avg_discount > 0:
+        ai_summary += f"Анализирани се {similar_count} слични тендери со просечен попуст од {round(avg_discount, 1)}%. "
+    elif similar_count == 0:
+        ai_summary += "Нема доволно историски податоци за слични тендери. Препораките се базирани на општи проценки. "
+    competition_labels = {"high": "висока", "medium": "средна", "low": "ниска", "unknown": "непозната"}
+    ai_summary += f"Ниво на конкуренција: {competition_labels.get(competition_level, competition_level)}."
 
     # Fetch item prices from product_items table
     item_prices = []
