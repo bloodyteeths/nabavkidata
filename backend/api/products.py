@@ -413,7 +413,12 @@ async def get_product_stats(
             COUNT(*) as total_products,
             COUNT(DISTINCT tender_id) as tenders_with_products,
             COUNT(DISTINCT name) as unique_products,
-            AVG(extraction_confidence) as avg_confidence
+            AVG(extraction_confidence) as avg_confidence,
+            COUNT(unit_price) as with_unit_price,
+            COUNT(total_price) as with_total_price,
+            COUNT(CASE WHEN extraction_confidence >= 0.7 THEN 1 END) as high_confidence,
+            COUNT(CASE WHEN extraction_confidence >= 0.7 AND (unit_price IS NOT NULL OR total_price IS NOT NULL) THEN 1 END) as high_conf_with_price,
+            COUNT(DISTINCT CASE WHEN unit_price IS NOT NULL THEN tender_id END) as tenders_with_prices
         FROM product_items
     """)
 
@@ -424,7 +429,12 @@ async def get_product_stats(
         "total_products": row.total_products or 0,
         "tenders_with_products": row.tenders_with_products or 0,
         "unique_products": row.unique_products or 0,
-        "avg_confidence": float(row.avg_confidence) if row.avg_confidence else None
+        "avg_confidence": float(row.avg_confidence) if row.avg_confidence else None,
+        "with_unit_price": row.with_unit_price or 0,
+        "with_total_price": row.with_total_price or 0,
+        "high_confidence": row.high_confidence or 0,
+        "high_conf_with_price": row.high_conf_with_price or 0,
+        "tenders_with_prices": row.tenders_with_prices or 0,
     }
 
     _stats_cache = {"data": data, "expires": datetime.now() + timedelta(minutes=15)}
