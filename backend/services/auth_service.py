@@ -33,11 +33,11 @@ LOGIN_LOCKOUT_MINUTES = 15
 # Password context for bcrypt hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# In-memory storage for rate limiting and tokens (use Redis in production)
+# In-memory storage for rate limiting (use Redis in production)
 login_attempts: Dict[str, list] = {}
-verification_tokens: Dict[str, Dict] = {}
-password_reset_tokens: Dict[str, Dict] = {}
 refresh_tokens: Dict[str, Dict] = {}
+# NOTE: verification_tokens and password_reset_tokens are now stored in the
+# users table (DB-backed) to work correctly with multiple uvicorn workers.
 
 
 # ============================================================================
@@ -289,98 +289,96 @@ async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
 
 
 # ============================================================================
-# EMAIL VERIFICATION
+# EMAIL VERIFICATION (DB-backed)
 # ============================================================================
 
-def generate_verification_token(user_id: UUID, email: str) -> str:
+async def generate_verification_token(db: AsyncSession, user_id: UUID, email: str) -> str:
     """
-    Generate an email verification token
-
-    Args:
-        user_id: User's unique identifier
-        email: User's email address
-
-    Returns:
-        Verification token string
+    Generate an email verification token and store it in the database.
+    DB-backed so it works across multiple uvicorn workers.
     """
     token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=EMAIL_VERIFICATION_EXPIRE_HOURS)
 
-    verification_tokens[token] = {
-        "user_id": str(user_id),
-        "email": email.lower(),
-        "created_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + timedelta(hours=EMAIL_VERIFICATION_EXPIRE_HOURS)
-    }
+    await db.execute(
+        update(User)
+        .where(User.user_id == user_id)
+        .values(
+            verification_token=token,
+            verification_token_expires_at=expires_at,
+            updated_at=datetime.utcnow()
+        )
+    )
+    await db.commit()
 
     return token
 
 
 async def verify_email(db: AsyncSession, token: str) -> bool:
     """
-    Verify user's email with token
-
-    Args:
-        db: Database session
-        token: Email verification token
-
-    Returns:
-        True if verification successful, False otherwise
+    Verify user's email with token (DB-backed lookup).
     """
-    token_data = verification_tokens.get(token)
+    result = await db.execute(
+        select(User).where(User.verification_token == token)
+    )
+    user = result.scalar_one_or_none()
 
-    if not token_data:
+    if not user:
         return False
 
     # Check if token expired
-    if datetime.utcnow() > token_data["expires_at"]:
-        del verification_tokens[token]
+    if user.verification_token_expires_at and datetime.utcnow() > user.verification_token_expires_at:
+        # Clear expired token
+        await db.execute(
+            update(User)
+            .where(User.user_id == user.user_id)
+            .values(verification_token=None, verification_token_expires_at=None)
+        )
+        await db.commit()
         return False
 
-    # Update user's email_verified status
-    user_id = UUID(token_data["user_id"])
-
+    # Mark email as verified and clear token
     await db.execute(
         update(User)
-        .where(User.user_id == user_id)
-        .values(email_verified=True, updated_at=datetime.utcnow())
+        .where(User.user_id == user.user_id)
+        .values(
+            email_verified=True,
+            verification_token=None,
+            verification_token_expires_at=None,
+            updated_at=datetime.utcnow()
+        )
     )
     await db.commit()
-
-    # Remove used token
-    del verification_tokens[token]
 
     return True
 
 
 # ============================================================================
-# PASSWORD RESET
+# PASSWORD RESET (DB-backed)
 # ============================================================================
 
 async def request_password_reset(db: AsyncSession, email: str) -> Optional[str]:
     """
-    Request password reset and generate reset token
-
-    Args:
-        db: Database session
-        email: User's email address
-
-    Returns:
-        Password reset token if user exists, None otherwise
+    Request password reset and generate reset token (DB-backed).
     """
     user = await get_user_by_email(db, email)
 
     if not user:
-        # Don't reveal if email exists
         return None
 
     token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=PASSWORD_RESET_EXPIRE_HOURS)
 
-    password_reset_tokens[token] = {
-        "user_id": str(user.user_id),
-        "email": email.lower(),
-        "created_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + timedelta(hours=PASSWORD_RESET_EXPIRE_HOURS)
-    }
+    await db.execute(
+        update(User)
+        .where(User.user_id == user.user_id)
+        .values(
+            password_reset_token=token,
+            password_reset_token_expires_at=expires_at,
+            updated_at=datetime.utcnow()
+        )
+    )
+    await db.commit()
 
     return token
 
@@ -391,39 +389,40 @@ async def reset_password(
     new_password: str
 ) -> bool:
     """
-    Reset user's password with reset token
-
-    Args:
-        db: Database session
-        token: Password reset token
-        new_password: New plain text password
-
-    Returns:
-        True if password reset successful, False otherwise
+    Reset user's password with reset token (DB-backed lookup).
     """
-    token_data = password_reset_tokens.get(token)
+    result = await db.execute(
+        select(User).where(User.password_reset_token == token)
+    )
+    user = result.scalar_one_or_none()
 
-    if not token_data:
+    if not user:
         return False
 
     # Check if token expired
-    if datetime.utcnow() > token_data["expires_at"]:
-        del password_reset_tokens[token]
+    if user.password_reset_token_expires_at and datetime.utcnow() > user.password_reset_token_expires_at:
+        await db.execute(
+            update(User)
+            .where(User.user_id == user.user_id)
+            .values(password_reset_token=None, password_reset_token_expires_at=None)
+        )
+        await db.commit()
         return False
 
-    # Update user's password
-    user_id = UUID(token_data["user_id"])
+    # Update password and clear token
     new_password_hash = hash_password(new_password)
 
     await db.execute(
         update(User)
-        .where(User.user_id == user_id)
-        .values(password_hash=new_password_hash, updated_at=datetime.utcnow())
+        .where(User.user_id == user.user_id)
+        .values(
+            password_hash=new_password_hash,
+            password_reset_token=None,
+            password_reset_token_expires_at=None,
+            updated_at=datetime.utcnow()
+        )
     )
     await db.commit()
-
-    # Remove used token
-    del password_reset_tokens[token]
 
     return True
 
@@ -562,43 +561,37 @@ def get_lockout_time_remaining(email: str) -> Optional[int]:
 
 
 # ============================================================================
-# TOKEN CLEANUP (Call periodically from background task)
+# TOKEN CLEANUP
 # ============================================================================
 
-def cleanup_expired_tokens() -> Dict[str, int]:
+async def cleanup_expired_tokens(db: AsyncSession) -> Dict[str, int]:
     """
-    Remove expired tokens from in-memory storage
-    Should be called periodically by a background task
-
-    Returns:
-        Dictionary with count of removed tokens by type
+    Remove expired tokens from database and in-memory storage.
     """
     now = datetime.utcnow()
-    removed = {
-        "verification": 0,
-        "password_reset": 0,
-        "refresh": 0
-    }
+    removed = {"verification": 0, "password_reset": 0, "refresh": 0}
 
-    # Clean verification tokens
-    expired_verification = [
-        token for token, data in verification_tokens.items()
-        if data["expires_at"] < now
-    ]
-    for token in expired_verification:
-        del verification_tokens[token]
-        removed["verification"] += 1
+    # Clean expired verification tokens in DB
+    result = await db.execute(
+        update(User)
+        .where(User.verification_token_expires_at < now)
+        .where(User.verification_token.isnot(None))
+        .values(verification_token=None, verification_token_expires_at=None)
+    )
+    removed["verification"] = result.rowcount
 
-    # Clean password reset tokens
-    expired_reset = [
-        token for token, data in password_reset_tokens.items()
-        if data["expires_at"] < now
-    ]
-    for token in expired_reset:
-        del password_reset_tokens[token]
-        removed["password_reset"] += 1
+    # Clean expired password reset tokens in DB
+    result = await db.execute(
+        update(User)
+        .where(User.password_reset_token_expires_at < now)
+        .where(User.password_reset_token.isnot(None))
+        .values(password_reset_token=None, password_reset_token_expires_at=None)
+    )
+    removed["password_reset"] = result.rowcount
 
-    # Clean refresh tokens
+    await db.commit()
+
+    # Clean in-memory refresh tokens
     expired_refresh = [
         token for token, data in refresh_tokens.items()
         if data["expires_at"] < now

@@ -22,6 +22,10 @@ class User(Base):
     subscription_tier = Column(String(50), default="free")
     stripe_customer_id = Column(String(255))
     email_verified = Column(Boolean, default=False)
+    verification_token = Column(String(255), index=True)
+    verification_token_expires_at = Column(DateTime)
+    password_reset_token = Column(String(255), index=True)
+    password_reset_token_expires_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

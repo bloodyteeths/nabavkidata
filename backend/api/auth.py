@@ -495,9 +495,9 @@ async def register(
         except Exception as e:
             logger.warning(f"Failed to process referral code '{user_data.referral_code}': {e}")
 
-    # Generate and store verification token
+    # Generate and store verification token (DB-backed)
     from services.auth_service import generate_verification_token
-    verification_token = generate_verification_token(new_user.user_id, user_data.email)
+    verification_token = await generate_verification_token(db, new_user.user_id, user_data.email)
 
     # Send verification email
     await send_verification_email_task(user_data.email, verification_token, user_data.full_name or "User", background_tasks)
@@ -747,9 +747,9 @@ async def resend_verification(
             detail="Email already verified"
         )
 
-    # Generate and store new token
+    # Generate and store new token (DB-backed)
     from services.auth_service import generate_verification_token
-    verification_token = generate_verification_token(user.user_id, data.email)
+    verification_token = await generate_verification_token(db, user.user_id, data.email)
 
     # Send verification email
     await send_verification_email_task(data.email, verification_token, user.full_name or "User", background_tasks)
