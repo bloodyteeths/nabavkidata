@@ -443,57 +443,63 @@ There are also **31 total .env* files** (backups, copies in subdirectories). Del
 ## Migration Checklist (print this)
 
 ### Before Migration
-- [ ] Hetzner VPS purchased and SSH working
+- [x] Hetzner VPS purchased and SSH working — **46.224.89.197** (CPX32, 8GB RAM, 150GB SSD, Nuremberg)
 - [ ] DNS TTL lowered to 1 min (24h before migration)
-- [ ] All .env variables documented
+- [x] All .env variables documented
 
 ### Phase 1: Server Setup
-- [ ] UFW firewall configured (22, 80, 443)
-- [ ] Fail2ban installed
-- [ ] `ubuntu` user created with correct permissions
-- [ ] PostgreSQL 15 installed with pgvector extension
-- [ ] Redis installed and running
-- [ ] Python 3.10+ installed
-- [ ] Tesseract OCR installed (with Macedonian lang pack)
-- [ ] Playwright + browsers installed
-- [ ] Nginx installed
+- [x] UFW firewall configured (22, 80, 443)
+- [x] Fail2ban installed
+- [x] `ubuntu` user created with correct permissions
+- [x] PostgreSQL 16 installed with pgvector extension (Ubuntu 24.04 ships PG16, compatible)
+- [x] Redis installed and running
+- [x] Python 3.12 installed
+- [x] Tesseract OCR 5.3.4 installed (with Macedonian lang pack)
+- [ ] Playwright + browsers installed (done during Phase 2 pip install)
+- [x] Nginx installed
 - [ ] `/opt/clawd/` monitoring scripts copied from EC2
 
 ### Phase 2: Deploy
-- [ ] Code rsync'd to Hetzner
-- [ ] Python deps installed (backend, scraper, ai)
-- [ ] .env files configured (DB changed to localhost, EC2_PUBLIC_IP updated)
+- [x] Code rsync'd to Hetzner
+- [x] Python deps installed (backend, scraper, ai)
+- [x] .env files configured (DB changed to localhost, EC2_PUBLIC_IP updated to 46.224.89.197)
 - [ ] Stale .env backups deleted (31 → 3 files)
-- [ ] Systemd service created and tested
-- [ ] Crontab installed
+- [x] Systemd service created and enabled (nabavkidata-api.service)
+- [x] Nginx config created for api.nabavkidata.com
+- [x] Playwright browsers installed (Firefox + Chromium)
+- [x] Clawd /opt/clawd/ copied from EC2
+- [x] Helper scripts created (memory_watchdog, cleanup_logs, backup_db)
+- [ ] Crontab installed (after DNS cutover)
 
 ### Phase 3: SSL
-- [ ] Certbot DNS challenge completed
-- [ ] Nginx configured with SSL cert
-- [ ] HTTP→HTTPS redirect working
+- [x] Certbot DNS challenge completed (expires 2026-05-26, auto-renew enabled)
+- [x] Nginx configured with SSL cert
+- [x] HTTP→HTTPS redirect working
 
 ### Phase 4: Database
-- [ ] pg_dump completed on EC2 (~8.9GB)
-- [ ] Dump transferred to Hetzner
-- [ ] pgvector extension created before restore
-- [ ] pg_restore completed
-- [ ] Row counts verified (tenders, documents, embeddings, users)
+- [x] pg_dump completed on EC2 (3.0GB compressed, PG15 client)
+- [x] Dump transferred to Hetzner (EC2→local→Hetzner pipe, ~5min)
+- [x] pgvector + pg_trgm extensions created before restore
+- [x] pg_restore completed (2 minutes, 4 parallel jobs)
+- [x] Row counts verified: tenders=279,341 | documents=62,447 | embeddings=564,738 | users=202 | product_items=403,936
 
 ### Phase 5: Cutover
-- [ ] Crons stopped on EC2
-- [ ] DNS A record changed to Hetzner IP
-- [ ] DNS propagation confirmed
+- [ ] Crons stopped on EC2 (do this after 1 week of stable Hetzner operation)
+- [x] DNS A record changed to Hetzner IP (46.224.89.197)
+- [x] DNS propagation confirmed (Google DNS + Cloudflare)
 
 ### Phase 6: Verify
-- [ ] `curl https://api.nabavkidata.com/api/health` returns OK
+- [x] `curl https://api.nabavkidata.com/api/health` returns OK (database: true)
 - [ ] Login works in browser
-- [ ] Tender search works
+- [x] Tender search works (279,341 tenders returned)
 - [ ] AI chat works
 - [ ] Stripe webhook test event received
 - [ ] Email delivery works (Postmark)
 - [ ] Scraper starts and logs to `/var/log/nabavkidata/`
-- [ ] Redis responds to `redis-cli ping`
+- [x] Redis responds to `redis-cli ping` (PONG)
 - [ ] Clawd webhooks reporting
+- [x] SSL cert valid (expires 2026-05-26)
+- [x] Crontab installed (27 jobs)
 
 ### Post-Migration
 - [ ] Monitor for 1 week

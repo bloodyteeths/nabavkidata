@@ -11,10 +11,10 @@ Macedonian public procurement data platform - scrapes tenders from e-nabavki.gov
 - Use `/deploy` skill for deployment commands
 
 ## Server Details
-- **AWS EC2**: 18.197.185.30
-- **SSH**: `ssh -i ~/.ssh/nabavki-key.pem ubuntu@18.197.185.30`
-- **RAM**: 3.8GB (run max 2-3 scrapers concurrently)
-- **Database**: RDS PostgreSQL at nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com
+- **Hetzner VPS**: 46.224.89.197 (CPX32, Nuremberg)
+- **SSH**: `ssh ubuntu@46.224.89.197` or `ssh root@46.224.89.197`
+- **RAM**: 8GB (can run 3-4 scrapers concurrently)
+- **Database**: PostgreSQL 16 local on Hetzner (localhost:5432)
 
 ## Scraper Commands
 
@@ -88,8 +88,8 @@ SELECT status, COUNT(*) FROM tenders GROUP BY status;
 Both archive year and date filter can corrupt after ~80-100 pages. Spider has automatic recovery that re-navigates and re-applies filter.
 
 ### Memory Management
-- Max 2-3 scrapers with Playwright concurrently
-- Use `MEMUSAGE_LIMIT_MB=1200` for safety
+- Max 3-4 scrapers with Playwright concurrently (8GB RAM)
+- Use `MEMUSAGE_LIMIT_MB=2000` for safety
 - Clean up extracted PDFs: `rm downloads/files/*.pdf` after extraction
 
 ### Disk Cleanup
@@ -134,7 +134,7 @@ const query = searchParams.get('search') || '';
 ## Tech Stack
 - **Frontend**: Next.js 14, React, TypeScript, Tailwind, shadcn/ui
 - **Backend**: Python FastAPI, asyncpg
-- **Database**: PostgreSQL on AWS RDS
+- **Database**: PostgreSQL 16 on Hetzner (local)
 - **AI**: Gemini embeddings, RAG search
-- **Scraping**: Scrapy + Playwright, Chandra OCR
-- **Hosting**: Vercel (frontend), AWS EC2 (backend/scraper)
+- **Scraping**: Scrapy + Playwright, Tesseract OCR
+- **Hosting**: Vercel (frontend), Hetzner VPS (backend/scraper)
