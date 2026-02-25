@@ -128,7 +128,7 @@ export default function SuccessPage() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => router.push('/billing')}
+              onClick={() => router.push('/settings')}
               className="flex-1"
             >
               Прегледај наплата

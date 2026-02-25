@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Check, Sparkles, CreditCard, Zap, HelpCircle, Search, AlertTriangle, ChevronDown, Users, Copy, ExternalLink } from "lucide-react";
+import { X, Check, Sparkles, CreditCard, Zap, HelpCircle, Search, AlertTriangle, ChevronDown, Users, Copy, ExternalLink, Download, Calendar, ArrowUp, ArrowDown, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { Invoice } from "@/lib/api";
 
 // Expanded sectors based on common procurement categories in Macedonia
 const AVAILABLE_SECTORS = [
@@ -906,6 +907,12 @@ export default function SettingsPage() {
   const [isTrialActive, setIsTrialActive] = useState<boolean>(false);
   const [dailyUsage, setDailyUsage] = useState<{ used: number; limit: number }>({ used: 0, limit: 3 });
   const [hasStripeCustomer, setHasStripeCustomer] = useState<boolean>(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [changingPlan, setChangingPlan] = useState(false);
+  const [confirmChangeTier, setConfirmChangeTier] = useState<string | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
 
   // Referral program state
   const [referralCode, setReferralCode] = useState<string>("");
@@ -1134,8 +1141,9 @@ export default function SettingsPage() {
         const status = await billing.getSubscriptionStatus();
         setCurrentTier(status.tier);
         setDailyUsage({ used: status.daily_queries_used, limit: status.daily_queries_limit });
-        // Track if user has Stripe customer (needed for billing portal)
         setHasStripeCustomer(!!(status as any).stripe_customer_id);
+        setCancelAtPeriodEnd(!!(status as any).cancel_at_period_end);
+        setSubscriptionStatus((status as any).status || null);
 
         // Check if in trial and store credits
         if (status.trial?.active) {
@@ -1152,6 +1160,14 @@ export default function SettingsPage() {
         console.log('No subscription found, defaulting to free tier');
         setCurrentTier('free');
         setHasStripeCustomer(false);
+      }
+
+      // Load invoices
+      try {
+        const invoicesData = await api.getInvoices();
+        setInvoices(invoicesData);
+      } catch {
+        // No invoices available
       }
     } catch (error) {
       console.error("Failed to load plans:", error);
@@ -1234,6 +1250,57 @@ export default function SettingsPage() {
     } catch (error) {
       console.error("Failed to open billing portal:", error);
       toast.error("Грешка при отворање на порталот за наплата.");
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!confirm('Дали сте сигурни дека сакате да ја откажете претплатата? Ќе имате пристап до крајот на тековниот период.')) {
+      return;
+    }
+    try {
+      setCancelling(true);
+      await api.cancelSubscription();
+      setCancelAtPeriodEnd(true);
+      toast.success("Претплатата е откажана. Ќе имате пристап до крајот на периодот.");
+    } catch (error: any) {
+      toast.error(error.message || "Грешка при откажување на претплатата.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleChangePlan = async (tier: string) => {
+    if (tier === 'free' || tier === 'trial') return;
+
+    // If user has no active subscription, go through checkout
+    if (currentTier === 'free' || !hasStripeCustomer) {
+      handleUpgrade(tier);
+      return;
+    }
+
+    // For existing subscribers, show confirmation
+    setConfirmChangeTier(tier);
+  };
+
+  const confirmPlanChange = async () => {
+    if (!confirmChangeTier) return;
+    try {
+      setChangingPlan(true);
+      const result = await api.upgradeSubscription(confirmChangeTier);
+      const tierNames: Record<string, string> = { starter: 'Стартер', professional: 'Про', enterprise: 'Претпријатие' };
+      toast.success(
+        result.change_type === 'upgrade'
+          ? `Успешно надградивте на ${tierNames[result.new_tier] || result.new_tier}!`
+          : `Планот е променет на ${tierNames[result.new_tier] || result.new_tier}.`
+      );
+      setConfirmChangeTier(null);
+      setCurrentTier(result.new_tier);
+      // Reload to refresh usage
+      await loadPlans();
+    } catch (error: any) {
+      toast.error(error.message || "Грешка при промена на планот.");
+    } finally {
+      setChangingPlan(false);
     }
   };
 
@@ -1564,29 +1631,32 @@ export default function SettingsPage() {
                         </div>
                         <div className="pt-4">
                           {isCurrentPlan ? (
-                            hasStripeCustomer ? (
-                              <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" onClick={handleManageBilling}>
-                                <CreditCard className="mr-2 h-3 w-3 md:h-4 md:w-4" />
-                                Управувај претплата
-                              </Button>
-                            ) : (
-                              <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" disabled>
-                                Тековен план
-                              </Button>
-                            )
-                          ) : isFree ? (
                             <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" disabled>
                               Тековен план
                             </Button>
-                          ) : (
-                            <Button
-                              className={`w-full text-xs md:text-sm h-8 md:h-10 ${isPopular ? 'bg-primary hover:bg-primary/90' : ''}`}
-                              onClick={() => handleUpgrade(plan.tier)}
-                              disabled={upgrading === plan.tier}
-                            >
-                              {upgrading === plan.tier ? 'Се обработува...' : 'Надогради'}
+                          ) : isFree ? (
+                            <Button variant="outline" className="w-full text-xs md:text-sm h-8 md:h-10" disabled>
+                              {currentTier === 'free' ? 'Тековен план' : 'Бесплатно'}
                             </Button>
-                          )}
+                          ) : (() => {
+                            const tierOrder: Record<string, number> = { free: 0, trial: 0, starter: 1, professional: 2, enterprise: 3 };
+                            const isUpgradePlan = (tierOrder[plan.tier] ?? 0) > (tierOrder[currentTier] ?? 0);
+                            const isDowngradePlan = (tierOrder[plan.tier] ?? 0) < (tierOrder[currentTier] ?? 0);
+                            return (
+                              <Button
+                                className={`w-full text-xs md:text-sm h-8 md:h-10 ${isPopular && !isDowngradePlan ? 'bg-primary hover:bg-primary/90' : ''}`}
+                                variant={isDowngradePlan ? 'outline' : 'default'}
+                                onClick={() => handleChangePlan(plan.tier)}
+                                disabled={upgrading === plan.tier || changingPlan}
+                              >
+                                {upgrading === plan.tier || changingPlan ? 'Се обработува...' : isUpgradePlan ? (
+                                  <span className="flex items-center gap-1.5"><ArrowUp className="h-3 w-3" /> Надгради</span>
+                                ) : isDowngradePlan ? (
+                                  <span className="flex items-center gap-1.5"><ArrowDown className="h-3 w-3" /> Намали план</span>
+                                ) : 'Одбери'}
+                              </Button>
+                            );
+                          })()}
                         </div>
                       </CardContent>
                     </Card>
@@ -1594,6 +1664,49 @@ export default function SettingsPage() {
                 );
               })}
             </div>
+
+            {/* Plan change confirmation */}
+            {confirmChangeTier && (() => {
+              const targetPlan = plans.find(p => p.tier === confirmChangeTier);
+              const tierOrder: Record<string, number> = { free: 0, trial: 0, starter: 1, professional: 2, enterprise: 3 };
+              const isUpgradeChange = (tierOrder[confirmChangeTier] ?? 0) > (tierOrder[currentTier] ?? 0);
+              const targetPrice = currency === 'eur'
+                ? (interval === 'monthly' ? targetPlan?.price_monthly_eur : targetPlan?.price_yearly_eur)
+                : (interval === 'monthly' ? targetPlan?.price_monthly_mkd : targetPlan?.price_yearly_mkd);
+              return (
+                <div className="mt-4 md:mt-6 p-4 rounded-lg border-2 border-primary bg-primary/5">
+                  <div className="text-center space-y-3">
+                    {isUpgradeChange ? (
+                      <ArrowUp className="h-8 w-8 text-primary mx-auto" />
+                    ) : (
+                      <ArrowDown className="h-8 w-8 text-orange-500 mx-auto" />
+                    )}
+                    <h3 className="font-semibold text-sm md:text-base">
+                      {isUpgradeChange ? 'Надградба на план' : 'Намалување на план'}
+                    </h3>
+                    <p className="text-xs md:text-sm text-muted-foreground">
+                      {isUpgradeChange
+                        ? `Дали сакате да надградите на ${targetPlan?.name} (${targetPrice?.toLocaleString()} ${currency === 'eur' ? 'EUR' : 'ден'}/${interval === 'monthly' ? 'мес' : 'год'})?`
+                        : `Дали сакате да го намалите планот на ${targetPlan?.name} (${targetPrice?.toLocaleString()} ${currency === 'eur' ? 'EUR' : 'ден'}/${interval === 'monthly' ? 'мес' : 'год'})?`
+                      }
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {isUpgradeChange
+                        ? 'Разликата ќе биде пресметана пропорционално.'
+                        : 'Со намалување ќе изгубите пристап до некои функции.'}
+                    </p>
+                    <div className="flex gap-3 justify-center pt-1">
+                      <Button variant="outline" size="sm" onClick={() => setConfirmChangeTier(null)} disabled={changingPlan}>
+                        Откажи
+                      </Button>
+                      <Button size="sm" onClick={confirmPlanChange} disabled={changingPlan} variant={isUpgradeChange ? 'default' : 'outline'}>
+                        {changingPlan ? 'Се менува...' : isUpgradeChange ? 'Надгради' : 'Потврди'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {currentTier === 'trial' && (
               <div className="mt-4 md:mt-6 p-3 md:p-4 rounded-lg bg-green-500/10 border border-green-500/20">
@@ -1607,6 +1720,62 @@ export default function SettingsPage() {
                 <p className="text-xs md:text-sm text-orange-400">
                   <strong>⚠️ Пробниот период истече:</strong> Надградете на платен план за да продолжите да ги користите сите функции.
                 </p>
+              </div>
+            )}
+
+            {/* Subscription Management - only for paid subscribers */}
+            {hasStripeCustomer && subscriptionStatus === 'active' && (
+              <div className="mt-4 md:mt-6 pt-4 md:pt-6 border-t space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground">Управување со претплата</h3>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button variant="outline" size="sm" className="text-xs md:text-sm" onClick={handleManageBilling}>
+                    <CreditCard className="mr-2 h-3 w-3 md:h-4 md:w-4" />
+                    Управувај наплата
+                  </Button>
+                  {!cancelAtPeriodEnd && (
+                    <Button variant="outline" size="sm" className="text-xs md:text-sm text-destructive hover:text-destructive" onClick={handleCancelSubscription} disabled={cancelling}>
+                      {cancelling ? 'Се откажува...' : 'Откажи претплата'}
+                    </Button>
+                  )}
+                </div>
+                {cancelAtPeriodEnd && (
+                  <p className="text-xs text-destructive flex items-center gap-1.5">
+                    <AlertTriangle className="h-3 w-3" />
+                    Претплатата ќе биде откажана на крајот на тековниот период.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Invoice History */}
+            {invoices.length > 0 && (
+              <div className="mt-4 md:mt-6 pt-4 md:pt-6 border-t">
+                <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Историја на наплата
+                </h3>
+                <div className="space-y-2">
+                  {invoices.slice(0, 5).map((invoice) => (
+                    <div key={invoice.id} className="flex items-center justify-between py-2 border-b last:border-0 text-xs md:text-sm">
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted-foreground">
+                          {new Date(invoice.created_at).toLocaleDateString('mk-MK', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </span>
+                        <span className="font-medium">{invoice.amount.toLocaleString()} ден</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={invoice.status === 'paid' ? 'success' : 'warning'} className="text-[10px] px-1.5 py-0">
+                          {invoice.status === 'paid' ? 'Платена' : 'Неплатена'}
+                        </Badge>
+                        {invoice.invoice_pdf && (
+                          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => window.open(invoice.invoice_pdf, '_blank')}>
+                            <Download className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </CardContent>

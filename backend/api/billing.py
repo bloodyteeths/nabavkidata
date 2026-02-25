@@ -626,8 +626,12 @@ async def get_billing_status(
         year = period_start.year + (1 if next_month == 1 else 0)
         period_end = period_start.replace(month=next_month, year=year)
 
-    # Get usage stats
+    # Get usage stats for billing period (for general usage display)
     usage = await get_usage_stats(db, str(current_user.user_id), period_start)
+
+    # Get today's usage for daily query counter (resets at midnight UTC)
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_usage = await get_usage_stats(db, str(current_user.user_id), today_start)
 
     # Check trial status from users table (new trial system)
     tier = (current_user.subscription_tier or "free").lower()
@@ -671,9 +675,9 @@ async def get_billing_status(
 
     # For trial users, set daily limit based on credits
     daily_queries_limit = limits.get("rag_queries_per_day", 3)
-    daily_queries_used = usage.get("rag_queries", 0)
+    daily_queries_used = today_usage.get("rag_queries", 0)
 
-    # If in trial, use credit-based limits
+    # If in trial, use credit-based limits (trial uses total credits, not daily)
     if in_trial and trial_credits.get("ai_messages"):
         ai_credits = trial_credits["ai_messages"]
         daily_queries_limit = ai_credits["total"]
