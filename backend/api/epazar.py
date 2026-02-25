@@ -2353,10 +2353,8 @@ async def get_price_intelligence(
         item_stats = result.fetchone()
 
         if not item_stats or item_stats.total_items == 0:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No items found for '{search}'. Try searching in Cyrillic (e.g., 'тонер' instead of 'toner')."
-            )
+            # FALLBACK TIER 2: Try product_items table (56x more data - 404K items, 81K with prices)
+            return await _price_intelligence_fallback(search, search_variants, category, db)
 
         # Get competition data from offers on tenders that contain these items
         competition_query = text(f"""
@@ -2408,10 +2406,30 @@ async def get_price_intelligence(
 
         # Query ACTUAL winning prices from evaluation reports (GOLD data)
         # This is the real price data extracted from PDF evaluation reports
+        # Use word-level AND matching (same fuzzy approach as main query)
+        def build_eval_conditions(variant: str, prefix: str, col: str = "e.item_subject") -> tuple:
+            """Build AND conditions for each word against evaluation table."""
+            words = [w.strip() for w in variant.split() if len(w.strip()) >= 2]
+            if not words:
+                return f"{col} ILIKE :{prefix}", {prefix: f"%{variant}%"}
+            conditions = []
+            word_params = {}
+            for idx, word in enumerate(words):
+                param_name = f"{prefix}_w{idx}"
+                conditions.append(f"{col} ILIKE :{param_name}")
+                word_params[param_name] = f"%{word}%"
+            return " AND ".join(conditions), word_params
+
         if len(search_variants) == 1:
-            eval_search_condition = "e.item_subject ILIKE :search"
+            eval_cond, eval_params = build_eval_conditions(search_variants[0], "ev_s")
+            eval_search_condition = f"({eval_cond})"
         else:
-            eval_search_condition = "(e.item_subject ILIKE :search_latin OR e.item_subject ILIKE :search_cyrillic)"
+            eval_cond_lat, eval_params_lat = build_eval_conditions(search_variants[0], "ev_lat")
+            eval_cond_cyr, eval_params_cyr = build_eval_conditions(search_variants[1], "ev_cyr")
+            eval_search_condition = f"(({eval_cond_lat}) OR ({eval_cond_cyr}))"
+            eval_params = {**eval_params_lat, **eval_params_cyr}
+        # Merge eval params for use in evaluation queries
+        params_with_eval = {**params, **eval_params}
 
         actual_prices_query = text(f"""
             SELECT
@@ -2427,7 +2445,7 @@ async def get_price_intelligence(
             WHERE {eval_search_condition}
         """)
 
-        eval_result = await db.execute(actual_prices_query, params)
+        eval_result = await db.execute(actual_prices_query, params_with_eval)
         eval_stats = eval_result.fetchone()
 
         # Get winning brands from evaluation data (filter out garbage from bad PDF parsing)
@@ -2450,7 +2468,7 @@ async def get_price_intelligence(
             LIMIT 5
         """)
 
-        brands_result = await db.execute(brands_query, params)
+        brands_result = await db.execute(brands_query, params_with_eval)
         winning_brands = [
             {"brand": row.offered_brand, "wins": row.win_count, "avg_price": float(row.avg_price) if row.avg_price else None}
             for row in brands_result.fetchall()
@@ -2480,15 +2498,12 @@ async def get_price_intelligence(
         recommended_bid_low = round(avg_price * (discount_factor - 0.05), 2)
         recommended_bid_high = round(avg_price * discount_factor, 2)
 
-        # Get sample item name from actual data (use condition without table alias)
-        if len(search_variants) == 1:
-            sample_condition = "item_name ILIKE :search"
-        else:
-            sample_condition = "(item_name ILIKE :search_latin OR item_name ILIKE :search_cyrillic)"
+        # Get sample item name from actual data (reuse main search condition with table alias)
         sample_query = text(f"""
-            SELECT item_name
-            FROM epazar_items
-            WHERE {sample_condition}
+            SELECT i.item_name
+            FROM epazar_items i
+            JOIN epazar_tenders t ON i.tender_id = t.tender_id
+            WHERE {search_condition}
             LIMIT 1
         """)
         sample_result = await db.execute(sample_query, params)
@@ -2546,6 +2561,214 @@ async def get_price_intelligence(
     except Exception as e:
         logger.error(f"Error getting price intelligence for '{search}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# PRICE INTELLIGENCE FALLBACK (product_items + fuzzy relaxation)
+# ============================================================================
+
+async def _price_intelligence_fallback(
+    search: str,
+    search_variants: list,
+    category: Optional[str],
+    db: AsyncSession,
+    is_relaxed: bool = False,
+    original_query: Optional[str] = None,
+):
+    """
+    Fallback price intelligence using product_items table (404K items, 81K with prices).
+    Called when epazar_items returns 0 results.
+
+    Tier 2: product_items with full word-level AND matching
+    Tier 3: relaxed search using longest word only
+    """
+
+    def build_pi_conditions(variant: str, prefix: str, col: str = "p.name") -> tuple:
+        """Build AND conditions for each word against product_items."""
+        words = [w.strip() for w in variant.split() if len(w.strip()) >= 2]
+        if not words:
+            return f"{col} ILIKE :{prefix}", {prefix: f"%{variant}%"}
+        conditions = []
+        word_params = {}
+        for idx, word in enumerate(words):
+            param_name = f"{prefix}_w{idx}"
+            conditions.append(f"{col} ILIKE :{param_name}")
+            word_params[param_name] = f"%{word}%"
+        return " AND ".join(conditions), word_params
+
+    if len(search_variants) == 1:
+        cond, params = build_pi_conditions(search_variants[0], "pi_s")
+        pi_search_condition = f"({cond})"
+    else:
+        cond_lat, params_lat = build_pi_conditions(search_variants[0], "pi_lat")
+        cond_cyr, params_cyr = build_pi_conditions(search_variants[1], "pi_cyr")
+        pi_search_condition = f"(({cond_lat}) OR ({cond_cyr}))"
+        params = {**params_lat, **params_cyr}
+
+    # Query product_items with quality filters
+    pi_stats_query = text(f"""
+        SELECT
+            COUNT(*) as total_items,
+            COUNT(DISTINCT p.tender_id) as total_tenders,
+            SUM(p.quantity) as total_quantity,
+            MIN(p.unit_price) FILTER (WHERE p.unit_price > 0) as min_price,
+            MAX(p.unit_price) FILTER (WHERE p.unit_price > 0) as max_price,
+            AVG(p.unit_price) FILTER (WHERE p.unit_price > 0) as avg_price,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY p.unit_price)
+                FILTER (WHERE p.unit_price > 0) as median_price,
+            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY p.unit_price)
+                FILTER (WHERE p.unit_price > 0) as p25_price,
+            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY p.unit_price)
+                FILTER (WHERE p.unit_price > 0) as p75_price,
+            MIN(p.unit) as common_unit
+        FROM product_items p
+        WHERE {pi_search_condition}
+          AND p.unit_price > 0
+          AND p.extraction_confidence >= 0.5
+          AND LENGTH(p.name) >= 5
+    """)
+
+    result = await db.execute(pi_stats_query, params)
+    stats = result.fetchone()
+
+    if not stats or not stats.total_items or stats.total_items == 0:
+        # TIER 3: Relax search to longest word only
+        if not is_relaxed:
+            words = [w.strip() for w in search.split() if len(w.strip()) >= 2]
+            if len(words) > 1:
+                longest_word = max(words, key=len)
+                relaxed_variants = get_search_variants(longest_word)
+                return await _price_intelligence_fallback(
+                    longest_word, relaxed_variants, category, db,
+                    is_relaxed=True, original_query=search
+                )
+        raise HTTPException(
+            status_code=404,
+            detail=f"No price data found for '{search}'. Try a different product name."
+        )
+
+    # Get competition context from tenders
+    comp_query = text(f"""
+        WITH matched_tenders AS (
+            SELECT DISTINCT p.tender_id
+            FROM product_items p
+            WHERE {pi_search_condition}
+              AND p.unit_price > 0
+              AND p.extraction_confidence >= 0.5
+        )
+        SELECT
+            COUNT(DISTINCT t.tender_id) as total_tenders,
+            AVG(t.num_bidders) FILTER (WHERE t.num_bidders > 0) as avg_bidders,
+            COUNT(*) FILTER (WHERE t.winner IS NOT NULL) as tenders_with_winner
+        FROM matched_tenders mt
+        JOIN tenders t ON mt.tender_id = t.tender_id
+    """)
+    comp_result = await db.execute(comp_query, params)
+    comp_stats = comp_result.fetchone()
+
+    avg_bidders = float(comp_stats.avg_bidders) if comp_stats and comp_stats.avg_bidders else 1
+    if avg_bidders >= 4:
+        competition_level = "high"
+    elif avg_bidders >= 2:
+        competition_level = "medium"
+    else:
+        competition_level = "low"
+
+    # Get top winners for these products
+    winners_query = text(f"""
+        WITH matched_tenders AS (
+            SELECT DISTINCT p.tender_id
+            FROM product_items p
+            WHERE {pi_search_condition}
+              AND p.unit_price > 0
+              AND p.extraction_confidence >= 0.5
+        )
+        SELECT t.winner, COUNT(*) as wins,
+               AVG(p.unit_price) FILTER (WHERE p.unit_price > 0) as avg_price
+        FROM matched_tenders mt
+        JOIN tenders t ON mt.tender_id = t.tender_id
+        JOIN product_items p ON p.tender_id = t.tender_id
+            AND {pi_search_condition.replace('p.name', 'p.name')}
+            AND p.unit_price > 0
+        WHERE t.winner IS NOT NULL
+          AND LENGTH(t.winner) >= 3
+        GROUP BY t.winner
+        ORDER BY wins DESC
+        LIMIT 5
+    """)
+    try:
+        winners_result = await db.execute(winners_query, params)
+        winning_brands = [
+            {"brand": row.winner[:60], "wins": row.wins, "avg_price": float(row.avg_price) if row.avg_price else None}
+            for row in winners_result.fetchall()
+        ]
+    except Exception:
+        winning_brands = []
+
+    # Get sample product name
+    sample_query = text(f"""
+        SELECT p.name FROM product_items p
+        WHERE {pi_search_condition}
+          AND p.unit_price > 0
+          AND p.extraction_confidence >= 0.5
+        ORDER BY p.extraction_confidence DESC
+        LIMIT 1
+    """)
+    sample_result = await db.execute(sample_query, params)
+    sample_row = sample_result.fetchone()
+    item_name = sample_row.name if sample_row else search
+
+    # Build price values
+    min_price = float(stats.min_price) if stats.min_price else 0
+    max_price = float(stats.max_price) if stats.max_price else 0
+    avg_price = float(stats.avg_price) if stats.avg_price else 0
+    median_price = float(stats.median_price) if stats.median_price else avg_price
+    p25_price = float(stats.p25_price) if stats.p25_price else min_price
+    p75_price = float(stats.p75_price) if stats.p75_price else max_price
+
+    # Recommended bid: 5-10% below average
+    recommended_bid_low = round(avg_price * 0.87, 2)
+    recommended_bid_high = round(avg_price * 0.92, 2)
+
+    relaxed_note = ""
+    if is_relaxed and original_query:
+        relaxed_note = f" (нема точен резултат за '{original_query}', покажуваме за '{search}')"
+
+    return {
+        "product_name": item_name,
+        "recommended_bid_min_mkd": round(p25_price, 2),
+        "recommended_bid_max_mkd": round(p75_price, 2),
+        "market_min_mkd": round(min_price, 2),
+        "market_max_mkd": round(max_price, 2),
+        "market_avg_mkd": round(avg_price, 2),
+        "trend": "stable",
+        "trend_percentage": None,
+        "competition_level": competition_level,
+        "sample_size": stats.total_items,
+        "unit": stats.common_unit,
+        "median_price": round(median_price, 2),
+        "typical_discount_percent": 0,
+        "total_tenders": stats.total_tenders,
+        "total_quantity": float(stats.total_quantity) if stats.total_quantity else 0,
+        "actual_prices": {
+            "has_data": False,
+            "sample_size": 0,
+            "min": None, "avg": None, "max": None, "p25": None, "p75": None,
+        },
+        "winning_brands": winning_brands,
+        "ai_recommendation": f"Препорачана цена: {p25_price:.0f}-{p75_price:.0f} МКД (базирано на {stats.total_items} ставки од тендерска документација).{relaxed_note}",
+        "data_source": "product_items",
+        "relaxed_search": is_relaxed,
+        "original_query": original_query if is_relaxed else None,
+        "data_points": {
+            "items_analyzed": stats.total_items,
+            "tenders_with_offers": comp_stats.total_tenders if comp_stats else 0,
+            "total_offers": 0,
+            "avg_offers_per_tender": round(avg_bidders, 1),
+            "tenders_with_winner": comp_stats.tenders_with_winner if comp_stats else 0,
+            "evaluation_records": 0
+        }
+    }
 
 
 # ============================================================================

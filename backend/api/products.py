@@ -33,13 +33,23 @@ SORT_MAP = {
     "price_asc": "p.unit_price ASC NULLS LAST, p.name",
     "price_desc": "p.unit_price DESC NULLS LAST, p.name",
     "quantity_desc": "p.quantity DESC NULLS LAST, p.name",
+    "relevance": "CASE WHEN p.unit_price > 0 THEN 0 ELSE 1 END, t.opening_date DESC NULLS LAST",
 }
+
+# Quality filters: exclude junk extractions
+QUALITY_FILTER = """
+    AND p.extraction_confidence >= 0.5
+    AND LENGTH(p.name) >= 5
+    AND p.name NOT LIKE '3.%'
+    AND p.name NOT LIKE '1.%'
+    AND p.name NOT LIKE '2.%'
+"""
 
 # In-memory cache for stats
 _stats_cache = {"data": None, "expires": None}
 
 
-@router.get("/search", response_model=ProductSearchResponse)
+@router.get("/search")
 async def search_products(
     q: Optional[str] = Query(None, max_length=500, description="Search query (optional for browse mode)"),
     year: Optional[int] = Query(None, description="Filter by year"),
@@ -47,7 +57,7 @@ async def search_products(
     min_price: Optional[float] = Query(None, description="Minimum unit price"),
     max_price: Optional[float] = Query(None, description="Maximum unit price"),
     procuring_entity: Optional[str] = Query(None, description="Filter by procuring entity"),
-    sort_by: Optional[str] = Query("date_desc", description="Sort: date_desc, date_asc, price_asc, price_desc, quantity_desc"),
+    sort_by: Optional[str] = Query("relevance", description="Sort: relevance, date_desc, date_asc, price_asc, price_desc, quantity_desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
@@ -98,9 +108,10 @@ async def search_products(
     where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
     # Server-side sorting
-    order_clause = SORT_MAP.get(sort_by, SORT_MAP["date_desc"])
+    order_clause = SORT_MAP.get(sort_by, SORT_MAP["relevance"])
 
     # Single query with COUNT(*) OVER() to get total + results in one pass
+    # Quality filter excludes junk extractions (low confidence, numbered clauses)
     search_query = text(f"""
         SELECT
             p.id,
@@ -122,13 +133,35 @@ async def search_products(
         FROM product_items p
         JOIN tenders t ON p.tender_id = t.tender_id
         WHERE {where_sql}
+            {QUALITY_FILTER}
         ORDER BY {order_clause}
         LIMIT :limit OFFSET :offset
+    """)
+
+    # Fix 9: Price summary aggregate query (runs in parallel with main query)
+    price_summary_query = text(f"""
+        SELECT
+            COUNT(*) FILTER (WHERE p.unit_price > 0) as items_with_price,
+            MIN(p.unit_price) FILTER (WHERE p.unit_price > 0) as min_price,
+            MAX(p.unit_price) FILTER (WHERE p.unit_price > 0 AND p.unit_price < 100000000) as max_price,
+            AVG(p.unit_price) FILTER (WHERE p.unit_price > 0 AND p.unit_price < 100000000) as avg_price,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY p.unit_price)
+                FILTER (WHERE p.unit_price > 0 AND p.unit_price < 100000000) as median_price,
+            MIN(p.unit) as common_unit
+        FROM product_items p
+        JOIN tenders t ON p.tender_id = t.tender_id
+        WHERE {where_sql}
+            {QUALITY_FILTER}
+            AND p.extraction_confidence >= 0.6
     """)
 
     try:
         result = await db.execute(search_query, params)
         rows = result.fetchall()
+
+        # Run price summary
+        price_result = await db.execute(price_summary_query, params)
+        price_row = price_result.fetchone()
 
         total = rows[0].total_count if rows else 0
 
@@ -152,13 +185,27 @@ async def search_products(
                 winner=row.winner
             ))
 
-        return ProductSearchResponse(
-            query=q or "",
-            total=total,
-            page=page,
-            page_size=page_size,
-            items=items
-        )
+        # Build price summary
+        price_summary = None
+        if price_row and price_row.items_with_price and price_row.items_with_price > 0:
+            price_summary = {
+                "items_with_price": price_row.items_with_price,
+                "min_price": round(float(price_row.min_price), 2) if price_row.min_price else None,
+                "max_price": round(float(price_row.max_price), 2) if price_row.max_price else None,
+                "avg_price": round(float(price_row.avg_price), 2) if price_row.avg_price else None,
+                "median_price": round(float(price_row.median_price), 2) if price_row.median_price else None,
+                "common_unit": price_row.common_unit,
+            }
+
+        response = {
+            "query": q or "",
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": [item.dict() if hasattr(item, 'dict') else item.model_dump() for item in items],
+            "price_summary": price_summary,
+        }
+        return response
 
     except Exception as e:
         logger.error(f"Product search error: {e}")

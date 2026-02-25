@@ -15,84 +15,173 @@ A company owner selling office supplies logs into NabavkiData and cannot accompl
 
 ---
 
-## Fix 1: Dashboard Search Hero (CRITICAL)
-**File:** `frontend/app/dashboard/page.tsx`
+## Phase 1 Fixes (COMPLETED - Feb 25, 2026)
 
-**What:** Add a prominent search box at the top of the dashboard that routes to /tenders with the query. Include 4-5 popular search chips below.
+### Fix 1: Dashboard Search Hero - DONE
+- Added search box with 6 product chips to dashboard
+- Redirects to `/tenders?search={query}`
+- Commit: `c600517c`
 
-**Why:** First thing a company owner wants to do is search for their products. Currently they see a spinner → generic recommendations → dead end.
+### Fix 2: Competitor Sector Filter - DONE
+- Added 8 CPV sector buttons to competitors page
+- Backend accepts `cpv_prefix` parameter
+- Each sector shows distinct top competitors
 
-**Implementation:**
-- Add search bar between header and stats grid
-- On submit, redirect to `/tenders?search={query}`
-- Add example chips: "канцелариски", "медицинска опрема", "ИТ услуги", "градежни работи", "храна"
+### Fix 3: e-Pazar Fuzzy Matching - DONE (partial)
+- Implemented word-level AND matching (split search → match all words)
+- Fixed SQL bind parameter bug in evaluation queries
+- Added fallback links to Products and Tenders when no results
 
----
+### Fix 4: Cross-Links - DONE
+- Products → e-Pazar link added
+- e-Pazar → Products/Tenders fallback links on empty results
 
-## Fix 2: Competitor Sector Filter (HIGH)
-**File:** `frontend/app/competitors/page.tsx`
-
-**What:** Add CPV-based sector filter to the top competitors tab, so users can see "who bids in MY industry" instead of a global leaderboard.
-
-**Why:** The current competitors page shows АЛКАЛОИД (#1 globally) which is irrelevant to an office supplies seller. User needs "who bids on CPV 30 tenders."
-
-**Implementation:**
-- Add CPV code autocomplete filter above the top competitors list (reuse existing pattern from trends page)
-- Pass `cpv_prefix` parameter to the backend `getCompetitorAnalysis` API
-- Add quick-select industry chips: "33 Медицинска", "45 Градежни", "30 Канцелариска", "72 ИТ"
-- Backend already supports CPV filtering on `tender_bidders` table
+### Fix 5: Trends Preset Buttons - DONE
+- 8 industry preset buttons below CPV filter
 
 ---
 
-## Fix 3: e-Pazar Price Check Fuzzy Matching (CRITICAL)
+## Phase 1 Backend Audit (Feb 25, 2026)
+
+Tested all 5 components against live API with 10+ keywords each. Full test script: `backend/test_ux_components.py`
+
+### Results Summary
+
+| Component | Score | Verdict |
+|-----------|-------|---------|
+| Tender Search | **10/10** keywords return results | EXCELLENT |
+| Competitor Sectors | **8/8** CPV sectors return 5+ competitors | EXCELLENT |
+| e-Pazar Prices | **3/10** keywords return data | CRITICAL GAP |
+| Trends/CPV | **8/8** sectors have 1000+ tenders | EXCELLENT |
+| Products Catalog | **5/5** keywords return products | OK (quality issues) |
+
+### Bug Found & Fixed During Audit
+
+**e-Pazar 500 errors** on "тонер", "компјутер", "хартија": The fuzzy matching fix introduced new bind parameter names (`s_w0`, `lat_w0`) for the main query, but three downstream queries (evaluation prices, winning brands, sample item) still referenced old `:search` / `:search_latin` parameters. Fixed by creating `build_eval_conditions()` with separate param names (`ev_s_w0`, `ev_lat_w0`).
+
+### Data Coverage Analysis
+
+The price intelligence endpoint only queries `epazar_items` (7,150 items from 995 tenders). But `product_items` has **56x more data**:
+
+| Keyword | epazar_items | product_items (w/ price) | Gap |
+|---------|-------------|--------------------------|-----|
+| хартија | 282 | **2,751** | 10x |
+| дизел | 0 | **2,135** | infinite |
+| бензин | 0 | **1,691** | infinite |
+| гориво | 0 | **585** | infinite |
+| компјутер | 96 | **338** | 3.5x |
+| тонер | 189 | **212** | 1.1x |
+| канцелариск | 19 | **137** | 7x |
+| печатач | 0 | **52** | infinite |
+| столиц | 4 | **40** | 10x |
+
+**Root cause**: e-Pazar data comes from the e-pazar.mk marketplace scrape (995 tenders). Product_items comes from PDF extraction of tender documents (403K items, 81K with prices). The price intelligence endpoint ignores the larger dataset entirely.
+
+### Products Quality Issues
+
+- Default sort `date_desc` shows items WITHOUT prices first → user thinks no prices exist
+- Low-confidence extractions (< 0.5) produce junk names like "3.1. Предмет на постапката"
+- Some items are mis-categorized (e.g., "дизел" returns military vehicles at 6.5M MKD)
+
+---
+
+## Phase 2: Implementation Plan
+
+### Fix 6: Price Intelligence Fallback to product_items (CRITICAL)
 **File:** `backend/api/epazar.py` (price-intelligence endpoint)
 
-**What:** Improve the price check search to use fuzzy/partial matching so "хартија А4" returns results even if the exact item name doesn't exist.
+**Problem:** 7/10 common product searches return 404 because epazar_items has only 7K items.
 
-**Why:** User types "хартија А4" → "Нема резултати". The data exists but under slightly different names ("Хартија А4 80гр", "хартија за копирање А4", etc.)
+**Solution:** When epazar_items returns 0 results, query `product_items` as a fallback data source. This gives 56x more coverage.
 
 **Implementation:**
-- Change ILIKE query from exact match to partial word matching
-- Split search into words and match ALL words with AND logic
-- Add fallback: if no results, try matching individual words
-- Add product suggestions when partial match found
+1. After the existing `epazar_items` query returns 0, run a fallback query against `product_items`:
+   ```sql
+   SELECT COUNT(*) as total_items,
+          MIN(unit_price) FILTER (WHERE unit_price > 0) as min_price,
+          MAX(unit_price) FILTER (WHERE unit_price > 0) as max_price,
+          AVG(unit_price) FILTER (WHERE unit_price > 0) as avg_price,
+          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY unit_price) FILTER (WHERE unit_price > 0) as median_price,
+          MIN(unit) as common_unit
+   FROM product_items
+   WHERE {word_search_condition}
+     AND unit_price > 0
+     AND extraction_confidence >= 0.6
+   ```
+2. Return the same response shape but with `data_source: "product_items"` flag
+3. Merge with tender winner data from `tenders.winner` for competition context
+4. Add `data_source` field to response so frontend can show appropriate label
+
+**Expected impact:** Coverage jumps from 3/10 → 9/10 keywords returning price data.
+
+### Fix 7: Fuzzy Search Relaxation (HIGH)
+**File:** `backend/api/epazar.py`
+
+**Problem:** "хартија А4" returns 0 results because epazar_items uses "Фотокопирна хартија" (no "А4" in name). AND matching is too strict.
+
+**Solution:** Two-tier search:
+1. First try AND matching (all words must match)
+2. If 0 results, relax to the longest word only (e.g., "хартија" from "хартија А4")
+3. Return results with a note: "Покажуваме резултати за 'хартија' (нема точен резултат за 'хартија А4')"
+
+**Implementation:**
+1. After both epazar_items AND product_items fallback return 0:
+   - Extract the longest word from the search query
+   - Re-run the same query pipeline with just that word
+   - Add `relaxed_search: true` and `original_query` to the response
+2. Frontend shows a notice when `relaxed_search` is true
+
+### Fix 8: Products Default Sort & Junk Filter (MEDIUM)
+**File:** `backend/api/products.py`
+
+**Problem:** Default sort shows items without prices first. Low-confidence extractions pollute results.
+
+**Solution:**
+1. Change default sort to prioritize items WITH prices: `price_desc` or a smart sort that puts priced items first
+2. Filter out extraction_confidence < 0.5 by default (unless `include_low_confidence=true` param)
+3. Filter out items matching junk patterns: name starts with "3.1." or name length < 5
+
+**Implementation:**
+1. Add `WHERE extraction_confidence >= 0.5` to base query
+2. Add `AND LENGTH(name) >= 5 AND name NOT LIKE '3.%'` junk filter
+3. Change default sort_by to a composite: `CASE WHEN unit_price > 0 THEN 0 ELSE 1 END, opening_date DESC`
+
+### Fix 9: Products API Price Stats Summary (LOW)
+**File:** `backend/api/products.py`
+
+**Problem:** Products search returns raw items but no aggregate price stats. User has to mentally scan 20 items to understand the price range.
+
+**Solution:** Add a `price_summary` object to the Products search response:
+```json
+{
+  "price_summary": {
+    "min_price": 150,
+    "max_price": 2500,
+    "avg_price": 420,
+    "median_price": 350,
+    "items_with_price": 2751,
+    "common_unit": "Парче"
+  }
+}
+```
+
+**Implementation:**
+1. Run a parallel aggregate query alongside the paginated results
+2. Only include items with `extraction_confidence >= 0.6` in the stats
+3. Frontend can display this as a price range card above the product list
 
 ---
 
-## Fix 4: Cross-Link Price Pages (MEDIUM)
-**Files:** `frontend/app/dashboard/page.tsx`, `frontend/app/products/page.tsx`, `frontend/app/epazar/page.tsx`
+## Phase 2 Priority Order
 
-**What:** Add contextual links between related pages so users can discover price information from anywhere.
-
-**Implementation:**
-- Dashboard quick-actions already link to /products (done in previous session)
-- Products page: Add "Провери пазарна цена на е-Пазар" link when viewing a product
-- e-Pazar page: Add "Погледни сите тендери за овој производ" link to /tenders
-- Both price pages: Link to each other with explanation of difference
-
----
-
-## Fix 5: Trends Page CPV Preset Buttons (LOW)
-**File:** `frontend/app/trends/page.tsx`
-
-**What:** Add preset industry buttons below the CPV input so users don't have to know their CPV code number.
-
-**Why:** The placeholder already says "30 (канцелариска опрема)" but users still have to type. Quick buttons solve this.
-
-**Implementation:**
-- Add row of buttons: "Медицинска (33)", "Градежни (45)", "Канцелариска (30)", "ИТ услуги (72)", "Транспорт (34)", "Храна (15)"
-- On click, populate CPV filter and auto-apply
-
----
-
-## Priority Order
-1. Fix 1 - Dashboard search (30 min, instant value)
-2. Fix 3 - e-Pazar fuzzy search (45 min, critical for price discovery)
-3. Fix 2 - Competitor sector filter (45 min, high value)
-4. Fix 5 - Trends preset buttons (15 min, low effort high clarity)
-5. Fix 4 - Cross-links (20 min, connective tissue)
+| # | Fix | Impact | Effort | Priority |
+|---|-----|--------|--------|----------|
+| 6 | Price intelligence fallback to product_items | 7 keywords go from 404→data | Backend only | **CRITICAL** |
+| 7 | Fuzzy search relaxation (AND→longest word) | "хартија А4" finally works | Backend only | **HIGH** |
+| 8 | Products junk filter + smart sort | Clean product browsing | Backend only | **MEDIUM** |
+| 9 | Products price stats summary | Price context at a glance | Backend + Frontend | **LOW** |
 
 ## Deployment
-- Frontend: `npx vercel --prod` from frontend/
+- Frontend: `git push` triggers Vercel auto-deploy
 - Backend: `rsync` to EC2 + `systemctl restart nabavkidata-api`
-- Verify: Playwright journey test rerun
+- Verify: Rerun `python3 backend/test_ux_components.py`

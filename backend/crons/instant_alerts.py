@@ -362,28 +362,45 @@ async def process_tender_alert_matches(db: AsyncSession, tenders: List[dict], so
                 logger.warning(f"Match insert failed: {e}")
                 continue
 
-            # In-app notification
+            # In-app notification (use savepoint to avoid corrupting main transaction on FK errors)
             if 'in_app' in channels:
                 try:
-                    await create_notification(
-                        db, str(user_id), 'alert_match',
-                        title=f"🔔 {alert_name}: {tender.get('title', '')[:60]}",
-                        message=', '.join(reasons[:3]),
-                        data={'tender_id': tender['tender_id'], 'source': source, 'score': score},
-                        tender_id=tender['tender_id'],
-                        alert_id=str(alert_id)
-                    )
+                    async with db.begin_nested():
+                        await create_notification(
+                            db, str(user_id), 'alert_match',
+                            title=f"🔔 {alert_name}: {tender.get('title', '')[:60]}",
+                            message=', '.join(reasons[:3]),
+                            data={'tender_id': tender['tender_id'], 'source': source, 'score': score},
+                            tender_id=tender['tender_id'],
+                            alert_id=str(alert_id)
+                        )
                 except Exception as e:
-                    logger.warning(f"Notification create failed: {e}")
+                    logger.warning(f"Notification create failed (rolled back): {e}")
 
             # Email notification (capped, skip if already emailed via preferences)
             if 'email' in channels and emails_sent < MAX_EMAILS_PER_RUN:
                 if already_emailed and (user_email, tender['tender_id']) in already_emailed:
                     print(f"  ~ Skipped email to {user_email} for {tender['tender_id'][:20]}... (already emailed via prefs)")
+                    # Mark as notified since user got the email via preference system
+                    try:
+                        await db.execute(text("""
+                            UPDATE alert_matches SET notified_at = NOW()
+                            WHERE alert_id = :alert_id AND tender_id = :tender_id
+                        """), {'alert_id': str(alert_id), 'tender_id': tender['tender_id']})
+                    except Exception:
+                        pass
                 else:
                     success = await send_alert_email(user_email, user_name or "User", tender, reasons)
                     if success:
                         emails_sent += 1
+                        # Set notified_at on the match
+                        try:
+                            await db.execute(text("""
+                                UPDATE alert_matches SET notified_at = NOW()
+                                WHERE alert_id = :alert_id AND tender_id = :tender_id
+                            """), {'alert_id': str(alert_id), 'tender_id': tender['tender_id']})
+                        except Exception:
+                            pass
                         print(f"  ✓ Alert email to {user_email} for {tender['tender_id'][:20]}... ({alert_name})")
 
     await db.commit()
@@ -532,16 +549,7 @@ async def process_instant_alerts():
 
             print(f"Found {len(users_with_prefs)} users with instant alerts enabled")
 
-            if not users_with_prefs:
-                save_last_check_time()
-                print("No users with instant alerts. Exiting.")
-                await log_cron_complete(db, execution_id, 0, {
-                    "message": "No users with instant alerts",
-                    "tenders_checked": len(new_tenders)
-                })
-                return
-
-            # Match tenders to users
+            # Match tenders to users (preference-based)
             alerts_sent = 0
             alerts_failed = 0
             MAX_PREF_EMAILS_PER_USER = 5  # Cap emails per user per run
@@ -550,26 +558,29 @@ async def process_instant_alerts():
             user_email_counts: Dict[str, int] = {}
             emailed_pairs: set = set()  # (email, tender_id) pairs already emailed
 
-            for tender in new_tenders:
-                for user, prefs in users_with_prefs:
-                    # Check per-user cap
-                    uid = str(user.user_id)
-                    if user_email_counts.get(uid, 0) >= MAX_PREF_EMAILS_PER_USER:
-                        continue
+            if users_with_prefs:
+                for tender in new_tenders:
+                    for user, prefs in users_with_prefs:
+                        # Check per-user cap
+                        uid = str(user.user_id)
+                        if user_email_counts.get(uid, 0) >= MAX_PREF_EMAILS_PER_USER:
+                            continue
 
-                    matches, reasons = tender_matches_preferences(tender, prefs)
+                        matches, reasons = tender_matches_preferences(tender, prefs)
 
-                    if matches:
-                        success = await send_instant_alert(user, tender, reasons)
+                        if matches:
+                            success = await send_instant_alert(user, tender, reasons)
 
-                        if success:
-                            alerts_sent += 1
-                            user_email_counts[uid] = user_email_counts.get(uid, 0) + 1
-                            emailed_pairs.add((user.email, tender.tender_id))
-                            print(f"  ✓ Alert sent to {user.email} for tender {tender.tender_id[:20]}...")
-                        else:
-                            alerts_failed += 1
-                            print(f"  ✗ Failed to send to {user.email}")
+                            if success:
+                                alerts_sent += 1
+                                user_email_counts[uid] = user_email_counts.get(uid, 0) + 1
+                                emailed_pairs.add((user.email, tender.tender_id))
+                                print(f"  ✓ Alert sent to {user.email} for tender {tender.tender_id[:20]}...")
+                            else:
+                                alerts_failed += 1
+                                print(f"  ✗ Failed to send to {user.email}")
+            else:
+                print("No users with instant preference alerts enabled.")
 
             # ===== Process tender_alerts table (UI-created alerts) =====
             # Pass emailed_pairs to avoid sending duplicate emails

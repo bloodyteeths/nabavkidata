@@ -2,7 +2,7 @@
 
 > **Goal:** Migrate nabavkidata from AWS (EC2 + RDS) to a single Hetzner VPS
 > **Savings:** ~$80/mo → ~€10/mo (85% reduction)
-> **Estimated time:** 2-3 hours total
+> **Estimated time:** 3-4 hours total
 > **Downtime:** 5-15 minutes (DNS propagation only)
 
 ---
@@ -13,8 +13,78 @@
 |---|---|---|
 | Backend API | EC2 t3.medium (3.8GB RAM) | Hetzner CX32 (8GB RAM) |
 | Database | RDS db.t3.small (2GB, 50GB) | Local PostgreSQL on same VPS |
+| Redis | Local on EC2 | Local on Hetzner |
 | Frontend | Vercel | Vercel (no change) |
+| Email | Postmark | Postmark (no change) |
 | DNS | Namecheap → AWS IP | Namecheap → Hetzner IP |
+
+### External Services (no migration needed)
+
+| Service | Provider | Notes |
+|---|---|---|
+| Email (transactional) | **Postmark** | API-based, works from any server |
+| Payments | **Stripe** | Webhook URL uses domain, no IP change needed |
+| AI / Embeddings | **Google Gemini** | 3 API keys across services (consolidate during migration) |
+| Google OAuth | **Google Cloud** | Redirect URI uses domain, no change needed |
+| Cron Monitoring | **Clawd VA** | Webhook-based, works from any server |
+| Frontend Hosting | **Vercel** | Separate from backend, no change needed |
+| S3 Storage | **AWS S3** | `nabavkidata-pdfs` bucket — keep on AWS, accessed via API |
+
+---
+
+## Current Infrastructure Snapshot (as of Feb 2026)
+
+### Database Size: **8.9 GB**
+
+| Table | Size | % of DB |
+|---|---|---|
+| `embeddings` | 5,118 MB | 57% |
+| `tenders` | 1,351 MB | 15% |
+| `documents` | 1,030 MB | 12% |
+| `product_items` | 303 MB | 3% |
+| Everything else | ~1,100 MB | 13% |
+
+### Key Counts
+
+| Resource | Count |
+|---|---|
+| Tenders | ~273,000 |
+| Documents | ~62,400 |
+| Embeddings | ~564,700 |
+| Users | 200+ |
+
+### EC2 Disk Usage: 23GB / 29GB (79% full)
+
+| Directory | Size |
+|---|---|
+| `scraper/` | 2.1 GB (includes Playwright browser) |
+| `backend/` | 1.5 GB |
+| `db/` | 592 MB |
+| `ai/` | 527 MB |
+| `ocds_updates.sql` | 366 MB (can be deleted) |
+| `frontend/` | 189 MB |
+| Other files | ~18 GB (OS, logs, temp) |
+
+### Running Services on EC2
+
+| Service | Port | Notes |
+|---|---|---|
+| Nginx | 443, 80 | Reverse proxy + SSL |
+| Uvicorn (FastAPI) | 8000 | Backend API |
+| Redis | 6379 | Caching + Celery broker |
+| 27 cron jobs | — | Scrapers, emails, billing, ML |
+
+### Software Versions (match on Hetzner)
+
+| Software | EC2 Version | Hetzner Target |
+|---|---|---|
+| Python | **3.10.12** | 3.10.x (match to avoid issues) |
+| PostgreSQL | **14** (RDS) | 14 or 15 (15 recommended, compatible) |
+| Playwright | 1.56.0 | Latest |
+| Tesseract OCR | 4.1.1 | Latest (with Macedonian lang pack) |
+| Nginx | 1.18.0 | Latest |
+| Redis | 6.x | Latest |
+| Scrapy | 2.13.4 | Same (via pip) |
 
 ---
 
@@ -53,7 +123,7 @@ ssh root@YOUR_HETZNER_IP
 
 ---
 
-## Day 0: Migration Night (~2-3 hours)
+## Day 0: Migration Night (~3-4 hours)
 
 ### Phase 1: Server Setup (45 min)
 
@@ -62,9 +132,10 @@ ssh root@YOUR_HETZNER_IP
 **What gets installed:**
 - Firewall (UFW) — only ports 22, 80, 443 open
 - Fail2ban for SSH brute-force protection
-- `ubuntu` user (matching EC2 layout)
-- PostgreSQL 15 with pgvector extension
-- Python 3.11+, Tesseract OCR (Macedonian), Playwright + Chromium
+- `ubuntu` user (matching EC2 layout — **critical**: all 35+ cron scripts use `/home/ubuntu/nabavkidata/`)
+- PostgreSQL 15 with **pgvector** extension
+- Python 3.10+ (match EC2 version), Tesseract OCR (Macedonian lang pack), Playwright + Chromium
+- **Redis server** (used for caching and Celery task queue)
 - Nginx with Let's Encrypt SSL
 - Systemd service for FastAPI backend
 
@@ -74,16 +145,47 @@ ssh root@YOUR_HETZNER_IP
 - `max_connections = 200` (current: 189)
 - Result: vector similarity searches will be **significantly faster**
 
-### Phase 2: Deploy Code (10 min)
+**Clawd monitoring setup:**
+- Recreate `/opt/clawd/` directory
+- Copy `run-cron.sh` and `ec2-report.sh` from EC2
+- All 27 cron jobs depend on this for webhook reporting
+
+### Phase 2: Deploy Code (15 min)
 
 ```bash
 # From your local machine:
 rsync -avz --exclude='venv' --exclude='node_modules' --exclude='__pycache__' \
-  --exclude='.git' --exclude='downloads/files' \
+  --exclude='.git' --exclude='downloads/files' --exclude='*.log' \
+  --exclude='ocds_updates.sql' --exclude='ocds_data/' \
+  --exclude='mk_full.jsonl.gz' \
   -e "ssh" . ubuntu@YOUR_HETZNER_IP:/home/ubuntu/nabavkidata/
 ```
 
-Then install Python deps, Playwright, set up .env, install crontab.
+Then on Hetzner:
+```bash
+# Install Python dependencies
+cd /home/ubuntu/nabavkidata/backend
+pip install -r requirements.txt
+
+cd /home/ubuntu/nabavkidata/scraper
+pip install -r requirements.txt
+
+cd /home/ubuntu/nabavkidata/ai
+pip install -r requirements.txt
+
+# Install Playwright browsers
+playwright install firefox chromium
+playwright install-deps
+
+# Copy Clawd monitoring from EC2
+ssh ubuntu@18.197.185.30 'tar czf /tmp/clawd.tar.gz /opt/clawd/'
+scp ubuntu@18.197.185.30:/tmp/clawd.tar.gz /tmp/
+sudo tar xzf /tmp/clawd.tar.gz -C /
+
+# Set up .env files (see Environment Variable Changes section below)
+# Install crontab
+bash /home/ubuntu/nabavkidata/scraper/cron/setup_crontab.sh
+```
 
 ### Phase 3: SSL Certificate (5 min)
 
@@ -110,33 +212,37 @@ xYz123AbCdEf...
 
 SSL cert is now ready on Hetzner, before DNS even switches.
 
-### Phase 4: Database Migration (20-30 min)
+### Phase 4: Database Migration (30-45 min)
 
 ```bash
-# On EC2: dump the database (~8.6GB, compressed to ~2-3GB)
-pg_dump -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+# On EC2: dump the database (~8.9GB, compressed to ~3-4GB)
+PGPASSWORD='9fagrPSDfQqBjrKZZLVrJY2Am' pg_dump \
+  -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
   -U nabavki_user -d nabavkidata -Fc --no-owner --no-acl \
   -f /tmp/nabavkidata_final.dump
 
-# Transfer to Hetzner
+# Transfer to Hetzner (~15-20 min at ~3MB/s)
 scp /tmp/nabavkidata_final.dump ubuntu@YOUR_HETZNER_IP:/tmp/
 
-# On Hetzner: restore
+# On Hetzner: create pgvector extension BEFORE restore
+sudo -u postgres psql -d nabavkidata -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+# On Hetzner: restore (use -j 4 for parallel, ~10-15 min)
 pg_restore -h localhost -U nabavki_user -d nabavkidata \
   --no-owner --no-acl -j 4 /tmp/nabavkidata_final.dump
 ```
 
 **Verify:**
 ```sql
-SELECT COUNT(*) FROM tenders;      -- should be ~279K
+SELECT COUNT(*) FROM tenders;      -- should be ~273K
 SELECT COUNT(*) FROM documents;    -- should be ~62K
-SELECT COUNT(*) FROM embeddings;   -- should be ~539K+
+SELECT COUNT(*) FROM embeddings;   -- should be ~564K
 SELECT COUNT(*) FROM users;        -- should be 200+
 ```
 
 ### Phase 5: DNS Cutover (5 min)
 
-1. **Stop crons on EC2:** `ssh ubuntu@18.197.185.30 'crontab -r'`
+1. **Stop crons on EC2:** `ssh -i ~/.ssh/nabavki-key.pem ubuntu@18.197.185.30 'crontab -r'`
 2. **At Namecheap:** Change A record for `api` from `18.197.185.30` to `YOUR_HETZNER_IP`
 3. Wait 1-5 minutes for propagation
 
@@ -151,6 +257,9 @@ curl https://api.nabavkidata.com/api/health
 
 # Clawd status?
 curl https://api.nabavkidata.com/api/clawd/status -H "X-Monitor-Token: YOUR_TOKEN"
+
+# Redis working?
+redis-cli ping  # should return PONG
 ```
 
 **Manual checks:**
@@ -159,7 +268,9 @@ curl https://api.nabavkidata.com/api/clawd/status -H "X-Monitor-Token: YOUR_TOKE
 - [ ] Search for a tender
 - [ ] Open a tender detail page
 - [ ] Try AI chat on a tender
+- [ ] Check email delivery: trigger a test alert
 - [ ] Check Stripe webhook: go to Stripe Dashboard → Webhooks → Send test event
+- [ ] Check scraper: `tail -f /var/log/nabavkidata/active_scrape.log`
 
 ---
 
@@ -169,10 +280,12 @@ curl https://api.nabavkidata.com/api/clawd/status -H "X-Monitor-Token: YOUR_TOKE
 - [ ] Scrapers ran: `ls -la /var/log/nabavkidata/scrapy_*.log`
 - [ ] Doc extraction worked: `tail /var/log/nabavkidata/doc_extract.log`
 - [ ] Embeddings generated: `tail /var/log/nabavkidata/embeddings.log`
-- [ ] Email digests sent: check Postmark activity
+- [ ] Email digests sent: check Postmark activity dashboard
 - [ ] No memory issues: `free -h` (should show plenty of free RAM)
 - [ ] DB backups exist: `ls -la /home/ubuntu/backups/daily/`
 - [ ] SSL renewal works: `certbot renew --dry-run`
+- [ ] Redis healthy: `redis-cli info memory`
+- [ ] Clawd reports: check that cron job webhooks are being sent
 
 ---
 
@@ -199,10 +312,12 @@ aws rds create-db-snapshot \
 ### 4. Terminate EC2 instance (saves ~$40/mo)
 - AWS Console → EC2 → Instance → Instance State → Terminate
 
-### 5. Clean up
+### 5. Clean up AWS
 - Release any Elastic IP
 - Delete unused security groups
 - Review IAM roles/policies
+- **Keep S3 bucket** (`nabavkidata-pdfs`) — still used from Hetzner
+- **Keep AWS credentials** in .env — needed for S3 access
 
 ---
 
@@ -225,17 +340,50 @@ aws rds create-db-snapshot \
 
 ## Environment Variable Changes
 
-Only **one variable changes** in `.env`:
+### backend/.env — Changes needed:
 
 ```diff
-- DATABASE_URL=postgresql+asyncpg://nabavki_user:PASSWORD@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata
-+ DATABASE_URL=postgresql+asyncpg://nabavki_user:NEW_PASSWORD@localhost:5432/nabavkidata
+# DATABASE — change to localhost
+- DATABASE_URL=postgresql://nabavki_user:OLD_PASSWORD@nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com:5432/nabavkidata
++ DATABASE_URL=postgresql://nabavki_user:NEW_PASSWORD@localhost:5432/nabavkidata
 
 - POSTGRES_HOST=nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com
 + POSTGRES_HOST=localhost
+
+- POSTGRES_PASSWORD=9fagrPSDfQqBjrKZZLVrJY2Am
++ POSTGRES_PASSWORD=NEW_PASSWORD
+
+# SERVER IP — update to Hetzner
+- EC2_PUBLIC_IP=18.197.185.30
++ EC2_PUBLIC_IP=YOUR_HETZNER_IP
 ```
 
-Everything else (Stripe, Postmark, Gemini, Clawd, JWT secret, SES) stays **exactly the same**.
+### What stays the same:
+
+| Variable | Why |
+|---|---|
+| `SECRET_KEY`, `JWT_SECRET` | Must match — existing tokens stay valid |
+| `STRIPE_*` | Domain-based, no IP dependency |
+| `GOOGLE_CLIENT_*` | Domain-based redirect URI |
+| `GEMINI_API_KEY` | API-based, works from any server |
+| `POSTMARK_API_TOKEN` | API-based, works from any server |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Still needed for S3 bucket access |
+| `S3_BUCKET_NAME` | Keep on AWS |
+| `CLAWD_*` | Webhook-based, works from any server |
+| `REDIS_URL` | Already `localhost` |
+| `CORS_ORIGINS` | Domain-based |
+| `NABAVKI_USERNAME`, `NABAVKI_PASSWORD` | Scraper credentials for e-nabavki.gov.mk |
+
+### .env file cleanup (during migration):
+
+Currently there are **3 separate .env files** with different Gemini API keys:
+- `backend/.env` — master config
+- `scraper/.env` — has different `GEMINI_API_KEY`
+- `ai/.env` — has yet another `GEMINI_API_KEY`
+
+**Action:** Consolidate. Make `backend/.env` the single source. Update `scraper/.env` and `ai/.env` to reference only what they need (DB + Gemini key).
+
+There are also **31 total .env* files** (backups, copies in subdirectories). Delete all except the 3 active ones.
 
 ---
 
@@ -243,14 +391,24 @@ Everything else (Stripe, Postmark, Gemini, Clawd, JWT secret, SES) stays **exact
 
 | File | Action |
 |---|---|
-| `scripts/hetzner-setup.sh` | **Create** — full server provisioning script |
+| `scripts/hetzner-setup.sh` | **Create** — full server provisioning (incl. Redis, Clawd, pgvector) |
 | `scripts/migrate-db.sh` | **Create** — database dump + restore helper |
 | `scripts/backup_db.sh` | **Create** — daily backup cron script |
 | `deployment/deploy-to-hetzner.sh` | **Create** — replaces deploy-to-ec2.sh |
-| `nginx/nginx-ssl.conf` | **Edit** — change `proxy_pass` to `127.0.0.1:8000` |
+| `nginx/nginx-ssl.conf` | **Create** — same as EC2 config, `proxy_pass` to `127.0.0.1:8000` |
 | `CLAUDE.md` | **Edit** — update server IP, SSH command, DB host |
-| `.claude/skills/deploy` | **Edit** — update SSH command |
-| `.claude/skills/db-status` | **Edit** — update connection string |
+| `.claude/skills/deploy` | **Edit** — update SSH command and IP |
+| `.claude/skills/db-status` | **Edit** — update connection string to localhost |
+| `.claude/settings.local.json` | **Edit** — update hardcoded EC2 IP references |
+
+### Hardcoded References Audit
+
+| What | Files | Action |
+|---|---|---|
+| EC2 IP `18.197.185.30` | 4 files (deploy scripts, `.claude/settings.local.json`) | Replace with Hetzner IP |
+| RDS hostname | `.claude/settings.local.json` | Replace with `localhost` |
+| `/home/ubuntu/` paths | 35+ shell scripts | **No change needed** — Hetzner will use same `ubuntu` user |
+| `/opt/clawd/` | All cron entries | Copy from EC2 to Hetzner |
 
 ---
 
@@ -261,8 +419,9 @@ Everything else (Stripe, Postmark, Gemini, Clawd, JWT secret, SES) stays **exact
 | Compute | $40/mo (EC2) | €8.49/mo (CX32) | $31/mo |
 | Database | $36/mo (RDS) | €0 (local) | $36/mo |
 | Storage | $5/mo (EBS) | €0 (included 80GB) | $5/mo |
+| S3 | ~$1/mo | ~$1/mo (keep on AWS) | $0 |
 | Backups | $0 (RDS auto) | €1/mo (Storage Box) | -$1/mo |
-| **Total** | **~$81/mo** | **~€10/mo** | **~$71/mo** |
+| **Total** | **~$82/mo** | **~€11/mo** | **~$71/mo** |
 
 **Annual savings: ~$850**
 
@@ -273,7 +432,71 @@ Everything else (Stripe, Postmark, Gemini, Clawd, JWT secret, SES) stays **exact
 | Metric | AWS (current) | Hetzner (expected) |
 |---|---|---|
 | DB RAM | 2GB (RDS) | 2GB shared_buffers + 5GB cache |
-| Vector search latency | Slow (embeddings can't fit in RAM) | Fast (most of 4.9GB cached) |
+| Vector search latency | Slow (5.1GB embeddings can't fit in 2GB RAM) | Fast (most cached in 5GB) |
 | DB query latency | ~1-5ms (network to RDS) | <0.1ms (localhost socket) |
 | max_connections | 189 | 200 |
 | Total RAM | 3.8GB + 2GB = 5.8GB split | 8GB unified |
+| Disk | 29GB (79% full!) | 80GB SSD (plenty of room) |
+
+---
+
+## Migration Checklist (print this)
+
+### Before Migration
+- [ ] Hetzner VPS purchased and SSH working
+- [ ] DNS TTL lowered to 1 min (24h before migration)
+- [ ] All .env variables documented
+
+### Phase 1: Server Setup
+- [ ] UFW firewall configured (22, 80, 443)
+- [ ] Fail2ban installed
+- [ ] `ubuntu` user created with correct permissions
+- [ ] PostgreSQL 15 installed with pgvector extension
+- [ ] Redis installed and running
+- [ ] Python 3.10+ installed
+- [ ] Tesseract OCR installed (with Macedonian lang pack)
+- [ ] Playwright + browsers installed
+- [ ] Nginx installed
+- [ ] `/opt/clawd/` monitoring scripts copied from EC2
+
+### Phase 2: Deploy
+- [ ] Code rsync'd to Hetzner
+- [ ] Python deps installed (backend, scraper, ai)
+- [ ] .env files configured (DB changed to localhost, EC2_PUBLIC_IP updated)
+- [ ] Stale .env backups deleted (31 → 3 files)
+- [ ] Systemd service created and tested
+- [ ] Crontab installed
+
+### Phase 3: SSL
+- [ ] Certbot DNS challenge completed
+- [ ] Nginx configured with SSL cert
+- [ ] HTTP→HTTPS redirect working
+
+### Phase 4: Database
+- [ ] pg_dump completed on EC2 (~8.9GB)
+- [ ] Dump transferred to Hetzner
+- [ ] pgvector extension created before restore
+- [ ] pg_restore completed
+- [ ] Row counts verified (tenders, documents, embeddings, users)
+
+### Phase 5: Cutover
+- [ ] Crons stopped on EC2
+- [ ] DNS A record changed to Hetzner IP
+- [ ] DNS propagation confirmed
+
+### Phase 6: Verify
+- [ ] `curl https://api.nabavkidata.com/api/health` returns OK
+- [ ] Login works in browser
+- [ ] Tender search works
+- [ ] AI chat works
+- [ ] Stripe webhook test event received
+- [ ] Email delivery works (Postmark)
+- [ ] Scraper starts and logs to `/var/log/nabavkidata/`
+- [ ] Redis responds to `redis-cli ping`
+- [ ] Clawd webhooks reporting
+
+### Post-Migration
+- [ ] Monitor for 1 week
+- [ ] Take RDS final snapshot
+- [ ] Terminate EC2 + RDS
+- [ ] Keep S3 bucket + AWS credentials
