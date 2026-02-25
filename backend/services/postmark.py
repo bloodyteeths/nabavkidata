@@ -207,26 +207,26 @@ class PostmarkService:
         verification_link = f"{self.frontend_url}/auth/verify-email?token={token}"
 
         content = f"""
-        <p>Hello <strong>{name}</strong>,</p>
-        <p>Thank you for registering with NabavkiData. To complete your registration and activate your account, please verify your email address by clicking the button below.</p>
+        <p>Здраво <strong>{name}</strong>,</p>
+        <p>Ви благодариме за регистрацијата на NabavkiData. За да ја завршите регистрацијата и да го активирате вашиот профил, потврдете ја вашата е-пошта со кликнување на копчето подолу.</p>
         <p style="margin-top: 20px; padding: 15px; background-color: #fef3c7; border-left: 4px solid #f59e0b; color: #92400e; font-size: 14px;">
-            <strong>Note:</strong> This verification link will expire in 24 hours.
+            <strong>Напомена:</strong> Овој линк ќе истече за 24 часа.
         </p>
         <p style="margin-top: 20px; font-size: 14px; color: #6b7280;">
-            If you didn't create an account with NabavkiData, you can safely ignore this email.
+            Доколку не креиравте профил на NabavkiData, можете слободно да ја игнорирате оваа порака.
         </p>
         """
 
         html_content = self._get_email_template(
-            title="Verify Your Email Address",
+            title="Потврдете ја вашата е-пошта",
             content=content,
-            button_text="Verify Email Address",
+            button_text="Потврди е-пошта",
             button_link=verification_link
         )
 
         return await self.send_email(
             to=email,
-            subject="Verify Your Email Address - NabavkiData",
+            subject="Потврдете ја вашата е-пошта - NabavkiData",
             html_content=html_content,
             tag="verification",
             reply_to="support@nabavkidata.com"
@@ -237,24 +237,24 @@ class PostmarkService:
         reset_link = f"{self.frontend_url}/auth/reset-password?token={token}"
 
         content = f"""
-        <p>Hello <strong>{name}</strong>,</p>
-        <p>We received a request to reset the password for your NabavkiData account.</p>
-        <p style="margin-top: 20px;">Click the button below to reset your password. This link will expire in <strong>1 hour</strong>.</p>
+        <p>Здраво <strong>{name}</strong>,</p>
+        <p>Добивме барање за промена на лозинката на вашиот NabavkiData профил.</p>
+        <p style="margin-top: 20px;">Кликнете на копчето подолу за да ја промените лозинката. Овој линк ќе истече за <strong>1 час</strong>.</p>
         <p style="margin-top: 25px; padding: 15px; background-color: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b; font-size: 14px;">
-            <strong>Security Notice:</strong> If you didn't request a password reset, please ignore this email or contact support if you have concerns about your account security.
+            <strong>Безбедносно известување:</strong> Доколку не побаравте промена на лозинка, игнорирајте ја оваа порака или контактирајте не доколку имате грижи за безбедноста на вашиот профил.
         </p>
         """
 
         html_content = self._get_email_template(
-            title="Reset Your Password",
+            title="Промена на лозинка",
             content=content,
-            button_text="Reset Password",
+            button_text="Промени лозинка",
             button_link=reset_link
         )
 
         return await self.send_email(
             to=email,
-            subject="Password Reset Request - NabavkiData",
+            subject="Барање за промена на лозинка - NabavkiData",
             html_content=html_content,
             tag="password-reset",
             reply_to="support@nabavkidata.com"
@@ -265,28 +265,28 @@ class PostmarkService:
         dashboard_link = f"{self.frontend_url}/dashboard"
 
         content = f"""
-        <p>Hello <strong>{name}</strong>,</p>
-        <p>Welcome to NabavkiData! Your email has been successfully verified and your account is now active.</p>
-        <p style="margin-top: 20px;">You can now access all features of our platform:</p>
+        <p>Здраво <strong>{name}</strong>,</p>
+        <p>Добредојдовте на NabavkiData! Вашата е-пошта е успешно потврдена и вашиот профил е активен.</p>
+        <p style="margin-top: 20px;">Сега имате пристап до сите функции на платформата:</p>
         <ul style="color: #374151; font-size: 16px; line-height: 2; margin-top: 15px; padding-left: 20px;">
-            <li>Browse public procurement opportunities</li>
-            <li>Set up personalized tender alerts</li>
-            <li>Track your saved tenders</li>
-            <li>Get AI-powered tender recommendations</li>
+            <li>Пребарувајте јавни набавки</li>
+            <li>Поставете персонализирани известувања за тендери</li>
+            <li>Следете ги зачуваните тендери</li>
+            <li>Добијте AI препораки за тендери</li>
         </ul>
-        <p style="margin-top: 25px;">Get started by exploring your dashboard:</p>
+        <p style="margin-top: 25px;">Започнете со прегледување на контролната табла:</p>
         """
 
         html_content = self._get_email_template(
-            title="Welcome to NabavkiData!",
+            title="Добредојдовте на NabavkiData!",
             content=content,
-            button_text="Go to Dashboard",
+            button_text="Оди на контролна табла",
             button_link=dashboard_link
         )
 
         return await self.send_email(
             to=email,
-            subject="Welcome to NabavkiData - Let's Get Started!",
+            subject="Добредојдовте на NabavkiData!",
             html_content=html_content,
             tag="welcome",
             reply_to="support@nabavkidata.com"
@@ -295,29 +295,29 @@ class PostmarkService:
     async def send_password_changed_email(self, email: str, name: str) -> bool:
         """Send confirmation email after password change."""
         content = f"""
-        <p>Hello <strong>{name}</strong>,</p>
-        <p>This is to confirm that the password for your NabavkiData account has been successfully changed.</p>
+        <p>Здраво <strong>{name}</strong>,</p>
+        <p>Ова е потврда дека лозинката на вашиот NabavkiData профил е успешно променета.</p>
         <p style="margin-top: 20px; padding: 15px; background-color: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b; font-size: 14px;">
-            <strong>Important:</strong> If you did not make this change, please contact our support team immediately to secure your account.
+            <strong>Важно:</strong> Доколку не ја направивте оваа промена, контактирајте не веднаш за да го заштитите вашиот профил.
         </p>
-        <p style="margin-top: 25px;"><strong>Account Security Tips:</strong></p>
+        <p style="margin-top: 25px;"><strong>Совети за безбедност:</strong></p>
         <ul style="color: #374151; font-size: 16px; line-height: 2; margin-top: 10px; padding-left: 20px;">
-            <li>Use a strong, unique password</li>
-            <li>Never share your password with anyone</li>
-            <li>Enable two-factor authentication if available</li>
+            <li>Користете силна, уникатна лозинка</li>
+            <li>Никогаш не ја споделувајте лозинката</li>
+            <li>Активирајте двофакторска автентикација доколку е достапна</li>
         </ul>
         """
 
         html_content = self._get_email_template(
-            title="Password Changed Successfully",
+            title="Лозинката е успешно променета",
             content=content,
-            button_text="Contact Support",
+            button_text="Контактирај поддршка",
             button_link="mailto:support@nabavkidata.com"
         )
 
         return await self.send_email(
             to=email,
-            subject="Password Changed - NabavkiData",
+            subject="Промена на лозинка - NabavkiData",
             html_content=html_content,
             tag="security",
             reply_to="support@nabavkidata.com"
