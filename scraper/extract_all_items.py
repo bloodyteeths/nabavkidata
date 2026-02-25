@@ -186,7 +186,7 @@ class AllItemsExtractor:
         price_count = 0
 
         for i, item in enumerate(items):
-            name = item.get('name', '').strip()
+            name = (item.get('name') or '').strip()
             if not name or len(name) < 3:
                 continue
 
