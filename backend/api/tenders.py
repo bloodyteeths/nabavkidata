@@ -17,6 +17,7 @@ from models import Tender, TenderBidder, TenderLot, Supplier, Document, User, Pr
 from api.auth import get_current_user
 from utils.timezone import get_ai_date_context
 from utils.transliteration import get_search_variants
+from utils.product_quality import product_quality_filter
 from middleware.entitlements import require_module
 from config.plans import ModuleName
 from schemas import (
@@ -2162,11 +2163,12 @@ async def get_tender_bid_advice_by_id(
     # Fetch item prices from product_items table
     item_prices = []
     try:
-        items_query = text("""
+        items_query = text(f"""
             SELECT name, unit_price, quantity, unit, total_price
             FROM product_items
             WHERE tender_id = :tender_id
               AND unit_price IS NOT NULL
+                {product_quality_filter("", "strict")}
             LIMIT 20
         """)
         items_result = await db.execute(items_query, {"tender_id": tender_id})

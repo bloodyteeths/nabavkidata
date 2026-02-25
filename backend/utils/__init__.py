@@ -11,6 +11,7 @@ from .timezone import (
     days_until_closing,
     to_mk_timezone
 )
+from .product_quality import product_quality_filter
 
 __all__ = [
     'MACEDONIA_TZ',
@@ -22,5 +23,6 @@ __all__ = [
     'get_ai_date_context',
     'is_tender_open',
     'days_until_closing',
-    'to_mk_timezone'
+    'to_mk_timezone',
+    'product_quality_filter',
 ]

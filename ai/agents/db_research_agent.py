@@ -27,6 +27,11 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 load_dotenv()
 
+# Product items quality filter — keep in sync with backend/utils/product_quality.py
+_PRODUCT_QUALITY_MODERATE = """
+            AND pi.extraction_confidence >= 0.5
+            AND LENGTH(pi.name) BETWEEN 5 AND 200
+            AND pi.name !~ '^[0-9]+\\.'"""
 
 # Configure logging
 logging.basicConfig(
@@ -341,7 +346,7 @@ class DBResearchAgent:
 
     async def _get_tender_product_items(self, conn: asyncpg.Connection, tender_id: str) -> List[Dict[str, Any]]:
         """Get all product items from a tender"""
-        query = """
+        query = f"""
             SELECT
                 pi.id,
                 pi.item_number,
@@ -362,6 +367,7 @@ class DBResearchAgent:
                 pi.supplier
             FROM product_items pi
             WHERE pi.tender_id = $1
+                {_PRODUCT_QUALITY_MODERATE}
             ORDER BY pi.lot_number, pi.item_number
         """
 

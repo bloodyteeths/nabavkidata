@@ -15,6 +15,7 @@ from models import ProductItem, Tender, User
 from middleware.entitlements import require_module, check_price_view_quota
 from middleware.rbac import get_optional_user
 from config.plans import ModuleName, has_module_access
+from utils.product_quality import product_quality_filter
 from schemas import (
     ProductSearchRequest,
     ProductSearchResponse,
@@ -37,14 +38,8 @@ SORT_MAP = {
     "relevance": "CASE WHEN p.unit_price > 0 THEN 0 ELSE 1 END, t.opening_date DESC NULLS LAST",
 }
 
-# Quality filters: exclude junk extractions
-QUALITY_FILTER = """
-    AND p.extraction_confidence >= 0.5
-    AND LENGTH(p.name) >= 5
-    AND p.name NOT LIKE '3.%'
-    AND p.name NOT LIKE '1.%'
-    AND p.name NOT LIKE '2.%'
-"""
+# Quality filters: exclude junk extractions (numbered clauses, short names, low confidence)
+QUALITY_FILTER = product_quality_filter("p", "moderate")
 
 # In-memory cache for stats
 _stats_cache = {"data": None, "expires": None}
@@ -238,7 +233,7 @@ async def aggregate_products(
     Returns price ranges, total quantities, and tender counts grouped by product name.
     Useful for market analysis and price comparison.
     """
-    agg_query = text("""
+    agg_query = text(f"""
         SELECT
             p.name,
             SUM(p.quantity) as total_quantity,
@@ -251,6 +246,7 @@ async def aggregate_products(
         FROM product_items p
         JOIN tenders t ON p.tender_id = t.tender_id
         WHERE p.name ILIKE :name_pattern
+            {product_quality_filter("p", "strict")}
         GROUP BY p.name
         ORDER BY tender_count DESC
         LIMIT 50
@@ -288,13 +284,14 @@ async def get_products_by_tender(
     quota = await _check_prices(current_user, db)
     has_prices = quota["has_quota"]
     tender_id = f"{tender_number}/{tender_year}"
-    query = text("""
+    query = text(f"""
         SELECT
             id, tender_id, document_id, item_number, lot_number,
             name, quantity, unit, unit_price, total_price,
             specifications, cpv_code, extraction_confidence, created_at
         FROM product_items
         WHERE tender_id = :tender_id
+            {product_quality_filter("", "moderate")}
         ORDER BY lot_number NULLS LAST, item_number NULLS LAST, name
     """)
 
@@ -341,10 +338,11 @@ async def get_product_suggestions(
 
     Returns distinct product names that match the partial query.
     """
-    query = text("""
+    query = text(f"""
         SELECT DISTINCT name
         FROM product_items
         WHERE name ILIKE :pattern
+            {product_quality_filter("", "moderate")}
         ORDER BY name
         LIMIT :limit
     """)
@@ -369,7 +367,8 @@ async def get_top_product_names(
     where_clauses = [
         "name IS NOT NULL",
         "name != ''",
-        "LENGTH(name) BETWEEN 3 AND 120",
+        "extraction_confidence >= 0.5",
+        "LENGTH(name) BETWEEN 5 AND 200",
         "name !~ '^[0-9]+\\.'",  # exclude legal clause text like "1.3. ..."
     ]
     params: dict = {"limit": limit}

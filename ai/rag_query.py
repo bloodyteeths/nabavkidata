@@ -26,6 +26,43 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# Product items quality filters — keep in sync with backend/utils/product_quality.py
+def _product_quality_filter(alias: str = "pi", level: str = "moderate") -> str:
+    """SQL WHERE clause fragment for product_items quality filtering."""
+    col = f"{alias}." if alias else ""
+    moderate = f"""
+            AND {col}extraction_confidence >= 0.5
+            AND LENGTH({col}name) BETWEEN 5 AND 200
+            AND {col}name !~ '^[0-9]+\\.'"""
+    if level == "moderate":
+        return moderate
+    # strict — adds legal clause exclusions
+    return moderate + f"""
+            AND {col}name !~ '^[а-яА-Яa-zA-Z]\\)'
+            AND {col}name !~ '^[А-Ш\\s]{{10,}}$'
+            AND UPPER({col}name) NOT LIKE '%ПОДНЕСУВАЊЕ%ПОНУДИ%'
+            AND UPPER({col}name) NOT LIKE '%ЕВАЛУАЦИЈА%'
+            AND UPPER({col}name) NOT LIKE '%КРИТЕРИУМ%ИЗБОР%'
+            AND UPPER({col}name) NOT LIKE '%СКЛУЧУВАЊЕ%ДОГОВОР%'
+            AND UPPER({col}name) NOT LIKE '%ПРАВО НА ЖАЛБА%'
+            AND UPPER({col}name) NOT LIKE '%ЗАДОЛЖИТЕЛНИ ЕЛЕМЕНТИ%'
+            AND UPPER({col}name) NOT LIKE '%УТВРДУВАЊЕ СПОСОБНОСТ%'
+            AND UPPER({col}name) NOT LIKE '%ПОДГОТОВКА НА ПОНУДАТА%'
+            AND UPPER({col}name) NOT LIKE '%ОПШТИ ИНФОРМАЦИИ%'
+            AND UPPER({col}name) NOT LIKE '%ПОЈАСНУВАЊЕ%ИЗМЕНУВАЊЕ%'
+            AND UPPER({col}name) NOT LIKE '%ТЕНДЕРСКА%ДОКУМЕНТАЦИЈА%'
+            AND UPPER({col}name) NOT LIKE '%ДОГОВОРНИОТ ОРГАН%'
+            AND UPPER({col}name) NOT LIKE '%ЕКОНОМСКИОТ ОПЕРАТОР%'
+            AND UPPER({col}name) NOT LIKE '%ЖАЛИТЕЛОТ%'
+            AND UPPER({col}name) NOT LIKE '%НЕУСОГЛАСЕНОСТИ%'
+            AND UPPER({col}name) NOT LIKE '%ОБЈАВУВАЊЕ%ОГЛАС%'
+            AND UPPER({col}name) NOT LIKE '%ИЗВЕСТУВАЊ%'
+            AND UPPER({col}name) NOT LIKE '%ОДЛУКАТА ЗА ИЗБОР%'
+            AND UPPER({col}name) NOT LIKE '%ВКУПНИОТ ИЗНОС%'
+            AND UPPER({col}name) NOT LIKE '%ВО ОДНОС НА%'
+            AND UPPER({col}name) NOT LIKE '%ДОКОЛКУ ИМА%'"""
+
+
 # Safety settings to prevent content blocking - set all to BLOCK_NONE
 SAFETY_SETTINGS = {
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -1203,10 +1240,11 @@ async def drill_tender_details(tender_ids: list, conn) -> dict:
                     total_bidders += len(bidders)
 
                     # Get product items
-                    item_rows = await conn.fetch("""
+                    item_rows = await conn.fetch(f"""
                         SELECT name, quantity, unit, unit_price, total_price, supplier
-                        FROM product_items
-                        WHERE tender_id = $1
+                        FROM product_items pi
+                        WHERE pi.tender_id = $1
+                            {_product_quality_filter("pi", "moderate")}
                     """, tender_row['tender_id'])
                     items = [dict(i) for i in item_rows]
                     total_items += len(items)
@@ -1974,9 +2012,10 @@ async def _process_web_search_results(web_result: str, conn) -> dict:
                 tender_info['bidders'] = [b['company_name'] for b in bidders]
 
                 # Get items count
-                items = await conn.fetch("""
-                    SELECT name FROM product_items
-                    WHERE tender_id = $1
+                items = await conn.fetch(f"""
+                    SELECT name FROM product_items pi
+                    WHERE pi.tender_id = $1
+                        {_product_quality_filter("pi", "moderate")}
                     LIMIT 20
                 """, tender['tender_id'])
                 tender_info['items'] = [i['name'] for i in items]
@@ -2325,6 +2364,7 @@ async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
             JOIN tenders t ON pi.tender_id = t.tender_id
             WHERE (pi.name ILIKE ANY($1)
                OR pi.name_mk ILIKE ANY($1)){date_filter}
+                {_product_quality_filter("pi", "strict")}
             UNION ALL
             SELECT ei.item_name as name, oi.unit_price_mkd as unit_price,
                    ei.quantity, oi.total_price_mkd as total_price,
@@ -2868,10 +2908,11 @@ CPV: [код]
             """, tender['tender_id'])
 
             # Get product items
-            items = await conn.fetch("""
+            items = await conn.fetch(f"""
                 SELECT name as item_name, quantity, unit, unit_price, total_price
-                FROM product_items
-                WHERE tender_id = $1
+                FROM product_items pi
+                WHERE pi.tender_id = $1
+                    {_product_quality_filter("pi", "moderate")}
             """, tender['tender_id'])
 
         # Format comprehensive response
@@ -2987,6 +3028,7 @@ CPV: [код]
             JOIN tenders t ON pi.tender_id = t.tender_id
             WHERE (pi.name ILIKE ANY($1) OR pi.name_mk ILIKE ANY($1))
               AND pi.unit_price > 0
+                {_product_quality_filter("pi", "strict")}
             {group_clause}
         """
 
@@ -3398,7 +3440,7 @@ CPV: [код]
                 return "Премногу кратки клучни зборови."
 
             # Get price statistics
-            query = """
+            query = f"""
                 SELECT
                     AVG(pi.unit_price) as avg_price,
                     MIN(pi.unit_price) as min_price,
@@ -3409,6 +3451,7 @@ CPV: [код]
                 FROM product_items pi
                 WHERE (pi.name ILIKE ANY($1) OR pi.name_mk ILIKE ANY($1))
                   AND pi.unit_price > 0
+                    {_product_quality_filter("pi", "strict")}
             """
             row = await conn.fetchrow(query, patterns)
 
@@ -4458,6 +4501,7 @@ async def parallel_multi_source_search(question: str, keywords: List[str], conn,
                     FROM product_items pi
                     JOIN tenders t ON pi.tender_id = t.tender_id
                     WHERE pi.name ILIKE ANY($1){date_filter}
+                        {_product_quality_filter("pi", "strict")}
                     ORDER BY t.publication_date DESC
                     LIMIT 20
                 """
@@ -7149,6 +7193,7 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                    OR pi.model ILIKE ANY($1)
                    OR pi.specifications::text ILIKE ANY($1))
                   AND t.publication_date >= NOW() - INTERVAL '{years} years'
+                    {_product_quality_filter("pi", "moderate")}
                 ORDER BY t.publication_date DESC NULLS LAST
                 LIMIT 100
             """, keyword_patterns)
@@ -7196,6 +7241,7 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                    OR pi.name_en ILIKE ANY($1))
                   AND pi.unit_price IS NOT NULL
                   AND t.publication_date >= NOW() - INTERVAL '{years} years'
+                    {_product_quality_filter("pi", "strict")}
                 GROUP BY pi.name, year, quarter, pi.unit
                 ORDER BY year DESC, quarter DESC, pi.name
                 LIMIT 50
@@ -7241,6 +7287,7 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
                    OR pi.name_mk ILIKE ANY($1))
                   AND t.winner IS NOT NULL AND t.winner != ''
                   AND t.publication_date >= NOW() - INTERVAL '{years} years'
+                    {_product_quality_filter("pi", "moderate")}
                 GROUP BY t.winner
                 ORDER BY COUNT(*) DESC, AVG(pi.unit_price) ASC
                 LIMIT 10
