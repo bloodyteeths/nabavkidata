@@ -139,6 +139,14 @@ export default function PlansPage() {
                 </tr>
 
                 <tr className="border-b">
+                  <td className="py-4 px-4 text-sm">Ценовни прегледи дневно</td>
+                  <td className="text-center py-4 px-4 text-sm">3</td>
+                  <td className="text-center py-4 px-4 text-sm">50</td>
+                  <td className="text-center py-4 px-4 text-sm">200</td>
+                  <td className="text-center py-4 px-4 text-sm font-medium">Неограничено</td>
+                </tr>
+
+                <tr className="border-b">
                   <td className="py-4 px-4 text-sm">Напредно филтрирање</td>
                   <td className="text-center py-4 px-4">-</td>
                   {plans.slice(1).map((plan) => (
