@@ -276,7 +276,8 @@ class GeminiExtractor:
                 prompt,
                 generation_config=genai.GenerationConfig(
                     temperature=0.1,
-                    max_output_tokens=4096,
+                    max_output_tokens=16384,
+                    response_mime_type="application/json",
                 )
             )
 
@@ -286,10 +287,9 @@ class GeminiExtractor:
             # Handle markdown code blocks
             if response_text.startswith('```'):
                 lines = response_text.split('\n')
-                # Remove first line (```json or ```) and last line (```)
                 response_text = '\n'.join(lines[1:-1]) if len(lines) > 2 else response_text
 
-            items = json.loads(response_text)
+            items = self._parse_json_with_repair(response_text)
 
             if not isinstance(items, list):
                 logger.warning(f"Expected list from Gemini, got {type(items)}")
@@ -305,6 +305,44 @@ class GeminiExtractor:
         except Exception as e:
             logger.error(f"Gemini extraction failed: {e}")
             return []
+
+    @staticmethod
+    def _parse_json_with_repair(text: str) -> Any:
+        """Parse JSON with repair for truncated responses."""
+        # First try direct parse
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        # Try to repair truncated JSON arrays
+        # Find the last complete object (ends with })
+        last_brace = text.rfind('}')
+        if last_brace > 0:
+            # Try closing the array after the last complete object
+            candidate = text[:last_brace + 1].rstrip().rstrip(',') + ']'
+            try:
+                result = json.loads(candidate)
+                if isinstance(result, list):
+                    logger.info(f"Repaired truncated JSON: recovered {len(result)} items")
+                    return result
+            except json.JSONDecodeError:
+                pass
+
+        # Last resort: extract individual JSON objects with regex
+        items = []
+        for m in re.finditer(r'\{[^{}]*\}', text):
+            try:
+                obj = json.loads(m.group())
+                if 'name' in obj:
+                    items.append(obj)
+            except json.JSONDecodeError:
+                continue
+        if items:
+            logger.info(f"Extracted {len(items)} items via regex fallback")
+            return items
+
+        raise json.JSONDecodeError("Could not repair JSON", text, 0)
 
     def extract_and_normalize(self, document_text: str, doc_category: str = 'other') -> List[Dict[str, Any]]:
         """

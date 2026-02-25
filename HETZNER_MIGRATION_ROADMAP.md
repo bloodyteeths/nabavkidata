@@ -503,6 +503,10 @@ There are also **31 total .env* files** (backups, copies in subdirectories). Del
 
 ### Post-Migration
 - [ ] Monitor for 1 week
-- [ ] Take RDS final snapshot
-- [ ] Terminate EC2 + RDS
-- [ ] Keep S3 bucket + AWS credentials
+- [x] RDS final snapshot taken: `nabavkidata-final-before-decommission-feb2026`
+- [x] EC2 AMI archived: `ami-046d1a5046a06ca17` (nabavkidata-ec2-archive-feb2026)
+- [x] RDS instance deleted (nabavkidata-db) — saves ~$36/mo
+- [x] EC2 instance terminated (i-0d748abb23edde73a) — saves ~$40/mo
+- [x] Elastic IP released (18.197.185.30)
+- [x] S3 bucket kept (`nabavkidata-pdfs`) — still accessed from Hetzner
+- [x] AWS credentials kept in .env — needed for S3

@@ -672,7 +672,7 @@ TEST_PROMPTS: List[Dict] = [
 
 async def test_single_prompt(session: aiohttp.ClientSession, prompt: Dict) -> Dict:
     """Test a single prompt and return result"""
-    api_url = "http://18.197.185.30:8000/api/rag/query"
+    api_url = "http://46.224.89.197:8000/api/rag/query"
 
     start_time = time.time()
 

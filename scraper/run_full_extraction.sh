@@ -73,7 +73,7 @@ log "Total batches: $BATCH"
 log ""
 log "=== Final Database Stats ==="
 PGPASSWORD="$DB_PASS" psql \
-    -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+    -h localhost \
     -U nabavki_user -d nabavkidata \
     -c "SELECT extraction_method, COUNT(*) as items, COUNT(DISTINCT tender_id) as tenders FROM product_items GROUP BY extraction_method ORDER BY items DESC;"
 

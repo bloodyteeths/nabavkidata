@@ -82,14 +82,14 @@ show_status() {
     log ""
     log "=== Database Tender Counts by Year ==="
     PGPASSWORD="$DB_PASS" psql \
-        -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+        -h localhost \
         -U nabavki_user -d nabavkidata \
         -c "SELECT EXTRACT(YEAR FROM publication_date) as year, COUNT(*) as count FROM tenders WHERE publication_date IS NOT NULL GROUP BY year ORDER BY year DESC;"
 
     log ""
     log "=== Total by Source Category ==="
     PGPASSWORD="$DB_PASS" psql \
-        -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+        -h localhost \
         -U nabavki_user -d nabavkidata \
         -c "SELECT source_category, COUNT(*) FROM tenders GROUP BY source_category ORDER BY count DESC;"
     exit 0
@@ -170,7 +170,7 @@ scrape_year() {
             log ""
             log "=== Progress Check (Year $YEAR, Batch $batch) ==="
             PGPASSWORD="$DB_PASS" psql \
-                -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+                -h localhost \
                 -U nabavki_user -d nabavkidata \
                 -c "SELECT EXTRACT(YEAR FROM publication_date) as year, COUNT(*) FROM tenders WHERE publication_date IS NOT NULL GROUP BY year ORDER BY year DESC;" 2>/dev/null || true
         fi
@@ -299,7 +299,7 @@ save_progress 2020 0 1 "completed" $TOTAL_TENDERS
 log ""
 log "=== Final Database Stats ==="
 PGPASSWORD="$DB_PASS" psql \
-    -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+    -h localhost \
     -U nabavki_user -d nabavkidata \
     -c "SELECT EXTRACT(YEAR FROM publication_date) as year, COUNT(*) FROM tenders WHERE publication_date IS NOT NULL GROUP BY year ORDER BY year DESC;"
 

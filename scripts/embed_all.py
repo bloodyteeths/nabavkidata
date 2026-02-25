@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 # Database config
 DB_CONFIG = {
-    'host': os.environ.get('DB_HOST', 'nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com'),
+    'host': os.environ.get('DB_HOST', 'localhost'),
     'port': int(os.environ.get('DB_PORT', 5432)),
     'user': os.environ.get('DB_USER', 'nabavki_user'),
     'password': os.environ.get('DB_PASSWORD', ''),

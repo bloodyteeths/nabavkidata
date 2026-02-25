@@ -13,8 +13,8 @@
 set -e
 
 # Configuration
-# Using Elastic IP (permanent): 18.197.185.30
-EC2_HOST="ubuntu@18.197.185.30"
+# Using Elastic IP (permanent): 46.224.89.197
+EC2_HOST="ubuntu@46.224.89.197"
 SSH_KEY="~/.ssh/nabavki-key.pem"
 REMOTE_PATH="/home/ubuntu/nabavkidata"
 DATABASE_URL="${DATABASE_URL:?DATABASE_URL must be set in environment}"

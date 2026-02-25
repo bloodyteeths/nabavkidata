@@ -33,7 +33,7 @@ export DATABASE_URL="${DATABASE_URL:?DATABASE_URL must be set in environment}"
 
 # Function to get DB count
 get_count() {
-    PGPASSWORD="$DB_PASS" psql -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com -U nabavki_user -d nabavkidata -t -c "SELECT COUNT(*) FROM tenders;" 2>/dev/null | tr -d ' '
+    PGPASSWORD="$DB_PASS" psql -h localhost -U nabavki_user -d nabavkidata -t -c "SELECT COUNT(*) FROM tenders;" 2>/dev/null | tr -d ' '
 }
 
 # Wait for OpenTender import to complete

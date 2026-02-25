@@ -650,7 +650,7 @@ async def create_connection_pool() -> asyncpg.Pool:
     """Create database connection pool using environment variables or defaults."""
     import os
 
-    host = os.getenv('DB_HOST', 'nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com')
+    host = os.getenv('DB_HOST', 'localhost')
     database = os.getenv('DB_NAME', 'nabavkidata')
     user = os.getenv('DB_USER', 'postgres')
     password = os.getenv('DB_PASSWORD', '')

@@ -56,7 +56,7 @@ def check_database_connection():
     load_dotenv()
 
     DB_CONFIG = {
-        'host': os.getenv('DB_HOST', 'nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com'),
+        'host': os.getenv('DB_HOST', 'localhost'),
         'port': int(os.getenv('DB_PORT', 5432)),
         'database': os.getenv('DB_NAME', 'nabavkidata'),
         'user': os.getenv('DB_USER', 'nabavkidata_admin'),
@@ -200,7 +200,7 @@ def get_sample_tenders():
     load_dotenv()
 
     DB_CONFIG = {
-        'host': os.getenv('DB_HOST', 'nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com'),
+        'host': os.getenv('DB_HOST', 'localhost'),
         'port': int(os.getenv('DB_PORT', 5432)),
         'database': os.getenv('DB_NAME', 'nabavkidata'),
         'user': os.getenv('DB_USER', 'nabavkidata_admin'),

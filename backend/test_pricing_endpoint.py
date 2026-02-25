@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy import text
 
 # Database configuration
-DB_HOST = "nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com"
+DB_HOST = "localhost"
 DB_USER = "nabavki_user"
 DB_PASS = os.getenv("DB_PASSWORD", "")
 DB_NAME = "nabavkidata"

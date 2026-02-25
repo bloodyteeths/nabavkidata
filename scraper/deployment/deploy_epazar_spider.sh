@@ -12,7 +12,7 @@
 set -e
 
 # Configuration
-EC2_HOST="${EC2_HOST:-ubuntu@18.197.185.30}"
+EC2_HOST="${EC2_HOST:-ubuntu@46.224.89.197}"
 SSH_KEY="${SSH_KEY:-~/.ssh/nabavki-key.pem}"
 REMOTE_DIR="/home/ubuntu/nabavkidata"
 LOCAL_DIR="$(dirname "$0")/../.."

@@ -62,7 +62,7 @@ case "${1:-help}" in
     stats)
         echo "=== Current Database Statistics ==="
         PGPASSWORD="$DB_PASS" psql \
-            -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+            -h localhost \
             -U nabavki_user \
             -d nabavkidata \
             -c "SELECT extraction_status, COUNT(*) FROM documents GROUP BY extraction_status ORDER BY COUNT(*) DESC;"
@@ -71,7 +71,7 @@ case "${1:-help}" in
     pending)
         echo "=== Pending Documents with URLs ==="
         PGPASSWORD="$DB_PASS" psql \
-            -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+            -h localhost \
             -U nabavki_user \
             -d nabavkidata \
             -c "SELECT COUNT(*) as count FROM documents WHERE extraction_status='pending' AND file_url IS NOT NULL AND file_url <> '';"
@@ -113,7 +113,7 @@ case "${1:-help}" in
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             cd downloads/files
             PGPASSWORD="$DB_PASS" psql \
-                -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+                -h localhost \
                 -U nabavki_user \
                 -d nabavkidata \
                 -t -c "SELECT file_name FROM documents WHERE extraction_status='success' AND file_path LIKE '%.pdf';" | \

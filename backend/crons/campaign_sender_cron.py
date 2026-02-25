@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger("campaign_cron")
 
 # Database configuration
-DB_HOST = os.getenv("DB_HOST", "nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com")
+DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
 DB_NAME = os.getenv("DB_NAME", "nabavkidata")
 DB_USER = os.getenv("DB_USER", "postgres")

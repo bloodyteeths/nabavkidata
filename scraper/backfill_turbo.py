@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # Database connection
 DB_CONFIG = {
-    'host': os.environ.get('POSTGRES_HOST', 'nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com'),
+    'host': os.environ.get('POSTGRES_HOST', 'localhost'),
     'port': int(os.environ.get('POSTGRES_PORT', 5432)),
     'database': os.environ.get('POSTGRES_DB', 'nabavkidata'),
     'user': os.environ.get('POSTGRES_USER', 'nabavki_user'),

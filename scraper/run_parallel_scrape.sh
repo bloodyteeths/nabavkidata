@@ -166,7 +166,7 @@ echo ""
 # Final count
 echo "Final database counts:"
 PGPASSWORD="$DB_PASS" psql \
-    -h nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com \
+    -h localhost \
     -U nabavki_user -d nabavkidata -c "
 SELECT EXTRACT(YEAR FROM publication_date) as year, COUNT(*) as count
 FROM tenders WHERE publication_date IS NOT NULL

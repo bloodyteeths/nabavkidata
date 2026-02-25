@@ -100,7 +100,7 @@ fi
 # Load DB credentials from .env or use defaults
 export $(cat .env 2>/dev/null | grep -v '^#' | xargs) || true
 
-DB_HOST=${DB_HOST:-nabavkidata-db.cb6gi2cae02j.eu-central-1.rds.amazonaws.com}
+DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}
 DB_NAME=${DB_NAME:-nabavkidata}
 DB_USER=${DB_USER:-nabavkidata_admin}

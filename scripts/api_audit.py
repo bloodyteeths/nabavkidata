@@ -9,7 +9,7 @@ import json
 from collections import defaultdict
 from datetime import datetime
 
-BASE_URL = "http://18.197.185.30:8000"
+BASE_URL = "http://46.224.89.197:8000"
 
 def test_endpoint(method, path, expected_status=200, **kwargs):
     """Test a single endpoint"""
