@@ -5100,7 +5100,7 @@ class LLMDrivenAgent:
                                                     PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY e.unit_price_without_vat)
                                                         FILTER (WHERE e.unit_price_without_vat > 0) as actual_p75
                                                 FROM epazar_item_evaluations e
-                                                WHERE e.product_name ILIKE '%' || $1 || '%'
+                                                WHERE e.item_subject ILIKE '%' || $1 || '%'
                                                   AND e.tender_id != $2
                                             """, search_key, tender_id)
                                             if erow and erow['eval_count'] and erow['eval_count'] > 0:
@@ -5111,7 +5111,7 @@ class LLMDrivenAgent:
                                                 SELECT e.offered_brand, COUNT(*) as wins,
                                                        AVG(e.unit_price_without_vat) as avg_price
                                                 FROM epazar_item_evaluations e
-                                                WHERE e.product_name ILIKE '%' || $1 || '%'
+                                                WHERE e.item_subject ILIKE '%' || $1 || '%'
                                                   AND e.tender_id != $2
                                                   AND e.offered_brand IS NOT NULL
                                                   AND e.offered_brand != ''
