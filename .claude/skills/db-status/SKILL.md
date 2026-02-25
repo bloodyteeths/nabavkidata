@@ -10,12 +10,12 @@ Quick queries to check system health and data status.
 
 ## Connection
 ```bash
-ssh ubuntu@46.224.89.197 "PGPASSWORD='N4bavk1H3tzn3r2026!Secure' psql -h localhost -U nabavki_user -d nabavkidata"
+ssh ubuntu@46.224.89.197 "source /home/ubuntu/nabavkidata/backend/.env && PGPASSWORD=\$POSTGRES_PASSWORD psql -h localhost -U nabavki_user -d nabavkidata"
 ```
 
 Or directly on server:
 ```bash
-PGPASSWORD='N4bavk1H3tzn3r2026!Secure' psql -h localhost -U nabavki_user -d nabavkidata
+source /home/ubuntu/nabavkidata/backend/.env && PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U nabavki_user -d nabavkidata
 ```
 
 ## Common Queries
