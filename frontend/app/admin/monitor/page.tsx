@@ -81,7 +81,7 @@ export default function MonitorPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex items-center gap-2">
-              {health?.status === "healthy" ? (
+              {health?.status === "ok" || health?.status === "healthy" ? (
                 <CheckCircle className="h-4 w-4 text-green-500" />
               ) : (
                 <AlertCircle className="h-4 w-4 text-yellow-500" />

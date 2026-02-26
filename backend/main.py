@@ -204,16 +204,26 @@ async def _database_health(db: AsyncSession):
 @app.get("/api/health")
 async def health_check():
     """
-    Public health check for external monitoring (Clawd VA).
-    No auth required. Fast — uses asyncpg pool directly, reads marker file for scraper.
+    Public health check for external monitoring (Clawd VA) and admin panel.
+    No auth required. Returns DB stats, scraper health, and cron status.
     """
-    health = {"database": False}
-
-    # --- DB check via asyncpg pool (fastest path) ---
+    # --- DB stats via asyncpg pool ---
+    db_ok = False
+    tender_count = None
+    doc_count = None
+    category_counts = {}
     try:
         pool = await get_asyncpg_pool()
         await pool.fetchval("SELECT 1")
-        health["database"] = True
+        db_ok = True
+        tender_count = await pool.fetchval("SELECT COUNT(*) FROM tenders")
+        doc_count = await pool.fetchval("SELECT COUNT(*) FROM documents")
+        rows = await pool.fetch(
+            "SELECT COALESCE(source_category, 'unknown') as cat, COUNT(*) as cnt "
+            "FROM tenders GROUP BY source_category"
+        )
+        for row in rows:
+            category_counts[row["cat"]] = row["cnt"]
     except Exception:
         pass
 
@@ -230,13 +240,28 @@ async def health_check():
     except Exception:
         scraper_status = "failed"
 
-    overall = "ok" if health["database"] else "unhealthy"
+    # --- Scraper health.json ---
+    scraper_health = _read_scraper_health()
+
+    # --- Cron status ---
+    cron_status = "ok" if scraper_status == "ok" and db_ok else "degraded"
+
+    overall = "ok" if db_ok else "unhealthy"
 
     return {
         "status": overall,
-        "health": health,
+        "health": {"database": db_ok},
+        "database": {
+            "status": "ok" if db_ok else "error",
+            "tenders": tender_count,
+            "documents": doc_count,
+            "tenders_by_category": category_counts,
+        },
+        "scraper": scraper_health,
         "scraper_status": scraper_status,
         "scraper_last_run": scraper_last_run,
+        "cron": cron_status,
+        "rag": "ok" if db_ok else "unknown",
         "timestamp": datetime.utcnow().isoformat()
     }
 
