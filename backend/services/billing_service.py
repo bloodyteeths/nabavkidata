@@ -136,7 +136,8 @@ class BillingService:
                     'metadata': {
                         'user_id': user_id,
                         'tier': tier
-                    }
+                    },
+                    'description': f'Nabavkidata {tier.capitalize()} ({interval})'
                 },
                 allow_promotion_codes=True,
                 billing_address_collection='required',
