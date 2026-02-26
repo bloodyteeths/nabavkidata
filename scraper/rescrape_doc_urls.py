@@ -111,27 +111,44 @@ async def scrape_tender_docs(page, tender_id: str, dossier_id: Optional[str]) ->
         url = f"{BASE_URL}/dossie/{tender_id}"
 
     try:
-        await page.goto(url, wait_until='networkidle', timeout=30000)
-        await page.wait_for_timeout(3000)  # Wait for AngularJS to render
+        await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+        # Wait for Angular to render tender detail content
+        try:
+            await page.wait_for_selector('label.dosie-value', timeout=20000)
+        except Exception:
+            # Fallback: wait for any content
+            await page.wait_for_timeout(5000)
+        await page.wait_for_timeout(500)
 
-        # Try clicking document tabs if they exist
-        for tab_selector in [
-            'a:has-text("Документи")',
-            'a:has-text("документ")',
+        # Get initial page HTML
+        html = await page.content()
+
+        # Click on Documentation tab to load document links
+        doc_tab_selectors = [
+            'a[href*="documents"]',
+            'a:has-text("Документација")',
+            'a:has-text("Documents")',
+            '.nav-tabs a:nth-child(2)',
+            'ul.nav-tabs li:nth-child(2) a',
             '[ng-click*="document"]',
-            '.nav-tabs a:nth-child(3)',
-        ]:
+            'a[data-toggle="tab"]:has-text("Документација")',
+        ]
+        for tab_selector in doc_tab_selectors:
             try:
                 tab = await page.query_selector(tab_selector)
                 if tab:
                     await tab.click()
-                    await page.wait_for_timeout(1500)
+                    await page.wait_for_timeout(2000)
                     break
             except Exception:
                 pass
 
-        html = await page.content()
-        docs = extract_documents_from_html(html, tender_id)
+        # Get HTML after clicking documents tab
+        docs_html = await page.content()
+        # Combine both HTML sources for extraction
+        combined_html = html + docs_html
+
+        docs = extract_documents_from_html(combined_html, tender_id)
         return docs
 
     except Exception as e:
