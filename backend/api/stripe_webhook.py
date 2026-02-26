@@ -282,6 +282,22 @@ async def handle_subscription_created(db: AsyncSession, subscription_obj: Dict[s
         # Find user by Stripe customer ID
         user = await get_user_by_customer_id(db, customer_id)
         if not user:
+            # Fallback: find user by metadata user_id (customer_id may not be stored yet)
+            user_id_from_meta = subscription_obj.get("metadata", {}).get("user_id")
+            if user_id_from_meta:
+                result = await db.execute(
+                    select(User).where(User.user_id == user_id_from_meta)
+                )
+                user = result.scalar_one_or_none()
+                if user:
+                    await db.execute(
+                        update(User)
+                        .where(User.user_id == user.user_id)
+                        .values(stripe_customer_id=customer_id)
+                    )
+                    logger.info(f"Found user {user_id_from_meta} via metadata fallback")
+
+        if not user:
             logger.warning(f"User not found for customer_id: {customer_id}")
             return
 

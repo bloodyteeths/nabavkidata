@@ -1404,7 +1404,9 @@ async def handle_stripe_webhook(
 
     try:
         # Handle different event types
-        if event.type == "customer.subscription.created":
+        if event.type == "checkout.session.completed":
+            await handle_checkout_completed(db, event.data.object)
+        elif event.type == "customer.subscription.created":
             await handle_subscription_created(db, event.data.object)
         elif event.type == "customer.subscription.updated":
             await handle_subscription_updated(db, event.data.object)
@@ -1430,6 +1432,71 @@ async def handle_stripe_webhook(
         return {"status": "error", "event_type": event.type, "error": str(e)}
 
 
+async def handle_checkout_completed(db: AsyncSession, session_obj: Dict[str, Any]):
+    """
+    Handle checkout.session.completed event.
+    This is the FIRST event after payment - links Stripe customer to our user
+    and creates the subscription record.
+    """
+    customer_id = session_obj.get("customer")
+    user_id = session_obj.get("client_reference_id") or session_obj.get("metadata", {}).get("user_id")
+    subscription_id = session_obj.get("subscription")
+    tier = session_obj.get("metadata", {}).get("tier", "starter")
+
+    if not user_id or not customer_id:
+        logger.error(f"checkout.session.completed: missing user_id={user_id} or customer_id={customer_id}")
+        return
+
+    # Find user by our user_id
+    result = await db.execute(
+        select(User).where(User.user_id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        logger.error(f"checkout.session.completed: user {user_id} not found in DB")
+        return
+
+    # Store stripe_customer_id and update tier
+    await db.execute(
+        update(User)
+        .where(User.user_id == user.user_id)
+        .values(stripe_customer_id=customer_id, subscription_tier=tier)
+    )
+
+    # Create subscription record if not already created by subscription.created webhook
+    if subscription_id:
+        existing = await db.execute(
+            select(Subscription).where(Subscription.stripe_subscription_id == subscription_id)
+        )
+        if not existing.scalar_one_or_none():
+            try:
+                stripe_sub = stripe.Subscription.retrieve(subscription_id)
+                new_subscription = Subscription(
+                    user_id=user.user_id,
+                    stripe_subscription_id=subscription_id,
+                    stripe_customer_id=customer_id,
+                    tier=tier,
+                    status=stripe_sub["status"],
+                    current_period_start=datetime.fromtimestamp(stripe_sub["current_period_start"]),
+                    current_period_end=datetime.fromtimestamp(stripe_sub["current_period_end"]),
+                    cancel_at_period_end=stripe_sub.get("cancel_at_period_end", False)
+                )
+                db.add(new_subscription)
+            except Exception as e:
+                logger.error(f"checkout.session.completed: failed to create subscription record: {e}")
+
+    await db.commit()
+
+    logger.info(f"checkout.session.completed: linked customer {customer_id} to user {user_id}, tier={tier}")
+
+    # Log audit
+    await log_audit(
+        db, str(user_id), "checkout_completed",
+        {"tier": tier, "customer_id": customer_id, "subscription_id": subscription_id},
+        None
+    )
+
+
 async def handle_subscription_created(db: AsyncSession, subscription_obj: Dict[str, Any]):
     """Handle subscription created event"""
     customer_id = subscription_obj["customer"]
@@ -1442,7 +1509,24 @@ async def handle_subscription_created(db: AsyncSession, subscription_obj: Dict[s
     user = result.scalar_one_or_none()
 
     if not user:
-        logger.warning(f"User not found for customer {customer_id}")
+        # Fallback: find user by metadata user_id (customer_id may not be stored yet)
+        user_id_from_meta = subscription_obj.get("metadata", {}).get("user_id")
+        if user_id_from_meta:
+            result = await db.execute(
+                select(User).where(User.user_id == user_id_from_meta)
+            )
+            user = result.scalar_one_or_none()
+            if user:
+                # Store the customer_id while we're at it
+                await db.execute(
+                    update(User)
+                    .where(User.user_id == user.user_id)
+                    .values(stripe_customer_id=customer_id)
+                )
+                logger.info(f"Found user {user_id_from_meta} via metadata fallback, stored customer_id {customer_id}")
+
+    if not user:
+        logger.warning(f"User not found for customer {customer_id} (no metadata fallback)")
         return
 
     # Determine tier from subscription metadata
