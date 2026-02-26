@@ -19,7 +19,10 @@ import urllib.parse
 from typing import List, Dict, Optional
 
 import asyncpg
+from dotenv import load_dotenv
 from playwright.async_api import async_playwright
+
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
