@@ -28,10 +28,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.getenv(
-    'DATABASE_URL',
-    os.getenv('DATABASE_URL')
-)
+DATABASE_URL = os.getenv('DATABASE_URL', '')
+# asyncpg needs plain postgresql:// not postgresql+asyncpg://
+if DATABASE_URL.startswith('postgresql+asyncpg://'):
+    DATABASE_URL = DATABASE_URL.replace('postgresql+asyncpg://', 'postgresql://', 1)
 
 
 async def backfill_urls(limit: Optional[int] = None, dry_run: bool = False):
