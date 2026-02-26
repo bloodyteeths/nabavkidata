@@ -44,12 +44,14 @@ LOG_FILE="$LOG_DIR/scrapy_epazar_$(date +%Y%m%d_%H%M%S).log"
 
 log "Running /usr/local/bin/scrapy crawl epazar_api -a category=all"
 
+# Disable set -e so we capture the exit code instead of dying
+set +e
 /usr/local/bin/scrapy crawl epazar_api \
     -a category=all \
     -s LOG_LEVEL=INFO \
     -s LOG_FILE="$LOG_FILE"
-
 RC=$?
+set -e
 RUN_END=$(date -Iseconds)
 ERROR_COUNT=$(grep -i "ERROR" "$LOG_FILE" | wc -l || true)
 STATUS="success"

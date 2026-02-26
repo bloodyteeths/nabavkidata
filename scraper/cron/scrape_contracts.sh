@@ -52,6 +52,8 @@ RUN_START=$(date -Iseconds)
 LOG_FILE="$LOG_DIR/scrapy_contracts_$(date +%Y%m%d_%H%M%S).log"
 
 # timeout: 2.5h hard kill as fallback for CLOSESPIDER_TIMEOUT
+# Disable set -e so we capture the exit code instead of dying
+set +e
 timeout --signal=TERM --kill-after=60 9000 \
 /usr/local/bin/scrapy crawl contracts \
     -a max_pages=500 \
@@ -61,8 +63,8 @@ timeout --signal=TERM --kill-after=60 9000 \
     -s MEMUSAGE_LIMIT_MB=1536 \
     -s MEMUSAGE_WARNING_MB=1200 \
     -s CLOSESPIDER_TIMEOUT=7200
-
 RC=$?
+set -e
 
 # Clean up orphaned Playwright/Chromium processes
 pkill -f "chromium.*--headless" 2>/dev/null || true

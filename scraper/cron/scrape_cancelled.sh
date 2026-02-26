@@ -47,6 +47,8 @@ LOG_FILE="$LOG_DIR/scrapy_cancelled_$(date +%Y%m%d_%H%M%S).log"
 log "Running scrapy crawl nabavki -a category=cancelled"
 
 # timeout: 2.5h hard kill as fallback for CLOSESPIDER_TIMEOUT
+# Disable set -e so we capture the exit code instead of dying
+set +e
 timeout --signal=TERM --kill-after=60 9000 \
 /usr/local/bin/scrapy crawl nabavki \
     -a category=cancelled \
@@ -59,8 +61,8 @@ timeout --signal=TERM --kill-after=60 9000 \
     -s CONCURRENT_REQUESTS=2 \
     -s DOWNLOAD_DELAY=0.3 \
     -s CLOSESPIDER_TIMEOUT=7200
-
 RC=$?
+set -e
 
 # Clean up orphaned Playwright/Chromium processes
 pkill -f "chromium.*--headless" 2>/dev/null || true

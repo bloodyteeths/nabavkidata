@@ -44,6 +44,8 @@ LOG_FILE="$LOG_DIR/scrapy_active_$(date +%Y%m%d_%H%M%S).log"
 log "Running scrapy crawl nabavki -a category=active"
 
 # timeout: 2.5h hard kill as fallback for CLOSESPIDER_TIMEOUT
+# Disable set -e so we capture the exit code instead of dying
+set +e
 timeout --signal=TERM --kill-after=60 9000 \
 /usr/local/bin/scrapy crawl nabavki \
     -a category=active \
@@ -55,8 +57,8 @@ timeout --signal=TERM --kill-after=60 9000 \
     -s CONCURRENT_REQUESTS=2 \
     -s PLAYWRIGHT_MAX_PAGES_PER_CONTEXT=4 \
     -s CLOSESPIDER_TIMEOUT=7200
-
 RC=$?
+set -e
 
 # Clean up orphaned Playwright/Chromium processes from this run
 pkill -f "chromium.*--headless" 2>/dev/null || true
