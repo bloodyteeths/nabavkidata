@@ -58,8 +58,8 @@ export function GlobalChatWidget() {
 
   const MAX_CHARS = 500;
 
-  // Hide widget on /chat page
-  if (pathname === "/chat") {
+  // Hide widget on pages that have their own chat widget
+  if (pathname === "/chat" || pathname.startsWith("/tenders/") || pathname.startsWith("/epazar/")) {
     return null;
   }
 
