@@ -105,6 +105,12 @@ export default function RegisterPage() {
       newErrors.password = 'Лозинка е задолжителна';
     } else if (formData.password.length < 8) {
       newErrors.password = 'Лозинката мора да има најмалку 8 карактери';
+    } else if (!/[A-Z]/.test(formData.password)) {
+      newErrors.password = 'Лозинката мора да содржи голема буква';
+    } else if (!/[a-z]/.test(formData.password)) {
+      newErrors.password = 'Лозинката мора да содржи мала буква';
+    } else if (!/\d/.test(formData.password)) {
+      newErrors.password = 'Лозинката мора да содржи број';
     }
 
     if (!formData.confirmPassword) {

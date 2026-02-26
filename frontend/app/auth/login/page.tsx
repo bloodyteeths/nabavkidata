@@ -130,6 +130,15 @@ export default function LoginPage() {
             {errors.general && (
               <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
                 {errors.general}
+                <div className="mt-2 text-sm">
+                  Немате профил?{' '}
+                  <Link
+                    href={plan ? `/auth/register?plan=${plan}&interval=${interval || 'monthly'}&currency=${currency || 'mkd'}` : '/auth/register'}
+                    className="font-medium underline hover:text-destructive/80"
+                  >
+                    Регистрирајте се бесплатно
+                  </Link>
+                </div>
               </div>
             )}
 

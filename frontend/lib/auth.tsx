@@ -241,7 +241,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Login failed');
+        let message = 'Login failed';
+        if (typeof errorData.detail === 'string') {
+          message = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          message = errorData.detail.map((e: any) => e.msg).join('. ');
+        }
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -286,7 +292,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Registration failed');
+        let message = 'Registration failed';
+        if (typeof errorData.detail === 'string') {
+          message = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          // FastAPI validation errors come as array of {loc, msg, type}
+          message = errorData.detail.map((e: any) => e.msg).join('. ');
+        }
+        throw new Error(message);
       }
 
       // Store email for resend verification
