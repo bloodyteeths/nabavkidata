@@ -189,24 +189,39 @@ async def clawd_status(db: AsyncSession = Depends(get_db)):
 
     # --- scraper status (from marker file + health.json, not DB) ---
     try:
-        marker = Path("/var/log/nabavkidata/scraper_last_run")
-        if marker.exists():
-            mtime = marker.stat().st_mtime
-            last_run_dt = datetime.utcfromtimestamp(mtime)
-            metrics["scraper_last_run"] = last_run_dt.isoformat()
-            age_hours = (now - last_run_dt).total_seconds() / 3600
-            metrics["scraper_status"] = "ok" if age_hours < 26 else "stale"
-            health["scraper"] = age_hours < 26
-        else:
-            metrics["scraper_last_run"] = None
-            metrics["scraper_status"] = "unknown"
+        # Check marker file (touched by run-cron.sh after successful scraper runs)
+        marker_found = False
+        for marker_path in ["/tmp/nabavkidata_scraper_last_run", "/var/log/nabavkidata/scraper_last_run"]:
+            marker = Path(marker_path)
+            if marker.exists():
+                mtime = marker.stat().st_mtime
+                last_run_dt = datetime.utcfromtimestamp(mtime)
+                metrics["scraper_last_run"] = last_run_dt.isoformat()
+                age_hours = (now - last_run_dt).total_seconds() / 3600
+                metrics["scraper_status"] = "ok" if age_hours < 26 else "stale"
+                health["scraper"] = age_hours < 26
+                marker_found = True
+                break
 
+        # Read health.json for detailed scraper status
         health_path = Path("/var/log/nabavkidata/health.json")
         if health_path.exists():
             health_data = json.loads(health_path.read_text())
             metrics["scraper_dataset"] = health_data.get("dataset")
             metrics["scraper_last_status"] = health_data.get("status")
             metrics["total_tenders"] = health_data.get("db", {}).get("total_tenders")
+
+            # Use health.json as fallback if marker file is missing
+            if not marker_found and health_data.get("finished_at"):
+                metrics["scraper_last_run"] = health_data["finished_at"]
+                finished = datetime.fromisoformat(health_data["finished_at"].replace("Z", "+00:00"))
+                age_hours = (now - finished.replace(tzinfo=None)).total_seconds() / 3600
+                metrics["scraper_status"] = "ok" if age_hours < 26 else "stale"
+                health["scraper"] = health_data.get("status") == "success" and age_hours < 26
+
+        if not marker_found and "scraper_last_run" not in metrics:
+            metrics["scraper_last_run"] = None
+            metrics["scraper_status"] = "unknown"
     except Exception:
         metrics["scraper_last_run"] = None
         metrics["scraper_status"] = "error"
