@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, tenderUrl } from "@/lib/utils";
 import { Calendar, Building2, Tag, ExternalLink, Clock, User, Mail, Phone, Trophy, FileText } from "lucide-react";
 import type { Tender } from "@/lib/api";
 import Link from "next/link";
@@ -85,7 +85,7 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
     return "outline";
   };
 
-  const tenderPath = tender.tender_id;
+  const tenderPath = tenderUrl(tender.tender_id);
 
   // Generate proper e-nabavki link - prioritize dossier_id over stored source_url
   const getSourceUrl = (): string | undefined => {
@@ -111,7 +111,7 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
             {/* Title and Status */}
             <div className="flex items-start gap-2 flex-wrap">
               <Link
-                href={`/tenders/${tenderPath}`}
+                href={tenderPath}
                 className="font-semibold text-lg hover:text-primary transition-colors flex-1 min-w-0 line-clamp-2"
               >
                 {tender.title}
@@ -301,7 +301,7 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
               asChild
               className="flex-1 sm:flex-none"
             >
-              <Link href={`/tenders/${tenderPath}`}>
+              <Link href={tenderPath}>
                 Детали
               </Link>
             </Button>

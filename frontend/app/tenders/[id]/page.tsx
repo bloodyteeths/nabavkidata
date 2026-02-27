@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, tenderIdFromParam } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { DocumentViewer } from "@/components/tenders/DocumentViewer";
 import { DocumentSearch } from "@/components/documents/DocumentSearch";
@@ -153,11 +153,8 @@ interface ChatMsg {
 export default function TenderDetailPage() {
   const params = useParams();
   const rawId = params?.id;
-  // [...id] catch-all route: params.id is string[] (e.g. ["12345", "2024"])
-  // Also handles legacy %2F-encoded URLs where Next.js auto-decodes to ["12345/2024"]
-  const tenderId = Array.isArray(rawId)
-    ? rawId.join('/')
-    : (rawId ? String(rawId) : null);
+  // [id] route uses dash-separated format: "12345-2024" → "12345/2024"
+  const tenderId = rawId ? tenderIdFromParam(String(rawId)) : null;
   const { user } = useAuth();
 
   const [tender, setTender] = useState<Tender | null>(null);

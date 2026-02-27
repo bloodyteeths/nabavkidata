@@ -14,6 +14,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import Link from "next/link";
+import { tenderUrl as buildTenderUrl } from "@/lib/utils";
 
 /**
  * Source document with metadata
@@ -166,7 +167,7 @@ export function SourceCitation({
             const relevanceScore = formatRelevance(source);
 
             // Build the tender link URL
-            const tenderUrl = source.tender_id ? `/tenders/${source.tender_id}` : null;
+            const tenderUrl = source.tender_id ? buildTenderUrl(source.tender_id) : null;
 
             return (
               <div

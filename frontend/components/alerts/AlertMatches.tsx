@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { tenderUrl } from '@/lib/utils';
 import { ExternalLink, Check, Inbox, Filter, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Select } from '@/components/ui/select';
 
@@ -86,7 +87,7 @@ export function AlertMatches() {
 
   const handleViewTender = (tenderId: string, matchId: string) => {
     handleMarkAsRead([matchId]);
-    router.push(`/tenders/${tenderId}`);
+    router.push(tenderUrl(tenderId));
   };
 
   const handleFeedback = async (matchId: string, feedback: 'up' | 'down') => {

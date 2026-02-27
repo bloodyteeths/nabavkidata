@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { tenderUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -306,7 +307,7 @@ export default function CompetitorDetailPage() {
                 {analysis.recent_wins.slice(0, 5).map((win, idx) => (
                   <Link
                     key={idx}
-                    href={`/tenders/${win.tender_id}`}
+                    href={tenderUrl(win.tender_id)}
                     className="block p-3 border rounded-lg hover:bg-accent transition-colors"
                   >
                     <p className="font-medium text-sm line-clamp-2">{win.title}</p>

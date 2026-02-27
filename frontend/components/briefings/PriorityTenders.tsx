@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { BriefingTenderMatch } from "@/lib/api";
 import Link from "next/link";
+import { tenderUrl } from "@/lib/utils";
 
 interface PriorityTendersProps {
   matches?: BriefingTenderMatch[];
@@ -193,7 +194,7 @@ function PriorityTenderCard({ match, rank }: PriorityTenderCardProps) {
 
         {/* Action Button */}
         <div className="flex-shrink-0">
-          <Link href={`/tenders/${match.tender_id}`}>
+          <Link href={tenderUrl(match.tender_id)}>
             <Button size="sm" className="gap-2">
               <span>Детали</span>
               <ExternalLink className="w-4 h-4" />

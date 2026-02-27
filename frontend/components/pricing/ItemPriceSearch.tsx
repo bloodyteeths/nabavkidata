@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import debounce from 'lodash/debounce';
+import { tenderUrl } from '@/lib/utils';
 
 interface ItemPriceResult {
   item_name: string;
@@ -295,7 +296,7 @@ export default function ItemPriceSearch() {
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <a
-                        href={`/tenders/${result.tender_id}`}
+                        href={tenderUrl(result.tender_id)}
                         className="text-blue-600 hover:underline line-clamp-2"
                         target="_blank"
                         rel="noopener noreferrer"

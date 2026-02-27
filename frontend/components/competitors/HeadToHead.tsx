@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Swords, Trophy, TrendingDown, TrendingUp, Minus, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { tenderUrl } from "@/lib/utils";
 
 interface HeadToHeadProps {
   initialCompanyA?: string;
@@ -359,7 +360,7 @@ export default function HeadToHead({ initialCompanyA, initialCompanyB }: HeadToH
                   {data.recent_confrontations.map((conf, idx) => (
                     <Link
                       key={idx}
-                      href={`/tenders/${conf.tender_id}`}
+                      href={tenderUrl(conf.tender_id)}
                       className="block p-3 border rounded-lg hover:bg-accent transition-colors"
                     >
                       <div className="flex items-start justify-between gap-4">

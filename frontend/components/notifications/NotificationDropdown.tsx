@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
+import { tenderUrl } from "@/lib/utils";
 
 interface Notification {
   notification_id: string;
@@ -83,7 +84,7 @@ export function NotificationDropdown({
 
     // Navigate to relevant page
     if (notification.tender_id) {
-      router.push(`/tenders/${notification.tender_id}`);
+      router.push(tenderUrl(notification.tender_id));
       onClose();
     } else if (notification.type === "briefing_ready") {
       router.push("/inbox");

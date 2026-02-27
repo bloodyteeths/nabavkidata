@@ -57,7 +57,7 @@ import {
   UserX,
   FileEdit
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, tenderUrl } from "@/lib/utils";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -995,7 +995,7 @@ export default function RiskAnalysisPage() {
                             )}
 
                             <div className="flex gap-2">
-                              <Link href={`/tenders/${tender.tender_id}`} className="flex-1" target="_blank" rel="noopener noreferrer">
+                              <Link href={tenderUrl(tender.tender_id)} className="flex-1" target="_blank" rel="noopener noreferrer">
                                 <Button variant="outline" size="sm" className="w-full">
                                   <Eye className="h-4 w-4 mr-1" /> Тендер
                                 </Button>

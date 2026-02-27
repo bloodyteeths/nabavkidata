@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bell, BellRing, AlertTriangle, CheckCircle2, Eye, Trash2, Plus, RefreshCw, Loader2, Filter, Clock } from "lucide-react";
 import Link from "next/link";
+import { tenderUrl } from "@/lib/utils";
 
 const API_URL = typeof window !== "undefined"
   ? (window.location.hostname === "localhost" ? "http://localhost:8000" : "https://api.nabavkidata.com")
@@ -289,7 +290,7 @@ export function AlertsFeed() {
                           {RULE_TYPE_LABELS[alert.rule_type] || alert.rule_type}
                         </Badge>
                         {alert.tender_id && (
-                          <Link href={`/tenders/${alert.tender_id}`}
+                          <Link href={tenderUrl(alert.tender_id)}
                             onClick={e => e.stopPropagation()}
                             className="text-xs text-blue-600 hover:underline dark:text-blue-400">
                             {alert.tender_id}

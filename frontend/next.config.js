@@ -70,6 +70,16 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      // Old URLs with slash in tender ID: /tenders/12345/2024 → /tenders/12345-2024
+      {
+        source: '/tenders/:num(\\d+)/:year(\\d{4})',
+        destination: '/tenders/:num-:year',
+        permanent: true,
+      },
+    ]
+  },
   async rewrites() {
     return [
       {

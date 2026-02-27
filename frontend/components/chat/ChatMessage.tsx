@@ -5,7 +5,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown, ExternalLink, Clock } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, tenderUrl } from "@/lib/utils";
 import { SourceCitation, Source } from "@/components/ai/SourceCitation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -58,7 +58,7 @@ function linkifyTenderIds(text: string): React.ReactNode[] {
     parts.push(
       <Link
         key={`tender-${match.index}`}
-        href={`/tenders/${tenderId}`}
+        href={tenderUrl(tenderId)}
         className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
       >
         {tenderId}

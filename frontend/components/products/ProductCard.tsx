@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Calendar, ChevronRight, Lock } from "lucide-react";
 import Link from "next/link";
-import { formatDate } from "@/lib/utils";
+import { formatDate, tenderUrl } from "@/lib/utils";
 import type { ProductSearchResult } from "@/lib/api";
 
 function formatPrice(price: number | undefined): string {
@@ -28,7 +28,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, priceGated }: ProductCardProps) {
   return (
-    <Link href={`/tenders/${product.tender_id}`} className="block group">
+    <Link href={tenderUrl(product.tender_id)} className="block group">
       <Card className="hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer">
         <CardContent className="p-4 sm:p-5">
           {/* Product name + arrow */}

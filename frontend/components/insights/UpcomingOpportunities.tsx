@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { tenderUrl } from "@/lib/utils";
 
 interface TenderOpportunity {
   tender_id: string;
@@ -65,7 +66,7 @@ export function UpcomingOpportunities({ cpvCode }: UpcomingOpportunitiesProps) {
   const renderTenderCard = (tender: TenderOpportunity) => (
     <Link
       key={tender.tender_id}
-      href={`/tenders/${tender.tender_id}`}
+      href={tenderUrl(tender.tender_id)}
       className="block group"
     >
       <Card className="hover:shadow-md transition-shadow duration-200 h-full">

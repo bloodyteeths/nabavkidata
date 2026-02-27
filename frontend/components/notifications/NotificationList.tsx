@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { tenderUrl } from "@/lib/utils";
 
 interface Notification {
   notification_id: string;
@@ -140,7 +141,7 @@ export function NotificationList() {
 
     // Navigate to relevant page
     if (notification.tender_id) {
-      router.push(`/tenders/${notification.tender_id}`);
+      router.push(tenderUrl(notification.tender_id));
     } else if (notification.type === "briefing_ready") {
       router.push("/inbox");
     }

@@ -1,15 +1,22 @@
 import { Metadata } from 'next';
 
 type Props = {
-  params: { id: string[] };
+  params: { id: string };
   children: React.ReactNode;
 };
+
+/** Convert dash-separated URL param to tender_id with slash: "12345-2024" → "12345/2024" */
+function paramToTenderId(param: string): string {
+  const match = param.match(/^(\d+)-(\d{4})$/);
+  if (match) return `${match[1]}/${match[2]}`;
+  return param;
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Everything in try-catch so layout errors never crash navigation
   try {
-    const tenderId = Array.isArray(params.id) ? params.id.join('/') : String(params.id);
-    const url = `https://www.nabavkidata.com/tenders/${tenderId}`;
+    const tenderId = paramToTenderId(String(params.id));
+    const url = `https://www.nabavkidata.com/tenders/${params.id}`;
 
     // Direct lightweight fetch with 3s timeout (not the full api client which
     // has retries, credentials:'include', device fingerprinting — all bad for SSR)
@@ -61,7 +68,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   } catch {
     // Fallback metadata — never let this crash navigation
-    const tenderId = Array.isArray(params?.id) ? params.id.join('/') : String(params?.id || '');
+    const tenderId = paramToTenderId(String(params?.id || ''));
     return {
       title: `Тендер ${tenderId}`,
       description: `Детали за тендер ${tenderId} на Nabavkidata платформата за јавни набавки во Македонија.`,

@@ -28,7 +28,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, tenderUrl } from '@/lib/utils';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
 const ITEMS_PER_PAGE = 10;
@@ -317,7 +317,7 @@ export default function SupplierDetailPage() {
                   <TableRow key={participation.tender_id} className="hover:bg-muted/50">
                     <TableCell>
                       <Link
-                        href={`/tenders/${participation.tender_id}`}
+                        href={tenderUrl(participation.tender_id)}
                         className="font-medium hover:text-primary line-clamp-2"
                       >
                         {participation.title}

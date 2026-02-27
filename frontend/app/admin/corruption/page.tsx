@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { tenderUrl } from '@/lib/utils';
 import {
   AlertTriangle,
   Shield,
@@ -690,7 +691,7 @@ function OverviewTab() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => window.open(`/tenders/${tender.tender_id}`, '_blank')}>
+                      <Button variant="ghost" size="sm" onClick={() => window.open(tenderUrl(tender.tender_id), '_blank')}>
                         <Eye className="w-4 h-4" />
                       </Button>
                     </TableCell>
@@ -1800,7 +1801,7 @@ function TipDetail({
             <div className="space-y-1">
               {tip.matched_tenders.map((t, i) => (
                 <div key={i} className="text-xs font-mono">
-                  <a href={`/tenders/${t.tender_id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                  <a href={tenderUrl(t.tender_id)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                     {t.tender_id}
                   </a>
                   {t.title && <span className="ml-1 text-muted-foreground">{t.title}</span>}

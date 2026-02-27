@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api, type Tender } from "@/lib/api";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, tenderUrl } from "@/lib/utils";
 import { Tag, Calendar, Building2, ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 
@@ -105,7 +105,7 @@ export function RelatedTenders({
           {relatedTenders.map((tender) => (
             <Link
               key={tender.tender_id}
-              href={`/tenders/${tender.tender_id}`}
+              href={tenderUrl(tender.tender_id)}
               className="block"
             >
               <div className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-all duration-200 hover:border-primary/30">

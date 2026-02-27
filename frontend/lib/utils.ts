@@ -53,6 +53,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Convert a tender_id (e.g. "12345/2024") to a URL-safe path segment using a dash ("12345-2024"). */
+export function tenderUrl(tenderId: string): string {
+  return `/tenders/${tenderId.replace('/', '-')}`;
+}
+
+/** Convert a dash-separated URL param back to a tender_id with slash. */
+export function tenderIdFromParam(param: string): string {
+  // Match pattern: digits-digits (e.g. "12345-2024")
+  const match = param.match(/^(\d+)-(\d{4})$/);
+  if (match) return `${match[1]}/${match[2]}`;
+  return param;
+}
+
 export function formatCurrency(value: number | undefined, currency: string = "MKD"): string {
   if (value === undefined || value === null) return "N/A";
 
