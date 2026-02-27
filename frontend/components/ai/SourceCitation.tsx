@@ -166,7 +166,7 @@ export function SourceCitation({
             const relevanceScore = formatRelevance(source);
 
             // Build the tender link URL
-            const tenderUrl = source.tender_id ? `/tenders/${encodeURIComponent(source.tender_id)}` : null;
+            const tenderUrl = source.tender_id ? `/tenders/${source.tender_id}` : null;
 
             return (
               <div

@@ -2,12 +2,13 @@ import { Metadata } from 'next';
 import { api } from '@/lib/api';
 
 type Props = {
-  params: { id: string };
+  params: { id: string[] };
   children: React.ReactNode;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const tenderId = decodeURIComponent(params.id);
+  // [...id] catch-all: params.id is string[] (e.g. ["12345", "2024"])
+  const tenderId = params.id.join('/');
 
   try {
     // Fetch tender data for metadata
@@ -18,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? tender.description.substring(0, 160) + '...'
       : `Тендер ${tenderId} од ${tender.procuring_entity || 'државна институција'}. Проценета вредност: ${tender.estimated_value_mkd ? new Intl.NumberFormat('mk-MK', { style: 'currency', currency: 'MKD' }).format(tender.estimated_value_mkd) : 'непозната'}.`;
 
-    const url = `https://www.nabavkidata.com/tenders/${encodeURIComponent(tenderId)}`;
+    const url = `https://www.nabavkidata.com/tenders/${tenderId}`;
 
     return {
       title,

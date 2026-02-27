@@ -28,7 +28,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, priceGated }: ProductCardProps) {
   return (
-    <Link href={`/tenders/${encodeURIComponent(product.tender_id)}`} className="block group">
+    <Link href={`/tenders/${product.tender_id}`} className="block group">
       <Card className="hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer">
         <CardContent className="p-4 sm:p-5">
           {/* Product name + arrow */}

@@ -295,7 +295,7 @@ export default function ItemPriceSearch() {
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <a
-                        href={`/tenders/${encodeURIComponent(result.tender_id)}`}
+                        href={`/tenders/${result.tender_id}`}
                         className="text-blue-600 hover:underline line-clamp-2"
                         target="_blank"
                         rel="noopener noreferrer"

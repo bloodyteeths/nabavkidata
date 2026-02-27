@@ -323,7 +323,7 @@ export default function DashboardPage() {
                 {closingSoon.slice(0, 3).map(tender => {
                   const daysLeft = Math.ceil((new Date(tender.closing_date!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
                   return (
-                    <Link key={tender.tender_id} href={`/tenders/${encodeURIComponent(tender.tender_id)}`}
+                    <Link key={tender.tender_id} href={`/tenders/${tender.tender_id}`}
                       className="group p-3 rounded-xl border border-orange-500/20 bg-background/50 hover:bg-foreground/5 hover:border-orange-500/40 transition-all">
                       <div className="flex items-center justify-between mb-2">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${daysLeft <= 2 ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
@@ -387,7 +387,7 @@ export default function DashboardPage() {
                 {(data?.recommended_tenders || []).slice(0, 5).map((tender) => (
                   <Link
                     key={tender.tender_id}
-                    href={`/tenders/${encodeURIComponent(tender.tender_id)}`}
+                    href={`/tenders/${tender.tender_id}`}
                     className="group flex items-start justify-between p-3 md:p-4 rounded-xl border border-border bg-foreground/5 hover:bg-foreground/10 transition-all hover:border-primary/20 cursor-pointer block"
                   >
                     <div className="flex-1 min-w-0">
@@ -547,7 +547,7 @@ export default function DashboardPage() {
                     {data.competitor_activity.map((activity, idx) => (
                       <Link
                         key={idx}
-                        href={`/tenders/${encodeURIComponent(activity.tender_id)}`}
+                        href={`/tenders/${activity.tender_id}`}
                         className="group flex items-center justify-between p-3 rounded-lg border border-border bg-foreground/5 hover:bg-foreground/10 hover:border-primary/20 transition-all cursor-pointer block"
                       >
                         <div className="flex-1 min-w-0">

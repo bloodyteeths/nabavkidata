@@ -153,7 +153,11 @@ interface ChatMsg {
 export default function TenderDetailPage() {
   const params = useParams();
   const rawId = params?.id;
-  const tenderId = rawId ? decodeURIComponent(rawId as string) : null;
+  // [...id] catch-all route: params.id is string[] (e.g. ["12345", "2024"])
+  // Also handles legacy %2F-encoded URLs where Next.js auto-decodes to ["12345/2024"]
+  const tenderId = Array.isArray(rawId)
+    ? rawId.join('/')
+    : (rawId ? String(rawId) : null);
   const { user } = useAuth();
 
   const [tender, setTender] = useState<Tender | null>(null);
@@ -664,7 +668,7 @@ export default function TenderDetailPage() {
 
   if (!tenderId || loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <p className="text-muted-foreground">Се вчитува...</p>
       </div>
     );
@@ -672,7 +676,7 @@ export default function TenderDetailPage() {
 
   if (!tender) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <p className="text-muted-foreground">Тендерот не е пронајден</p>
         <Button asChild variant="outline">
           <Link href="/tenders">

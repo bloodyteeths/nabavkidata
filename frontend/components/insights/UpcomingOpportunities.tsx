@@ -65,7 +65,7 @@ export function UpcomingOpportunities({ cpvCode }: UpcomingOpportunitiesProps) {
   const renderTenderCard = (tender: TenderOpportunity) => (
     <Link
       key={tender.tender_id}
-      href={`/tenders/${encodeURIComponent(tender.tender_id)}`}
+      href={`/tenders/${tender.tender_id}`}
       className="block group"
     >
       <Card className="hover:shadow-md transition-shadow duration-200 h-full">

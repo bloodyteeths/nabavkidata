@@ -317,7 +317,7 @@ export default function SupplierDetailPage() {
                   <TableRow key={participation.tender_id} className="hover:bg-muted/50">
                     <TableCell>
                       <Link
-                        href={`/tenders/${encodeURIComponent(participation.tender_id)}`}
+                        href={`/tenders/${participation.tender_id}`}
                         className="font-medium hover:text-primary line-clamp-2"
                       >
                         {participation.title}

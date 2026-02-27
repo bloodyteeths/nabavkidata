@@ -359,7 +359,7 @@ export default function HeadToHead({ initialCompanyA, initialCompanyB }: HeadToH
                   {data.recent_confrontations.map((conf, idx) => (
                     <Link
                       key={idx}
-                      href={`/tenders/${encodeURIComponent(conf.tender_id)}`}
+                      href={`/tenders/${conf.tender_id}`}
                       className="block p-3 border rounded-lg hover:bg-accent transition-colors"
                     >
                       <div className="flex items-start justify-between gap-4">

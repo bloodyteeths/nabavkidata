@@ -193,7 +193,7 @@ function PriorityTenderCard({ match, rank }: PriorityTenderCardProps) {
 
         {/* Action Button */}
         <div className="flex-shrink-0">
-          <Link href={`/tenders/${encodeURIComponent(match.tender_id)}`}>
+          <Link href={`/tenders/${match.tender_id}`}>
             <Button size="sm" className="gap-2">
               <span>Детали</span>
               <ExternalLink className="w-4 h-4" />

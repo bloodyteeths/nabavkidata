@@ -223,7 +223,7 @@ export default function ActivityFeed({ companyNames, limit = 50 }: ActivityFeedP
                     </div>
 
                     <Link
-                      href={`/tenders/${encodeURIComponent(activity.tender_id)}`}
+                      href={`/tenders/${activity.tender_id}`}
                       className="text-sm font-medium hover:underline line-clamp-2 block mb-2"
                     >
                       {activity.tender_title}
@@ -257,7 +257,7 @@ export default function ActivityFeed({ companyNames, limit = 50 }: ActivityFeedP
 
                   {/* Arrow Link */}
                   <div className="flex-shrink-0">
-                    <Link href={`/tenders/${encodeURIComponent(activity.tender_id)}`}>
+                    <Link href={`/tenders/${activity.tender_id}`}>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
                         <ArrowRight className="h-4 w-4" />
                       </Button>

@@ -105,7 +105,7 @@ export function RelatedTenders({
           {relatedTenders.map((tender) => (
             <Link
               key={tender.tender_id}
-              href={`/tenders/${encodeURIComponent(tender.tender_id)}`}
+              href={`/tenders/${tender.tender_id}`}
               className="block"
             >
               <div className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-all duration-200 hover:border-primary/30">

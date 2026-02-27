@@ -86,7 +86,7 @@ export function AlertMatches() {
 
   const handleViewTender = (tenderId: string, matchId: string) => {
     handleMarkAsRead([matchId]);
-    router.push(`/tenders/${encodeURIComponent(tenderId)}`);
+    router.push(`/tenders/${tenderId}`);
   };
 
   const handleFeedback = async (matchId: string, feedback: 'up' | 'down') => {

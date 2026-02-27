@@ -1084,7 +1084,7 @@ export default function CompetitorsPage() {
                           {companyAnalysis.recent_wins.slice(0, 5).map((win, idx) => (
                             <Link
                               key={idx}
-                              href={`/tenders/${encodeURIComponent(win.tender_id)}`}
+                              href={`/tenders/${win.tender_id}`}
                               className="block p-3 border rounded-lg hover:bg-accent transition-colors"
                             >
                               <p className="font-medium text-sm line-clamp-1">{win.title}</p>

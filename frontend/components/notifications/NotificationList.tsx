@@ -140,7 +140,7 @@ export function NotificationList() {
 
     // Navigate to relevant page
     if (notification.tender_id) {
-      router.push(`/tenders/${encodeURIComponent(notification.tender_id)}`);
+      router.push(`/tenders/${notification.tender_id}`);
     } else if (notification.type === "briefing_ready") {
       router.push("/inbox");
     }

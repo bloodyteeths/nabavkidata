@@ -58,7 +58,7 @@ function linkifyTenderIds(text: string): React.ReactNode[] {
     parts.push(
       <Link
         key={`tender-${match.index}`}
-        href={`/tenders/${encodeURIComponent(tenderId)}`}
+        href={`/tenders/${tenderId}`}
         className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
       >
         {tenderId}

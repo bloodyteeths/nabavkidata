@@ -289,7 +289,7 @@ export function AlertsFeed() {
                           {RULE_TYPE_LABELS[alert.rule_type] || alert.rule_type}
                         </Badge>
                         {alert.tender_id && (
-                          <Link href={`/tenders/${encodeURIComponent(alert.tender_id)}`}
+                          <Link href={`/tenders/${alert.tender_id}`}
                             onClick={e => e.stopPropagation()}
                             className="text-xs text-blue-600 hover:underline dark:text-blue-400">
                             {alert.tender_id}

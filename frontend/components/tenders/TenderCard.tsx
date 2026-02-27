@@ -85,7 +85,7 @@ export function TenderCard({ tender, onViewDetails }: TenderCardProps) {
     return "outline";
   };
 
-  const tenderPath = encodeURIComponent(tender.tender_id);
+  const tenderPath = tender.tender_id;
 
   // Generate proper e-nabavki link - prioritize dossier_id over stored source_url
   const getSourceUrl = (): string | undefined => {

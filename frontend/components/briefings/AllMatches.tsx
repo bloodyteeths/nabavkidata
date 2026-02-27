@@ -182,7 +182,7 @@ function MatchRow({ match }: MatchRowProps) {
         <div className="flex-1 space-y-2">
           {/* Title */}
           <Link
-            href={`/tenders/${encodeURIComponent(match.tender_id)}`}
+            href={`/tenders/${match.tender_id}`}
             className="font-medium hover:text-primary transition-colors"
           >
             {match.title}
@@ -241,7 +241,7 @@ function MatchRow({ match }: MatchRowProps) {
           </div>
 
           {/* View Button */}
-          <Link href={`/tenders/${encodeURIComponent(match.tender_id)}`}>
+          <Link href={`/tenders/${match.tender_id}`}>
             <Button size="sm" variant="ghost">
               <ExternalLink className="w-4 h-4" />
             </Button>
