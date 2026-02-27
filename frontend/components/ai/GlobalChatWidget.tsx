@@ -58,13 +58,6 @@ export function GlobalChatWidget() {
 
   const MAX_CHARS = 500;
 
-  // Hide widget on pages that have their own chat widget
-  if (pathname === "/chat" || pathname.startsWith("/tenders/") || pathname.startsWith("/epazar/")) {
-    return null;
-  }
-
-  // Messages are now managed by server sessions — no localStorage/sessionStorage needed
-
   // Auto-scroll to bottom only when new messages are added
   useEffect(() => {
     if (messagesEndRef.current && messages.length > 0) {
@@ -78,6 +71,11 @@ export function GlobalChatWidget() {
       loadUsageStatus();
     }
   }, [isOpen, user]);
+
+  // Hide widget on pages that have their own chat widget
+  if (pathname === "/chat" || pathname.startsWith("/tenders/") || pathname.startsWith("/epazar/")) {
+    return null;
+  }
 
   const loadUsageStatus = async () => {
     try {
