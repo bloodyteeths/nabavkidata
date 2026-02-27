@@ -15,6 +15,7 @@ Macedonian public procurement data platform - scrapes tenders from e-nabavki.gov
 - **SSH**: `ssh ubuntu@46.224.89.197` or `ssh root@46.224.89.197`
 - **RAM**: 8GB (can run 3-4 scrapers concurrently)
 - **Database**: PostgreSQL 16 local on Hetzner (localhost:5432)
+- **Deployment**: Push to `main` auto-deploys via GitHub Actions
 
 ## Scraper Commands
 
@@ -47,7 +48,7 @@ scrapy crawl nabavki -a category=awarded -a year_filter=2024 -a force_full_scan=
 
 ## Document Processing Pipeline
 
-### Step 1: PDF Text Extraction (32K+ pending)
+### Step 1: PDF Text Extraction
 ```bash
 cd /home/ubuntu/nabavkidata/scraper
 python3 process_documents.py --limit 1000
@@ -89,14 +90,18 @@ Both archive year and date filter can corrupt after ~80-100 pages. Spider has au
 
 ### Memory Management
 - Max 3-4 scrapers with Playwright concurrently (8GB RAM)
-- Use `MEMUSAGE_LIMIT_MB=2000` for safety
+- Use `MEMUSAGE_LIMIT_MB=1200` for safety
 - Clean up extracted PDFs: `rm downloads/files/*.pdf` after extraction
+
+### Scrapy Path
+- Scrapy is at `/usr/local/bin/scrapy` (NOT `~/.local/bin/scrapy`)
+- Installed via `pip3 --break-system-packages` which uses `/usr/local/bin/`
 
 ### Disk Cleanup
 ```bash
 # Delete successfully extracted PDFs
 cd /home/ubuntu/nabavkidata/scraper/downloads/files
-PGPASSWORD='...' psql -h ... -c "SELECT file_name FROM documents WHERE extraction_status='success';" | while read f; do rm -f "$f"; done
+PGPASSWORD='...' psql -h localhost -c "SELECT file_name FROM documents WHERE extraction_status='success';" | while read f; do rm -f "$f"; done
 ```
 
 ## Log Locations
@@ -104,10 +109,18 @@ PGPASSWORD='...' psql -h ... -c "SELECT file_name FROM documents WHERE extractio
 - API logs: `/var/log/nabavkidata/api.log`
 
 ## Cron Jobs
-- **Active scraper**: Runs every 3 hours, scrapes first 10 pages only (new tenders appear on page 1)
+- **Active scraper**: Every 4 hours (0,4,8,12,16,20)
+- **Awarded**: Daily at 2 AM
+- **Contracts**: Daily at 6 AM
+- **Cancelled**: Daily at 10 AM
+- **E-Pazar**: Daily at 6 AM
+- **Doc extraction**: Every hour at :30
+- **Embeddings**: Every 4 hours (1,5,9,13,17,21)
 - **Corruption views refresh**: Daily at 5 AM UTC
+- **Cold outreach**: Every 30 min, Mon-Fri 08:00-17:00 CET
 - Check: `crontab -l` on server
 - Config: `/home/ubuntu/nabavkidata/scraper/cron/`
+- Clawd monitoring: `/opt/clawd/run-cron.sh`
 
 ## Key Code Patterns
 
@@ -138,3 +151,5 @@ const query = searchParams.get('search') || '';
 - **AI**: Gemini embeddings, RAG search
 - **Scraping**: Scrapy + Playwright, Tesseract OCR
 - **Hosting**: Vercel (frontend), Hetzner VPS (backend/scraper)
+- **Email**: Postmark
+- **Deployment**: GitHub Actions (backend), Vercel (frontend)

@@ -377,7 +377,7 @@ async def process_tender_alert_matches(db: AsyncSession, tenders: List[dict], so
                 except Exception as e:
                     logger.warning(f"Notification create failed (rolled back): {e}")
 
-            # Email notification (capped, skip if already emailed via preferences)
+            # Email notification (capped, dedup per user+tender across all alerts/sources)
             if 'email' in channels and emails_sent < MAX_EMAILS_PER_RUN:
                 if already_emailed and (user_email, tender['tender_id']) in already_emailed:
                     print(f"  ~ Skipped email to {user_email} for {tender['tender_id'][:20]}... (already emailed via prefs)")
@@ -393,6 +393,9 @@ async def process_tender_alert_matches(db: AsyncSession, tenders: List[dict], so
                     success = await send_alert_email(user_email, user_name or "User", tender, reasons)
                     if success:
                         emails_sent += 1
+                        # Track this pair so subsequent alerts/sources don't re-send
+                        if already_emailed is not None:
+                            already_emailed.add((user_email, tender['tender_id']))
                         # Set notified_at on the match
                         try:
                             await db.execute(text("""
