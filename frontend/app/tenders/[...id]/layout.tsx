@@ -1,5 +1,4 @@
 import { Metadata } from 'next';
-import { api } from '@/lib/api';
 
 type Props = {
   params: { id: string[] };
@@ -7,19 +6,29 @@ type Props = {
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  // [...id] catch-all: params.id is string[] (e.g. ["12345", "2024"])
-  const tenderId = params.id.join('/');
-
+  // Everything in try-catch so layout errors never crash navigation
   try {
-    // Fetch tender data for metadata
-    const tender = await api.getTender(tenderId);
+    const tenderId = Array.isArray(params.id) ? params.id.join('/') : String(params.id);
+    const url = `https://www.nabavkidata.com/tenders/${tenderId}`;
+
+    // Direct lightweight fetch with 3s timeout (not the full api client which
+    // has retries, credentials:'include', device fingerprinting — all bad for SSR)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    const response = await fetch(
+      `https://api.nabavkidata.com/api/tenders/${encodeURIComponent(tenderId)}`,
+      { signal: controller.signal, headers: { 'Content-Type': 'application/json' } }
+    );
+    clearTimeout(timeout);
+
+    if (!response.ok) throw new Error(`API ${response.status}`);
+    const tender = await response.json();
 
     const title = tender.title || 'Детали за тендер';
     const description = tender.description
       ? tender.description.substring(0, 160) + '...'
       : `Тендер ${tenderId} од ${tender.procuring_entity || 'државна институција'}. Проценета вредност: ${tender.estimated_value_mkd ? new Intl.NumberFormat('mk-MK', { style: 'currency', currency: 'MKD' }).format(tender.estimated_value_mkd) : 'непозната'}.`;
-
-    const url = `https://www.nabavkidata.com/tenders/${tenderId}`;
 
     return {
       title,
@@ -50,8 +59,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         canonical: url,
       },
     };
-  } catch (error) {
-    // Fallback metadata if tender fetch fails
+  } catch {
+    // Fallback metadata — never let this crash navigation
+    const tenderId = Array.isArray(params?.id) ? params.id.join('/') : String(params?.id || '');
     return {
       title: `Тендер ${tenderId}`,
       description: `Детали за тендер ${tenderId} на Nabavkidata платформата за јавни набавки во Македонија.`,
