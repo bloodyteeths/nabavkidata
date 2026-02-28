@@ -22,7 +22,6 @@ from database import get_db
 from models import User, Subscription, UsageTracking, AuditLog
 from api.auth import get_current_user, get_current_active_user
 from services.billing_service import billing_service, PLAN_LIMITS, PRICE_IDS
-from sqlalchemy import text as sa_text
 
 # ============================================================================
 # CONFIGURATION
@@ -56,21 +55,19 @@ SUBSCRIPTION_PLANS = {
         "price_eur": 0,
         "stripe_price_id": None,
         "features": [
-            "Преглед на листа тендери",
             "Основно пребарување",
-            "2 AI прашања дневно",
-            "3 ценовни прегледи дневно",
-            "Без извоз и известувања"
+            "3 AI прашања дневно",
+            "Преглед на тендери",
+            "Нема извоз"
         ],
         "limits": {
-            "rag_queries_per_day": 2,
-            "saved_alerts": 0,
+            "rag_queries_per_day": 3,
+            "saved_alerts": 1,
             "export_results": False,
             "doc_extractions_per_day": 0,
             "competitor_alerts": 0,
             "ai_summary": False,
-            "risk_analysis": False,
-            "price_views_per_day": 3
+            "risk_analysis": False
         }
     },
     "trial": {
@@ -80,7 +77,6 @@ SUBSCRIPTION_PLANS = {
         "stripe_price_id": None,
         "features": [
             "50 AI пораки (кредит)",
-            "25 ценовни прегледи дневно",
             "15 екстракции на документи",
             "5 извози",
             "20 известувања за конкуренти",
@@ -93,8 +89,7 @@ SUBSCRIPTION_PLANS = {
             "doc_extractions_per_day": 15,
             "competitor_alerts": 20,
             "ai_summary": True,
-            "risk_analysis": True,
-            "price_views_per_day": 25
+            "risk_analysis": True
         }
     },
     "starter": {
@@ -105,26 +100,20 @@ SUBSCRIPTION_PLANS = {
         "price_yearly_eur": 390,
         "stripe_price_id": PRICE_IDS.get("starter", {}).get("monthly"),
         "features": [
-            "5 AI прашања дневно",
-            "AI резимеа на тендери",
-            "50 ценовни прегледи дневно",
-            "Основна аналитика",
-            "Профили на добавувачи",
-            "Содржина на документи",
-            "CSV извоз (2/ден)",
-            "3 зачувани известувања",
-            "2 известувања за конкуренти/месец"
+            "15 AI прашања дневно",
+            "10 зачувани известувања",
+            "CSV извоз",
+            "5 известувања за конкуренти"
         ],
         "limits": {
-            "rag_queries_per_day": 5,
-            "saved_alerts": 3,
+            "rag_queries_per_day": 15,
+            "saved_alerts": 10,
             "export_results": True,
-            "doc_extractions_per_day": 2,
-            "competitor_alerts": 2,
+            "doc_extractions_per_day": 5,
+            "competitor_alerts": 5,
             "ai_summary": True,
             "risk_analysis": False,
-            "team_members": 1,
-            "price_views_per_day": 50
+            "team_members": 1
         }
     },
     "professional": {
@@ -135,25 +124,21 @@ SUBSCRIPTION_PLANS = {
         "price_yearly_eur": 990,
         "stripe_price_id": PRICE_IDS.get("professional", {}).get("monthly"),
         "features": [
-            "25 AI прашања дневно",
-            "Анализа на ризик и корупција",
-            "AI совети за понуди",
-            "200 ценовни прегледи дневно",
-            "Споредба на тендери",
-            "CSV и PDF извоз (10/ден)",
-            "15 зачувани известувања",
-            "10 известувања за конкуренти/месец"
+            "50 AI прашања дневно",
+            "50 зачувани известувања",
+            "CSV извоз",
+            "Анализа на ризик",
+            "20 известувања за конкуренти"
         ],
         "limits": {
-            "rag_queries_per_day": 25,
-            "saved_alerts": 15,
+            "rag_queries_per_day": 50,
+            "saved_alerts": 50,
             "export_results": True,
-            "doc_extractions_per_day": 10,
-            "competitor_alerts": 10,
+            "doc_extractions_per_day": 20,
+            "competitor_alerts": 20,
             "ai_summary": True,
             "risk_analysis": True,
-            "team_members": 1,
-            "price_views_per_day": 200
+            "team_members": 1
         }
     },
     "enterprise": {
@@ -164,16 +149,16 @@ SUBSCRIPTION_PLANS = {
         "price_yearly_eur": 1990,
         "stripe_price_id": PRICE_IDS.get("enterprise", {}).get("monthly"),
         "features": [
-            "Сè од Про планот",
-            "100 AI прашања дневно",
-            "Неограничени ценовни прегледи",
-            "API пристап (100 повици/ден)",
-            "До 5 членови на тим",
-            "Неограничени известувања и извоз",
-            "Приоритетна поддршка"
+            "Неограничени AI прашања",
+            "Неограничени известувања",
+            "Неограничен CSV извоз",
+            "Анализа на ризик",
+            "API пристап",
+            "До 10 членови на тим",
+            "Неограничени конкуренти"
         ],
         "limits": {
-            "rag_queries_per_day": 100,
+            "rag_queries_per_day": -1,  # unlimited
             "saved_alerts": -1,  # unlimited
             "export_results": True,
             "doc_extractions_per_day": -1,
@@ -181,8 +166,7 @@ SUBSCRIPTION_PLANS = {
             "ai_summary": True,
             "risk_analysis": True,
             "api_access": True,
-            "team_members": 10,
-            "price_views_per_day": -1
+            "team_members": 10
         }
     }
 }
@@ -198,40 +182,21 @@ class CheckoutRequest(BaseModel):
     currency: str = "mkd"  # mkd or eur
 
 
-# Stripe Price IDs by currency
-PRICE_IDS_BY_CURRENCY = {
-    "mkd": {
-        "starter": {
-            "monthly": "price_1Si1UMHkVI5icjTlgX63qyG6",
-            "yearly": "price_1Si1UMHkVI5icjTlrze0oUdX"
-        },
-        "professional": {
-            "monthly": "price_1Si1UNHkVI5icjTlaKDnWZuE",
-            "yearly": "price_1Si1UNHkVI5icjTlRiW5safT"
-        },
-        "enterprise": {
-            "monthly": "price_1Si1UNHkVI5icjTlJrHnLL7K",
-            "yearly": "price_1Si1UOHkVI5icjTlhmTPVZSv"
-        }
+# EUR Price IDs from Stripe
+EUR_PRICE_IDS = {
+    "starter": {
+        "monthly": "price_1ShtEpHkVI5icjTlOJKgga8k",
+        "yearly": "price_1ShtFLHkVI5icjTlpxJhTCuH"
     },
-    "eur": {
-        "starter": {
-            "monthly": "price_1ShtEpHkVI5icjTlOJKgga8k",
-            "yearly": "price_1ShtFLHkVI5icjTlpxJhTCuH"
-        },
-        "professional": {
-            "monthly": "price_1ShtHSHkVI5icjTlbtO73TdR",
-            "yearly": "price_1ShtHlHkVI5icjTlcoBNfY4V"
-        },
-        "enterprise": {
-            "monthly": "price_1ShtIVHkVI5icjTlxdB46YKO",
-            "yearly": "price_1ShtIrHkVI5icjTlvYtX3Fwi"
-        }
+    "professional": {
+        "monthly": "price_1ShtHSHkVI5icjTlbtO73TdR",
+        "yearly": "price_1ShtHlHkVI5icjTlcoBNfY4V"
+    },
+    "enterprise": {
+        "monthly": "price_1ShtIVHkVI5icjTlxdB46YKO",
+        "yearly": "price_1ShtIrHkVI5icjTlvYtX3Fwi"
     }
 }
-
-# Keep backward compat alias
-EUR_PRICE_IDS = PRICE_IDS_BY_CURRENCY["eur"]
 
 
 class UpgradeRequest(BaseModel):
@@ -626,15 +591,11 @@ async def get_billing_status(
         year = period_start.year + (1 if next_month == 1 else 0)
         period_end = period_start.replace(month=next_month, year=year)
 
-    # Get usage stats for billing period (for general usage display)
+    # Get usage stats
     usage = await get_usage_stats(db, str(current_user.user_id), period_start)
 
-    # Get today's usage for daily query counter (resets at midnight UTC)
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_usage = await get_usage_stats(db, str(current_user.user_id), today_start)
-
     # Check trial status from users table (new trial system)
-    tier = (current_user.subscription_tier or "free").lower()
+    tier = current_user.subscription_tier or "free"
     in_trial = False
     trial_days_remaining = 0
     trial_ends_at = None
@@ -675,9 +636,9 @@ async def get_billing_status(
 
     # For trial users, set daily limit based on credits
     daily_queries_limit = limits.get("rag_queries_per_day", 3)
-    daily_queries_used = today_usage.get("rag_queries", 0)
+    daily_queries_used = usage.get("rag_queries", 0)
 
-    # If in trial, use credit-based limits (trial uses total credits, not daily)
+    # If in trial, use credit-based limits
     if in_trial and trial_credits.get("ai_messages"):
         ai_credits = trial_credits["ai_messages"]
         daily_queries_limit = ai_credits["total"]
@@ -812,16 +773,10 @@ async def create_checkout_session(
         success_url = f"{FRONTEND_URL}/billing/success?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{FRONTEND_URL}/billing/cancel"
 
-        # Get price ID based on user's currency selection
+        # Get EUR price ID if currency is EUR
         price_id_override = None
-        currency_prices = PRICE_IDS_BY_CURRENCY.get(currency, PRICE_IDS_BY_CURRENCY["mkd"])
-        if tier in currency_prices:
-            price_id_override = currency_prices[tier].get(interval)
-
-        # Payment methods: MKD = card only, EUR = card + SEPA
-        payment_methods = ["card"]
-        if currency == "eur":
-            payment_methods = ["card", "sepa_debit"]
+        if currency == "eur" and tier in EUR_PRICE_IDS:
+            price_id_override = EUR_PRICE_IDS[tier].get(interval)
 
         # Create checkout session with trial if eligible
         checkout_session = await billing_service.create_checkout_session(
@@ -831,8 +786,7 @@ async def create_checkout_session(
             interval=interval,
             success_url=success_url,
             cancel_url=cancel_url,
-            price_id_override=price_id_override,
-            payment_methods=payment_methods
+            price_id_override=price_id_override
         )
 
         # If trial eligible, add trial to the session
@@ -1404,9 +1358,7 @@ async def handle_stripe_webhook(
 
     try:
         # Handle different event types
-        if event.type == "checkout.session.completed":
-            await handle_checkout_completed(db, event.data.object)
-        elif event.type == "customer.subscription.created":
+        if event.type == "customer.subscription.created":
             await handle_subscription_created(db, event.data.object)
         elif event.type == "customer.subscription.updated":
             await handle_subscription_updated(db, event.data.object)
@@ -1418,8 +1370,6 @@ async def handle_stripe_webhook(
             await handle_payment_succeeded(db, event.data.object)
         elif event.type == "invoice.payment_failed":
             await handle_payment_failed(db, event.data.object)
-        elif event.type == "account.updated":
-            await _handle_connect_account_updated(db, event.data.object)
         else:
             logger.info(f"Unhandled webhook event type: {event.type}")
 
@@ -1430,71 +1380,6 @@ async def handle_stripe_webhook(
         logger.error(f"Error processing webhook {event.type}: {e}", exc_info=True)
         # Return 200 to prevent Stripe from retrying - log the error for investigation
         return {"status": "error", "event_type": event.type, "error": str(e)}
-
-
-async def handle_checkout_completed(db: AsyncSession, session_obj: Dict[str, Any]):
-    """
-    Handle checkout.session.completed event.
-    This is the FIRST event after payment - links Stripe customer to our user
-    and creates the subscription record.
-    """
-    customer_id = session_obj.get("customer")
-    user_id = session_obj.get("client_reference_id") or session_obj.get("metadata", {}).get("user_id")
-    subscription_id = session_obj.get("subscription")
-    tier = session_obj.get("metadata", {}).get("tier", "starter")
-
-    if not user_id or not customer_id:
-        logger.error(f"checkout.session.completed: missing user_id={user_id} or customer_id={customer_id}")
-        return
-
-    # Find user by our user_id
-    result = await db.execute(
-        select(User).where(User.user_id == user_id)
-    )
-    user = result.scalar_one_or_none()
-    if not user:
-        logger.error(f"checkout.session.completed: user {user_id} not found in DB")
-        return
-
-    # Store stripe_customer_id and update tier
-    await db.execute(
-        update(User)
-        .where(User.user_id == user.user_id)
-        .values(stripe_customer_id=customer_id, subscription_tier=tier)
-    )
-
-    # Create subscription record if not already created by subscription.created webhook
-    if subscription_id:
-        existing = await db.execute(
-            select(Subscription).where(Subscription.stripe_subscription_id == subscription_id)
-        )
-        if not existing.scalar_one_or_none():
-            try:
-                stripe_sub = stripe.Subscription.retrieve(subscription_id)
-                new_subscription = Subscription(
-                    user_id=user.user_id,
-                    stripe_subscription_id=subscription_id,
-                    stripe_customer_id=customer_id,
-                    tier=tier,
-                    status=stripe_sub["status"],
-                    current_period_start=datetime.fromtimestamp(stripe_sub["current_period_start"]),
-                    current_period_end=datetime.fromtimestamp(stripe_sub["current_period_end"]),
-                    cancel_at_period_end=stripe_sub.get("cancel_at_period_end", False)
-                )
-                db.add(new_subscription)
-            except Exception as e:
-                logger.error(f"checkout.session.completed: failed to create subscription record: {e}")
-
-    await db.commit()
-
-    logger.info(f"checkout.session.completed: linked customer {customer_id} to user {user_id}, tier={tier}")
-
-    # Log audit
-    await log_audit(
-        db, str(user_id), "checkout_completed",
-        {"tier": tier, "customer_id": customer_id, "subscription_id": subscription_id},
-        None
-    )
 
 
 async def handle_subscription_created(db: AsyncSession, subscription_obj: Dict[str, Any]):
@@ -1509,24 +1394,7 @@ async def handle_subscription_created(db: AsyncSession, subscription_obj: Dict[s
     user = result.scalar_one_or_none()
 
     if not user:
-        # Fallback: find user by metadata user_id (customer_id may not be stored yet)
-        user_id_from_meta = subscription_obj.get("metadata", {}).get("user_id")
-        if user_id_from_meta:
-            result = await db.execute(
-                select(User).where(User.user_id == user_id_from_meta)
-            )
-            user = result.scalar_one_or_none()
-            if user:
-                # Store the customer_id while we're at it
-                await db.execute(
-                    update(User)
-                    .where(User.user_id == user.user_id)
-                    .values(stripe_customer_id=customer_id)
-                )
-                logger.info(f"Found user {user_id_from_meta} via metadata fallback, stored customer_id {customer_id}")
-
-    if not user:
-        logger.warning(f"User not found for customer {customer_id} (no metadata fallback)")
+        logger.warning(f"User not found for customer {customer_id}")
         return
 
     # Determine tier from subscription metadata
@@ -1536,37 +1404,17 @@ async def handle_subscription_created(db: AsyncSession, subscription_obj: Dict[s
     status = subscription_obj["status"]
 
     # Create subscription record
-    # Upsert subscription record (checkout.session.completed may have already created it)
-    existing = await db.execute(
-        select(Subscription).where(Subscription.stripe_subscription_id == subscription_id)
+    new_subscription = Subscription(
+        user_id=user.user_id,
+        stripe_subscription_id=subscription_id,
+        stripe_customer_id=customer_id,
+        tier=tier,
+        status=status,
+        current_period_start=datetime.fromtimestamp(subscription_obj["current_period_start"]),
+        current_period_end=datetime.fromtimestamp(subscription_obj["current_period_end"]),
+        cancel_at_period_end=subscription_obj.get("cancel_at_period_end", False)
     )
-    existing_sub = existing.scalar_one_or_none()
-
-    if existing_sub:
-        # Update existing record
-        await db.execute(
-            update(Subscription)
-            .where(Subscription.stripe_subscription_id == subscription_id)
-            .values(
-                tier=tier,
-                status=status,
-                current_period_start=datetime.fromtimestamp(subscription_obj["current_period_start"]),
-                current_period_end=datetime.fromtimestamp(subscription_obj["current_period_end"]),
-                cancel_at_period_end=subscription_obj.get("cancel_at_period_end", False)
-            )
-        )
-    else:
-        new_subscription = Subscription(
-            user_id=user.user_id,
-            stripe_subscription_id=subscription_id,
-            stripe_customer_id=customer_id,
-            tier=tier,
-            status=status,
-            current_period_start=datetime.fromtimestamp(subscription_obj["current_period_start"]),
-            current_period_end=datetime.fromtimestamp(subscription_obj["current_period_end"]),
-            cancel_at_period_end=subscription_obj.get("cancel_at_period_end", False)
-        )
-        db.add(new_subscription)
+    db.add(new_subscription)
 
     # Update user subscription tier
     await db.execute(
@@ -1706,95 +1554,6 @@ async def handle_payment_succeeded(db: AsyncSession, invoice_obj: Dict[str, Any]
             },
             None
         )
-        # Process referral commission (20% to referrer)
-        await _process_referral_commission(db, user, invoice_obj)
-
-
-async def _process_referral_commission(db: AsyncSession, user: User, invoice_obj: Dict[str, Any]):
-    """Credit 20% commission to referrer if this user was referred and has an active conversion."""
-    try:
-        invoice_id = invoice_obj["id"]
-        amount_paid_cents = invoice_obj["amount_paid"]
-        currency = invoice_obj["currency"].upper()
-
-        if amount_paid_cents <= 0:
-            return
-
-        # Idempotency check
-        existing = await db.execute(
-            sa_text("SELECT 1 FROM referral_earnings WHERE invoice_id = :inv"),
-            {"inv": invoice_id}
-        )
-        if existing.fetchone():
-            return
-
-        # Check for active referral conversion
-        conv_result = await db.execute(
-            sa_text("""
-                SELECT conversion_id, referrer_id
-                FROM referral_conversions
-                WHERE referred_user_id = :uid AND status = 'active'
-            """),
-            {"uid": str(user.user_id)}
-        )
-        conv = conv_result.fetchone()
-        if not conv:
-            return
-
-        conversion_id, referrer_id = conv[0], conv[1]
-        commission_cents = amount_paid_cents * 20 // 100
-        if commission_cents <= 0:
-            return
-
-        await db.execute(
-            sa_text("""
-                INSERT INTO referral_earnings
-                    (referrer_id, referred_user_id, conversion_id, invoice_id, amount_cents, currency)
-                VALUES (:referrer, :referred, :conv, :inv, :amount, :currency)
-            """),
-            {
-                "referrer": str(referrer_id),
-                "referred": str(user.user_id),
-                "conv": str(conversion_id),
-                "inv": invoice_id,
-                "amount": commission_cents,
-                "currency": currency,
-            }
-        )
-        await db.commit()
-        logger.info(f"Referral commission: {commission_cents} cents {currency} to {referrer_id} from {user.user_id}")
-    except Exception as e:
-        logger.error(f"Error processing referral commission: {e}", exc_info=True)
-
-
-async def _handle_connect_account_updated(db: AsyncSession, account_obj: Dict[str, Any]):
-    """Handle account.updated event for Stripe Connect accounts."""
-    try:
-        account_id = account_obj["id"]
-        charges_enabled = account_obj.get("charges_enabled", False)
-        payouts_enabled = account_obj.get("payouts_enabled", False)
-        requirements = account_obj.get("requirements", {})
-        currently_due = requirements.get("currently_due", [])
-
-        if charges_enabled and payouts_enabled:
-            new_status = "active"
-        elif currently_due:
-            new_status = "restricted"
-        else:
-            new_status = "pending"
-
-        result = await db.execute(
-            sa_text("UPDATE users SET stripe_connect_status = :st WHERE stripe_connect_id = :cid RETURNING user_id"),
-            {"st": new_status, "cid": account_id}
-        )
-        row = result.fetchone()
-        if row:
-            await db.commit()
-            logger.info(f"Connect account {account_id} status -> '{new_status}' (user {row[0]})")
-        else:
-            logger.warning(f"No user found for Connect account {account_id}")
-    except Exception as e:
-        logger.error(f"Error handling account.updated: {e}", exc_info=True)
 
 
 async def handle_payment_failed(db: AsyncSession, invoice_obj: Dict[str, Any]):

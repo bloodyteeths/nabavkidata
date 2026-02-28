@@ -31,7 +31,7 @@ const FEATURE_LABELS: Record<string, string> = {
 const TIER_LABELS: Record<string, string> = {
   free: 'Бесплатен',
   trial: 'Пробен период',
-  starter: 'Стартуј',
+  starter: 'Стартер',
   professional: 'Про',
   enterprise: 'Претпријатие',
 };
@@ -56,7 +56,7 @@ export function UpgradePrompt({
   const [loading, setLoading] = useState(false);
 
   const featureLabel = FEATURE_LABELS[feature] || feature;
-  const requiredTierLabel = tierRequired ? TIER_LABELS[tierRequired] : 'Стартуј';
+  const requiredTierLabel = tierRequired ? TIER_LABELS[tierRequired] : 'Стартер';
   const requiredTierPrice = tierRequired ? TIER_PRICES[tierRequired] : TIER_PRICES.start;
 
   const handleUpgrade = () => {

@@ -29,7 +29,7 @@ const plans = [
         cta: "Започни бесплатно"
     },
     {
-        name: "Стартуј",
+        name: "Стартер",
         id: "starter",
         icon: Zap,
         price: {

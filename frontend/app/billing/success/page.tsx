@@ -34,11 +34,27 @@ export default function SuccessPage() {
     loadSubscription();
   }, [searchParams]);
 
-  const loadSubscription = async () => {
+  const loadSubscription = async (retries = 3) => {
     try {
       setLoading(true);
-      const data = await api.getCurrentSubscription();
-      setSubscription(data);
+      const data: any = await api.getCurrentSubscription();
+      if (data) {
+        // Map backend response to UserSubscription shape
+        const mapped: UserSubscription = {
+          id: data.subscription_id || '',
+          plan: data.plan || { name: '', price_mkd: 0 },
+          status: data.status || 'active',
+          current_period_start: data.billing_period?.start || data.current_period_start || '',
+          current_period_end: data.billing_period?.end || data.current_period_end || '',
+          cancel_at_period_end: data.cancel_at_period_end || false,
+        };
+        // If dates are still empty and we have retries, wait and retry (webhook race condition)
+        if (!mapped.current_period_start && retries > 0) {
+          await new Promise(r => setTimeout(r, 2000));
+          return loadSubscription(retries - 1);
+        }
+        setSubscription(mapped);
+      }
     } catch (err) {
       console.error('Failed to load subscription:', err);
     } finally {
@@ -120,7 +136,7 @@ export default function SuccessPage() {
 
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <Button
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/dashboard')}
               className="flex-1"
             >
               Оди на контролна табла

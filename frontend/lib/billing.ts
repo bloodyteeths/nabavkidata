@@ -177,7 +177,7 @@ class BillingService {
       },
       {
         tier: 'starter',
-        name: 'Стартуј',
+        name: 'Стартер',
         price_monthly_mkd: 1990,
         price_yearly_mkd: 19900,
         price_monthly_eur: 39,
