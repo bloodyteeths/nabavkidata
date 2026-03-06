@@ -246,6 +246,7 @@ export default function TenderDetailPage() {
     loadNotifyPreference();
     loadSavedPreference();
     loadDocuments();
+    loadProducts(); // Auto-load products so prices are visible immediately
   }, [tenderId]);
 
   // Load bidders and lots after tender is loaded (to use embedded data first)
@@ -786,6 +787,15 @@ export default function TenderDetailPage() {
               <div>
                 <p className="text-xs text-muted-foreground">Документи</p>
                 <p className="text-sm font-bold">{documents.length}</p>
+              </div>
+            </div>
+          )}
+          {aiProducts && aiProducts.products.length > 0 && (
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4 text-primary" />
+              <div>
+                <p className="text-xs text-muted-foreground">Производи</p>
+                <p className="text-sm font-bold">{aiProducts.products.length} ставки</p>
               </div>
             </div>
           )}
