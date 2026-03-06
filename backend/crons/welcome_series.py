@@ -23,6 +23,7 @@ Cron: Every hour
 import os
 import sys
 import asyncio
+import hashlib
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -47,6 +48,13 @@ POSTMARK_API_TOKEN = os.getenv('POSTMARK_API_TOKEN', '33d10a6c-0906-42c6-ab14-44
 POSTMARK_FROM_EMAIL = 'hello@nabavkidata.com'
 POSTMARK_FROM_NAME = 'Тамара од НабавкиДата'
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://nabavkidata.com')
+UNSUBSCRIBE_SECRET = os.getenv('UNSUBSCRIBE_SECRET', 'nabavki-unsub-secret-2025')
+
+
+def generate_unsubscribe_url(email: str) -> str:
+    token = hashlib.sha256(f"{email}:{UNSUBSCRIBE_SECRET}".encode()).hexdigest()[:32]
+    return f"{FRONTEND_URL}/unsubscribe?e={email}&t={token}"
+
 
 # Email schedule (step -> days after registration)
 EMAIL_SCHEDULE = {
@@ -67,6 +75,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
     # Use first name or fallback
     first_name = user_name.split()[0] if user_name else "Корисниче"
+    unsub_url = generate_unsubscribe_url(user_email)
 
     templates = {
         # =====================================================================
@@ -113,7 +122,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
         <p style="font-size:12px; color:#666666;">
             TAMSAR INC | hello@nabavkidata.com<br>
-            <a href="{FRONTEND_URL}/unsubscribe?email={user_email}" style="color:#666666;">Отпиши се</a>
+            <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
     </div>
@@ -137,7 +146,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 - Тамара
 
 ---
-Отпиши се: {FRONTEND_URL}/unsubscribe?email={user_email}"""
+Отпиши се: {unsub_url}"""
         },
 
         # =====================================================================
@@ -190,7 +199,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
         <p style="font-size:12px; color:#666666;">
             TAMSAR INC | hello@nabavkidata.com<br>
-            <a href="{FRONTEND_URL}/unsubscribe?email={user_email}" style="color:#666666;">Отпиши се</a>
+            <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
     </div>
@@ -217,7 +226,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 - Тамара
 
 ---
-Отпиши се: {FRONTEND_URL}/unsubscribe?email={user_email}"""
+Отпиши се: {unsub_url}"""
         },
 
         # =====================================================================
@@ -270,7 +279,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
         <p style="font-size:12px; color:#666666;">
             TAMSAR INC | hello@nabavkidata.com<br>
-            <a href="{FRONTEND_URL}/unsubscribe?email={user_email}" style="color:#666666;">Отпиши се</a>
+            <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
     </div>
@@ -297,7 +306,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 - Тамара
 
 ---
-Отпиши се: {FRONTEND_URL}/unsubscribe?email={user_email}"""
+Отпиши се: {unsub_url}"""
         },
 
         # =====================================================================
@@ -353,7 +362,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
         <p style="font-size:12px; color:#666666;">
             TAMSAR INC | hello@nabavkidata.com<br>
-            <a href="{FRONTEND_URL}/unsubscribe?email={user_email}" style="color:#666666;">Отпиши се</a>
+            <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
     </div>
@@ -385,7 +394,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 - Тамара
 
 ---
-Отпиши се: {FRONTEND_URL}/unsubscribe?email={user_email}"""
+Отпиши се: {unsub_url}"""
         },
 
         # =====================================================================
@@ -452,7 +461,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
         <p style="font-size:12px; color:#666666;">
             TAMSAR INC | hello@nabavkidata.com<br>
-            <a href="{FRONTEND_URL}/unsubscribe?email={user_email}" style="color:#666666;">Отпиши се</a>
+            <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
     </div>
@@ -487,7 +496,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 - Тамара
 
 ---
-Отпиши се: {FRONTEND_URL}/unsubscribe?email={user_email}"""
+Отпиши се: {unsub_url}"""
         },
 
         # =====================================================================
@@ -518,7 +527,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
         <p>Еве што пропушташ на бесплатната верзија:</p>
 
         <ul style="padding-left:20px;">
-            <li>Имаш само <strong>2 AI прашања дневно</strong> - со Pro добиваш 25</li>
+            <li>Имаш само <strong>5 AI прашања дневно</strong> - со Pro добиваш 25</li>
             <li><strong>Не добиваш известувања</strong> за нови тендери од твојата дејност</li>
             <li><strong>Не можеш да извезеш</strong> податоци или да споредиш конкуренти</li>
             <li><strong>Не гледаш историски цени</strong> - понудуваш на слепо</li>
@@ -560,7 +569,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
         <p style="font-size:12px; color:#666666;">
             TAMSAR INC | hello@nabavkidata.com<br>
-            <a href="{FRONTEND_URL}/unsubscribe?email={user_email}" style="color:#666666;">Отпиши се</a>
+            <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
     </div>
@@ -574,7 +583,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 Потоа - полна цена, без исклучоци.
 
 Еве што пропушташ на бесплатната верзија:
-- Имаш само 2 AI прашања дневно - со Pro добиваш 25
+- Имаш само 5 AI прашања дневно - со Pro добиваш 25
 - Не добиваш известувања за нови тендери од твојата дејност
 - Не можеш да извезеш податоци или да споредиш конкуренти
 - Не гледаш историски цени - понудуваш на слепо
@@ -595,7 +604,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 ПС: Ова е последниот мејл од оваа серија.
 
 ---
-Отпиши се: {FRONTEND_URL}/unsubscribe?email={user_email}"""
+Отпиши се: {unsub_url}"""
         },
     }
 

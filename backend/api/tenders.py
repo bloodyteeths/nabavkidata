@@ -2,7 +2,7 @@
 Tender API endpoints
 CRUD operations for tenders
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, text
 from typing import Optional, List
@@ -11,10 +11,13 @@ from decimal import Decimal
 import os
 import json
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 from database import get_db
 from models import Tender, TenderBidder, TenderLot, Supplier, Document, User, ProductItem
-from api.auth import get_current_user
+from api.auth import get_current_user, oauth2_scheme
 from utils.timezone import get_ai_date_context
 from utils.transliteration import get_search_variants
 from utils.product_quality import product_quality_filter
@@ -34,14 +37,73 @@ from schemas import (
 
 # Import Gemini for AI summaries
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
     GEMINI_AVAILABLE = bool(os.getenv('GEMINI_API_KEY'))
     if GEMINI_AVAILABLE:
-        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+        _genai_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 except ImportError:
     GEMINI_AVAILABLE = False
+    _genai_client = None
 
 router = APIRouter(prefix="/tenders", tags=["tenders"])
+
+
+# ============================================================================
+# OPTIONAL AUTH (returns None for anonymous users instead of 401)
+# ============================================================================
+
+async def get_optional_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> Optional[User]:
+    """Get current user if authenticated, None otherwise. Never raises."""
+    try:
+        auth = request.headers.get("authorization", "")
+        if not auth.startswith("Bearer "):
+            return None
+        token = auth[7:]
+        if not token:
+            return None
+        from jose import jwt as jose_jwt
+        SECRET_KEY = os.getenv("SECRET_KEY", "")
+        payload = jose_jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        result = await db.execute(select(User).where(User.user_id == user_id))
+        return result.scalar_one_or_none()
+    except Exception:
+        return None
+
+
+# ============================================================================
+# SEARCH HISTORY LOGGING (fire-and-forget, never blocks the response)
+# ============================================================================
+
+async def _log_search(db: AsyncSession, user, query_text: str, filters: dict, results_count: int):
+    """Log search to search_history table for analytics. Non-blocking."""
+    if not user:
+        return
+    try:
+        user_id = str(user.user_id) if hasattr(user, 'user_id') else None
+        if not user_id:
+            return
+        await db.execute(
+            text("""
+                INSERT INTO search_history (user_id, query_text, filters, results_count)
+                VALUES (:user_id, :query_text, :filters::jsonb, :results_count)
+            """),
+            {
+                "user_id": user_id,
+                "query_text": (query_text or "")[:500],
+                "filters": json.dumps(filters) if filters else "{}",
+                "results_count": results_count,
+            }
+        )
+        await db.commit()
+    except Exception as e:
+        logger.debug(f"Search history log failed (non-critical): {e}")
 
 
 # ============================================================================
@@ -389,7 +451,8 @@ async def list_tenders(
     closing_date_to: Optional[date] = Query(None, description="Filter by closing date to"),
     sort_by: str = Query("publication_date", description="Field to sort by"),
     sort_order: str = Query("desc", description="asc or desc"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
     """
     List tenders with pagination and filtering
@@ -512,6 +575,14 @@ async def list_tenders(
     result = await db.execute(query)
     tenders = result.scalars().all()
 
+    # Log search (only when user has a search query, page 1 only to avoid duplicate logs)
+    if search and page == 1 and current_user:
+        await _log_search(db, current_user, search, {
+            "category": category, "status": status, "cpv_code": cpv_code,
+            "procuring_entity": procuring_entity, "procedure_type": procedure_type,
+            "source_category": source_category,
+        }, total)
+
     return TenderListResponse(
         total=total,
         page=page,
@@ -523,7 +594,9 @@ async def list_tenders(
 @router.post("/search", response_model=TenderListResponse)
 async def search_tenders(
     search: TenderSearchRequest,
-    db: AsyncSession = Depends(get_db)
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
     """
     Advanced tender search with multiple filters
@@ -618,6 +691,14 @@ async def search_tenders(
     # Execute
     result = await db.execute(query)
     tenders = result.scalars().all()
+
+    # Log search (page 1 only)
+    if search.query and search.page == 1 and current_user:
+        await _log_search(db, current_user, search.query, {
+            "category": search.category, "status": search.status,
+            "cpv_code": search.cpv_code, "procuring_entity": search.procuring_entity,
+            "source_category": getattr(search, 'source_category', None),
+        }, total)
 
     return TenderListResponse(
         total=total,
@@ -1137,7 +1218,6 @@ CPV код: {tender.cpv_code or 'Н/А'}
         try:
             # Use configured model or fallback
             model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
-            model = genai.GenerativeModel(model_name)
 
             # Add date context
             date_context = get_ai_date_context()
@@ -1163,7 +1243,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
 Биди концизен и практичен. Фокусирај се на информации корисни за понудувачи."""
 
             # Relaxed safety settings for business content
-            response = model.generate_content(prompt)
+            response = _genai_client.models.generate_content(model=model_name, contents=prompt)
 
             # Handle safety blocks
             response_text = None
@@ -1368,7 +1448,6 @@ CPV код: {tender.cpv_code or 'Н/А'}
     try:
         # Use configured model or fallback
         model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
-        model = genai.GenerativeModel(model_name)
 
         system_prompt = """Ти си асистент за јавни набавки. Одговарај на прашања за овој тендер на македонски јазик.
 
@@ -1389,7 +1468,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
 Одговор:"""
 
         # Relaxed safety settings for business content
-        response = model.generate_content(prompt)
+        response = _genai_client.models.generate_content(model=model_name, contents=prompt)
 
         # Handle safety blocks
         try:
@@ -1871,7 +1950,6 @@ CPV код: {tender.cpv_code or 'Н/А'}
         try:
             # Use configured model or fallback
             model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
-            model = genai.GenerativeModel(model_name)
 
             # Add date context
             date_context = get_ai_date_context()
@@ -1897,7 +1975,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
 Биди концизен и практичен. Фокусирај се на информации корисни за понудувачи."""
 
             # Relaxed safety settings for business content
-            response = model.generate_content(prompt)
+            response = _genai_client.models.generate_content(model=model_name, contents=prompt)
 
             # Handle safety blocks (finish_reason=2 means SAFETY)
             response_text = None

@@ -73,15 +73,24 @@ async def add_to_suppression_sql(db: AsyncSession, email: str, reason: str, sour
 
 @router.get("/unsubscribe", response_model=UnsubscribeResponse)
 async def unsubscribe_get(
-    e: str = Query(..., description="Email address"),
-    t: str = Query(..., description="Verification token"),
+    e: Optional[str] = Query(None, description="Email address"),
+    t: Optional[str] = Query(None, description="Verification token"),
+    email: Optional[str] = Query(None, description="Email address (legacy param)"),
+    token: Optional[str] = Query(None, description="Verification token (legacy param)"),
     db: AsyncSession = Depends(get_db)
 ):
     """Handle unsubscribe via GET (for email link clicks)."""
-    if not verify_unsubscribe_token(e, t):
+    # Support both new (e/t) and legacy (email/token) param names
+    resolved_email = e or email
+    resolved_token = t or token
+
+    if not resolved_email or not resolved_token:
+        raise HTTPException(status_code=400, detail="Missing email or token parameter")
+
+    if not verify_unsubscribe_token(resolved_email, resolved_token):
         raise HTTPException(status_code=400, detail="Invalid or expired unsubscribe link")
 
-    await add_to_suppression_sql(db, e, "unsubscribed", "user_request")
+    await add_to_suppression_sql(db, resolved_email, "unsubscribed", "user_request")
 
     return UnsubscribeResponse(
         success=True,
@@ -104,6 +113,48 @@ async def unsubscribe_post(
         success=True,
         message="Successfully unsubscribed from marketing emails."
     )
+
+
+# ============================================================================
+# WELCOME SERIES OPEN TRACKING
+# ============================================================================
+
+async def _update_welcome_series_open(db: AsyncSession, email: str):
+    """Update welcome_series opened_at columns when user opens a welcome email."""
+    try:
+        # Find user by email and their welcome_series progress
+        result = await db.execute(
+            text("""
+                SELECT ws.id, ws.current_step
+                FROM welcome_series ws
+                JOIN users u ON u.user_id = ws.user_id
+                WHERE LOWER(u.email) = :email
+                LIMIT 1
+            """),
+            {"email": email}
+        )
+        row = result.fetchone()
+        if not row:
+            return
+
+        ws_id, current_step = row[0], row[1]
+
+        # Mark the most recently sent email as opened
+        # current_step is the next to send, so current_step - 1 is the last sent
+        step = max(1, current_step - 1) if current_step > 1 else 1
+        col = f"email_{step}_opened_at"
+
+        # Only update if the column exists and isn't already set
+        await db.execute(
+            text(f"""
+                UPDATE welcome_series
+                SET {col} = COALESCE({col}, NOW())
+                WHERE id = :ws_id
+            """),
+            {"ws_id": ws_id}
+        )
+    except Exception as e:
+        logger.debug(f"Welcome series open tracking failed (non-critical): {e}")
 
 
 # ============================================================================
@@ -160,6 +211,8 @@ async def postmark_webhook(
                 """),
                 {"email": email}
             )
+            # Also update welcome_series open tracking
+            await _update_welcome_series_open(db, email)
             await db.commit()
 
         elif record_type == "Click":
@@ -173,6 +226,8 @@ async def postmark_webhook(
                 """),
                 {"email": email}
             )
+            # Also update welcome_series open tracking (click implies open)
+            await _update_welcome_series_open(db, email)
             await db.commit()
 
         elif record_type == "Delivery":

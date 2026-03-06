@@ -121,7 +121,7 @@ class EntitlementChecker:
         return tier.lower()
 
     def _get_upgrade_message(self, current_tier: str, module: ModuleName) -> dict:
-        """Generate structured upgrade suggestion for frontend PaywallModal"""
+        """Generate structured upgrade suggestion for frontend PaywallModal with preview"""
         module_to_tier = {
             ModuleName.ANALYTICS: "starter",
             ModuleName.RISK_ANALYSIS: "professional",
@@ -134,14 +134,62 @@ class EntitlementChecker:
             ModuleName.RAG_SEARCH: "starter",
             ModuleName.PRICE_INTELLIGENCE: "starter",
         }
+        # Friendly feature names and value descriptions in Macedonian
+        module_descriptions = {
+            ModuleName.ANALYTICS: {
+                "title": "Аналитика на тендери",
+                "preview": "Откријте трендови, сезонски обрасци и победници во вашата индустрија.",
+                "value": "Компаниите кои користат аналитика имаат 3x поголема стапка на победа."
+            },
+            ModuleName.RISK_ANALYSIS: {
+                "title": "Анализа на ризик и корупција",
+                "preview": "AI детекција на сомнителни тендери, ризик скорови и предупредувања.",
+                "value": "Заштитете се од ризични тендери и донесете информирани одлуки."
+            },
+            ModuleName.COMPETITOR_TRACKING: {
+                "title": "Следење на конкуренти",
+                "preview": "Дознајте кои тендери ги добиваат вашите конкуренти и по кои цени.",
+                "value": "Бидете чекор пред конкуренцијата со реално-временски увиди."
+            },
+            ModuleName.EXPORT_PDF: {
+                "title": "PDF извоз",
+                "preview": "Извезете детални извештаи за тендери во PDF формат.",
+                "value": "Споделете анализи со вашиот тим или менаџмент."
+            },
+            ModuleName.DOCUMENT_EXTRACTION: {
+                "title": "Содржина на документи",
+                "preview": "Прегледајте ја целосната содржина на тендерска документација.",
+                "value": "Заштедете време со AI-извлечени клучни информации."
+            },
+            ModuleName.EXPORT_CSV: {
+                "title": "CSV извоз",
+                "preview": "Извезете тендери во табеларен формат за анализа.",
+                "value": "Интегрирајте ги податоците во вашите бизнис процеси."
+            },
+        }
         suggested_tier = module_to_tier.get(module, "starter")
+        desc = module_descriptions.get(module, {})
+
+        # Pricing hints
+        tier_prices = {
+            "starter": "1,990 МКД/месец",
+            "professional": "5,990 МКД/месец",
+            "enterprise": "12,990 МКД/месец",
+        }
+
         return {
             "error": "upgrade_required",
             "message": f"Оваа функција бара {suggested_tier.upper()} план. Надградете за пристап.",
             "feature": module.value,
+            "feature_title": desc.get("title", module.value),
+            "feature_preview": desc.get("preview", ""),
+            "feature_value": desc.get("value", ""),
             "tier_required": suggested_tier,
+            "tier_price": tier_prices.get(suggested_tier, ""),
             "current_tier": current_tier,
-            "upgrade_url": "/settings#plans"
+            "upgrade_url": "/settings#plans",
+            "trial_available": current_tier == "free",
+            "trial_url": "/settings#plans"
         }
 
 
@@ -241,15 +289,26 @@ async def check_usage_limit(
     if daily_limit is not None:
         daily_count = await get_usage_count(db, str(user.user_id), counter_type, "daily")
         if daily_count >= daily_limit:
+            # Friendly counter type names
+            counter_names = {
+                "rag_queries": "AI прашања",
+                "price_views": "ценовни прегледи",
+                "document_views": "прегледи на документи",
+                "exports": "извоз",
+                "alerts": "известувања",
+            }
+            friendly_name = counter_names.get(counter_type, counter_type)
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail={
                     "error": "Дневниот лимит е достигнат",
-                    "message": f"Достигнат е дневниот лимит од {daily_limit} за {counter_type}",
+                    "message": f"Ги искористивте сите {daily_limit} {friendly_name} за денес.",
+                    "hint": "Надградете го вашиот план за повеќе дневни прашања и неограничен пристап.",
                     "limit": daily_limit,
                     "used": daily_count,
                     "reset": "утре",
-                    "upgrade_url": "/plans"
+                    "upgrade_url": "/settings#plans",
+                    "trial_available": tier == "free",
                 }
             )
 

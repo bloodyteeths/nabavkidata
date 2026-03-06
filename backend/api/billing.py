@@ -58,19 +58,19 @@ SUBSCRIPTION_PLANS = {
         "features": [
             "Преглед на листа тендери",
             "Основно пребарување",
-            "2 AI прашања дневно",
-            "3 ценовни прегледи дневно",
-            "Без извоз и известувања"
+            "5 AI прашања дневно",
+            "5 ценовни прегледи дневно",
+            "3 зачувани пребарувања"
         ],
         "limits": {
-            "rag_queries_per_day": 2,
-            "saved_alerts": 0,
+            "rag_queries_per_day": 5,
+            "saved_alerts": 3,
             "export_results": False,
             "doc_extractions_per_day": 0,
             "competitor_alerts": 0,
             "ai_summary": False,
             "risk_analysis": False,
-            "price_views_per_day": 3
+            "price_views_per_day": 5
         }
     },
     "trial": {
