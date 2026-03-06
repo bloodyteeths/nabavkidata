@@ -9,7 +9,7 @@ import { SavedSearches } from "@/components/SavedSearches";
 import { Button } from "@/components/ui/button";
 import { ExportButton } from "@/components/ExportButton";
 import { api, type Tender } from "@/lib/api";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -135,7 +135,11 @@ function TendersPageContent() {
     if (status) initialFilters.status = status;
 
     const search = searchParams.get('search');
-    if (search) initialFilters.search = search;
+    if (search) {
+      initialFilters.search = search;
+      // When searching, default to ALL statuses so users see historical results too
+      if (!status) initialFilters.status = 'all';
+    }
 
     const category = searchParams.get('category');
     if (category) initialFilters.category = category;
@@ -186,8 +190,9 @@ function TendersPageContent() {
       }
     }
 
-    // Default to last 30 days if no date filter specified
-    if (!initialFilters.dateFrom && !initialFilters.dateTo && !initialFilters.closingDateFrom && !initialFilters.closingDateTo) {
+    // Default to last 30 days if no date filter specified AND no search query
+    // When searching, show all time so users find historical/awarded tenders
+    if (!initialFilters.search && !initialFilters.dateFrom && !initialFilters.dateTo && !initialFilters.closingDateFrom && !initialFilters.closingDateTo) {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       initialFilters.dateFrom = thirtyDaysAgo.toISOString().split('T')[0];
@@ -292,6 +297,14 @@ function TendersPageContent() {
   const handleFiltersChange = (newFilters: FilterState) => {
     setFilters(newFilters);
     setPage(1);
+  };
+
+  const searchAllStatuses = () => {
+    const newFilters: FilterState = { search: filters.search, status: 'all' };
+    setFilters(newFilters);
+    setPage(1);
+    setShouldLoad(prev => prev + 1);
+    syncFiltersToURL(newFilters);
   };
 
   const handleReset = () => {
@@ -510,11 +523,50 @@ function TendersPageContent() {
               <p className="text-muted-foreground">Се вчитува...</p>
             </div>
           ) : tenders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <p className="text-muted-foreground">Нема пронајдено тендери</p>
-              <Button variant="outline" className="mt-4" onClick={handleReset}>
-                Ресетирај филтри
-              </Button>
+            <div className="flex flex-col items-center justify-center py-12 text-center max-w-md mx-auto">
+              {filters.search && filters.status !== 'all' ? (
+                <>
+                  <Search className="h-12 w-12 mb-3 text-muted-foreground/30" />
+                  <p className="text-muted-foreground mb-1">
+                    Нема отворени тендери за <strong>&ldquo;{filters.search}&rdquo;</strong>
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Има <strong>{stats.awarded.toLocaleString()}</strong> доделени тендери во базата. Погледнете ги историските резултати за да видите цени, победници и спецификации.
+                  </p>
+                  <Button onClick={searchAllStatuses} className="mb-2">
+                    <Search className="h-4 w-4 mr-2" />
+                    Пребарај низ сите тендери
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Ресетирај филтри
+                  </Button>
+                </>
+              ) : filters.search ? (
+                <>
+                  <Search className="h-12 w-12 mb-3 text-muted-foreground/30" />
+                  <p className="text-muted-foreground mb-2">
+                    Нема резултати за <strong>&ldquo;{filters.search}&rdquo;</strong>
+                  </p>
+                  <div className="text-sm text-muted-foreground text-left space-y-1 mb-4">
+                    <p>Совети за подобро пребарување:</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      <li>Обидете се со пократок збор (пр. &ldquo;шприц&rdquo; наместо &ldquo;шприцови за еднократна употреба&rdquo;)</li>
+                      <li>Пробајте на кирилица и латиница</li>
+                      <li>Користете CPV код ако го знаете</li>
+                    </ul>
+                  </div>
+                  <Button variant="outline" onClick={handleReset}>
+                    Ресетирај филтри
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground">Нема пронајдено тендери</p>
+                  <Button variant="outline" className="mt-4" onClick={handleReset}>
+                    Ресетирај филтри
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-4">

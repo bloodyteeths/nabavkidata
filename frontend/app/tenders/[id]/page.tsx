@@ -1511,6 +1511,33 @@ export default function TenderDetailPage() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Historical Pricing Link */}
+              <Card className="border-dashed">
+                <CardContent className="p-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <CreditCard className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Историски цени</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        Споредете цени на слични производи од минати тендери
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/products?q=${encodeURIComponent(
+                      (aiProducts?.products?.[0]?.name || tender?.title || '').split(/\s+/).slice(0, 3).join(' ')
+                    )}`}
+                  >
+                    <Button variant="outline" size="sm">
+                      <Package className="h-3.5 w-3.5 mr-1.5" />
+                      Погледни
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="ai-analysis" className="mt-4 space-y-4">
@@ -1745,6 +1772,12 @@ export default function TenderDetailPage() {
                 <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
                 {isSaved ? "Зачувано" : "Зачувај"}
               </Button>
+              <Link href={`/products?q=${encodeURIComponent((tender?.title || '').split(/\s+/).slice(0, 3).join(' '))}`}>
+                <Button variant="outline" className="w-full justify-start">
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Историски цени
+                </Button>
+              </Link>
             </CardContent>
           </Card>
 
