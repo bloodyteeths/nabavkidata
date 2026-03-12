@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import {
   Search,
+  AlertCircle,
   ArrowRight,
   CheckCircle2,
   Clock,
@@ -46,6 +47,7 @@ export function WelcomeWizard({ onComplete }: WelcomeWizardProps) {
   const [totalTenders, setTotalTenders] = useState(0);
   const [loading, setLoading] = useState(false);
   const [alertCreated, setAlertCreated] = useState(false);
+  const [searchError, setSearchError] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -55,13 +57,13 @@ export function WelcomeWizard({ onComplete }: WelcomeWizardProps) {
     if (!searchQuery) return;
     setStep(2);
     setLoading(true);
+    setSearchError(false);
 
     try {
       // Fetch matching tenders
       const result = await api.getTenders({
         search: searchQuery,
         limit: 5,
-        page_size: 5,
       });
       setTenders(result.items || []);
       setTotalTenders(result.total || 0);
@@ -85,6 +87,7 @@ export function WelcomeWizard({ onComplete }: WelcomeWizardProps) {
 
     } catch (err) {
       console.error("Failed to load preview tenders:", err);
+      setSearchError(true);
     } finally {
       setLoading(false);
     }
@@ -213,40 +216,55 @@ export function WelcomeWizard({ onComplete }: WelcomeWizardProps) {
                 <>
                   {/* Tender preview list */}
                   <div className="space-y-2 mb-4 max-h-[300px] overflow-y-auto">
-                    {tenders.slice(0, 5).map((tender) => (
-                      <div
-                        key={tender.tender_id}
-                        className="p-3 rounded-lg border bg-background/50 hover:bg-foreground/5 transition-colors"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium line-clamp-1 text-foreground">
-                              {tender.title}
-                            </h4>
-                            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                              <Building2 className="h-3 w-3 flex-shrink-0" />
-                              <span className="line-clamp-1">{tender.procuring_entity}</span>
-                            </p>
-                          </div>
-                          {tender.estimated_value_mkd && (
-                            <span className="text-xs font-semibold text-primary whitespace-nowrap">
-                              {formatCurrency(tender.estimated_value_mkd)}
-                            </span>
-                          )}
-                        </div>
-                        {tender.closing_date && (
-                          <p className="text-[10px] text-orange-400 mt-1 flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            Краен рок: {new Date(tender.closing_date).toLocaleDateString("mk-MK")}
-                          </p>
-                        )}
+                    {searchError ? (
+                      <div className="text-center py-6">
+                        <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          Грешка при пребарување. Обидете се повторно.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3"
+                          onClick={() => { setStep(1); setSearchError(false); }}
+                        >
+                          Назад
+                        </Button>
                       </div>
-                    ))}
-
-                    {tenders.length === 0 && (
+                    ) : tenders.length === 0 ? (
                       <div className="text-center py-6 text-sm text-muted-foreground">
                         Нема тендери за овој период. Пробајте со друг термин.
                       </div>
+                    ) : (
+                      tenders.slice(0, 5).map((tender) => (
+                        <div
+                          key={tender.tender_id}
+                          className="p-3 rounded-lg border bg-background/50 hover:bg-foreground/5 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-medium line-clamp-1 text-foreground">
+                                {tender.title}
+                              </h4>
+                              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                                <Building2 className="h-3 w-3 flex-shrink-0" />
+                                <span className="line-clamp-1">{tender.procuring_entity}</span>
+                              </p>
+                            </div>
+                            {tender.estimated_value_mkd && (
+                              <span className="text-xs font-semibold text-primary whitespace-nowrap">
+                                {formatCurrency(tender.estimated_value_mkd)}
+                              </span>
+                            )}
+                          </div>
+                          {tender.closing_date && (
+                            <p className="text-[10px] text-orange-400 mt-1 flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              Краен рок: {new Date(tender.closing_date).toLocaleDateString("mk-MK")}
+                            </p>
+                          )}
+                        </div>
+                      ))
                     )}
                   </div>
 
