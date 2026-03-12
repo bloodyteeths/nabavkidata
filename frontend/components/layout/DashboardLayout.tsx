@@ -37,6 +37,15 @@ export default function DashboardLayout({
             : names[0][0].toUpperCase();
     };
 
+    // Progressive disclosure: hide advanced nav items until onboarding wizard is completed
+    const wizardCompleted = typeof window !== 'undefined' && localStorage.getItem('wizard_completed') === 'true';
+    const filteredGroups = navigationGroups
+        .map(g => ({
+            ...g,
+            items: g.items.filter(item => !item.requiresOnboarding || wizardCompleted)
+        }))
+        .filter(g => g.items.length > 0);
+
     const SidebarContent = () => (
         <>
             <div className="p-6">
@@ -50,7 +59,7 @@ export default function DashboardLayout({
             </div>
 
             <nav className="flex-1 px-4 space-y-4 overflow-y-auto">
-                {navigationGroups.map((group) => (
+                {filteredGroups.map((group) => (
                     <div key={group.label}>
                         <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                             {group.label}

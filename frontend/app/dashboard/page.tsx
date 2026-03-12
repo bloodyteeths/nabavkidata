@@ -10,7 +10,7 @@ import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Bell, Sea
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
+import { WelcomeWizard } from "@/components/onboarding/WelcomeWizard";
 
 const SEARCH_CHIPS = [
   "канцелариски материјали",
@@ -29,39 +29,21 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  // Onboarding state
-  const [onboardingData, setOnboardingData] = useState({
-    hasAlerts: false,
-    hasSearches: false,
-    hasTrackedCompetitors: false,
-    hasSetPreferences: false,
-  });
+  // Welcome wizard state
+  const [showWizard, setShowWizard] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     loadDashboard();
-    loadOnboardingStatus();
-  }, [user]);
 
-  async function loadOnboardingStatus() {
-    try {
-      // Check for alerts, saved searches, and tracked competitors
-      const [alertsRes, searchesRes, competitorsRes] = await Promise.allSettled([
-        api.getAlerts(),
-        api.getSavedSearches(),
-        api.getTrackedCompetitors(),
-      ]);
-
-      setOnboardingData({
-        hasAlerts: alertsRes.status === "fulfilled" && ((alertsRes.value as any)?.alerts?.length || 0) > 0,
-        hasSearches: searchesRes.status === "fulfilled" && ((searchesRes.value as any)?.items?.length || 0) > 0,
-        hasTrackedCompetitors: competitorsRes.status === "fulfilled" && ((competitorsRes.value as any)?.tracked_competitors?.length || (competitorsRes.value as any)?.count || 0) > 0,
-        hasSetPreferences: Boolean((user as any)?.preferences_set || (user as any)?.industry || (user as any)?.cpv_codes?.length),
-      });
-    } catch (error) {
-      console.debug("Failed to load onboarding status:", error);
+    // Show wizard for users who haven't completed it
+    if (typeof window !== 'undefined') {
+      const wizardDone = localStorage.getItem('wizard_completed') === 'true';
+      if (!wizardDone) {
+        setShowWizard(true);
+      }
     }
-  }
+  }, [user]);
 
   async function loadDashboard() {
     if (!user?.user_id) return;
@@ -158,13 +140,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Onboarding Checklist - Show for users who haven't completed key steps */}
-      <OnboardingChecklist
-        hasAlerts={onboardingData.hasAlerts}
-        hasSearches={onboardingData.hasSearches}
-        hasTrackedCompetitors={onboardingData.hasTrackedCompetitors}
-        hasSetPreferences={onboardingData.hasSetPreferences}
-      />
+      {/* Welcome Wizard Modal */}
+      {showWizard && (
+        <WelcomeWizard onComplete={() => setShowWizard(false)} />
+      )}
 
       {/* Search Hero */}
       <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-purple-500/5 to-primary/5">
@@ -228,76 +207,91 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <div>
-          <Card className="bg-primary/10 border-primary/20 h-full">
-            <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-              <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-primary">
-                <Target className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                Препораки
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-              <div className="text-2xl md:text-3xl font-bold text-foreground">
-                {data?.stats.recommended_count || 0}
-              </div>
-              <p className="text-[10px] md:text-xs text-primary/70 mt-1">Тендери за вас</p>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Stats Grid - show platform stats when user has no personal data */}
+      {(() => {
+        const hasPersonalData = (data?.stats.recommended_count || 0) > 0 ||
+          (data?.stats.competitor_activity_count || 0) > 0 ||
+          (data?.stats.insights_count || 0) > 0;
+        const showPlatform = !hasPersonalData;
 
-        <div>
-          <Card className="h-full">
-            <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-              <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-green-400">
-                <TrendingUp className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                Конкуренти
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-              <div className="text-2xl md:text-3xl font-bold text-foreground">
-                {data?.stats.competitor_activity_count || 0}
-              </div>
-              <p className="text-[10px] md:text-xs text-muted-foreground mt-1">Активности</p>
-            </CardContent>
-          </Card>
-        </div>
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <div>
+              <Card className="bg-primary/10 border-primary/20 h-full">
+                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+                  <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-primary">
+                    <Target className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    {showPlatform ? 'Тендери' : 'Препораки'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
+                  <div className="text-2xl md:text-3xl font-bold text-foreground">
+                    {showPlatform ? '282K+' : data?.stats.recommended_count || 0}
+                  </div>
+                  <p className="text-[10px] md:text-xs text-primary/70 mt-1">
+                    {showPlatform ? 'Во базата' : 'Тендери за вас'}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
 
-        <div>
-          <Card className="h-full">
-            <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-              <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-orange-400">
-                <AlertCircle className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                Инсајти
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-              <div className="text-2xl md:text-3xl font-bold text-foreground">
-                {data?.stats.insights_count || 0}
-              </div>
-              <p className="text-[10px] md:text-xs text-muted-foreground mt-1">AI анализи</p>
-            </CardContent>
-          </Card>
-        </div>
+            <div>
+              <Card className="h-full">
+                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+                  <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-green-400">
+                    <Package className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    {showPlatform ? 'Производи' : 'Конкуренти'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
+                  <div className="text-2xl md:text-3xl font-bold text-foreground">
+                    {showPlatform ? '3.2M' : data?.stats.competitor_activity_count || 0}
+                  </div>
+                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
+                    {showPlatform ? 'Со цени' : 'Активности'}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
 
-        <div>
-          <Card className="h-full">
-            <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-              <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-blue-400">
-                <Award className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                Отворени
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-              <div className="text-2xl md:text-3xl font-bold text-foreground">
-                {data?.recommended_tenders?.filter(t => t.status === 'open').length || 0}
-              </div>
-              <p className="text-[10px] md:text-xs text-muted-foreground mt-1">Активни тендери</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            <div>
+              <Card className="h-full">
+                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+                  <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-orange-400">
+                    <Search className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    {showPlatform ? 'Документи' : 'Инсајти'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
+                  <div className="text-2xl md:text-3xl font-bold text-foreground">
+                    {showPlatform ? '70K+' : data?.stats.insights_count || 0}
+                  </div>
+                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
+                    {showPlatform ? 'AI пребарливи' : 'AI анализи'}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div>
+              <Card className="h-full">
+                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+                  <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-blue-400">
+                    <Award className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    Отворени
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
+                  <div className="text-2xl md:text-3xl font-bold text-foreground">
+                    {showPlatform ? '800+' : (data?.recommended_tenders?.filter(t => t.status === 'open').length || 0)}
+                  </div>
+                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1">Активни тендери</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Closing Soon - Urgency Section */}
       {(() => {
