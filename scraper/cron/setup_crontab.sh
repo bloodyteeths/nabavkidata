@@ -137,10 +137,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/ubuntu/.
 # SYSTEM (not Clawd-wrapped)
 # ============================================================================
 
-# Clean old downloaded files - hourly
-0 * * * * find /home/ubuntu/nabavkidata/scraper/downloads/files -name \"*.pdf\" -mmin +120 -delete 2>/dev/null
-0 * * * * find /home/ubuntu/nabavkidata/scraper/downloads/files -name \"*.docx\" -mmin +120 -delete 2>/dev/null
-0 * * * * find /home/ubuntu/nabavkidata/scraper/downloads/files -name \"*.xls*\" -mmin +120 -delete 2>/dev/null
+# NOTE: Downloaded file cleanup is handled by process_documents.sh Phase 5
+# after extraction completes. No separate find -delete cron needed.
 "
 
 # Get existing crontab (if any)

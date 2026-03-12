@@ -7,7 +7,8 @@ import asyncio
 import json
 import os
 import logging
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 import asyncpg
 from typing import List
 import time
@@ -32,18 +33,20 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'gemini-embedding-001')
 
 # Configure Gemini
-genai.configure(api_key=GEMINI_API_KEY)
+_client = genai.Client(api_key=GEMINI_API_KEY)
 
 def get_embedding(text: str) -> str:
     """Get embedding from Gemini, return as pgvector string format."""
-    result = genai.embed_content(
-        model=f'models/{EMBEDDING_MODEL}',
-        content=text[:8000],
-        task_type='retrieval_document',
-        output_dimensionality=768
+    result = _client.models.embed_content(
+        model=EMBEDDING_MODEL,
+        contents=text[:8000],
+        config=genai_types.EmbedContentConfig(
+            task_type='RETRIEVAL_DOCUMENT',
+            output_dimensionality=768
+        )
     )
     # Convert to pgvector string format: '[0.1, 0.2, ...]'
-    embedding_list = result['embedding']
+    embedding_list = result.embeddings[0].values
     return '[' + ','.join(str(x) for x in embedding_list) + ']'
 
 async def embed_tenders(batch_size: int = 50, max_tenders: int = 10000):

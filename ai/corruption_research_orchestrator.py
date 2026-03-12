@@ -38,8 +38,8 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from decimal import Decimal
 import re
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from google import genai
+from google.genai import types as genai_types
 
 # Import existing agents
 from ai.agents.db_research_agent import (
@@ -97,16 +97,17 @@ DB_URL = os.getenv('DATABASE_URL', f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Safety settings to prevent content blocking
-SAFETY_SETTINGS = {
-    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-}
+SAFETY_SETTINGS = [
+    genai_types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="OFF"),
+]
 
-# Initialize Gemini (only if API key is available)
+# Initialize Gemini client (only if API key is available)
+_genai_client = None
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    _genai_client = genai.Client(api_key=GEMINI_API_KEY)
     logger.info("Gemini API configured successfully")
 else:
     logger.warning("GEMINI_API_KEY not set - LLM synthesis will be disabled, falling back to rule-based analysis")
@@ -179,14 +180,11 @@ class CorruptionResearchOrchestrator:
         self.company_agent: Optional[CompanyResearchAgent] = None
         self.document_agent: Optional[DocumentAnalysisAgent] = None
 
-        # LLM model for synthesis (only if Gemini is configured)
-        self.synthesis_model = None
-        if GEMINI_API_KEY:
-            try:
-                self.synthesis_model = genai.GenerativeModel('gemini-2.0-flash')
-                logger.info("LLM synthesis model initialized")
-            except Exception as e:
-                logger.warning(f"Failed to initialize LLM model: {e}")
+        # LLM client for synthesis (only if Gemini is configured)
+        self._genai_client = _genai_client
+        self.synthesis_model_name = 'gemini-2.5-flash' if _genai_client else None
+        if _genai_client:
+            logger.info("LLM synthesis model initialized")
         else:
             logger.info("LLM synthesis disabled - will use rule-based analysis only")
 
@@ -870,7 +868,7 @@ class CorruptionResearchOrchestrator:
         - What would I investigate next?
         """
         # Fall back to rule-based if LLM not available
-        if not self.synthesis_model or not GEMINI_API_KEY:
+        if not self._genai_client or not self.synthesis_model_name:
             logger.warning("LLM not available - falling back to rule-based synthesis")
             return await self._rule_based_synthesis(all_research, entity_type)
 
@@ -945,13 +943,14 @@ Return your analysis in this EXACT JSON format:
 Focus on ACTIONABLE findings. Be thorough but factual. Only report findings you can support with evidence."""
 
         try:
-            response = self.synthesis_model.generate_content(
-                synthesis_prompt,
-                generation_config=genai.GenerationConfig(
+            response = self._genai_client.models.generate_content(
+                model=self.synthesis_model_name,
+                contents=synthesis_prompt,
+                config=genai_types.GenerateContentConfig(
                     temperature=0.3,
-                    response_mime_type="application/json"
+                    response_mime_type="application/json",
+                    safety_settings=SAFETY_SETTINGS,
                 ),
-                safety_settings=SAFETY_SETTINGS
             )
 
             synthesis = json.loads(response.text)

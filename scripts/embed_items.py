@@ -22,7 +22,8 @@ sys.path.insert(0, '/Users/tamsar/Downloads/nabavkidata/ai')
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,9 +42,8 @@ DB_CONFIG = {
 
 # Configure Gemini
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-else:
+_genai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+if not _genai_client:
     logger.warning("No GEMINI_API_KEY set - embeddings won't be generated")
 
 
@@ -105,17 +105,19 @@ def format_item_text(item: Dict) -> str:
 
 def generate_embedding_sync(text: str) -> Optional[List[float]]:
     """Generate embedding using Gemini (synchronous)"""
-    if not GEMINI_API_KEY:
+    if not _genai_client:
         logger.error("GOOGLE_API_KEY not set")
         return None
 
     try:
-        result = genai.embed_content(
-            model='models/text-embedding-004',
-            content=text,
-            task_type='retrieval_document'
+        result = _genai_client.models.embed_content(
+            model='text-embedding-004',
+            contents=text,
+            config=genai_types.EmbedContentConfig(
+                task_type='RETRIEVAL_DOCUMENT',
+            ),
         )
-        return result['embedding']
+        return result.embeddings[0].values
     except Exception as e:
         logger.error(f"Embedding generation failed: {e}")
         return None

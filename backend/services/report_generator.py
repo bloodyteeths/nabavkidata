@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 REPORTS_DIR = os.getenv("REPORTS_DIR", "/tmp/nabavkidata_reports")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://nabavkidata.com")
 REPORT_SECRET = os.getenv("REPORT_SECRET", "nabavki-report-secret-2025")
+UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET", "nabavki-unsub-secret-2025")
 CHECKOUT_URL = os.getenv("CHECKOUT_URL", f"{FRONTEND_URL}/plans")
 
 # Ensure reports directory exists
@@ -800,13 +801,13 @@ class ReportGenerator:
 
     def generate_unsubscribe_token(self, email: str) -> str:
         """Generate unsubscribe token for email"""
-        data = f"{email}:{REPORT_SECRET}"
+        data = f"{email}:{UNSUBSCRIBE_SECRET}"
         return hashlib.sha256(data.encode()).hexdigest()[:32]
 
     def generate_unsubscribe_url(self, email: str) -> str:
         """Generate unsubscribe URL"""
         token = self.generate_unsubscribe_token(email)
-        return f"{FRONTEND_URL}/unsubscribe?email={email}&token={token}"
+        return f"{FRONTEND_URL}/unsubscribe?e={email}&t={token}"
 
     async def generate_report(
         self,

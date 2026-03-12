@@ -587,7 +587,8 @@ async def extract_products_with_ai(
         }
 
     # ── Step 2: Fall back to real-time Gemini extraction ──
-    import google.generativeai as genai
+    from google import genai as _genai_mod
+    from google.genai import types as genai_types
 
     # Get documents with content_text
     docs_query = text("""
@@ -643,8 +644,8 @@ async def extract_products_with_ai(
             source_documents=len(docs)
         )
 
-    genai.configure(api_key=gemini_api_key)
-    model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+    _td_genai_client = _genai_mod.Client(api_key=gemini_api_key)
+    model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
     date_context = get_ai_date_context()
 
     extraction_prompt = f"""{date_context}
@@ -692,10 +693,10 @@ async def extract_products_with_ai(
 
     try:
         def _sync_generate():
-            model_obj = genai.GenerativeModel(model_name)
-            response = model_obj.generate_content(
-                extraction_prompt,
-                generation_config=genai.GenerationConfig(
+            response = _td_genai_client.models.generate_content(
+                model=model_name,
+                contents=extraction_prompt,
+                config=genai_types.GenerateContentConfig(
                     temperature=0.1,
                     max_output_tokens=8192
                 )

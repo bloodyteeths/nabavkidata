@@ -179,7 +179,7 @@ Messages to summarize:
 
 Write a concise summary paragraph (max 300 words):"""
 
-    model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
+    model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.5-flash'))
     response = model.generate_content(
         prompt,
         generation_config=genai.GenerationConfig(temperature=0.2, max_output_tokens=500)

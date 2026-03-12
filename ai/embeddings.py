@@ -17,7 +17,8 @@ import json
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 # Import shared connection pool
 from db_pool import get_pool, get_connection
@@ -236,8 +237,9 @@ class EmbeddingGenerator:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY not set")
 
-        genai.configure(api_key=self.api_key)
-        self.model = model
+        self._client = genai.Client(api_key=self.api_key)
+        # Strip 'models/' prefix for new SDK
+        self.model = model.replace('models/', '') if model.startswith('models/') else model
         self.batch_size = batch_size
         self.dimensions = 768  # gemini-embedding-001 dimensions
 
@@ -254,14 +256,16 @@ class EmbeddingGenerator:
         try:
             # Gemini API call (synchronous, so run in thread)
             result = await asyncio.to_thread(
-                genai.embed_content,
+                self._client.models.embed_content,
                 model=self.model,
-                content=text,
-                task_type="retrieval_document",
-                output_dimensionality=768
+                contents=text,
+                config=genai_types.EmbedContentConfig(
+                    task_type="RETRIEVAL_DOCUMENT",
+                    output_dimensionality=768
+                )
             )
 
-            vector = result['embedding']
+            vector = result.embeddings[0].values
             return vector
 
         except Exception as e:
@@ -285,9 +289,6 @@ class EmbeddingGenerator:
             return []
 
         try:
-            # Ensure genai is configured with the current API key
-            genai.configure(api_key=self.api_key)
-
             # Gemini batch embedding with retry for rate limits
             max_retries = 3
             retry_delay = 5
@@ -295,11 +296,13 @@ class EmbeddingGenerator:
             for attempt in range(max_retries):
                 try:
                     result = await asyncio.to_thread(
-                        genai.embed_content,
+                        self._client.models.embed_content,
                         model=self.model,
-                        content=texts,
-                        task_type="retrieval_document",
-                output_dimensionality=768
+                        contents=texts,
+                        config=genai_types.EmbedContentConfig(
+                            task_type="RETRIEVAL_DOCUMENT",
+                            output_dimensionality=768
+                        )
                     )
                     break  # Success
                 except Exception as api_error:
@@ -314,12 +317,8 @@ class EmbeddingGenerator:
                     else:
                         raise
 
-            # Extract vectors
-            if isinstance(result['embedding'][0], list):
-                vectors = result['embedding']
-            else:
-                # Single embedding returned as flat list
-                vectors = [result['embedding']]
+            # Extract vectors from new SDK response
+            vectors = [e.values for e in result.embeddings]
 
             logger.info(f"Generated {len(vectors)} embeddings")
             return vectors

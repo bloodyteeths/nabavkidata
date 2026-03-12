@@ -314,11 +314,14 @@ async def get_bidding_patterns(
         JOIN tenders t ON tb.tender_id = t.tender_id
         CROSS JOIN date_threshold dt
         WHERE tb.company_name ILIKE :company_name
-            AND t.closing_date >= dt.cutoff
+            AND COALESCE(t.opening_date, t.closing_date, t.publication_date) >= dt.cutoff
     """)
 
+    # Use fuzzy matching: wrap with % for partial company name matches
+    company_pattern = f"%{company_name}%"
+
     result = await db.execute(basic_stats_query, {
-        "company_name": company_name,
+        "company_name": company_pattern,
         "analysis_months": analysis_months
     })
     stats = result.fetchone()
@@ -354,7 +357,7 @@ async def get_bidding_patterns(
             JOIN tenders t ON tb.tender_id = t.tender_id
             CROSS JOIN date_threshold dt
             WHERE tb.company_name ILIKE :company_name
-                AND t.closing_date >= dt.cutoff
+                AND COALESCE(t.opening_date, t.closing_date, t.publication_date) >= dt.cutoff
                 AND tb.bid_amount_mkd IS NOT NULL
                 AND tb.bid_amount_mkd > 0
         )
@@ -370,7 +373,7 @@ async def get_bidding_patterns(
     """)
 
     pricing_result = await db.execute(pricing_query, {
-        "company_name": company_name,
+        "company_name": company_pattern,
         "analysis_months": analysis_months
     })
     pricing_row = pricing_result.fetchone()
@@ -415,7 +418,7 @@ async def get_bidding_patterns(
         JOIN tenders t ON tb.tender_id = t.tender_id
         CROSS JOIN date_threshold dt
         WHERE tb.company_name ILIKE :company_name
-            AND t.closing_date >= dt.cutoff
+            AND COALESCE(t.opening_date, t.closing_date, t.publication_date) >= dt.cutoff
             AND t.cpv_code IS NOT NULL
         GROUP BY t.cpv_code, t.category
         ORDER BY bid_count DESC
@@ -423,7 +426,7 @@ async def get_bidding_patterns(
     """)
 
     category_result = await db.execute(category_query, {
-        "company_name": company_name,
+        "company_name": company_pattern,
         "analysis_months": analysis_months
     })
     category_rows = category_result.fetchall()
@@ -465,7 +468,7 @@ async def get_bidding_patterns(
             JOIN tenders t ON tb.tender_id = t.tender_id
             CROSS JOIN date_threshold dt
             WHERE tb.company_name ILIKE :company_name
-                AND t.closing_date >= dt.cutoff
+                AND COALESCE(t.opening_date, t.closing_date, t.publication_date) >= dt.cutoff
                 AND t.estimated_value_mkd IS NOT NULL
                 AND t.estimated_value_mkd > 0
         )
@@ -490,7 +493,7 @@ async def get_bidding_patterns(
     """)
 
     size_result = await db.execute(size_query, {
-        "company_name": company_name,
+        "company_name": company_pattern,
         "analysis_months": analysis_months
     })
     size_rows = size_result.fetchall()
@@ -527,13 +530,13 @@ async def get_bidding_patterns(
         JOIN tenders t ON tb.tender_id = t.tender_id
         CROSS JOIN date_threshold dt
         WHERE tb.company_name ILIKE :company_name
-            AND t.closing_date >= dt.cutoff
+            AND COALESCE(t.opening_date, t.closing_date, t.publication_date) >= dt.cutoff
         GROUP BY TO_CHAR(t.closing_date, 'Month'), EXTRACT(MONTH FROM t.closing_date)
         ORDER BY month_num
     """)
 
     seasonal_result = await db.execute(seasonal_query, {
-        "company_name": company_name,
+        "company_name": company_pattern,
         "analysis_months": analysis_months
     })
     seasonal_rows = seasonal_result.fetchall()
@@ -562,7 +565,7 @@ async def get_bidding_patterns(
             JOIN tenders t ON tb.tender_id = t.tender_id
             CROSS JOIN date_threshold dt
             WHERE tb.company_name ILIKE :company_name
-                AND t.closing_date >= dt.cutoff
+                AND COALESCE(t.opening_date, t.closing_date, t.publication_date) >= dt.cutoff
         ),
         competing_companies AS (
             -- Get other bidders in same tenders
@@ -589,7 +592,7 @@ async def get_bidding_patterns(
     """)
 
     competitors_result = await db.execute(competitors_query, {
-        "company_name": company_name,
+        "company_name": company_pattern,
         "analysis_months": analysis_months
     })
     competitors_rows = competitors_result.fetchall()
@@ -651,7 +654,7 @@ async def get_bidding_patterns(
         JOIN tenders t ON tb.tender_id = t.tender_id
         CROSS JOIN date_threshold dt
         WHERE tb.company_name ILIKE :company_name
-            AND t.closing_date >= dt.cutoff
+            AND COALESCE(t.opening_date, t.closing_date, t.publication_date) >= dt.cutoff
             AND t.contracting_entity_category IS NOT NULL
         GROUP BY t.contracting_entity_category
         HAVING COUNT(*) >= 3  -- Only include entity types with 3+ bids
@@ -660,7 +663,7 @@ async def get_bidding_patterns(
     """)
 
     entity_type_result = await db.execute(entity_type_query, {
-        "company_name": company_name,
+        "company_name": company_pattern,
         "analysis_months": analysis_months
     })
     entity_type_rows = entity_type_result.fetchall()
@@ -782,6 +785,9 @@ async def analyze_company(
     - AI-generated insights
     """
 
+    # Use fuzzy matching for partial company name matches
+    company_pattern = f"%{company_name}%"
+
     # 1. Get basic stats
     stats_query = text("""
         SELECT
@@ -796,7 +802,7 @@ async def analyze_company(
         WHERE tb.company_name ILIKE :company_name
     """)
 
-    result = await db.execute(stats_query, {"company_name": company_name})
+    result = await db.execute(stats_query, {"company_name": company_pattern})
     stats_row = result.fetchone()
 
     if not stats_row or stats_row.total_bids == 0:
@@ -837,7 +843,7 @@ async def analyze_company(
         LIMIT 10
     """)
 
-    wins_result = await db.execute(wins_query, {"company_name": company_name})
+    wins_result = await db.execute(wins_query, {"company_name": company_pattern})
     recent_wins = [
         RecentWin(
             tender_id=row.tender_id,
@@ -866,7 +872,7 @@ async def analyze_company(
         LIMIT 10
     """)
 
-    cat_result = await db.execute(categories_query, {"company_name": company_name})
+    cat_result = await db.execute(categories_query, {"company_name": company_pattern})
     common_categories = [
         CommonCategory(
             category=row.category,
@@ -893,7 +899,7 @@ async def analyze_company(
         LIMIT 10
     """)
 
-    inst_result = await db.execute(institutions_query, {"company_name": company_name})
+    inst_result = await db.execute(institutions_query, {"company_name": company_pattern})
     frequent_institutions = [
         FrequentInstitution(
             institution=row.institution,

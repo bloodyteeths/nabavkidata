@@ -92,7 +92,7 @@ async def _log_search(db: AsyncSession, user, query_text: str, filters: dict, re
         await db.execute(
             text("""
                 INSERT INTO search_history (user_id, query_text, filters, results_count)
-                VALUES (:user_id, :query_text, :filters::jsonb, :results_count)
+                VALUES (:user_id, :query_text, CAST(:filters AS jsonb), :results_count)
             """),
             {
                 "user_id": user_id,
@@ -103,7 +103,7 @@ async def _log_search(db: AsyncSession, user, query_text: str, filters: dict, re
         )
         await db.commit()
     except Exception as e:
-        logger.debug(f"Search history log failed (non-critical): {e}")
+        logger.warning(f"Search history log failed: {e}")
 
 
 # ============================================================================
@@ -478,14 +478,17 @@ async def list_tenders(
     # Apply filters
     filters = []
 
-    # Text search in title and description
+    # Text search in title and description (with bilingual Latin/Cyrillic support)
     if search:
-        text_filter = or_(
-            Tender.title.ilike(f"%{search}%"),
-            Tender.description.ilike(f"%{search}%"),
-            Tender.procuring_entity.ilike(f"%{search}%")
-        )
-        filters.append(text_filter)
+        variants = get_search_variants(search)
+        text_filters = []
+        for variant in variants:
+            text_filters.append(or_(
+                Tender.title.ilike(f"%{variant}%"),
+                Tender.description.ilike(f"%{variant}%"),
+                Tender.procuring_entity.ilike(f"%{variant}%")
+            ))
+        filters.append(or_(*text_filters))
 
     if category:
         filters.append(Tender.category == category)
@@ -1217,7 +1220,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
     if GEMINI_AVAILABLE:
         try:
             # Use configured model or fallback
-            model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+            model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
             # Add date context
             date_context = get_ai_date_context()
@@ -1447,7 +1450,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
     # Generate AI response
     try:
         # Use configured model or fallback
-        model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+        model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
         system_prompt = """Ти си асистент за јавни набавки. Одговарај на прашања за овој тендер на македонски јазик.
 
@@ -1949,7 +1952,7 @@ CPV код: {tender.cpv_code or 'Н/А'}
     if GEMINI_AVAILABLE:
         try:
             # Use configured model or fallback
-            model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+            model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
             # Add date context
             date_context = get_ai_date_context()

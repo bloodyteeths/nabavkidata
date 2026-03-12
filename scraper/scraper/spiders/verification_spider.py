@@ -98,6 +98,7 @@ class VerificationSpider(scrapy.Spider):
 
         self.db_pool = None
         self.gemini_model = None
+        self._genai_client = None
 
     async def _init_db(self):
         """Initialize database connection pool."""
@@ -109,11 +110,11 @@ class VerificationSpider(scrapy.Spider):
         """Initialize Gemini API for web search enrichment."""
         if self.web_search and not self.gemini_model:
             try:
-                import google.generativeai as genai
+                from google import genai as genai_sdk
                 api_key = os.getenv('GEMINI_API_KEY')
                 if api_key:
-                    genai.configure(api_key=api_key)
-                    self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+                    self._genai_client = genai_sdk.Client(api_key=api_key)
+                    self.gemini_model = True  # Flag that Gemini is available
                     logger.info("Gemini API initialized")
                 else:
                     logger.warning("GEMINI_API_KEY not set - web search disabled")
@@ -431,7 +432,7 @@ class VerificationSpider(scrapy.Spider):
 
     async def _web_search_enrichment(self, tender_data: Dict) -> Optional[Dict]:
         """Use Gemini to search web for context about the tender."""
-        if not self.gemini_model:
+        if not self.gemini_model or not hasattr(self, '_genai_client'):
             return None
 
         try:
@@ -463,10 +464,12 @@ Return JSON with:
 }}
 """
 
-            response = await asyncio.to_thread(
-                self.gemini_model.generate_content,
-                search_context
-            )
+            def _sync_generate():
+                return self._genai_client.models.generate_content(
+                    model='gemini-2.5-flash-lite',
+                    contents=search_context,
+                )
+            response = await asyncio.to_thread(_sync_generate)
 
             # Parse response
             text = response.text

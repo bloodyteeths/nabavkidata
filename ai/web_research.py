@@ -22,21 +22,21 @@ from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 import aiohttp
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from google import genai
+from google.genai import types as genai_types
 from dotenv import load_dotenv
 load_dotenv()
 
 
 logger = logging.getLogger(__name__)
 
-# Safety settings to prevent content blocking - set all to BLOCK_NONE
-SAFETY_SETTINGS = {
-    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-}
+# Safety settings to prevent content blocking - set all to OFF
+SAFETY_SETTINGS = [
+    genai_types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="OFF"),
+]
 
 
 @dataclass
@@ -72,11 +72,10 @@ class WebResearchEngine:
 
     def __init__(self, gemini_api_key: Optional[str] = None):
         self.api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
-        if self.api_key:
-            genai.configure(api_key=self.api_key)
+        self._genai_client = genai.Client(api_key=self.api_key) if self.api_key else None
 
         # Model for web research
-        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
         # Search sources configuration
         self.search_sources = {
@@ -221,7 +220,7 @@ Be specific with numbers, names, and dates."""
                 # Use Gemini REST API with Google Search grounding for REAL web search
                 import requests
 
-                url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={self.api_key}'
+                url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={self.api_key}'
 
                 payload = {
                     'contents': [{
@@ -412,15 +411,15 @@ Be specific with numbers, names, and dates."""
 
         try:
             def _sync_generate():
-                # Explicit BLOCK_NONE safety settings to avoid blocks
-                model = genai.GenerativeModel('gemini-2.0-flash')
-                response = model.generate_content(
-                    prompt,
-                    generation_config=genai.GenerationConfig(
+                # Explicit OFF safety settings to avoid blocks
+                response = self._genai_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(
                         temperature=0.4,
-                        max_output_tokens=500
+                        max_output_tokens=500,
+                        safety_settings=SAFETY_SETTINGS,
                     ),
-                    safety_settings=SAFETY_SETTINGS
                 )
 
                 try:
@@ -487,15 +486,15 @@ Format as JSON with keys: analysis, strengths (array), weaknesses (array), recen
 
             try:
                 def _sync_search():
-                    # Explicit BLOCK_NONE safety settings to avoid blocks
-                    model = genai.GenerativeModel('gemini-2.0-flash')
-                    response = model.generate_content(
-                        prompt,
-                        generation_config=genai.GenerationConfig(
+                    # Explicit OFF safety settings to avoid blocks
+                    response = self._genai_client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=prompt,
+                        config=genai_types.GenerateContentConfig(
                             temperature=0.3,
-                            max_output_tokens=1000
+                            max_output_tokens=1000,
+                            safety_settings=SAFETY_SETTINGS,
                         ),
-                        safety_settings=SAFETY_SETTINGS
                     )
                     try:
                         return response.text
@@ -658,17 +657,15 @@ INSTRUCTIONS:
 
         try:
             def _sync_generate():
-                # Explicit BLOCK_NONE safety settings to avoid blocks
-                model = genai.GenerativeModel(
-                    os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
-                )
-                response = model.generate_content(
-                    prompt,
-                    generation_config=genai.GenerationConfig(
+                # Explicit OFF safety settings to avoid blocks
+                response = self.web_research._genai_client.models.generate_content(
+                    model=os.getenv('GEMINI_MODEL', 'gemini-2.5-flash'),
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(
                         temperature=0.3,
-                        max_output_tokens=800
+                        max_output_tokens=800,
+                        safety_settings=SAFETY_SETTINGS,
                     ),
-                    safety_settings=SAFETY_SETTINGS
                 )
 
                 try:

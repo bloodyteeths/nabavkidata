@@ -72,6 +72,18 @@ cd /home/ubuntu/nabavkidata/scraper
 BATCH_SIZE=200
 
 log "========================================"
+log "Phase 0: Refresh Auth Cookies"
+log "========================================"
+
+# Authenticate via Playwright to get fresh cookies for document downloads.
+# Cookies are cached for ~3.5 hours, so this is a no-op most of the time.
+timeout --signal=TERM --kill-after=10 120 \
+/usr/bin/python3 refresh_auth_cookies.py || {
+    RC=$?
+    log "WARNING: Auth cookie refresh failed (exit $RC) - downloads may hit auth wall"
+}
+
+log "========================================"
 log "Phase 1: Processing Bid Documents"
 log "========================================"
 
@@ -96,7 +108,8 @@ async def process_bid_docs():
         SELECT doc_id, tender_id, file_url, file_name, file_path, extraction_status
         FROM documents
         WHERE file_url LIKE '%DownloadBidFile%'
-          AND (extraction_status = 'pending' OR extraction_status IS NULL)
+          AND (extraction_status IN ('pending', 'download_failed', 'failed') OR extraction_status IS NULL)
+          AND file_url NOT LIKE '%DownloadDoc.aspx%'
         ORDER BY doc_id
         LIMIT \$1
     ''', $BATCH_SIZE)
@@ -144,7 +157,8 @@ async def process_contract_docs():
         SELECT doc_id, tender_id, file_url, file_name, file_path, extraction_status
         FROM documents
         WHERE file_url LIKE '%DownloadContractFile%'
-          AND (extraction_status = 'pending' OR extraction_status IS NULL)
+          AND (extraction_status IN ('pending', 'download_failed', 'failed') OR extraction_status IS NULL)
+          AND file_url NOT LIKE '%DownloadDoc.aspx%'
         ORDER BY doc_id
         LIMIT \$1
     ''', $BATCH_SIZE)
@@ -195,7 +209,8 @@ async def process_other_docs():
           AND file_url NOT LIKE '%ohridskabanka%'
           AND file_url NOT LIKE '%DownloadBidFile%'
           AND file_url NOT LIKE '%DownloadContractFile%'
-          AND (extraction_status = 'pending' OR extraction_status IS NULL)
+          AND (extraction_status IN ('pending', 'download_failed', 'failed') OR extraction_status IS NULL)
+          AND file_url NOT LIKE '%DownloadDoc.aspx%'
         ORDER BY doc_id
         LIMIT \$1
     ''', $BATCH_SIZE)
@@ -219,25 +234,33 @@ asyncio.run(process_other_docs())
 " || log "WARNING: Phase 3 failed or timed out"
 
 log "========================================"
-log "Phase 4: PDF Metadata Extraction (Backfill)"
+log "Phase 4: Cleanup Downloaded PDFs"
 log "========================================"
 
-# Run the backfill script to extract CPV codes, emails, phones from PDFs
-timeout --signal=TERM --kill-after=30 3600 \
-/usr/bin/python3 backfill_pdf_extraction.py 200 || {
-    RC=$?
-    log "WARNING: PDF backfill failed with exit code $RC"
-}
-
-log "========================================"
-log "Phase 5: Cleanup Downloaded PDFs"
-log "========================================"
-
-# Delete successfully processed PDFs to save disk space
+# Only delete files for successfully extracted documents.
+# Query DB for file_paths of docs with extraction_status='success', then delete those files.
 CLEANED=0
-for f in "$FILES_STORE"/*.pdf "$FILES_STORE"/*.docx "$FILES_STORE"/*.xlsx; do
-    [ -f "$f" ] && rm -f "$f" && CLEANED=$((CLEANED + 1))
-done
+while IFS= read -r fpath; do
+    [ -n "$fpath" ] && [ -f "$fpath" ] && rm -f "$fpath" && CLEANED=$((CLEANED + 1))
+done < <(
+    /usr/bin/python3 -c "
+import asyncio, asyncpg, os
+
+async def get_success_files():
+    conn = await asyncpg.connect(os.environ['DATABASE_URL'])
+    rows = await conn.fetch('''
+        SELECT DISTINCT file_path FROM documents
+        WHERE extraction_status IN ('success', 'ocr_required', 'skip_empty', 'skip_minimal', 'skip_boilerplate', 'skipped_external', 'skip_bank_guarantee')
+          AND file_path IS NOT NULL
+          AND file_path LIKE '%/downloads/files/%'
+    ''')
+    await conn.close()
+    for r in rows:
+        print(r['file_path'])
+
+asyncio.run(get_success_files())
+" 2>/dev/null
+)
 log "Cleaned up $CLEANED files from $FILES_STORE"
 
 log "Document processing completed"

@@ -29,12 +29,14 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 # Import Gemini
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
     GEMINI_AVAILABLE = bool(os.getenv('GEMINI_API_KEY'))
     if GEMINI_AVAILABLE:
-        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+        _genai_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 except ImportError:
     GEMINI_AVAILABLE = False
+    _genai_client = None
 
 
 # ============================================================================
@@ -73,7 +75,7 @@ async def summarize_document_with_ai(content_text: str) -> Dict[str, Any]:
     # Truncate content to fit context window (keep first 8000 chars for summary)
     content_preview = content_text[:8000]
 
-    model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+    model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
     prompt = f"""Анализирај го следниот документ од јавна набавка и обезбеди:
 
@@ -113,10 +115,10 @@ JSON:"""
     try:
         def _sync_generate():
             # No safety settings to avoid blocks
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
+            response = _genai_client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
                     temperature=0.2,  # Low temperature for consistent extraction
                     max_output_tokens=2000
                 )

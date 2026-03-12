@@ -30,14 +30,16 @@ router = APIRouter(prefix="/briefings", tags=["briefings"],
 
 # Import Gemini
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
     GEMINI_AVAILABLE = bool(os.getenv('GEMINI_API_KEY'))
     if GEMINI_AVAILABLE:
-        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+        _genai_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
         # Use configured model or default
-        GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+        GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 except ImportError:
     GEMINI_AVAILABLE = False
+    _genai_client = None
     GEMINI_MODEL = None
 
 
@@ -258,8 +260,6 @@ async def generate_briefing_summary(matches: List[Dict[str, Any]], user_alerts: 
         return ""
 
     try:
-        model = genai.GenerativeModel(GEMINI_MODEL)
-
         high_priority_matches = [m for m in matches if m['priority'] == 'high']
         alert_names = ', '.join([a['name'] for a in user_alerts[:3]])
 
@@ -281,7 +281,7 @@ async def generate_briefing_summary(matches: List[Dict[str, Any]], user_alerts: 
 Биди концизен и нагласи ги итните можности. Користи македонски јазик."""
 
         # Relaxed safety settings for business content
-        response = model.generate_content(context)
+        response = _genai_client.models.generate_content(model=GEMINI_MODEL, contents=context)
         try:
             return response.text.strip()
         except ValueError:
@@ -456,7 +456,7 @@ async def get_or_create_briefing(
     insert_query = text("""
         INSERT INTO daily_briefings
         (user_id, briefing_date, content, ai_summary, total_matches, high_priority_count, generated_at)
-        VALUES (:user_id, :briefing_date, :content::jsonb, :ai_summary, :total_matches, :high_priority_count, NOW())
+        VALUES (:user_id, :briefing_date, CAST(:content AS jsonb), :ai_summary, :total_matches, :high_priority_count, NOW())
         RETURNING briefing_id, generated_at
     """)
 

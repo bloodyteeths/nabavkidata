@@ -11,7 +11,10 @@ from pydantic import BaseModel
 from datetime import datetime
 from decimal import Decimal
 import os
+import logging
 import statistics
+
+logger = logging.getLogger(__name__)
 
 from database import get_db
 from models import User
@@ -25,13 +28,15 @@ router = APIRouter(prefix="/ai", tags=["pricing"])
 
 # Import Gemini
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
     GEMINI_AVAILABLE = bool(os.getenv('GEMINI_API_KEY'))
     if GEMINI_AVAILABLE:
-        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+        _genai_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
         GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
 except ImportError:
     GEMINI_AVAILABLE = False
+    _genai_client = None
 
 
 # ============================================================================
@@ -685,8 +690,6 @@ async def get_bid_advisor(
 
     if GEMINI_AVAILABLE and winning_bids:
         try:
-            model = genai.GenerativeModel(GEMINI_MODEL)
-
             # Add date context
             date_context = get_ai_date_context()
 
@@ -766,7 +769,7 @@ async def get_bid_advisor(
 ВАЖНО: Препорачаните понуди МОРА да бидат базирани на историските податоци. Агресивната треба да биде пониска од медијаната, балансираната околу медијаната, а безбедната повисока."""
 
             # Relaxed safety settings for business content
-            response = model.generate_content(context)
+            response = _genai_client.models.generate_content(model=GEMINI_MODEL, contents=context)
             try:
                 response_text = response.text
             except ValueError:

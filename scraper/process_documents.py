@@ -411,10 +411,16 @@ class DocumentProcessor:
                 file_path = await self.download_document(doc)
 
             if not file_path:
-                await self.conn.execute(
-                    "UPDATE documents SET extraction_status = 'failed' WHERE doc_id = $1",
-                    doc_id
+                # download_document() already sets the correct status (download_invalid/download_failed)
+                # Only set 'failed' if no status was set by the downloader
+                current = await self.conn.fetchval(
+                    "SELECT extraction_status FROM documents WHERE doc_id = $1", doc_id
                 )
+                if current not in ('download_invalid', 'download_failed'):
+                    await self.conn.execute(
+                        "UPDATE documents SET extraction_status = 'failed' WHERE doc_id = $1",
+                        doc_id
+                    )
                 return False
 
             # Step 2: Extract text

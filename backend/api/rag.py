@@ -321,8 +321,9 @@ async def query_rag(
 
             alerts_context = "\n---\n".join(context_parts)
 
-            import google.generativeai as genai
-            genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+            from google import genai as _genai_mod
+            from google.genai import types as genai_types
+            _rag_genai_client = _genai_mod.Client(api_key=os.getenv('GEMINI_API_KEY'))
 
             # Detect language of the question to respond in same language
             import re as _re
@@ -378,10 +379,11 @@ If the user asks a follow-up question, use the conversation history to understan
 
 Question: {request.question}"""
 
-            model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
-            response = model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(temperature=0.3, max_output_tokens=4096)
+            _alerts_model = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+            response = _rag_genai_client.models.generate_content(
+                model=_alerts_model,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(temperature=0.3, max_output_tokens=4096)
             )
 
             query_time_ms = int((time.time() - start_time) * 1000)
@@ -644,7 +646,9 @@ async def query_rag_stream(
             pipeline = RAGQueryPipeline(top_k=request.top_k)
 
             # Import here to access streaming generation
-            import google.generativeai as genai
+            from google import genai as _genai_mod2
+            from google.genai import types as genai_types2
+            _stream_genai_client = _genai_mod2.Client(api_key=os.getenv('GEMINI_API_KEY'))
             from rag_query import ContextAssembler, PromptBuilder
 
             # 1. Get query embedding and search
@@ -713,18 +717,16 @@ async def query_rag_stream(
 
                 # 3. Generate answer with streaming
                 # Relaxed safety settings for business content
-                model_obj = genai.GenerativeModel(pipeline.model)
 
                 # Stream response
                 full_answer = []
-                response = model_obj.generate_content(
-                    prompt,
-                    generation_config=genai.GenerationConfig(
+                response = _stream_genai_client.models.generate_content_stream(
+                    model=pipeline.model,
+                    contents=prompt,
+                    config=genai_types2.GenerateContentConfig(
                         temperature=0.3,
                         max_output_tokens=4096
                     ),
-
-                    stream=True
                 )
 
                 for chunk in response:
@@ -1078,5 +1080,5 @@ async def rag_health_check():
         "gemini_configured": bool(os.getenv('GEMINI_API_KEY')),
         "database_configured": bool(os.getenv('DATABASE_URL')),
         "service": "rag-api",
-        "model": os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+        "model": os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
     }

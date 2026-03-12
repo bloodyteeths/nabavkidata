@@ -13,8 +13,8 @@ export default function UnsubscribePage() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const email = searchParams.get('e');
-    const token = searchParams.get('t');
+    const email = searchParams.get('e') || searchParams.get('email');
+    const token = searchParams.get('t') || searchParams.get('token');
 
     if (!email || !token) {
       setStatus('error');

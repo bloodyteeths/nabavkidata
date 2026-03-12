@@ -22,8 +22,7 @@ from decimal import Decimal
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
-from google import genai
-from google.genai import types as genai_types
+import google.generativeai as genai
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -40,7 +39,7 @@ DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'database': os.getenv('DB_NAME', 'nabavkidata'),
     'user': os.getenv('DB_USER', 'nabavki_user'),
-    'password': os.getenv('DB_PASSWORD', ''),
+    'password': os.getenv('DB_PASSWORD', '9fagrPSDfQqBjrKZZLVrJY2Am'),
     'port': os.getenv('DB_PORT', '5432')
 }
 
@@ -94,16 +93,15 @@ def get_db_connection():
 
 
 def configure_gemini():
-    """Configure Gemini API and return client + model name."""
+    """Configure Gemini API."""
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY environment variable not set")
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    return client, 'gemini-2.5-flash-lite'
+    genai.configure(api_key=GEMINI_API_KEY)
+    return genai.GenerativeModel('gemini-2.5-flash-lite')
 
 
-def extract_with_gemini(client_and_model, raw_text: str) -> Optional[Dict[str, Any]]:
+def extract_with_gemini(model, raw_text: str) -> Optional[Dict[str, Any]]:
     """Extract structured data using Gemini API."""
-    client, model_name = client_and_model
     try:
         # Truncate if too long (Gemini has context limits)
         if len(raw_text) > 50000:
@@ -111,13 +109,12 @@ def extract_with_gemini(client_and_model, raw_text: str) -> Optional[Dict[str, A
 
         prompt = EXTRACTION_PROMPT + raw_text
 
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt,
-            config=genai_types.GenerateContentConfig(
-                temperature=0.1,
-                max_output_tokens=8192,
-            )
+        response = model.generate_content(
+            prompt,
+            generation_config={
+                "temperature": 0.1,
+                "max_output_tokens": 8192,
+            }
         )
 
         # Parse JSON from response
@@ -217,7 +214,7 @@ def update_extraction_results(conn, tender_id: str, report_id: str,
         return False
 
 
-def process_failed_extractions(conn, client_and_model, limit: int = 10) -> Dict[str, int]:
+def process_failed_extractions(conn, model, limit: int = 10) -> Dict[str, int]:
     """Process failed/partial extractions with Gemini."""
     results = {
         'processed': 0,
@@ -252,7 +249,7 @@ def process_failed_extractions(conn, client_and_model, limit: int = 10) -> Dict[
         logger.info(f"Processing {tender_id} (was: {report['extraction_status']}, conf: {report['extraction_confidence']})")
 
         # Extract with Gemini
-        extraction = extract_with_gemini(client_and_model, raw_text)
+        extraction = extract_with_gemini(model, raw_text)
 
         if extraction and extraction.get('items'):
             if update_extraction_results(conn, tender_id, report_id, extraction):
@@ -293,7 +290,7 @@ def main():
         sys.exit(1)
 
     conn = get_db_connection()
-    client_and_model = configure_gemini()
+    model = configure_gemini()
 
     try:
         if args.tender_id:
@@ -307,7 +304,7 @@ def main():
                 report = cur.fetchone()
 
             if report:
-                extraction = extract_with_gemini(client_and_model, report['raw_text'])
+                extraction = extract_with_gemini(model, report['raw_text'])
                 if extraction:
                     update_extraction_results(conn, report['tender_id'], report['report_id'], extraction)
                     logger.info(f"Processed {args.tender_id}: {len(extraction.get('items', []))} items")
@@ -315,7 +312,7 @@ def main():
                 logger.error(f"Tender {args.tender_id} not found")
         else:
             # Process failed extractions
-            results = process_failed_extractions(conn, client_and_model, args.limit)
+            results = process_failed_extractions(conn, model, args.limit)
 
             logger.info("=" * 50)
             logger.info("GEMINI FALLBACK COMPLETE")

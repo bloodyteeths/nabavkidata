@@ -16,15 +16,15 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 import asyncpg
 import aiohttp
-from google import genai
-from google.genai import types as genai_types
+import google.generativeai as genai
 
 # Database (RDS - accessible from anywhere)
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = 'postgresql://nabavki_user:9fagrPSDfQqBjrKZZLVrJY2Am@localhost:5432/nabavkidata'
 
 # Gemini
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-_genai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 # Local dirs
 DOWNLOAD_DIR = Path('/tmp/local_extraction')
@@ -42,10 +42,8 @@ class LocalExtractor:
     async def connect(self):
         self.pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
         self.session = aiohttp.ClientSession()
-        if _genai_client:
-            self.gemini_model = True  # Flag that Gemini is available
-            self._genai_client = _genai_client
-            self._model_name = 'gemini-2.5-flash-lite'
+        if GEMINI_API_KEY:
+            self.gemini_model = genai.GenerativeModel('gemini-2.5-flash-lite')
         print(f"✓ Connected to database (pool)")
         print(f"✓ Gemini: {'available' if self.gemini_model else 'NOT available'}")
 
@@ -154,12 +152,9 @@ Document text:
 Return ONLY valid JSON array, no markdown."""
 
         try:
-            def _sync_generate():
-                return self._genai_client.models.generate_content(
-                    model=self._model_name,
-                    contents=prompt,
-                )
-            response = await asyncio.to_thread(_sync_generate)
+            response = await asyncio.to_thread(
+                self.gemini_model.generate_content, prompt
+            )
             import json
             result = response.text.strip()
             if result.startswith('```'):

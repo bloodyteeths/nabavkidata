@@ -512,7 +512,7 @@ Return valid JSON:
 
         try:
             model = genai.GenerativeModel(
-                os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+                os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
             )
             response = model.generate_content(
                 prompt,

@@ -22,7 +22,8 @@ from datetime import datetime
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,8 +42,7 @@ DB_CONFIG = {
 
 # Configure Gemini
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+_genai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Rate limiting
 RATE_LIMIT_DELAY = 0.3  # seconds between API calls
@@ -86,17 +86,19 @@ class EmbeddingGenerator:
 
     def generate_embedding(self, text: str) -> Optional[List[float]]:
         """Generate embedding using Gemini"""
-        if not GEMINI_API_KEY:
+        if not _genai_client:
             logger.error("GEMINI_API_KEY not set")
             return None
 
         try:
-            result = genai.embed_content(
-                model='models/text-embedding-004',
-                content=text[:8000],  # Limit text length
-                task_type='retrieval_document'
+            result = _genai_client.models.embed_content(
+                model='text-embedding-004',
+                contents=text[:8000],  # Limit text length
+                config=genai_types.EmbedContentConfig(
+                    task_type='RETRIEVAL_DOCUMENT',
+                ),
             )
-            return result['embedding']
+            return result.embeddings[0].values
         except Exception as e:
             if 'rate' in str(e).lower() or '429' in str(e):
                 logger.warning("Rate limited, waiting 60s...")

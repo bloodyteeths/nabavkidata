@@ -51,14 +51,16 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 
 # Import Gemini
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
     GEMINI_AVAILABLE = bool(os.getenv('GEMINI_API_KEY'))
     if GEMINI_AVAILABLE:
-        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+        _genai_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 except ImportError:
     GEMINI_AVAILABLE = False
-    GEMINI_MODEL = 'gemini-2.0-flash'
+    _genai_client = None
+    GEMINI_MODEL = 'gemini-2.5-flash'
 
 
 # ============================================================================
@@ -216,8 +218,6 @@ async def suggest_cpv_codes(
     # Try AI-based suggestion first
     if GEMINI_AVAILABLE:
         try:
-            model = genai.GenerativeModel(GEMINI_MODEL)
-
             prompt = f"""Analyze this procurement tender description and suggest the most relevant CPV (Common Procurement Vocabulary) codes.
 
 Description: {request.description}
@@ -235,7 +235,7 @@ Use 8-digit CPV codes (main category level).
 """
 
             # Relaxed safety settings for business content
-            response = model.generate_content(prompt)
+            response = _genai_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
             try:
                 response_text = response.text
             except ValueError:
@@ -342,8 +342,6 @@ async def extract_requirements(
 
     if GEMINI_AVAILABLE:
         try:
-            model = genai.GenerativeModel(GEMINI_MODEL)
-
             # Truncate text if too long
             doc_text = request.document_text[:15000]
 
@@ -373,7 +371,7 @@ Return maximum 20 most important requirements.
 """
 
             # Relaxed safety settings for business content
-            response = model.generate_content(prompt)
+            response = _genai_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
             try:
                 response_text = response.text
             except ValueError:

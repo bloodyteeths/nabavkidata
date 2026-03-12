@@ -51,7 +51,7 @@ class GeminiEmailSearcher:
     def __init__(self):
         self.api_key = GEMINI_API_KEY
         self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
-        self.model = "gemini-2.0-flash-exp"  # Supports Google Search grounding
+        self.model = "gemini-2.5-flash"  # Supports Google Search grounding
         self.http_client = httpx.AsyncClient(timeout=60.0)
 
     async def close(self):

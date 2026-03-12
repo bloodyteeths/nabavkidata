@@ -329,7 +329,7 @@ async def create_saved_search(
     # Create saved search using alerts table
     insert_query = text("""
         INSERT INTO alerts (user_id, name, filters, frequency, is_active, created_at)
-        VALUES (:user_id, :name, :filters::jsonb, :frequency, :is_active, NOW())
+        VALUES (:user_id, :name, CAST(:filters AS jsonb), :frequency, :is_active, NOW())
         RETURNING alert_id, name, filters, frequency, is_active, last_triggered, created_at
     """)
 
@@ -425,7 +425,7 @@ async def create_saved_search_body_auth(
     # Create saved search using alerts table
     insert_query = text("""
         INSERT INTO alerts (user_id, name, filters, frequency, is_active, created_at)
-        VALUES (:user_id, :name, :filters::jsonb, :frequency, :is_active, NOW())
+        VALUES (:user_id, :name, CAST(:filters AS jsonb), :frequency, :is_active, NOW())
         RETURNING alert_id, name, filters, frequency, is_active, last_triggered, created_at
     """)
 
@@ -531,7 +531,7 @@ async def update_saved_search(
         params["name"] = update.name
 
     if update.filters is not None:
-        update_fields.append("filters = :filters::jsonb")
+        update_fields.append("filters = CAST(:filters AS jsonb)")
         params["filters"] = json.dumps(update.filters.dict(exclude_none=True))
 
     if update.notify_on_match is not None:

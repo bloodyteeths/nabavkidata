@@ -211,7 +211,7 @@ class SpecificationAnalyzer:
                 if api_key:
                     genai.configure(api_key=api_key)
                     self._gemini_model = genai.GenerativeModel(
-                        os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+                        os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
                     )
                 else:
                     logger.warning("GEMINI_API_KEY not set, Gemini fallback disabled")

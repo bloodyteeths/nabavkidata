@@ -18,8 +18,8 @@ from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from google import genai
+from google.genai import types as genai_types
 
 from embeddings import EmbeddingGenerator, VectorStore
 from dotenv import load_dotenv
@@ -65,13 +65,13 @@ def _product_quality_filter(alias: str = "pi", level: str = "moderate") -> str:
             AND UPPER({col}name) NOT LIKE '%ДОКОЛКУ ИМА%'"""
 
 
-# Safety settings to prevent content blocking - set all to BLOCK_NONE
-SAFETY_SETTINGS = {
-    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-}
+# Safety settings to prevent content blocking - set all to OFF
+SAFETY_SETTINGS = [
+    genai_types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="OFF"),
+]
 from db_pool import get_pool, get_connection
 from web_research import HybridRAGEngine, WebResearchEngine
 import json
@@ -627,14 +627,15 @@ async def verify_answer_grounding(
 }}'''
 
     try:
-        model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
-        response = model.generate_content(
-            verification_prompt,
-            generation_config=genai.GenerationConfig(
+        client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+        response = client.models.generate_content(
+            model=os.getenv('GEMINI_MODEL', 'gemini-2.5-flash'),
+            contents=verification_prompt,
+            config=genai_types.GenerateContentConfig(
                 temperature=0.1,
-                response_mime_type="application/json"
-            ),
-            safety_settings=SAFETY_SETTINGS
+                response_mime_type="application/json",
+                safety_settings=SAFETY_SETTINGS
+            )
         )
 
         result = json.loads(response.text)
@@ -1831,14 +1832,15 @@ Examples of good expansions:
 
 Return ONLY a valid JSON array like: ["term1", "term2", "term3"]'''
 
-        model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
+        client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+        response = client.models.generate_content(
+            model=os.getenv('GEMINI_MODEL', 'gemini-2.5-flash'),
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
                 temperature=0.2,
-                response_mime_type="application/json"
-            ),
-            safety_settings=SAFETY_SETTINGS
+                response_mime_type="application/json",
+                safety_settings=SAFETY_SETTINGS
+            )
         )
 
         # Parse JSON response
@@ -2629,7 +2631,7 @@ async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
         api_key = os.getenv('GEMINI_API_KEY')
 
         if api_key:
-            url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
+            url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}'
 
             # IMPROVED: Structured prompt for better data extraction
             search_prompt = f'''Пребарај на интернет за јавни набавки во Македонија: {search_query}
@@ -4539,7 +4541,7 @@ async def parallel_multi_source_search(question: str, keywords: List[str], conn,
         """Web search using Google Search Grounding"""
         try:
             api_key = os.getenv('GEMINI_API_KEY')
-            url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
+            url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}'
 
             search_query = " ".join(keywords[:5])
             prompt = f"""Пребарај на интернет за јавни набавки во Македонија: {search_query}
@@ -4799,7 +4801,7 @@ class LLMDrivenAgent:
     def __init__(self, database_url: str = None, gemini_api_key: str = None):
         self.database_url = database_url or os.getenv('DATABASE_URL')
         self.gemini_api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
-        genai.configure(api_key=self.gemini_api_key)
+        self._genai_client = genai.Client(api_key=self.gemini_api_key)
 
         # Initialize follow-up handling components
         self.followup_detector = FollowUpDetector()
@@ -5332,14 +5334,14 @@ class LLMDrivenAgent:
 - Дај конкретен и корисен одговор
 """
             try:
-                model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
-                response = model.generate_content(
-                    final_prompt,
-                    generation_config=genai.GenerationConfig(
+                response = self._genai_client.models.generate_content(
+                    model=os.getenv('GEMINI_MODEL', 'gemini-2.5-flash'),
+                    contents=final_prompt,
+                    config=genai_types.GenerateContentConfig(
                         temperature=0.3,
-                        max_output_tokens=4096
-                    ),
-                    safety_settings=SAFETY_SETTINGS
+                        max_output_tokens=4096,
+                        safety_settings=SAFETY_SETTINGS
+                    )
                 )
                 answer = response.text if response.text else "Не можам да генерирам одговор за овој тендер."
 
@@ -5415,14 +5417,15 @@ class LLMDrivenAgent:
 - "вкупна статистика" → {{"tool": "get_statistics", "args": {{"stat_type": "market_overview"}}}}"""
 
             try:
-                model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
-                response = model.generate_content(
-                    tool_decision_prompt,
-                    generation_config=genai.GenerationConfig(
+                _model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+                response = self._genai_client.models.generate_content(
+                    model=_model_name,
+                    contents=tool_decision_prompt,
+                    config=genai_types.GenerateContentConfig(
                         temperature=0.1,
-                        response_mime_type="application/json"
-                    ),
-                    safety_settings=SAFETY_SETTINGS
+                        response_mime_type="application/json",
+                        safety_settings=SAFETY_SETTINGS
+                    )
                 )
 
                 decision = json.loads(response.text)
@@ -5637,13 +5640,14 @@ class LLMDrivenAgent:
 6. КРАТКО И ЈАСНО: За едноставни прашања 2-4 реченици. За комплексни - табела или листа. Не пишувај есеи."""
 
         try:
-            final_response = model.generate_content(
-                final_prompt,
-                generation_config=genai.GenerationConfig(
+            final_response = self._genai_client.models.generate_content(
+                model=_model_name,
+                contents=final_prompt,
+                config=genai_types.GenerateContentConfig(
                     temperature=0.3,
-                    max_output_tokens=4096
-                ),
-                safety_settings=SAFETY_SETTINGS
+                    max_output_tokens=4096,
+                    safety_settings=SAFETY_SETTINGS
+                )
             )
             # SECURITY: Validate response before returning
             answer_text = validate_response(final_response.text, question)
@@ -5685,13 +5689,14 @@ class LLMDrivenAgent:
 Дај одговор на македонски:"""
 
                         try:
-                            regeneration_response = model.generate_content(
-                                regeneration_prompt,
-                                generation_config=genai.GenerationConfig(
+                            regeneration_response = self._genai_client.models.generate_content(
+                                model=_model_name,
+                                contents=regeneration_prompt,
+                                config=genai_types.GenerateContentConfig(
                                     temperature=0.3,
-                                    max_output_tokens=4096
-                                ),
-                                safety_settings=SAFETY_SETTINGS
+                                    max_output_tokens=4096,
+                                    safety_settings=SAFETY_SETTINGS
+                                )
                             )
                             regenerated_answer = validate_response(regeneration_response.text, question)
 
@@ -6314,9 +6319,9 @@ class RAGQueryPipeline:
 
         # Use env vars for model names, with sensible defaults
         model = model or os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
-        fallback_model = fallback_model or os.getenv('GEMINI_FALLBACK_MODEL', 'gemini-2.0-flash')
+        fallback_model = fallback_model or os.getenv('GEMINI_FALLBACK_MODEL', 'gemini-2.5-flash')
 
-        genai.configure(api_key=self.gemini_api_key)
+        self._genai_client = genai.Client(api_key=self.gemini_api_key)
         self.model = model
         self.fallback_model = fallback_model
         self.top_k = top_k
@@ -6384,7 +6389,7 @@ class RAGQueryPipeline:
                 sources=[],  # Agent doesn't track sources the same way
                 confidence='medium',
                 generated_at=datetime.utcnow(),
-                model_used=f"{os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')} (LLM-driven agent)"
+                model_used=f"{os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')} (LLM-driven agent)"
             )
 
         except Exception as agent_error:
@@ -6963,15 +6968,15 @@ Return ONLY a JSON array of 5-12 product/service terms (NO tender/nabavka words)
 
         try:
             def _sync_generate():
-                # Explicit BLOCK_NONE safety settings to avoid blocks
-                model_obj = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-2.0-flash'))
-                response = model_obj.generate_content(
-                    prompt,
-                    generation_config=genai.GenerationConfig(
+                # Explicit OFF safety settings to avoid blocks
+                response = self._genai_client.models.generate_content(
+                    model=os.getenv('GEMINI_MODEL', 'gemini-2.5-flash'),
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(
                         temperature=0.3,
-                        max_output_tokens=200
-                    ),
-                    safety_settings=SAFETY_SETTINGS
+                        max_output_tokens=200,
+                        safety_settings=SAFETY_SETTINGS
+                    )
                 )
                 try:
                     return response.text
@@ -8319,14 +8324,14 @@ CPV код: {cpv_code}
             Generated answer text
         """
         def _sync_generate():
-            model_obj = genai.GenerativeModel(model)
-            response = model_obj.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
+            response = self._genai_client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
                     temperature=0.3,
-                    max_output_tokens=4096
-                ),
-                safety_settings=SAFETY_SETTINGS
+                    max_output_tokens=4096,
+                    safety_settings=SAFETY_SETTINGS
+                )
             )
 
             try:
@@ -8560,7 +8565,7 @@ async def generate_tender_summary(context: Dict) -> str:
     if not gemini_api_key:
         raise ValueError("GEMINI_API_KEY not set")
 
-    genai.configure(api_key=gemini_api_key)
+    client = genai.Client(api_key=gemini_api_key)
     model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
     # Build context text
@@ -8631,15 +8636,15 @@ async def generate_tender_summary(context: Dict) -> str:
 Одговори на македонски јазик. Биди концизен и прецизен. Ако нема доволно информации, кажи што недостасува."""
 
     def _sync_generate():
-        # Explicit BLOCK_NONE safety settings to avoid blocks
-        model_obj = genai.GenerativeModel(model_name)
-        response = model_obj.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
+        # Explicit OFF safety settings to avoid blocks
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
                 temperature=0.3,
-                max_output_tokens=800
-            ),
-            safety_settings=SAFETY_SETTINGS
+                max_output_tokens=800,
+                safety_settings=SAFETY_SETTINGS
+            )
         )
 
         try:
@@ -8669,7 +8674,7 @@ async def generate_supplier_analysis(context: Dict) -> str:
     if not gemini_api_key:
         raise ValueError("GEMINI_API_KEY not set")
 
-    genai.configure(api_key=gemini_api_key)
+    client = genai.Client(api_key=gemini_api_key)
     model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
     # Build context text
@@ -8713,15 +8718,15 @@ async def generate_supplier_analysis(context: Dict) -> str:
 Одговори на македонски јазик. Биди објективен и аналитичен."""
 
     def _sync_generate():
-        # Explicit BLOCK_NONE safety settings to avoid blocks
-        model_obj = genai.GenerativeModel(model_name)
-        response = model_obj.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
+        # Explicit OFF safety settings to avoid blocks
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
                 temperature=0.3,
-                max_output_tokens=800
-            ),
-            safety_settings=SAFETY_SETTINGS
+                max_output_tokens=800,
+                safety_settings=SAFETY_SETTINGS
+            )
         )
 
         try:

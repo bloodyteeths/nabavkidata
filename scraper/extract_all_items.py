@@ -99,13 +99,10 @@ class AllItemsExtractor:
     async def get_documents_to_process(self, limit: int = 100,
                                         category: Optional[str] = None,
                                         tender_id: Optional[str] = None) -> List[Dict]:
-        """Get documents for tenders that don't already have priced product items."""
-        # Skip tenders that already have items WITH prices (backfill-safe)
+        """Get documents not yet processed by Gemini, prioritizing tenders without prices."""
+        # Skip docs already processed by Gemini
         SKIP_CLAUSE = """
-            AND d.tender_id NOT IN (
-                SELECT DISTINCT tender_id FROM product_items
-                WHERE unit_price IS NOT NULL AND unit_price > 0
-            )
+            AND d.gemini_extracted_at IS NULL
         """
 
         async with self.pool.acquire() as conn:
@@ -266,14 +263,19 @@ class AllItemsExtractor:
                     self.stats['docs_failed'] += 1
                 return 0
 
-            if not items:
-                with self.stats_lock:
-                    self.stats['docs_processed'] += 1
-                    self.stats['docs_empty'] += 1
-                return 0
-
-            # Save to DB using a connection from the pool
+            # Mark document as processed by Gemini (regardless of result)
             async with self.pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE documents SET gemini_extracted_at = NOW() WHERE doc_id = $1",
+                    doc_id
+                )
+
+                if not items:
+                    with self.stats_lock:
+                        self.stats['docs_processed'] += 1
+                        self.stats['docs_empty'] += 1
+                    return 0
+
                 saved, price_count = await self.save_items(conn, doc_id, tender_id, items, doc_category)
 
             with self.stats_lock:

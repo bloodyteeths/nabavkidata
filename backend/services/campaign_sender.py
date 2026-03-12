@@ -323,7 +323,7 @@ def verify_unsubscribe_token(email: str, token: str) -> bool:
 def generate_unsubscribe_url(email: str) -> str:
     """Generate unsubscribe URL"""
     token = generate_unsubscribe_token(email)
-    return f"{FRONTEND_URL}/unsubscribe?email={email}&token={token}"
+    return f"{FRONTEND_URL}/unsubscribe?e={email}&t={token}"
 
 
 # ============================================================================

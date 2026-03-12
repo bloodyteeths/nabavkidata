@@ -29,8 +29,8 @@ from enum import Enum
 
 import asyncpg
 import aiohttp
-import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from google import genai
+from google.genai import types as genai_types
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -53,12 +53,12 @@ DB_CONFIG = {
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Safety settings - allow all content for analysis
-SAFETY_SETTINGS = {
-    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-}
+SAFETY_SETTINGS = [
+    genai_types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="OFF"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="OFF"),
+]
 
 
 # ============================================================================
@@ -185,9 +185,9 @@ class DocumentAnalysisAgent:
         self.db_config = db_config or DB_CONFIG
         self.gemini_api_key = gemini_api_key or GEMINI_API_KEY
 
-        # Initialize Gemini
-        genai.configure(api_key=self.gemini_api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash')
+        # Initialize Gemini client
+        self._genai_client = genai.Client(api_key=self.gemini_api_key)
+        self._model_name = 'gemini-2.5-flash'
 
         # Connection pool (lazy initialization)
         self._pool: Optional[asyncpg.Pool] = None
@@ -359,13 +359,14 @@ class DocumentAnalysisAgent:
         """
         try:
             def _generate():
-                response = self.model.generate_content(
-                    prompt,
-                    generation_config=genai.GenerationConfig(
+                response = self._genai_client.models.generate_content(
+                    model=self._model_name,
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(
                         temperature=temperature,
                         max_output_tokens=max_tokens,
+                        safety_settings=SAFETY_SETTINGS,
                     ),
-                    safety_settings=SAFETY_SETTINGS,
                 )
                 return response.text
 
