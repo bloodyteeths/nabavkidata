@@ -14,6 +14,7 @@ from database import get_db
 from api.auth import get_current_user
 from middleware.entitlements import require_module
 from config.plans import ModuleName
+from utils.transliteration import get_search_variants
 
 router = APIRouter(prefix="/competitors", tags=["competitors"],
                    dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
@@ -317,14 +318,24 @@ async def get_bidding_patterns(
             AND COALESCE(t.opening_date, t.closing_date, t.publication_date) >= dt.cutoff
     """)
 
-    # Use fuzzy matching: wrap with % for partial company name matches
-    company_pattern = f"%{company_name}%"
+    # Use bilingual search: try both Latin and Cyrillic variants
+    variants = get_search_variants(company_name)
+    company_pattern = f"%{variants[-1]}%"  # Prefer Cyrillic variant if available
 
     result = await db.execute(basic_stats_query, {
         "company_name": company_pattern,
         "analysis_months": analysis_months
     })
     stats = result.fetchone()
+
+    # If no results with Cyrillic, try original Latin
+    if (not stats or stats.total_bids == 0) and len(variants) > 1:
+        company_pattern = f"%{variants[0]}%"
+        result = await db.execute(basic_stats_query, {
+            "company_name": company_pattern,
+            "analysis_months": analysis_months
+        })
+        stats = result.fetchone()
 
     if not stats or stats.total_bids == 0:
         raise HTTPException(
@@ -522,8 +533,8 @@ async def get_bidding_patterns(
             SELECT NOW() - make_interval(months => :analysis_months) as cutoff
         )
         SELECT
-            TO_CHAR(t.closing_date, 'Month') as month,
-            EXTRACT(MONTH FROM t.closing_date) as month_num,
+            TO_CHAR(COALESCE(t.opening_date, t.closing_date, t.publication_date), 'Month') as month,
+            EXTRACT(MONTH FROM COALESCE(t.opening_date, t.closing_date, t.publication_date)) as month_num,
             COUNT(DISTINCT tb.bidder_id) as bids,
             COUNT(DISTINCT tb.bidder_id) FILTER (WHERE tb.is_winner = TRUE) as wins
         FROM tender_bidders tb
@@ -531,7 +542,7 @@ async def get_bidding_patterns(
         CROSS JOIN date_threshold dt
         WHERE tb.company_name ILIKE :company_name
             AND COALESCE(t.opening_date, t.closing_date, t.publication_date) >= dt.cutoff
-        GROUP BY TO_CHAR(t.closing_date, 'Month'), EXTRACT(MONTH FROM t.closing_date)
+        GROUP BY TO_CHAR(COALESCE(t.opening_date, t.closing_date, t.publication_date), 'Month'), EXTRACT(MONTH FROM COALESCE(t.opening_date, t.closing_date, t.publication_date))
         ORDER BY month_num
     """)
 
@@ -543,11 +554,12 @@ async def get_bidding_patterns(
 
     seasonal_activity = [
         SeasonalActivity(
-            month=row.month.strip(),
+            month=row.month.strip() if row.month else "Unknown",
             bids=row.bids,
             wins=row.wins
         )
         for row in seasonal_rows
+        if row.month_num is not None
     ]
 
     # ========================================================================
@@ -785,8 +797,9 @@ async def analyze_company(
     - AI-generated insights
     """
 
-    # Use fuzzy matching for partial company name matches
-    company_pattern = f"%{company_name}%"
+    # Use bilingual search: try both Latin and Cyrillic variants
+    variants = get_search_variants(company_name)
+    company_pattern = f"%{variants[-1]}%"  # Prefer Cyrillic variant if available
 
     # 1. Get basic stats
     stats_query = text("""
@@ -804,6 +817,12 @@ async def analyze_company(
 
     result = await db.execute(stats_query, {"company_name": company_pattern})
     stats_row = result.fetchone()
+
+    # If no results with Cyrillic, try original Latin
+    if (not stats_row or stats_row.total_bids == 0) and len(variants) > 1:
+        company_pattern = f"%{variants[0]}%"
+        result = await db.execute(stats_query, {"company_name": company_pattern})
+        stats_row = result.fetchone()
 
     if not stats_row or stats_row.total_bids == 0:
         raise HTTPException(
