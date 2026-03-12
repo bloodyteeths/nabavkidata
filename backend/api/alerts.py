@@ -414,15 +414,15 @@ async def create_alert(
         text("""
             INSERT INTO tender_alerts
             (user_id, name, alert_type, criteria, notification_channels, is_active, created_at, updated_at)
-            VALUES (:user_id, :name, :alert_type, :criteria, :notification_channels, true, NOW(), NOW())
+            VALUES (:user_id, :name, :alert_type, CAST(:criteria AS jsonb), CAST(:notification_channels AS jsonb), true, NOW(), NOW())
             RETURNING alert_id, user_id, name, alert_type, criteria, is_active,
                       notification_channels, created_at, updated_at
         """).params(
             user_id=str(current_user.user_id),
             name=alert.name,
             alert_type=alert.alert_type,
-            criteria=alert.criteria.model_dump(exclude_none=True),
-            notification_channels=alert.notification_channels
+            criteria=json.dumps(alert.criteria.model_dump(exclude_none=True)),
+            notification_channels=json.dumps(alert.notification_channels)
         )
     )
 
@@ -480,16 +480,16 @@ async def update_alert(
         params['name'] = alert_update.name
 
     if alert_update.criteria is not None:
-        update_fields.append("criteria = :criteria")
-        params['criteria'] = alert_update.criteria.model_dump(exclude_none=True)
+        update_fields.append("criteria = CAST(:criteria AS jsonb)")
+        params['criteria'] = json.dumps(alert_update.criteria.model_dump(exclude_none=True))
 
     if alert_update.is_active is not None:
         update_fields.append("is_active = :is_active")
         params['is_active'] = alert_update.is_active
 
     if alert_update.notification_channels is not None:
-        update_fields.append("notification_channels = :notification_channels")
-        params['notification_channels'] = alert_update.notification_channels
+        update_fields.append("notification_channels = CAST(:notification_channels AS jsonb)")
+        params['notification_channels'] = json.dumps(alert_update.notification_channels)
 
     if not update_fields:
         raise HTTPException(
