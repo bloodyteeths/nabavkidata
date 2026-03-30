@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,36 +55,48 @@ export function DocumentViewer({
     contentText ? { content_text: contentText } : null
   );
   const [copied, setCopied] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
 
-  // Load full document content if not already loaded
-  const loadDocumentContent = async () => {
-    // If we already have content (passed as prop), don't fetch again
-    if (documentContent?.content_text) return;
+  // Load full document content with AI summary
+  const loadDocumentContent = async (forAi = false) => {
+    // If we already have AI content, don't fetch again
+    if (documentContent?.ai_summary && !forAi) return;
+    // If only text is needed and we have it, skip
+    if (!forAi && documentContent?.content_text) return;
 
-    setLoading(true);
+    if (forAi) {
+      setAiLoading(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const { api } = await import("@/lib/api");
       const result = await api.getDocumentContent(docId);
-      if (result && result.content_text) {
+      if (result) {
         setDocumentContent(result);
       } else {
-        // No content available
-        setDocumentContent({ content_text: "" });
+        setDocumentContent({ content_text: documentContent?.content_text || "" });
       }
     } catch (error: any) {
       console.error("Failed to load document content:", error);
-      // Don't show toast for expected cases like 404
-      if (error?.message?.includes("404")) {
-        // Document content not available - silently handle
-      } else {
+      if (!error?.message?.includes("404")) {
         toast.error("Не успеавме да ја вчитаме содржината");
       }
-      // If API fails, show empty state
-      setDocumentContent({ content_text: "" });
+      if (!documentContent?.content_text) {
+        setDocumentContent({ content_text: "" });
+      }
     } finally {
       setLoading(false);
+      setAiLoading(false);
     }
   };
+
+  // Auto-fetch AI summary on mount
+  useEffect(() => {
+    if (!documentContent?.ai_summary) {
+      loadDocumentContent(true);
+    }
+  }, [docId]);
 
   // Highlight search matches in text
   const highlightText = (text: string, query: string) => {
@@ -172,7 +184,17 @@ export function DocumentViewer({
 
       <CardContent className="space-y-4">
         {/* AI Summary Section */}
-        {documentContent?.ai_summary && (
+        {aiLoading ? (
+          <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+              <div>
+                <h3 className="text-sm font-semibold text-primary">AI РЕЗИМЕ</h3>
+                <p className="text-xs text-muted-foreground mt-1">Се генерира AI анализа на документот...</p>
+              </div>
+            </div>
+          </div>
+        ) : documentContent?.ai_summary ? (
           <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
             <div className="flex items-start gap-2 mb-3">
               <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
@@ -182,7 +204,7 @@ export function DocumentViewer({
               {documentContent.ai_summary}
             </p>
           </div>
-        )}
+        ) : null}
 
         {/* Key Requirements Section */}
         {documentContent?.key_requirements && documentContent.key_requirements.length > 0 && (
@@ -259,7 +281,7 @@ export function DocumentViewer({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  if (!expanded && !documentContent?.content_text) {
+                  if (!expanded && !documentContent?.content_text && !aiLoading) {
                     loadDocumentContent();
                   }
                   setExpanded(!expanded);
