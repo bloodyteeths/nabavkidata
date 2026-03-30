@@ -63,6 +63,7 @@ import Link from "next/link";
 import { useDebounce } from "@/hooks/use-debounce";
 import { TenderExplanation } from "@/components/explainability/TenderExplanation";
 import { GraphExplorer } from "@/components/corruption/GraphExplorer";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { AlertsFeed } from "@/components/corruption/AlertsFeed";
 
 const API_URL = typeof window !== 'undefined'
@@ -718,7 +719,7 @@ export default function RiskAnalysisPage() {
 
           {/* Search and Filters */}
           <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px] max-w-md">
+            <div className="relative flex-1 w-full sm:min-w-[200px] sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Пребарај институција (кирилица или латиница)..."
@@ -728,7 +729,7 @@ export default function RiskAnalysisPage() {
               />
             </div>
 
-            <div className="relative flex-1 min-w-[200px] max-w-md">
+            <div className="relative flex-1 w-full sm:min-w-[200px] sm:max-w-md">
               <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Пребарај по компанија..."
@@ -1023,7 +1024,9 @@ export default function RiskAnalysisPage() {
 
 
         <TabsContent value="networks" className="mt-6">
-          <GraphExplorer />
+          <ErrorBoundary>
+            <GraphExplorer />
+          </ErrorBoundary>
         </TabsContent>
 
         {/* COLLUSION/NETWORKS TAB */}

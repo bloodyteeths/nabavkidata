@@ -24,6 +24,7 @@ import {
   SeasonalPatterns,
 } from "@/components/insights";
 import { api } from "@/lib/api";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Link from "next/link";
 
 export default function InsightsPage() {
@@ -314,7 +315,9 @@ export default function InsightsPage() {
               </p>
             </div>
           </div>
-          <UpcomingOpportunities cpvCode={appliedCpv} />
+          <ErrorBoundary>
+            <UpcomingOpportunities cpvCode={appliedCpv} />
+          </ErrorBoundary>
         </TabsContent>
 
         {/* Price Benchmarks */}
@@ -325,7 +328,9 @@ export default function InsightsPage() {
               Просечни вредности по категории и сектори - понудете конкурентно
             </p>
           </div>
-          <PriceBenchmarks />
+          <ErrorBoundary>
+            <PriceBenchmarks />
+          </ErrorBoundary>
         </TabsContent>
 
         {/* Active Buyers */}
@@ -336,7 +341,9 @@ export default function InsightsPage() {
               Институции кои објавуваат најмногу тендери - фокусирајте се на вистинските клиенти
             </p>
           </div>
-          <ActiveBuyers />
+          <ErrorBoundary>
+            <ActiveBuyers />
+          </ErrorBoundary>
         </TabsContent>
 
         {/* Seasonal Patterns */}
@@ -347,7 +354,9 @@ export default function InsightsPage() {
               Кога се објавуваат најмногу тендери - планирајте ги вашите ресурси
             </p>
           </div>
-          <SeasonalPatterns />
+          <ErrorBoundary>
+            <SeasonalPatterns />
+          </ErrorBoundary>
         </TabsContent>
       </Tabs>
     </div>

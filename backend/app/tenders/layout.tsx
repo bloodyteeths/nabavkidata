@@ -11,5 +11,5 @@ export default function TendersLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return <DashboardLayout requireAuth={false}>{children}</DashboardLayout>;
 }

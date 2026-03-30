@@ -42,6 +42,7 @@ import {
   Clock,
   MapPin,
   CreditCard,
+  TrendingUp,
   FileSpreadsheet,
   FileType,
   Lock,
@@ -742,10 +743,9 @@ export default function TenderDetailPage() {
         </div>
       </div>
 
-      {/* Compact Key Metrics Strip */}
-      {(tender.estimated_value_mkd || tender.actual_value_mkd || bidders.length > 0 || tender.closing_date) && (
-        <div className="flex flex-wrap gap-4 p-4 rounded-lg border bg-card">
-          {tender.estimated_value_mkd && (
+      {/* Compact Key Metrics Strip — always shown */}
+      <div className="flex flex-wrap gap-4 p-4 rounded-lg border bg-card">
+          {tender.estimated_value_mkd ? (
             <div className="flex items-center gap-2">
               <Tag className="h-4 w-4 text-muted-foreground" />
               <div>
@@ -753,7 +753,15 @@ export default function TenderDetailPage() {
                 <p className="text-sm font-bold">{formatCurrency(tender.estimated_value_mkd)}</p>
               </div>
             </div>
-          )}
+          ) : !tender.actual_value_mkd ? (
+            <div className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Буџет</p>
+                <p className="text-sm text-muted-foreground">Нема податок</p>
+              </div>
+            </div>
+          ) : null}
           {tender.actual_value_mkd && (
             <div className="flex items-center gap-2">
               <Award className="h-4 w-4 text-green-600" />
@@ -800,7 +808,6 @@ export default function TenderDetailPage() {
             </div>
           )}
         </div>
-      )}
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1782,10 +1789,10 @@ export default function TenderDetailPage() {
                 <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
                 {isSaved ? "Зачувано" : "Зачувај"}
               </Button>
-              <Link href={`/products?q=${encodeURIComponent((tender?.title || '').split(/\s+/).slice(0, 3).join(' '))}`}>
+              <Link href={`/tenders?status=awarded${tender.cpv_code ? `&cpv_code=${encodeURIComponent(tender.cpv_code)}` : `&search=${encodeURIComponent((tender?.title || '').split(/\s+/).slice(0, 3).join(' '))}`}`}>
                 <Button variant="outline" className="w-full justify-start">
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Историски цени
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Слични доделени тендери
                 </Button>
               </Link>
             </CardContent>

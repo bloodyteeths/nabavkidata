@@ -11,38 +11,29 @@ export interface NavItem {
 export interface NavGroup {
   label: string;
   items: NavItem[];
+  /** If true, group starts collapsed */
+  collapsible?: boolean;
 }
 
 export const navigationGroups: NavGroup[] = [
   {
     label: 'Главно',
     items: [
-      { name: 'Табла', href: '/dashboard', icon: LayoutDashboard },
       { name: 'Тендери', href: '/tenders', icon: Search },
-      { name: 'Алерти', href: '/alerts', icon: Bell, requiresOnboarding: true },
+      { name: 'Алерти', href: '/alerts', icon: Bell },
+      { name: 'AI Асистент', href: '/chat', icon: MessageSquare },
     ],
   },
   {
-    label: 'Пазар',
+    label: 'Повеќе',
+    collapsible: true,
     items: [
+      { name: 'Табла', href: '/dashboard', icon: LayoutDashboard },
       { name: 'e-Пазар', href: '/epazar', icon: ShoppingCart, requiresOnboarding: true },
-      { name: 'Производи', href: '/products', icon: Package },
       { name: 'Добавувачи', href: '/suppliers', icon: Building2, requiresOnboarding: true },
-    ],
-  },
-  {
-    label: 'Анализа',
-    items: [
       { name: 'Анализа на Ризик', href: '/risk-analysis', icon: ShieldAlert, requiresOnboarding: true },
       { name: 'Конкуренти', href: '/competitors', icon: Users, requiresOnboarding: true },
       { name: 'Бизнис Анализа', href: '/trends', icon: LineChart, requiresOnboarding: true },
-    ],
-  },
-  {
-    label: 'Алатки',
-    items: [
-      { name: 'AI Асистент', href: '/chat', icon: MessageSquare },
-      { name: 'Пораки', href: '/inbox', icon: Mail, requiresOnboarding: true },
     ],
   },
 ];
