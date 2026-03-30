@@ -22,7 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Building2, Trophy, FileText, TrendingUp, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Building2, Trophy, FileText, TrendingUp, Search, ChevronLeft, ChevronRight, SearchX, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
 
@@ -38,6 +39,10 @@ function SuppliersContent() {
   const [pageSize] = useState(20);
   const [search, setSearch] = useState(initialSearch);
   const [searchInput, setSearchInput] = useState(initialSearch);
+  const [city, setCity] = useState('');
+  const [cityInput, setCityInput] = useState('');
+  const [minWins, setMinWins] = useState<number | undefined>(undefined);
+  const [minWinsInput, setMinWinsInput] = useState('');
   const [sortBy, setSortBy] = useState('total_wins');
   const [sortOrder, setSortOrder] = useState('desc');
   const [stats, setStats] = useState<{
@@ -49,7 +54,7 @@ function SuppliersContent() {
 
   useEffect(() => {
     fetchSuppliers();
-  }, [page, search, sortBy, sortOrder]);
+  }, [page, search, city, minWins, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchStats();
@@ -78,6 +83,8 @@ function SuppliersContent() {
         page,
         page_size: pageSize,
         search: search || undefined,
+        city: city || undefined,
+        min_wins: minWins,
         sort_by: sortBy,
         sort_order: sortOrder,
       });
@@ -93,7 +100,24 @@ function SuppliersContent() {
   const handleSearch = () => {
     setPage(1);
     setSearch(searchInput);
+    setCity(cityInput);
+    const parsed = parseInt(minWinsInput, 10);
+    setMinWins(parsed > 0 ? parsed : undefined);
   };
+
+  const handleReset = () => {
+    setSearchInput('');
+    setCityInput('');
+    setMinWinsInput('');
+    setPage(1);
+    setSearch('');
+    setCity('');
+    setMinWins(undefined);
+    setSortBy('total_wins');
+    setSortOrder('desc');
+  };
+
+  const hasActiveFilters = search || city || minWins;
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -180,41 +204,73 @@ function SuppliersContent() {
       {/* Search and Filters */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 flex gap-2">
-              <Input
-                placeholder="Пребарувај по име на компанија..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="flex-1"
-              />
-              <Button onClick={handleSearch}>
-                <Search className="h-4 w-4 mr-2" />
-                Пребарај
-              </Button>
+          <div className="flex flex-col gap-4">
+            {/* Row 1: Search + Sort */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 flex gap-2">
+                <Input
+                  placeholder="Пребарувај по име на компанија..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="flex-1"
+                />
+                <Button onClick={handleSearch}>
+                  <Search className="h-4 w-4 mr-2" />
+                  Пребарај
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Подреди по" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="total_wins">Број на победи</SelectItem>
+                    <SelectItem value="total_bids">Број на понуди</SelectItem>
+                    <SelectItem value="win_rate">Стапка на победи</SelectItem>
+                    <SelectItem value="company_name">Име</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortOrder} onValueChange={setSortOrder}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Редослед" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">Опаѓачки</SelectItem>
+                    <SelectItem value="asc">Растечки</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Подреди по" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="total_wins">Број на победи</SelectItem>
-                  <SelectItem value="total_bids">Број на понуди</SelectItem>
-                  <SelectItem value="win_rate">Стапка на победи</SelectItem>
-                  <SelectItem value="company_name">Име</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sortOrder} onValueChange={setSortOrder}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Редослед" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="desc">Опаѓачки</SelectItem>
-                  <SelectItem value="asc">Растечки</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Row 2: City + Min Wins + Reset */}
+            <div className="flex flex-col sm:flex-row gap-3 items-end">
+              <div className="flex-1 sm:max-w-[240px]">
+                <label className="text-sm text-muted-foreground mb-1 block">Град</label>
+                <Input
+                  placeholder="пр. Скопје, Битола..."
+                  value={cityInput}
+                  onChange={(e) => setCityInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                />
+              </div>
+              <div className="w-full sm:w-[160px]">
+                <label className="text-sm text-muted-foreground mb-1 block">Минимум победи</label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="пр. 5"
+                  value={minWinsInput}
+                  onChange={(e) => setMinWinsInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                />
+              </div>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground">
+                  <RotateCcw className="h-4 w-4 mr-1" />
+                  Ресетирај
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -245,18 +301,33 @@ function SuppliersContent() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      Се вчитува...
-                    </div>
-                  </TableCell>
-                </TableRow>
+                Array.from({ length: 8 }).map((_, i) => (
+                  <TableRow key={`skeleton-${i}`}>
+                    <TableCell>
+                      <Skeleton className="h-5 w-[180px] mb-1" />
+                      <Skeleton className="h-3 w-[100px]" />
+                    </TableCell>
+                    <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
+                    <TableCell className="text-center"><Skeleton className="h-5 w-10 mx-auto rounded-full" /></TableCell>
+                    <TableCell className="text-center"><Skeleton className="h-5 w-10 mx-auto rounded-full" /></TableCell>
+                    <TableCell className="text-center"><Skeleton className="h-4 w-12 mx-auto" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-4 w-[100px] ml-auto" /></TableCell>
+                  </TableRow>
+                ))
               ) : suppliers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Нема пронајдени добавувачи
+                  <TableCell colSpan={6} className="py-16">
+                    <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                      <SearchX className="h-12 w-12" />
+                      <p className="text-lg font-medium">Нема пронајдени добавувачи</p>
+                      <p className="text-sm">Обидете се со поинакви филтри или пребарување</p>
+                      {hasActiveFilters && (
+                        <Button variant="outline" size="sm" onClick={handleReset} className="mt-2">
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                          Ресетирај филтри
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (

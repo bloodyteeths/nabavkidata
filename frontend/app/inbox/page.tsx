@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Mail, Inbox, Bell, CheckCircle, Circle, AlertCircle } from "lucide-react"
+import { Mail, Inbox, Bell, CheckCircle, Circle, AlertCircle, Loader2 } from "lucide-react"
 import { formatDate, formatDateTime } from "@/lib/utils"
 import { useAuth } from "@/lib/auth"
 import { api } from "@/lib/api"
@@ -27,37 +27,68 @@ interface EmailDigestDetail extends EmailDigest {
   text: string
 }
 
-interface SystemAlert {
-  id: string
-  message: string
-  date: string
-  read: boolean
-  severity: "info" | "warning" | "success"
+interface Notification {
+  notification_id: string
+  user_id: string
+  type: string
+  title: string
+  message?: string
+  data: Record<string, any>
+  tender_id?: string
+  alert_id?: string
+  is_read: boolean
+  created_at: string
 }
 
-// Mock alerts for now - will need backend endpoint
-const mockAlerts: SystemAlert[] = [
-  { id: "1", message: "Нов тендер што одговара на вашите критериуми е објавен", date: "2025-11-22T10:30:00", read: false, severity: "info" },
-  { id: "2", message: "Рокот за достава на понуда истекува за 2 дена", date: "2025-11-22T09:15:00", read: false, severity: "warning" },
-  { id: "3", message: "Вашата омилена компанија достави нова понуда", date: "2025-11-21T16:45:00", read: true, severity: "info" },
-  { id: "4", message: "Успешно се ажурираа податоците за тендери", date: "2025-11-21T08:00:00", read: true, severity: "success" },
-  { id: "5", message: "3 нови тендери од вашата категорија", date: "2025-11-20T14:20:00", read: true, severity: "info" }
-]
+const PAGE_SIZE = 10
 
 export default function InboxPage() {
   const { user } = useAuth()
   const [digests, setDigests] = useState<EmailDigest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [alerts, setAlerts] = useState<SystemAlert[]>(mockAlerts)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [notificationsLoading, setNotificationsLoading] = useState(true)
+  const [notificationsError, setNotificationsError] = useState<string | null>(null)
+  const [notificationsTotal, setNotificationsTotal] = useState(0)
+  const [notificationsPage, setNotificationsPage] = useState(1)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [markingRead, setMarkingRead] = useState<string | null>(null)
+  const [markingAllRead, setMarkingAllRead] = useState(false)
   const [selectedDigest, setSelectedDigest] = useState<EmailDigestDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+
+  const loadNotifications = useCallback(async (page: number = 1, append: boolean = false) => {
+    try {
+      if (append) {
+        setLoadingMore(true)
+      } else {
+        setNotificationsLoading(true)
+      }
+      setNotificationsError(null)
+      const response = await api.getNotifications(page, PAGE_SIZE)
+      if (append) {
+        setNotifications(prev => [...prev, ...response.items])
+      } else {
+        setNotifications(response.items)
+      }
+      setNotificationsTotal(response.total)
+      setNotificationsPage(page)
+    } catch (err) {
+      console.error("Failed to load notifications:", err)
+      setNotificationsError("Не можевме да ги вчитаме известувањата. Ве молиме обидете се повторно.")
+    } finally {
+      setNotificationsLoading(false)
+      setLoadingMore(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (user) {
       loadDigests()
+      loadNotifications(1)
     }
-  }, [user])
+  }, [user, loadNotifications])
 
   async function loadDigests() {
     if (!user) return
@@ -94,16 +125,52 @@ export default function InboxPage() {
   }
 
   const unreadDigestsCount = digests.filter((d) => !d.sent).length
-  const unreadAlertsCount = alerts.filter((a) => !a.read).length
+  const unreadAlertsCount = notifications.filter((n) => !n.is_read).length
+  const hasMoreNotifications = notifications.length < notificationsTotal
 
-  const toggleAlertRead = (id: string) => {
-    setAlerts(alerts.map((a) => (a.id === id ? { ...a, read: !a.read } : a)))
+  async function handleMarkRead(notificationId: string) {
+    setMarkingRead(notificationId)
+    try {
+      await api.markNotificationRead(notificationId)
+      setNotifications(prev =>
+        prev.map(n => n.notification_id === notificationId ? { ...n, is_read: !n.is_read } : n)
+      )
+    } catch (err) {
+      console.error("Failed to mark notification:", err)
+    } finally {
+      setMarkingRead(null)
+    }
   }
 
-  const getSeverityColor = (severity: string) => {
-    if (severity === "warning") return "bg-yellow-100 text-yellow-800 border-yellow-200"
-    if (severity === "success") return "bg-green-100 text-green-800 border-green-200"
+  async function handleMarkAllRead() {
+    setMarkingAllRead(true)
+    try {
+      await api.markAllRead()
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+    } catch (err) {
+      console.error("Failed to mark all as read:", err)
+    } finally {
+      setMarkingAllRead(false)
+    }
+  }
+
+  function handleLoadMore() {
+    loadNotifications(notificationsPage + 1, true)
+  }
+
+  const getTypeColor = (type: string) => {
+    if (type === "alert_match" || type === "warning") return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    if (type === "success" || type === "welcome") return "bg-green-100 text-green-800 border-green-200"
     return "bg-blue-100 text-blue-800 border-blue-200"
+  }
+
+  const getTypeLabel = (type: string) => {
+    if (type === "alert_match") return "Совпаѓање"
+    if (type === "warning") return "Предупредување"
+    if (type === "success" || type === "welcome") return "Успех"
+    if (type === "deadline") return "Рок"
+    if (type === "system") return "Систем"
+    return "Информација"
   }
 
   if (loading) {
@@ -280,41 +347,107 @@ export default function InboxPage() {
                   <CardTitle className="text-lg md:text-xl">Системски известувања</CardTitle>
                   <CardDescription className="text-xs md:text-sm">Важни пораки и ажурирања од системот</CardDescription>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setAlerts(alerts.map((a) => ({ ...a, read: true })))} className="w-full sm:w-auto h-8 md:h-9 text-xs md:text-sm">Означи сè како прочитано</Button>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <Button variant="ghost" size="sm" onClick={() => loadNotifications(1)} className="w-full sm:w-auto h-8 md:h-9 text-xs md:text-sm">Освежи</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleMarkAllRead}
+                    disabled={markingAllRead || unreadAlertsCount === 0}
+                    className="w-full sm:w-auto h-8 md:h-9 text-xs md:text-sm"
+                  >
+                    {markingAllRead ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    Означи сè како прочитано
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {alerts.map((alert) => (
-                  <Card key={alert.id} className={`${!alert.read ? "border-l-4 border-l-primary bg-blue-50" : ""}`}>
-                    <CardContent className="p-3 md:p-4">
-                      <div className="flex items-start justify-between gap-3 md:gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1 md:mb-2 flex-wrap">
-                            <Badge className={`${getSeverityColor(alert.severity)} text-[10px] md:text-xs px-1.5 py-0`}>
-                              {alert.severity === "warning" && "Предупредување"}
-                              {alert.severity === "success" && "Успех"}
-                              {alert.severity === "info" && "Информација"}
-                            </Badge>
-                            <span className="text-[10px] md:text-xs text-muted-foreground">
-                              {formatDateTime(alert.date, {
-                                day: "numeric",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
+              {notificationsLoading ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-20 bg-muted rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+              ) : notificationsError ? (
+                <div className="text-center py-12">
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">Грешка при вчитување</h3>
+                  <p className="text-muted-foreground mb-4 text-sm">{notificationsError}</p>
+                  <Button variant="outline" size="sm" onClick={() => loadNotifications(1)}>Обиди се повторно</Button>
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="text-center py-12">
+                  <Bell className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">Нема известувања</h3>
+                  <p className="text-muted-foreground text-sm">Кога ќе има нови совпаѓања или системски пораки, ќе се појават овде.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.map((notif) => (
+                    <Card key={notif.notification_id} className={`${!notif.is_read ? "border-l-4 border-l-primary bg-blue-50" : ""}`}>
+                      <CardContent className="p-3 md:p-4">
+                        <div className="flex items-start justify-between gap-3 md:gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1 md:mb-2 flex-wrap">
+                              <Badge className={`${getTypeColor(notif.type)} text-[10px] md:text-xs px-1.5 py-0`}>
+                                {getTypeLabel(notif.type)}
+                              </Badge>
+                              <span className="text-[10px] md:text-xs text-muted-foreground">
+                                {formatDateTime(notif.created_at, {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            <p className={`text-xs md:text-sm ${!notif.is_read ? "font-semibold" : ""}`}>{notif.title}</p>
+                            {notif.message && (
+                              <p className="text-[10px] md:text-xs text-muted-foreground mt-1">{notif.message}</p>
+                            )}
                           </div>
-                          <p className={`text-xs md:text-sm ${!alert.read ? "font-semibold" : ""}`}>{alert.message}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleMarkRead(notif.notification_id)}
+                            disabled={markingRead === notif.notification_id}
+                            className="h-6 w-6 md:h-8 md:w-8 p-0"
+                            title={notif.is_read ? "Означи како непрочитано" : "Означи како прочитано"}
+                          >
+                            {markingRead === notif.notification_id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : notif.is_read ? (
+                              <Circle className="h-3 w-3 md:h-4 md:w-4" />
+                            ) : (
+                              <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-green-600" />
+                            )}
+                          </Button>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => toggleAlertRead(alert.id)} className="h-6 w-6 md:h-8 md:w-8 p-0">
-                          {alert.read ? <Circle className="h-3 w-3 md:h-4 md:w-4" /> : <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-green-600" />}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {hasMoreNotifications && (
+                    <div className="text-center pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        className="text-xs md:text-sm"
+                      >
+                        {loadingMore ? (
+                          <><Loader2 className="h-3 w-3 animate-spin mr-2" />Се вчитува...</>
+                        ) : (
+                          <>Прикажи повеќе ({notifications.length} од {notificationsTotal})</>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

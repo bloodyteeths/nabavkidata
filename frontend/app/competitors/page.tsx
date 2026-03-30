@@ -30,9 +30,7 @@ import {
   Package,
   Send
 } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
-import { CompetitorCard } from "@/components/competitors/CompetitorCard";
 import { CompetitorSearch } from "@/components/competitors/CompetitorSearch";
 import ActivityFeed from "@/components/competitors/ActivityFeed";
 import { CompetitorComparison, CompetitorStats } from "@/components/competitors/CompetitorComparison";

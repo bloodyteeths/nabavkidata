@@ -26,6 +26,7 @@ import {
   MapPin,
   User,
   ExternalLink,
+  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDate, tenderUrl } from '@/lib/utils';
@@ -175,6 +176,27 @@ export default function SupplierDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Strength Analysis Link */}
+      <Card className="mb-6 border-primary/20 bg-primary/5">
+        <CardContent className="py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <BarChart3 className="h-8 w-8 text-primary" />
+            <div>
+              <p className="font-semibold">Анализа на сила</p>
+              <p className="text-sm text-muted-foreground">
+                Детална оценка, трендови, рангирање и диверзитет на добавувачот
+              </p>
+            </div>
+          </div>
+          <Link href={`/suppliers/${encodeURIComponent(supplierId)}/strength`}>
+            <Button>
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Погледни анализа
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Contact Information */}
