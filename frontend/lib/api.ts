@@ -434,11 +434,10 @@ class APIClient {
       headers['x-device-fingerprint'] = fp;
     }
 
-    // Add CSRF token for state-changing operations on billing endpoints
+    // Add CSRF token for all state-changing operations
     if (
       options?.method &&
-      ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method) &&
-      endpoint.includes('/billing')
+      ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method)
     ) {
       const csrfToken = this.getCSRFToken();
       if (csrfToken) {
@@ -507,6 +506,13 @@ class APIClient {
             if (retryResponse.ok) {
               return retryResponse.json();
             }
+            // Retry failed — throw instead of falling through silently
+            const retryErrorData = await retryResponse.json().catch(() => ({ detail: retryResponse.statusText }));
+            const retryDetail = retryErrorData.detail;
+            const retryMsg = Array.isArray(retryDetail) ? retryDetail.map((e: any) => e.msg).join(', ') : retryDetail || `API Error: ${retryResponse.statusText}`;
+            const retryError = new Error(retryMsg);
+            (retryError as any).status = retryResponse.status;
+            throw retryError;
           }
         } catch (err) {
           // Refresh failed - only redirect to login for auth endpoints
@@ -565,7 +571,9 @@ class APIClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      const error = new Error(errorData.detail || `API Error: ${response.statusText}`);
+      const detail = errorData.detail;
+      const message = Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : detail || `API Error: ${response.statusText}`;
+      const error = new Error(message);
       (error as any).status = response.status;
       throw error;
     }
@@ -745,7 +753,8 @@ class APIClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(errorData.detail || `API Error: ${response.statusText}`);
+      const detail = errorData.detail;
+      throw new Error(Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : detail || `API Error: ${response.statusText}`);
     }
 
     return response.json();
@@ -778,7 +787,9 @@ class APIClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      const error = new Error(errorData.detail || `API Error: ${response.statusText}`);
+      const detail = errorData.detail;
+      const message = Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : detail || `API Error: ${response.statusText}`;
+      const error = new Error(message);
       (error as any).status = response.status;
       throw error;
     }

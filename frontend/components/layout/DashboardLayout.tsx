@@ -57,6 +57,17 @@ export default function DashboardLayout({
     useEffect(() => {
         setIsMobileMenuOpen(false);
     }, [pathname]);
+
+    // Close mobile menu on Escape key
+    useEffect(() => {
+        if (!isMobileMenuOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setIsMobileMenuOpen(false);
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isMobileMenuOpen]);
+
     const filteredGroups = navigationGroups
         .map(g => ({
             ...g,
@@ -95,6 +106,7 @@ export default function DashboardLayout({
                             {isCollapsible ? (
                                 <button
                                     onClick={() => toggleGroup(group.label)}
+                                    aria-expanded={!isCollapsed}
                                     className="w-full flex items-center justify-between px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
                                 >
                                     {group.label}
@@ -201,14 +213,14 @@ export default function DashboardLayout({
                     <div className="flex items-center gap-2">
                         <ThemeToggle />
                         <NotificationBell />
-                        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+                        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} aria-label={isMobileMenuOpen ? "Затвори мени" : "Отвори мени"}>
                             {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                         </Button>
                     </div>
                 </div>
 
                 {/* Desktop Sidebar */}
-                <aside className="hidden md:flex w-64 border-r border-border flex-col glass relative z-20">
+                <aside className="hidden md:flex w-64 border-r border-border flex-col glass relative z-20" aria-label="Главно мени">
                     <SidebarContent />
                 </aside>
 
@@ -227,7 +239,7 @@ export default function DashboardLayout({
                             className="absolute inset-0 bg-background/80 backdrop-blur-sm"
                             onClick={() => setIsMobileMenuOpen(false)}
                         />
-                        <aside className="absolute top-16 bottom-0 left-0 w-64 border-r border-border flex flex-col bg-background/95 backdrop-blur-xl animate-in slide-in-from-left">
+                        <aside className="absolute top-16 bottom-0 left-0 w-64 border-r border-border flex flex-col bg-background/95 backdrop-blur-xl animate-in slide-in-from-left" aria-label="Главно мени">
                             <SidebarContent />
                         </aside>
                     </div>

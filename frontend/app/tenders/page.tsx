@@ -399,6 +399,7 @@ function TendersPageContent() {
         <Input
           placeholder="Пребарај тендери по клучен збор..."
           className="pl-9 h-11 text-base"
+          aria-label="Пребарај тендери"
           value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
         />
@@ -463,6 +464,7 @@ function TendersPageContent() {
                   setSortOrder(newSortOrder as 'asc' | 'desc');
                   setPage(1);
                 }}
+                aria-label="Сортирај по"
                 className="text-xs md:text-sm bg-background border border-input rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="publication_date-desc">Најнови прво</option>

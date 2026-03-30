@@ -12,7 +12,6 @@ import { AlertBellButton } from "@/components/alerts/AlertBellButton";
 
 interface TenderCardProps {
   tender: Tender;
-  onViewDetails?: (tenderId: string) => void;
 }
 
 // Compute effective status based on closing_date
@@ -102,7 +101,7 @@ export function TenderCard({ tender }: TenderCardProps) {
             {/* Winner — compact green line for awarded */}
             {tender.winner && (
               <div className="flex items-center gap-2 text-sm bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md px-3 py-1.5">
-                <Trophy className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                <Trophy className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" aria-hidden="true" />
                 <span className="font-medium text-green-800 dark:text-green-200 truncate">
                   {tender.winner}
                 </span>
@@ -118,7 +117,7 @@ export function TenderCard({ tender }: TenderCardProps) {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {tender.procuring_entity && (
                 <span className="flex items-center gap-1 truncate max-w-[250px]">
-                  <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+                  <Building2 className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
                   {tender.procuring_entity}
                 </span>
               )}
@@ -127,7 +126,7 @@ export function TenderCard({ tender }: TenderCardProps) {
               </span>
               {tender.closing_date && (
                 <span className="flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                  <Calendar className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
                   Рок: {formatDate(tender.closing_date)}
                 </span>
               )}
@@ -152,13 +151,13 @@ export function TenderCard({ tender }: TenderCardProps) {
             />
             {sourceUrl ? (
               <Button size="sm" variant="outline" asChild className="flex-1 sm:flex-none">
-                <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4" />
+                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" aria-label="Отвори на е-набавки" title="Отвори на е-набавки">
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 </a>
               </Button>
             ) : (
-              <Button size="sm" variant="outline" disabled title="Нема изворна врска" className="flex-1 sm:flex-none">
-                <ExternalLink className="h-4 w-4" />
+              <Button size="sm" variant="outline" disabled title="Нема изворна врска" aria-label="Нема изворна врска" className="flex-1 sm:flex-none">
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </Button>
             )}
           </div>

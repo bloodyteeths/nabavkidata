@@ -228,6 +228,17 @@ export default function RiskAnalysisPage() {
   // ML Explanation for individual tenders
   const [showMLExplanation, setShowMLExplanation] = useState<string | null>(null);
 
+  // Lazy-load tabs: only fetch data when a tab is first visited
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(["flagged"]));
+
+  // Tab descriptions in Macedonian
+  const TAB_DESCRIPTIONS: Record<string, string> = {
+    flagged: "Тендери со потенцијални ризици базирани на цена, рок, или шема на доделување",
+    collusion: "Мрежи на поврзани компании кои заеднички учествуваат на тендери",
+    networks: "Визуелна анализа на врски помеѓу институции, компании и понудувачи",
+    alerts: "Автоматски известувања за нови ризични тендери и сомнителни активности",
+  };
+
   // Check subscription tier
   useEffect(() => {
     async function checkAuth() {
@@ -284,12 +295,12 @@ export default function RiskAnalysisPage() {
     setCurrentPage(1);
   }, [riskFilter, flagFilter, debouncedSearch, debouncedWinner]);
 
-  // Load collusion data when tab is selected
+  // Load collusion data when tab is first visited
   useEffect(() => {
-    if (mode === "collusion" && collusionClusters.length === 0 && !collusionLoading) {
+    if (mode === "collusion" && collusionClusters.length === 0 && !collusionLoading && loadedTabs.has("collusion")) {
       loadCollusionData();
     }
-  }, [mode]);
+  }, [mode, loadedTabs]);
 
   async function loadCollusionData() {
     setCollusionLoading(true);
@@ -651,7 +662,12 @@ export default function RiskAnalysisPage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs value={mode} onValueChange={setMode}>
+      <Tabs value={mode} onValueChange={(tab) => {
+        setMode(tab);
+        if (!loadedTabs.has(tab)) {
+          setLoadedTabs(prev => new Set(prev).add(tab));
+        }
+      }}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="flagged" className="gap-2">
             <Shield className="h-4 w-4" />
@@ -673,6 +689,11 @@ export default function RiskAnalysisPage() {
 
         {/* FLAGGED TAB */}
         <TabsContent value="flagged" className="space-y-6 mt-6">
+          {/* Tab description */}
+          <p className="text-sm text-muted-foreground -mt-2">
+            {TAB_DESCRIPTIONS.flagged}
+          </p>
+
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Card>
@@ -1023,14 +1044,34 @@ export default function RiskAnalysisPage() {
         </TabsContent>
 
 
-        <TabsContent value="networks" className="mt-6">
-          <ErrorBoundary>
-            <GraphExplorer />
-          </ErrorBoundary>
+        <TabsContent value="networks" className="space-y-6 mt-6">
+          <p className="text-sm text-muted-foreground -mt-2">
+            {TAB_DESCRIPTIONS.networks}
+          </p>
+          {loadedTabs.has("networks") ? (
+            <ErrorBoundary>
+              <GraphExplorer />
+            </ErrorBoundary>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="p-4 space-y-3">
+                    <Skeleton className="h-5 w-1/3" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         {/* COLLUSION/NETWORKS TAB */}
         <TabsContent value="collusion" className="space-y-6 mt-6">
+          <p className="text-sm text-muted-foreground -mt-2">
+            {TAB_DESCRIPTIONS.collusion}
+          </p>
           <Card className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20 border-red-200">
             <CardContent className="p-4 flex items-center gap-3">
               <Network className="h-6 w-6 text-red-600" />
@@ -1044,11 +1085,55 @@ export default function RiskAnalysisPage() {
           </Card>
 
           {collusionLoading ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Card key={i}><CardContent className="p-4"><Skeleton className="h-32" /></CardContent></Card>
-              ))}
+            <div className="space-y-4">
+              {/* Stats skeleton */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Card key={`stat-${i}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-10 w-10 rounded-lg" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-6 w-12" />
+                          <Skeleton className="h-3 w-24" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {/* Clusters skeleton */}
+              <div className="grid md:grid-cols-2 gap-6">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Card key={`cluster-${i}`}>
+                    <CardContent className="p-4 space-y-3">
+                      <Skeleton className="h-5 w-1/3" />
+                      <Skeleton className="h-3 w-2/3" />
+                      {Array.from({ length: 3 }).map((_, j) => (
+                        <div key={j} className="flex items-center gap-2">
+                          <Skeleton className="h-8 w-16 rounded-full" />
+                          <Skeleton className="h-4 flex-1" />
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
+          ) : !collusionStats && collusionClusters.length === 0 && companyRisks.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center">
+                <Network className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                <h3 className="font-medium text-lg">Нема детектирани мрежи на колузија</h3>
+                <p className="text-muted-foreground mt-1">
+                  Системот моментално не наоѓа групи компании со сомнително координирање
+                </p>
+                <Button variant="outline" className="mt-4" onClick={loadCollusionData}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Обиди се повторно
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
             <>
               {/* Collusion Stats */}
@@ -1255,8 +1340,30 @@ export default function RiskAnalysisPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="alerts" className="mt-6">
-          <AlertsFeed />
+        <TabsContent value="alerts" className="space-y-6 mt-6">
+          <p className="text-sm text-muted-foreground -mt-2">
+            {TAB_DESCRIPTIONS.alerts}
+          </p>
+          {loadedTabs.has("alerts") ? (
+            <AlertsFeed />
+          ) : (
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

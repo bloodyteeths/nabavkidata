@@ -111,6 +111,10 @@ function formatContractDuration(value?: string | number): string {
   return str;
 }
 
+const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const isValidPhone = (phone: string) => /^[+\d\s()\-]+$/.test(phone);
+const isSafeUrl = (url: string) => /^https?:\/\//i.test(url);
+
 function extractDocumentName(doc: { file_name?: string; file_url?: string }): string {
   const isGenericName = (name: string) =>
     /^document_[a-f0-9]+\.pdf$/i.test(name) ||
@@ -990,12 +994,16 @@ export default function TenderDetailPage() {
                         <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
                         <div>
                           <p className="text-sm font-medium">Е-пошта</p>
-                          <a
-                            href={`mailto:${tender.contact_email}`}
-                            className="text-sm text-primary hover:underline"
-                          >
-                            {tender.contact_email}
-                          </a>
+                          {isValidEmail(tender.contact_email) ? (
+                            <a
+                              href={`mailto:${tender.contact_email}`}
+                              className="text-sm text-primary hover:underline"
+                            >
+                              {tender.contact_email}
+                            </a>
+                          ) : (
+                            <span className="text-sm">{tender.contact_email}</span>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1004,12 +1012,16 @@ export default function TenderDetailPage() {
                         <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
                         <div>
                           <p className="text-sm font-medium">Телефон</p>
-                          <a
-                            href={`tel:${tender.contact_phone}`}
-                            className="text-sm text-primary hover:underline"
-                          >
-                            {tender.contact_phone}
-                          </a>
+                          {isValidPhone(tender.contact_phone) ? (
+                            <a
+                              href={`tel:${tender.contact_phone}`}
+                              className="text-sm text-primary hover:underline"
+                            >
+                              {tender.contact_phone}
+                            </a>
+                          ) : (
+                            <span className="text-sm">{tender.contact_phone}</span>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1199,8 +1211,8 @@ export default function TenderDetailPage() {
                                   Нема содржина
                                 </Button>
                               )}
-                              {/* External link buttons - always shown when file_url exists */}
-                              {doc.file_url && (
+                              {/* External link buttons - only shown for safe URLs */}
+                              {doc.file_url && isSafeUrl(doc.file_url) && (
                                 <>
                                   <Button
                                     variant="outline"

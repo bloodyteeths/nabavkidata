@@ -15,10 +15,13 @@ export function TenderStats({ stats, activeStatus, onStatusChange, loading }: Te
   ];
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1">
+    <div className="flex gap-2 overflow-x-auto pb-1" role="tablist">
       {tabs.map((tab) => (
         <button
           key={tab.key}
+          role="tab"
+          aria-selected={activeStatus === tab.key}
+          aria-label={`${tab.label} тендери: ${loading ? '...' : tab.count.toLocaleString()}`}
           onClick={() => onStatusChange(tab.key)}
           className={cn(
             "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap",
