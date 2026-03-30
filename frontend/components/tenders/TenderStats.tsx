@@ -1,81 +1,43 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, CheckCircle, XCircle, Clock, Ban } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TenderStatsProps {
-  total: number;
-  open: number;
-  closed: number;
-  awarded: number;
-  cancelled?: number;
+  stats: { total: number; open: number; awarded: number };
+  activeStatus: string;
+  onStatusChange: (status: string) => void;
+  loading?: boolean;
 }
 
-export function TenderStats({ total, open, closed, awarded, cancelled = 0 }: TenderStatsProps) {
+export function TenderStats({ stats, activeStatus, onStatusChange, loading }: TenderStatsProps) {
+  const tabs = [
+    { key: 'open', label: 'Отворени', count: stats.open },
+    { key: 'awarded', label: 'Доделени', count: stats.awarded },
+    { key: 'all', label: 'Сите', count: stats.total },
+  ];
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <FileText className="h-4 w-4 text-primary" />
-            Вкупно
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{total}</div>
-          <p className="text-xs text-muted-foreground">Тендери</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Clock className="h-4 w-4 text-green-600" />
-            Отворени
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{open}</div>
-          <p className="text-xs text-muted-foreground">Активни</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-orange-600" />
-            Затворени
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{closed}</div>
-          <p className="text-xs text-muted-foreground">Истечени</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 text-blue-600" />
-            Доделени
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{awarded}</div>
-          <p className="text-xs text-muted-foreground">Завршени</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Ban className="h-4 w-4 text-red-600" />
-            Откажани
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{cancelled}</div>
-          <p className="text-xs text-muted-foreground">Поништени</p>
-        </CardContent>
-      </Card>
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {tabs.map((tab) => (
+        <button
+          key={tab.key}
+          onClick={() => onStatusChange(tab.key)}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap",
+            activeStatus === tab.key
+              ? "bg-primary text-primary-foreground shadow-md"
+              : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          {tab.label}
+          <span className={cn(
+            "text-xs px-1.5 py-0.5 rounded-md",
+            activeStatus === tab.key
+              ? "bg-primary-foreground/20 text-primary-foreground"
+              : "bg-background text-muted-foreground"
+          )}>
+            {loading ? '...' : tab.count.toLocaleString()}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }

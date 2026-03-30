@@ -1,15 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { TenderCard } from "@/components/tenders/TenderCard";
 import { TenderFilters, type FilterState } from "@/components/tenders/TenderFilters";
 import { TenderStats } from "@/components/tenders/TenderStats";
 import { SavedSearches } from "@/components/SavedSearches";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ExportButton } from "@/components/ExportButton";
 import { api, type Tender } from "@/lib/api";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,14 +23,9 @@ function TendersLoadingFallback() {
         <Skeleton className="h-8 w-64 mb-2" />
         <Skeleton className="h-4 w-96" />
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <Skeleton className="h-4 w-20 mb-2" />
-              <Skeleton className="h-8 w-16" />
-            </CardContent>
-          </Card>
+      <div className="flex gap-2">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-10 w-32 rounded-lg" />
         ))}
       </div>
       <div className="space-y-4">
@@ -64,25 +60,26 @@ function TendersPageContent() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({});
-  // Initialize with cached approximate values to avoid showing zeros while loading
-  const [stats, setStats] = useState({ total: 273772, open: 833, closed: 545, awarded: 268491, cancelled: 2083 });
+  const [stats, setStats] = useState({ total: 273772, open: 833, awarded: 268491 });
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  // Track if we should trigger a load (for manual apply button)
-  const [shouldLoad, setShouldLoad] = useState(0);
   // Sorting
   const [sortBy, setSortBy] = useState('publication_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const limit = 20;
 
+  // Track if initial URL params have been loaded
+  const initializedRef = useRef(false);
+  // Debounce timer for search text
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Sync filters to URL
-  const syncFiltersToURL = (currentFilters: FilterState) => {
+  const syncFiltersToURL = useCallback((currentFilters: FilterState) => {
     const params = new URLSearchParams();
 
     if (currentFilters.search) {
       params.set('search', currentFilters.search);
     }
-    // Only include status if explicitly set by user
     if (currentFilters.status && currentFilters.status !== 'all') {
       params.set('status', currentFilters.status);
     }
@@ -119,13 +116,13 @@ function TendersPageContent() {
 
     const queryString = params.toString();
     const newUrl = queryString ? `/tenders?${queryString}` : '/tenders';
-
-    // Use replace to avoid polluting browser history
     router.replace(newUrl);
-  };
+  }, [router]);
 
   // Hydration guard and URL params initialization
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     setIsHydrated(true);
 
     // Read initial filters from URL params
@@ -137,7 +134,6 @@ function TendersPageContent() {
     const search = searchParams.get('search');
     if (search) {
       initialFilters.search = search;
-      // When searching, default to ALL statuses so users see historical results too
       if (!status) initialFilters.status = 'all';
     }
 
@@ -177,7 +173,7 @@ function TendersPageContent() {
     const closingDateTo = searchParams.get('closing_date_to');
     if (closingDateTo) initialFilters.closingDateTo = closingDateTo;
 
-    // Handle closing_within parameter - convert to closing_date_to
+    // Handle closing_within parameter
     const closingWithin = searchParams.get('closing_within');
     if (closingWithin) {
       const days = parseInt(closingWithin, 10);
@@ -190,27 +186,35 @@ function TendersPageContent() {
       }
     }
 
-    // Default to last 30 days if no date filter specified AND no search query
-    // When searching, show all time so users find historical/awarded tenders
+    // Default to last 30 days if no date filter and no search
     if (!initialFilters.search && !initialFilters.dateFrom && !initialFilters.dateTo && !initialFilters.closingDateFrom && !initialFilters.closingDateTo) {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       initialFilters.dateFrom = thirtyDaysAgo.toISOString().split('T')[0];
     }
 
-    setFilters(initialFilters);
-    if (Object.keys(initialFilters).length > 1) { // More than just status
-      setShowFilters(true); // Show filters panel when filters are applied from URL
+    // Default status to open
+    if (!initialFilters.status) {
+      initialFilters.status = 'open';
     }
-    // Trigger reload with new filters
-    setShouldLoad(prev => prev + 1);
+
+    setFilters(initialFilters);
+    if (Object.keys(initialFilters).length > 2) {
+      setShowFilters(true);
+    }
   }, [searchParams]);
 
+  // Auto-load tenders when filters change (debounced for text, instant for dropdowns)
   useEffect(() => {
     if (!isHydrated) return;
-    loadTenders();
-  }, [isHydrated, page, shouldLoad, sortBy, sortOrder]);
+    const timer = setTimeout(() => {
+      loadTenders();
+      syncFiltersToURL(filters);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isHydrated, JSON.stringify(filters), page, sortBy, sortOrder]);
 
+  // Load global stats once
   useEffect(() => {
     if (!isHydrated) return;
     loadStats();
@@ -227,44 +231,24 @@ function TendersPageContent() {
         sort_order: sortOrder,
       };
 
-      // Apply text search
       if (filters.search) params.search = filters.search;
 
-      // Status filter - default to "open" (active tenders) if not specified
-      // "all" means user explicitly wants all statuses (no filter)
+      // Status filter
       if (filters.status && filters.status !== 'all') {
         params.status = filters.status;
       } else if (!filters.status) {
-        params.status = 'open';  // Show only active tenders by default
+        params.status = 'open';
       }
-      // If filters.status === 'all', don't add status param (shows all)
 
-      // Category filter - pass exactly as selected
       if (filters.category) params.category = filters.category;
-
-      // Budget filters - map to backend parameter names
-      if (filters.minBudget && filters.minBudget > 0) {
-        params.min_estimated_mkd = filters.minBudget;
-      }
-      if (filters.maxBudget && filters.maxBudget > 0) {
-        params.max_estimated_mkd = filters.maxBudget;
-      }
-
-      // CPV code filter
+      if (filters.minBudget && filters.minBudget > 0) params.min_estimated_mkd = filters.minBudget;
+      if (filters.maxBudget && filters.maxBudget > 0) params.max_estimated_mkd = filters.maxBudget;
       if (filters.cpvCode) params.cpv_code = filters.cpvCode;
-
-      // Entity filter
       if (filters.entity) params.procuring_entity = filters.entity;
-
-      // Date filters - map to backend parameter names (opening_date_from/to)
       if (filters.dateFrom) params.opening_date_from = filters.dateFrom;
       if (filters.dateTo) params.opening_date_to = filters.dateTo;
-
-      // Closing date filters
       if (filters.closingDateFrom) params.closing_date_from = filters.closingDateFrom;
       if (filters.closingDateTo) params.closing_date_to = filters.closingDateTo;
-
-      // Procedure type filter
       if (filters.procedureType) params.procedure_type = filters.procedureType;
 
       const result = await api.getTenders(params);
@@ -285,9 +269,7 @@ function TendersPageContent() {
       setStats({
         total: result.total_tenders || 0,
         open: result.open_tenders || 0,
-        closed: result.closed_tenders || 0,
         awarded: result.awarded_tenders || 0,
-        cancelled: result.cancelled_tenders || 0,
       });
     } catch (error) {
       console.error("Failed to load stats:", error);
@@ -299,35 +281,62 @@ function TendersPageContent() {
     setPage(1);
   };
 
+  const handleStatusChange = (status: string) => {
+    const newFilters = { ...filters, status };
+    // When switching to "all" or "awarded", remove date default so we see historical data
+    if (status === 'all' || status === 'awarded') {
+      delete newFilters.dateFrom;
+      delete newFilters.dateTo;
+    } else if (status === 'open' && !newFilters.dateFrom && !newFilters.search) {
+      // When switching to open, apply 30-day default
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      newFilters.dateFrom = thirtyDaysAgo.toISOString().split('T')[0];
+    }
+    setFilters(newFilters);
+    setPage(1);
+  };
+
+  const handleSearchChange = (value: string) => {
+    // Debounce search input
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    const newFilters = { ...filters, search: value || undefined };
+    // When searching, show all statuses
+    if (value && filters.status !== 'all') {
+      newFilters.status = 'all';
+      delete newFilters.dateFrom;
+      delete newFilters.dateTo;
+    }
+    searchTimerRef.current = setTimeout(() => {
+      setFilters(newFilters);
+      setPage(1);
+    }, 500);
+    // Update search display immediately (but don't trigger load yet)
+    setFilters(prev => ({ ...prev, search: value || undefined }));
+  };
+
   const searchAllStatuses = () => {
     const newFilters: FilterState = { search: filters.search, status: 'all' };
     setFilters(newFilters);
     setPage(1);
-    setShouldLoad(prev => prev + 1);
-    syncFiltersToURL(newFilters);
   };
 
   const handleReset = () => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const defaultFilters = {
+    const defaultFilters: FilterState = {
       status: 'open',
       dateFrom: thirtyDaysAgo.toISOString().split('T')[0]
     };
     setFilters(defaultFilters);
     setPage(1);
-    setShouldLoad(prev => prev + 1);
-    // Clear URL params
     router.replace('/tenders?status=open');
   };
 
   const handleLoadSearch = (savedFilters: FilterState) => {
     setFilters(savedFilters);
     setPage(1);
-    setShouldLoad(prev => prev + 1);
-    syncFiltersToURL(savedFilters);
     toast.success("Пребарувањето е вчитано");
-    // On mobile, close filters after loading a search
     if (window.innerWidth < 1024) {
       setShowFilters(false);
     }
@@ -335,7 +344,18 @@ function TendersPageContent() {
 
   const totalPages = Math.ceil(total / limit);
 
-  if (!isHydrated || (loading && page === 1)) {
+  // Status label for display
+  const getStatusLabel = () => {
+    switch (filters.status) {
+      case 'open': return 'отворени';
+      case 'awarded': return 'доделени';
+      case 'closed': return 'затворени';
+      case 'cancelled': return 'откажани';
+      default: return '';
+    }
+  };
+
+  if (!isHydrated) {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-muted-foreground">Се вчитува...</p>
@@ -344,33 +364,40 @@ function TendersPageContent() {
   }
 
   return (
-    <div className="p-3 md:p-6 lg:p-8 space-y-4 md:space-y-6">
+    <div className="p-3 md:p-6 lg:p-8 space-y-4 md:space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-xl md:text-3xl font-bold">Истражувач на Тендери</h1>
-        <p className="text-xs md:text-base text-muted-foreground">
-          Пребарувајте и филтрирајте тендери по статус, категорија, буџет и други критериуми
-        </p>
+        <h1 className="text-xl md:text-2xl font-bold">Тендери</h1>
       </div>
 
-      {/* Stats */}
+      {/* Search Bar - prominent, above everything */}
+      <div className="relative max-w-2xl">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Пребарај тендери по клучен збор..."
+          className="pl-9 h-11 text-base"
+          value={filters.search || ""}
+          onChange={(e) => handleSearchChange(e.target.value)}
+        />
+      </div>
+
+      {/* Status Tabs - clickable, show counts */}
       <TenderStats
-        total={stats.total}
-        open={stats.open}
-        closed={stats.closed}
-        awarded={stats.awarded}
-        cancelled={stats.cancelled}
+        stats={stats}
+        activeStatus={filters.status || 'open'}
+        onStatusChange={handleStatusChange}
+        loading={loading && page === 1}
       />
 
       {/* Mobile Filter Toggle */}
       <div className="lg:hidden">
         <Button
           variant="outline"
-          className="w-full"
+          size="sm"
           onClick={() => setShowFilters(!showFilters)}
         >
-          <ChevronRight className={`mr-2 h-4 w-4 transition-transform ${showFilters ? 'rotate-90' : ''}`} />
-          {showFilters ? 'Сокриј филтри' : 'Прикажи филтри'}
+          <SlidersHorizontal className="mr-2 h-4 w-4" />
+          {showFilters ? 'Сокриј филтри' : 'Филтри'}
         </Button>
       </div>
 
@@ -378,74 +405,9 @@ function TendersPageContent() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
         {/* Filters Sidebar */}
         <div className={`lg:col-span-1 space-y-4 ${showFilters ? 'block' : 'hidden lg:block'}`}>
-          {/* Active Filters Display */}
-          {(filters.status || filters.category || filters.procedureType || filters.search || filters.cpvCode || filters.entity || filters.minBudget || filters.maxBudget || filters.dateFrom || filters.dateTo || filters.closingDateFrom || filters.closingDateTo) && (
-            <Card className="bg-muted/50">
-              <CardContent className="p-3">
-                <p className="text-xs font-medium mb-2 text-muted-foreground">Активни филтри:</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {filters.status && filters.status !== 'all' && (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-primary/10 text-primary">
-                      Статус: {filters.status === 'open' ? 'Отворени' : filters.status === 'closed' ? 'Затворени' : filters.status === 'awarded' ? 'Доделени' : 'Откажани'}
-                    </span>
-                  )}
-                  {filters.category && (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                      Категорија: {filters.category}
-                    </span>
-                  )}
-                  {filters.procedureType && (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-                      Постапка: {filters.procedureType}
-                    </span>
-                  )}
-                  {filters.search && (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                      Пребарување: {filters.search}
-                    </span>
-                  )}
-                  {filters.cpvCode && (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                      CPV: {filters.cpvCode}
-                    </span>
-                  )}
-                  {filters.entity && (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
-                      Институција: {filters.entity.length > 20 ? filters.entity.substring(0, 20) + '...' : filters.entity}
-                    </span>
-                  )}
-                  {(filters.minBudget || filters.maxBudget) && (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
-                      Буџет: {filters.minBudget ? `${filters.minBudget.toLocaleString()}+` : ''}{filters.minBudget && filters.maxBudget ? ' - ' : ''}{filters.maxBudget ? `${filters.maxBudget.toLocaleString()}` : ''}
-                    </span>
-                  )}
-                  {(filters.closingDateFrom || filters.closingDateTo) && (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                      Краен рок: {filters.closingDateFrom || '...'} - {filters.closingDateTo || '...'}
-                    </span>
-                  )}
-                  {(filters.dateFrom || filters.dateTo) && (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300">
-                      Објава: {filters.dateFrom || '...'} - {filters.dateTo || '...'}
-                    </span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
           <TenderFilters
             filters={filters}
             onFiltersChange={handleFiltersChange}
-            onApplyFilters={() => {
-              // Increment shouldLoad to trigger useEffect after state updates
-              setShouldLoad(prev => prev + 1);
-              // Sync filters to URL for sharing
-              syncFiltersToURL(filters);
-              // On mobile, close filters after applying
-              if (window.innerWidth < 1024) {
-                setShowFilters(false);
-              }
-            }}
             onReset={handleReset}
           />
           <SavedSearches
@@ -459,8 +421,14 @@ function TendersPageContent() {
           {/* Results Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2">
             <div className="flex items-center gap-3">
-              <p className="text-xs md:text-sm text-muted-foreground">
-                {total.toLocaleString()} резултати {filters.search && `за "${filters.search}"`}
+              <p className="text-sm font-medium">
+                {loading ? 'Се вчитува...' : (
+                  <>
+                    <span className="font-bold">{total.toLocaleString()}</span>
+                    {' '}{getStatusLabel()} тендери
+                    {filters.search && <span className="text-muted-foreground"> за &ldquo;{filters.search}&rdquo;</span>}
+                  </>
+                )}
               </p>
               {/* Sort Dropdown */}
               <select
@@ -482,8 +450,8 @@ function TendersPageContent() {
               </select>
             </div>
             <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
-              <p className="text-xs md:text-sm text-muted-foreground">
-                Страна {page} од {totalPages}
+              <p className="text-xs text-muted-foreground">
+                Страна {page} од {totalPages || 1}
               </p>
               {tenders.length > 0 && (
                 <ExportButton
@@ -518,9 +486,16 @@ function TendersPageContent() {
           )}
 
           {/* Tenders */}
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <p className="text-muted-foreground">Се вчитува...</p>
+          {loading && page === 1 ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="p-4">
+                    <Skeleton className="h-5 w-3/4 mb-2" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           ) : tenders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center max-w-md mx-auto">
@@ -550,7 +525,7 @@ function TendersPageContent() {
                   <div className="text-sm text-muted-foreground text-left space-y-1 mb-4">
                     <p>Совети за подобро пребарување:</p>
                     <ul className="list-disc list-inside space-y-0.5">
-                      <li>Обидете се со пократок збор (пр. &ldquo;шприц&rdquo; наместо &ldquo;шприцови за еднократна употреба&rdquo;)</li>
+                      <li>Обидете се со пократок збор</li>
                       <li>Пробајте на кирилица и латиница</li>
                       <li>Користете CPV код ако го знаете</li>
                     </ul>
@@ -569,7 +544,7 @@ function TendersPageContent() {
               )}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {tenders.map((tender) => (
                 <TenderCard key={tender.tender_id} tender={tender} />
               ))}

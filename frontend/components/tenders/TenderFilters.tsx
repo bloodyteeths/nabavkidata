@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, SlidersHorizontal, X, Loader2, Filter } from "lucide-react";
+import { Search, SlidersHorizontal, X, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api";
 
 export interface FilterState {
@@ -23,35 +23,14 @@ export interface FilterState {
   closingDateTo?: string;
 }
 
-// No default date range - let users explicitly choose dates
-// This prevents confusion about why certain tenders are hidden
-
 interface TenderFiltersProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  onApplyFilters: () => void;
   onReset: () => void;
 }
 
-export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onReset }: TenderFiltersProps) {
-  // Local state for pending filter changes (not applied yet)
-  // No default dates - users must explicitly set date filters
-  const [pendingFilters, setPendingFilters] = useState<FilterState>({
-    ...filters
-  });
-
-  // Check if there are unapplied changes
-  const hasUnappliedChanges = () => {
-    const keys: (keyof FilterState)[] = ['search', 'status', 'category', 'procedureType', 'minBudget', 'maxBudget', 'cpvCode', 'entity', 'dateFrom', 'dateTo', 'closingDateFrom', 'closingDateTo'];
-    return keys.some(key => {
-      const pending = pendingFilters[key];
-      const applied = filters[key];
-      // Treat undefined and empty string as equivalent
-      const pendingVal = pending === undefined || pending === '' ? null : pending;
-      const appliedVal = applied === undefined || applied === '' ? null : applied;
-      return pendingVal !== appliedVal;
-    });
-  };
+export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFiltersProps) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // CPV autocomplete state
   const [cpvSearch, setCpvSearch] = useState("");
@@ -65,37 +44,20 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
   const [entityLoading, setEntityLoading] = useState(false);
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
 
-  // Track initialization to sync with parent filters
-  const [initialized, setInitialized] = useState(false);
-
+  // Show advanced section if any advanced filter is active
   useEffect(() => {
-    if (!initialized) {
-      // Initialize with filters as provided - no defaults
-      setPendingFilters({ ...filters });
-      setInitialized(true);
+    if (filters.procedureType || filters.minBudget || filters.maxBudget || filters.cpvCode || filters.entity || filters.dateFrom || filters.dateTo || filters.closingDateFrom || filters.closingDateTo) {
+      setShowAdvanced(true);
     }
-  }, [initialized, filters]);
+  }, [filters]);
 
-  // Sync pending filters with parent filters (but skip on mount)
-  useEffect(() => {
-    if (initialized) {
-      setPendingFilters({ ...filters });
-    }
-  }, [filters, initialized]);
-
-  const updatePendingFilter = (key: keyof FilterState, value: any) => {
-    setPendingFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  // Apply all pending filters
-  const handleApply = () => {
-    onFiltersChange(pendingFilters);
-    onApplyFilters();
+  // Direct filter update — no pending state, no apply button
+  const updateFilter = (key: keyof FilterState, value: any) => {
+    onFiltersChange({ ...filters, [key]: value });
   };
 
   // Reset all filters
   const handleReset = () => {
-    setPendingFilters({ status: 'open' });
     setCpvSearch("");
     setEntitySearch("");
     onReset();
@@ -153,64 +115,24 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
     return () => clearTimeout(timer);
   }, [entitySearch, searchEntity]);
 
+  // Check if any filter is active (for showing reset button)
+  const hasActiveFilters = filters.category || filters.procedureType || filters.minBudget || filters.maxBudget || filters.cpvCode || filters.entity || filters.dateFrom || filters.dateTo || filters.closingDateFrom || filters.closingDateTo;
+
   return (
     <Card>
-      <CardHeader className="pb-4">
-        <CardTitle className="text-base flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4" />
-          Филтри
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Пребарај тендери..."
-            className="pl-9"
-            value={pendingFilters.search || ""}
-            onChange={(e) => updatePendingFilter("search", e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleApply();
-              }
-            }}
-          />
-        </div>
-
-        {/* Status - Using correct values */}
+      <CardContent className="p-4 space-y-3">
+        {/* Primary: Category */}
         <div>
-          <label className="text-sm font-medium mb-2 block">Статус</label>
+          <label className="text-sm font-medium mb-1.5 block">Категорија</label>
           <Select
-            value={pendingFilters.status || "open"}
-            onValueChange={(value) => updatePendingFilter("status", value)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Сите</SelectItem>
-              <SelectItem value="open">Отворени</SelectItem>
-              <SelectItem value="closed">Затворени</SelectItem>
-              <SelectItem value="awarded">Доделени</SelectItem>
-              <SelectItem value="cancelled">Откажани</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Category - Using actual DB values */}
-        <div>
-          <label className="text-sm font-medium mb-2 block">Категорија</label>
-          <Select
-            value={pendingFilters.category || "all"}
-            onValueChange={(value) => updatePendingFilter("category", value === "all" ? undefined : value)}
+            value={filters.category || "all"}
+            onValueChange={(value) => updateFilter("category", value === "all" ? undefined : value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Сите" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Сите</SelectItem>
+              <SelectItem value="all">Сите категории</SelectItem>
               <SelectItem value="Стоки">Стоки</SelectItem>
               <SelectItem value="Услуги">Услуги</SelectItem>
               <SelectItem value="Работи">Работи</SelectItem>
@@ -218,235 +140,227 @@ export function TenderFilters({ filters, onFiltersChange, onApplyFilters, onRese
           </Select>
         </div>
 
-        {/* Procedure Type */}
-        <div>
-          <label className="text-sm font-medium mb-2 block">Тип на постапка</label>
-          <Select
-            value={pendingFilters.procedureType || "all"}
-            onValueChange={(value) => updatePendingFilter("procedureType", value === "all" ? undefined : value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Сите" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Сите</SelectItem>
-              <SelectItem value="Отворена постапка">Отворена постапка</SelectItem>
-              <SelectItem value="Ограничена постапка">Ограничена постапка</SelectItem>
-              <SelectItem value="Постапка со преговарање">Постапка со преговарање</SelectItem>
-              <SelectItem value="Директно договарање">Директно договарање</SelectItem>
-              <SelectItem value="Поедноставена постапка">Поедноставена постапка</SelectItem>
-              <SelectItem value="Рамковна спогодба">Рамковна спогодба</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Advanced Filters Toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-between text-muted-foreground hover:text-foreground"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+        >
+          <span className="flex items-center gap-2">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Напредни филтри
+          </span>
+          {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </Button>
 
-        {/* Budget Range - No immediate filtering */}
-        <div>
-          <label className="text-sm font-medium mb-2 block">Буџет (МКД)</label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              type="number"
-              placeholder="Од"
-              value={pendingFilters.minBudget || ""}
-              onChange={(e) => updatePendingFilter("minBudget", e.target.value ? Number(e.target.value) : undefined)}
-            />
-            <Input
-              type="number"
-              placeholder="До"
-              value={pendingFilters.maxBudget || ""}
-              onChange={(e) => updatePendingFilter("maxBudget", e.target.value ? Number(e.target.value) : undefined)}
-            />
-          </div>
-        </div>
+        {/* Advanced Filters */}
+        {showAdvanced && (
+          <div className="space-y-3 pt-1 border-t">
+            {/* Procedure Type */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Тип на постапка</label>
+              <Select
+                value={filters.procedureType || "all"}
+                onValueChange={(value) => updateFilter("procedureType", value === "all" ? undefined : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Сите" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Сите</SelectItem>
+                  <SelectItem value="Отворена постапка">Отворена постапка</SelectItem>
+                  <SelectItem value="Ограничена постапка">Ограничена постапка</SelectItem>
+                  <SelectItem value="Постапка со преговарање">Постапка со преговарање</SelectItem>
+                  <SelectItem value="Директно договарање">Директно договарање</SelectItem>
+                  <SelectItem value="Поедноставена постапка">Поедноставена постапка</SelectItem>
+                  <SelectItem value="Рамковна спогодба">Рамковна спогодба</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-        {/* CPV Code - Dropdown with search */}
-        <div>
-          <label className="text-sm font-medium mb-2 block">CPV Код</label>
-          <p className="text-xs text-muted-foreground mb-1">
-            Внесете код (пр. 33) или категорија (пр. медицинска)
-          </p>
-          <div className="relative">
-            <Input
-              placeholder="33 или медицинска опрема..."
-              value={cpvSearch || pendingFilters.cpvCode || ""}
-              onChange={(e) => {
-                setCpvSearch(e.target.value);
-                setShowCpvDropdown(true);
-                if (!e.target.value) {
-                  updatePendingFilter("cpvCode", undefined);
-                }
-              }}
-              onFocus={() => setShowCpvDropdown(true)}
-              onBlur={() => setTimeout(() => setShowCpvDropdown(false), 200)}
-            />
-            {cpvLoading && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
-            )}
+            {/* Budget Range */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Буџет (МКД)</label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="number"
+                  placeholder="Од"
+                  value={filters.minBudget || ""}
+                  onChange={(e) => updateFilter("minBudget", e.target.value ? Number(e.target.value) : undefined)}
+                />
+                <Input
+                  type="number"
+                  placeholder="До"
+                  value={filters.maxBudget || ""}
+                  onChange={(e) => updateFilter("maxBudget", e.target.value ? Number(e.target.value) : undefined)}
+                />
+              </div>
+            </div>
 
-            {/* CPV Dropdown */}
-            {showCpvDropdown && cpvOptions.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 max-h-48 overflow-auto border rounded-md bg-background shadow-lg">
-                {cpvOptions.map((opt) => (
+            {/* CPV Code */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">CPV Код</label>
+              <div className="relative">
+                <Input
+                  placeholder="33 или медицинска опрема..."
+                  value={cpvSearch || filters.cpvCode || ""}
+                  onChange={(e) => {
+                    setCpvSearch(e.target.value);
+                    setShowCpvDropdown(true);
+                    if (!e.target.value) {
+                      updateFilter("cpvCode", undefined);
+                    }
+                  }}
+                  onFocus={() => setShowCpvDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowCpvDropdown(false), 200)}
+                />
+                {cpvLoading && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
+                )}
+                {showCpvDropdown && cpvOptions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 max-h-48 overflow-auto border rounded-md bg-background shadow-lg">
+                    {cpvOptions.map((opt) => (
+                      <button
+                        key={opt.code}
+                        type="button"
+                        className="w-full text-left text-sm hover:bg-accent px-3 py-2 border-b last:border-b-0"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          updateFilter("cpvCode", opt.code);
+                          setCpvSearch(opt.code);
+                          setShowCpvDropdown(false);
+                        }}
+                      >
+                        <span className="font-mono text-xs text-primary mr-2">{opt.code}</span>
+                        <span className="text-muted-foreground">{opt.name_mk || opt.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {filters.cpvCode && (
+                <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                  Избрано: <span className="font-mono">{filters.cpvCode}</span>
                   <button
-                    key={opt.code}
                     type="button"
-                    className="w-full text-left text-sm hover:bg-accent px-3 py-2 border-b last:border-b-0"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      updatePendingFilter("cpvCode", opt.code);
-                      setCpvSearch(opt.code);
-                      setShowCpvDropdown(false);
+                    className="text-destructive hover:underline"
+                    onClick={() => {
+                      updateFilter("cpvCode", undefined);
+                      setCpvSearch("");
                     }}
                   >
-                    <span className="font-mono text-xs text-primary mr-2">{opt.code}</span>
-                    <span className="text-muted-foreground">{opt.name_mk || opt.name}</span>
+                    (отстрани)
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {pendingFilters.cpvCode && (
-            <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-              Избрано: <span className="font-mono">{pendingFilters.cpvCode}</span>
-              <button
-                type="button"
-                className="text-destructive hover:underline"
-                onClick={() => {
-                  updatePendingFilter("cpvCode", undefined);
-                  setCpvSearch("");
-                }}
-              >
-                (отстрани)
-              </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Entity - Dropdown with search */}
-        <div>
-          <label className="text-sm font-medium mb-2 block">Институција</label>
-          <div className="relative">
-            <Input
-              placeholder="Пребарај институција..."
-              value={entitySearch || pendingFilters.entity || ""}
-              onChange={(e) => {
-                setEntitySearch(e.target.value);
-                setShowEntityDropdown(true);
-                if (!e.target.value) {
-                  updatePendingFilter("entity", undefined);
-                }
-              }}
-              onFocus={() => setShowEntityDropdown(true)}
-              onBlur={() => setTimeout(() => setShowEntityDropdown(false), 200)}
-            />
-            {entityLoading && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
-            )}
-
-            {/* Entity Dropdown */}
-            {showEntityDropdown && entityOptions.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 max-h-48 overflow-auto border rounded-md bg-background shadow-lg">
-                {entityOptions.map((opt) => (
+            {/* Entity */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Институција</label>
+              <div className="relative">
+                <Input
+                  placeholder="Пребарај институција..."
+                  value={entitySearch || filters.entity || ""}
+                  onChange={(e) => {
+                    setEntitySearch(e.target.value);
+                    setShowEntityDropdown(true);
+                    if (!e.target.value) {
+                      updateFilter("entity", undefined);
+                    }
+                  }}
+                  onFocus={() => setShowEntityDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowEntityDropdown(false), 200)}
+                />
+                {entityLoading && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
+                )}
+                {showEntityDropdown && entityOptions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 max-h-48 overflow-auto border rounded-md bg-background shadow-lg">
+                    {entityOptions.map((opt) => (
+                      <button
+                        key={opt.entity_id}
+                        type="button"
+                        className="w-full text-left text-sm hover:bg-accent px-3 py-2 border-b last:border-b-0 truncate"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          updateFilter("entity", opt.entity_name);
+                          setEntitySearch(opt.entity_name);
+                          setShowEntityDropdown(false);
+                        }}
+                      >
+                        {opt.entity_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {filters.entity && (
+                <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                  <span className="truncate max-w-[180px]">{filters.entity}</span>
                   <button
-                    key={opt.entity_id}
                     type="button"
-                    className="w-full text-left text-sm hover:bg-accent px-3 py-2 border-b last:border-b-0 truncate"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      updatePendingFilter("entity", opt.entity_name);
-                      setEntitySearch(opt.entity_name);
-                      setShowEntityDropdown(false);
+                    className="text-destructive hover:underline flex-shrink-0"
+                    onClick={() => {
+                      updateFilter("entity", undefined);
+                      setEntitySearch("");
                     }}
                   >
-                    {opt.entity_name}
+                    (отстрани)
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {pendingFilters.entity && (
-            <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-              <span className="truncate max-w-[180px]">{pendingFilters.entity}</span>
-              <button
-                type="button"
-                className="text-destructive hover:underline flex-shrink-0"
-                onClick={() => {
-                  updatePendingFilter("entity", undefined);
-                  setEntitySearch("");
-                }}
-              >
-                (отстрани)
-              </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Closing Date Range - with defaults */}
-        <div>
-          <label className="text-sm font-medium mb-2 block">Краен рок</label>
-          <p className="text-xs text-muted-foreground mb-1">
-            Филтрирај по рок за поднесување
-          </p>
-          <div className="space-y-2">
-            <Input
-              type="date"
-              value={pendingFilters.closingDateFrom || ""}
-              onChange={(e) => updatePendingFilter("closingDateFrom", e.target.value)}
-            />
-            <Input
-              type="date"
-              value={pendingFilters.closingDateTo || ""}
-              onChange={(e) => updatePendingFilter("closingDateTo", e.target.value)}
-            />
-          </div>
-        </div>
+            {/* Closing Date Range */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Краен рок</label>
+              <div className="space-y-2">
+                <Input
+                  type="date"
+                  value={filters.closingDateFrom || ""}
+                  onChange={(e) => updateFilter("closingDateFrom", e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={filters.closingDateTo || ""}
+                  onChange={(e) => updateFilter("closingDateTo", e.target.value)}
+                />
+              </div>
+            </div>
 
-        {/* Opening/Publication Date Range */}
-        <div>
-          <label className="text-sm font-medium mb-2 block">Датум на објава</label>
-          <p className="text-xs text-muted-foreground mb-1">
-            Опционално - филтрирај по датум на објава
-          </p>
-          <div className="space-y-2">
-            <Input
-              type="date"
-              value={pendingFilters.dateFrom || ""}
-              onChange={(e) => updatePendingFilter("dateFrom", e.target.value)}
-            />
-            <Input
-              type="date"
-              value={pendingFilters.dateTo || ""}
-              onChange={(e) => updatePendingFilter("dateTo", e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Pending Changes Indicator */}
-        {hasUnappliedChanges() && (
-          <div className="flex items-center gap-2 text-amber-600 text-xs animate-pulse">
-            <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-            Имате неприменети промени
+            {/* Publication Date Range */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Датум на објава</label>
+              <div className="space-y-2">
+                <Input
+                  type="date"
+                  value={filters.dateFrom || ""}
+                  onChange={(e) => updateFilter("dateFrom", e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={filters.dateTo || ""}
+                  onChange={(e) => updateFilter("dateTo", e.target.value)}
+                />
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Actions - Apply and Reset */}
-        <div className="space-y-2 pt-2">
-          <Button
-            className={`w-full transition-all ${hasUnappliedChanges() ? 'shadow-lg ring-2 ring-primary/50 hover:shadow-xl' : ''}`}
-            onClick={handleApply}
-          >
-            <Filter className="h-4 w-4 mr-2" />
-            Примени филтри
-          </Button>
+        {/* Reset Button - only when filters are active */}
+        {hasActiveFilters && (
           <Button
             variant="outline"
+            size="sm"
             className="w-full"
             onClick={handleReset}
           >
-            <X className="h-4 w-4 mr-2" />
-            Ресетирај
+            <X className="h-3.5 w-3.5 mr-1.5" />
+            Ресетирај филтри
           </Button>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

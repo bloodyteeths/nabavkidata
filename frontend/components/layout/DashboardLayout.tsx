@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { LogOut, Settings, User, Menu, X } from "lucide-react";
+import { LogOut, Settings, User, Menu, X, ChevronDown, ChevronRight } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -16,13 +16,23 @@ import { useState } from "react";
 
 export default function DashboardLayout({
     children,
+    requireAuth = true,
 }: {
     children: React.ReactNode;
+    requireAuth?: boolean;
 }) {
     const { user, logout, isAuthenticated } = useAuth();
     const pathname = usePathname();
     const router = useRouter();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+        // Start collapsible groups as collapsed
+        const initial: Record<string, boolean> = {};
+        navigationGroups.forEach(g => {
+            if (g.collapsible) initial[g.label] = true;
+        });
+        return initial;
+    });
 
     const handleLogout = async () => {
         await logout();
@@ -46,10 +56,19 @@ export default function DashboardLayout({
         }))
         .filter(g => g.items.length > 0);
 
+    const toggleGroup = (label: string) => {
+        setCollapsedGroups(prev => ({ ...prev, [label]: !prev[label] }));
+    };
+
+    // Check if any item in a collapsed group is active (to auto-expand)
+    const isGroupActive = (items: typeof filteredGroups[0]['items']) => {
+        return items.some(item => pathname === item.href);
+    };
+
     const SidebarContent = () => (
         <>
             <div className="p-6">
-                <Link href="/dashboard" className="flex items-center gap-2 mb-1 hover:opacity-80 transition-opacity">
+                <Link href="/tenders" className="flex items-center gap-2 mb-1 hover:opacity-80 transition-opacity">
                     <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                         <span className="text-white font-bold text-xl">N</span>
                     </div>
@@ -59,33 +78,54 @@ export default function DashboardLayout({
             </div>
 
             <nav className="flex-1 px-4 space-y-4 overflow-y-auto">
-                {filteredGroups.map((group) => (
-                    <div key={group.label}>
-                        <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                            {group.label}
-                        </p>
-                        <div className="space-y-0.5">
-                            {group.items.map((item) => {
-                                const Icon = item.icon;
-                                const isActive = pathname === item.href;
-                                return (
-                                    <Link
-                                        key={item.name}
-                                        href={item.href}
-                                        onClick={() => setIsMobileMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                            ? "bg-primary text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]"
-                                            : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                                            }`}
-                                    >
-                                        <Icon className="h-5 w-5" />
-                                        {item.name}
-                                    </Link>
-                                );
-                            })}
+                {filteredGroups.map((group) => {
+                    const isCollapsible = group.collapsible;
+                    const isCollapsed = collapsedGroups[group.label] && !isGroupActive(group.items);
+
+                    return (
+                        <div key={group.label}>
+                            {isCollapsible ? (
+                                <button
+                                    onClick={() => toggleGroup(group.label)}
+                                    className="w-full flex items-center justify-between px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                                >
+                                    {group.label}
+                                    {isCollapsed ? (
+                                        <ChevronRight className="h-3 w-3" />
+                                    ) : (
+                                        <ChevronDown className="h-3 w-3" />
+                                    )}
+                                </button>
+                            ) : (
+                                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                                    {group.label}
+                                </p>
+                            )}
+                            {!isCollapsed && (
+                                <div className="space-y-0.5">
+                                    {group.items.map((item) => {
+                                        const Icon = item.icon;
+                                        const isActive = pathname === item.href;
+                                        return (
+                                            <Link
+                                                key={item.name}
+                                                href={item.href}
+                                                onClick={() => setIsMobileMenuOpen(false)}
+                                                className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
+                                                    ? "bg-primary text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]"
+                                                    : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                                                    }`}
+                                            >
+                                                <Icon className="h-5 w-5" />
+                                                {item.name}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
                 {/* Settings at bottom, separated */}
                 <div className="pt-2 border-t border-border/40">
                     <Link
@@ -140,11 +180,11 @@ export default function DashboardLayout({
     );
 
     return (
-        <ProtectedRoute>
+        <ProtectedRoute requireAuth={requireAuth}>
             <div className="flex h-screen bg-background">
                 {/* Mobile Header */}
                 <div className="md:hidden fixed top-0 left-0 right-0 h-16 border-b border-border bg-background/80 backdrop-blur-md z-30 flex items-center justify-between px-4">
-                    <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                    <Link href="/tenders" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                             <span className="text-white font-bold text-xl">N</span>
                         </div>
@@ -175,12 +215,10 @@ export default function DashboardLayout({
                 {/* Mobile Sidebar Overlay */}
                 {isMobileMenuOpen && (
                     <div className="fixed inset-0 z-40 md:hidden">
-                        {/* Backdrop */}
                         <div
                             className="absolute inset-0 bg-background/80 backdrop-blur-sm"
                             onClick={() => setIsMobileMenuOpen(false)}
                         />
-                        {/* Sidebar */}
                         <aside className="absolute top-16 bottom-0 left-0 w-64 border-r border-border flex flex-col bg-background/95 backdrop-blur-xl animate-in slide-in-from-left">
                             <SidebarContent />
                         </aside>
@@ -198,4 +236,3 @@ export default function DashboardLayout({
         </ProtectedRoute>
     );
 }
-
