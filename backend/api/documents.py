@@ -43,6 +43,58 @@ except ImportError:
 # AI DOCUMENT SUMMARIZATION
 # ============================================================================
 
+def _clean_ocr_text(text: str) -> str:
+    """Clean OCR-extracted text: remove junk lines, normalize whitespace."""
+    lines = text.split('\n')
+    cleaned = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        # Skip lines that are mostly non-alphanumeric (OCR noise)
+        alnum = sum(1 for c in line if c.isalnum() or c in ' .,;:!?()-/')
+        if len(line) > 0 and alnum / len(line) < 0.4:
+            continue
+        # Skip very short lines (1-3 chars) that are likely OCR fragments
+        if len(line) <= 3 and not line[-1].isdigit():
+            continue
+        cleaned.append(line)
+    return '\n'.join(cleaned)
+
+
+def _is_gibberish(text: str) -> bool:
+    """Detect if OCR text is gibberish (unreadable)."""
+    if not text or len(text.strip()) < 50:
+        return True
+
+    # Sample the first 2000 chars for quality check
+    sample = text[:2000]
+
+    # Count Cyrillic + Latin alphabetic characters vs total
+    alpha_chars = sum(1 for c in sample if c.isalpha())
+    total_chars = len(sample.replace('\n', '').replace(' ', ''))
+    if total_chars == 0:
+        return True
+
+    alpha_ratio = alpha_chars / total_chars
+    # Good text is >50% alphabetic; gibberish is mostly symbols
+    if alpha_ratio < 0.35:
+        return True
+
+    # Check for recognizable Macedonian/Latin words (at least some should appear)
+    words = re.findall(r'[а-яА-ЯёЁa-zA-Z]{3,}', sample)
+    if len(words) < 5:
+        return True
+
+    # Average word length check — gibberish has very short "words"
+    if words:
+        avg_word_len = sum(len(w) for w in words) / len(words)
+        if avg_word_len < 2.5:
+            return True
+
+    return False
+
+
 async def summarize_document_with_ai(content_text: str) -> Dict[str, Any]:
     """
     Use Gemini AI to summarize document content and extract key information.
@@ -72,8 +124,19 @@ async def summarize_document_with_ai(content_text: str) -> Dict[str, Any]:
             "items_mentioned": []
         }
 
+    # Check text quality — skip gibberish from failed OCR
+    if _is_gibberish(content_text):
+        return {
+            "summary": "Документот не може да се анализира — текстот е нечитлив (лош OCR квалитет). Отворете го оригиналниот документ за детали.",
+            "key_requirements": [],
+            "items_mentioned": []
+        }
+
+    # Clean OCR noise before sending to AI
+    cleaned_text = _clean_ocr_text(content_text)
+
     # Truncate content to fit context window (keep first 8000 chars for summary)
-    content_preview = content_text[:8000]
+    content_preview = cleaned_text[:8000]
 
     model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
@@ -82,6 +145,8 @@ async def summarize_document_with_ai(content_text: str) -> Dict[str, Any]:
 1. Кратко резиме (2-3 реченици на македонски јазик) што опишува главната цел и содржина на документот
 2. Список на клучни барања/услови (максимум 10 најважни барања)
 3. Список на производи/услуги споменати во документот (со количини ако се достапни)
+
+ВАЖНО: Текстот е извлечен преку OCR и може да содржи мали грешки. Игнорирај ги нечитливите делови и фокусирај се на читливиот текст. Ако документот е претежно нечитлив, наведи го тоа во резимето.
 
 ДОКУМЕНТ:
 {content_preview}
@@ -359,17 +424,27 @@ async def get_document_content(
     key_requirements = document.key_requirements or []
     items_mentioned = document.items_mentioned or []
 
+    # If source text is gibberish, return a clear message instead of AI analysis
+    text_is_gibberish = _is_gibberish(content_text) if content_text else False
+
     # Check if we need to generate AI summary
     should_generate = (
         generate_ai_summary and
         GEMINI_AVAILABLE and
         content_text and
         len(content_text) >= 50 and
+        not text_is_gibberish and
         (
             not document.ai_summary or  # No summary exists
             document.content_hash != compute_content_hash(content_text)  # Content changed
         )
     )
+
+    # Override cached summary if text is gibberish (clear old bad summaries)
+    if text_is_gibberish and content_text:
+        ai_summary = "Документот не може да се анализира — текстот е нечитлив (лош OCR квалитет). Отворете го оригиналниот документ за детали."
+        key_requirements = []
+        items_mentioned = []
 
     if should_generate:
         try:
