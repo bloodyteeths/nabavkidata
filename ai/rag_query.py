@@ -4836,7 +4836,7 @@ CPV: [код]
 
         try:
             # Build query with optional filters
-            params = [days_ahead]
+            params = [str(days_ahead)]
             extra_filters = ""
 
             if cpv_code:
