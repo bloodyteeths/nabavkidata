@@ -1842,13 +1842,7 @@ export default function TenderDetailPage() {
         </div>
       </div>
 
-      {/* Floating AI Chat Widget */}
-      {tenderId && (
-        <TenderChatWidget
-          tenderId={tenderId}
-          tenderTitle={tender.title}
-        />
-      )}
+      {/* AI Chat Widget is now global — see GlobalChatWidget */}
     </div>
   );
 }

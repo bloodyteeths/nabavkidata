@@ -29,17 +29,69 @@ interface Message {
   timestamp: Date;
 }
 
-const SUGGESTED_QUESTIONS = [
+const DEFAULT_QUESTIONS = [
   "Кои се најголемите тендери?",
   "Покажи ми ИТ тендери",
   "Најнови тендери денес",
 ];
 
-const ALERTS_SUGGESTED_QUESTIONS = [
+const ALERTS_QUESTIONS = [
   "Сумирај ги моите алерти",
   "Кои тендери можам да учествувам?",
   "Кои рокови истекуваат наскоро?",
 ];
+
+const TENDERS_LIST_QUESTIONS = [
+  "Кои тендери истекуваат наскоро?",
+  "Најголеми активни тендери по вредност",
+  "Тендери за медицинска опрема",
+];
+
+const TENDER_DETAIL_QUESTIONS = [
+  "Резимирај го овој тендер",
+  "Кои се клучните барања?",
+  "Кои документи се потребни за понуда?",
+];
+
+const RISK_QUESTIONS = [
+  "Кои тендери имаат висок ризик?",
+  "Објасни го ризик индикаторот",
+  "Кои институции имаат најмногу ризични тендери?",
+];
+
+const DASHBOARD_QUESTIONS = [
+  "Колку тендери има оваа недела?",
+  "Покажи статистика по категорија",
+  "Кои се трендовите во јавните набавки?",
+];
+
+const EPAZAR_QUESTIONS = [
+  "Споредба на цени за овој производ",
+  "Кои добавувачи нудат најдобри цени?",
+  "Историја на цени",
+];
+
+function getQuestionsForPath(pathname: string, alertsMode: boolean): string[] {
+  if (alertsMode) return ALERTS_QUESTIONS;
+  if (pathname.match(/^\/tenders\/[^/]+$/)) return TENDER_DETAIL_QUESTIONS;
+  if (pathname === "/tenders") return TENDERS_LIST_QUESTIONS;
+  if (pathname.startsWith("/risk")) return RISK_QUESTIONS;
+  if (pathname.startsWith("/epazar")) return EPAZAR_QUESTIONS;
+  if (pathname === "/dashboard" || pathname === "/") return DASHBOARD_QUESTIONS;
+  return DEFAULT_QUESTIONS;
+}
+
+function getPageContext(pathname: string): string | undefined {
+  // Extract tender ID from path like /tenders/12345-2025
+  const tenderMatch = pathname.match(/^\/tenders\/([^/]+)$/);
+  if (tenderMatch) return `tender:${tenderMatch[1]}`;
+  if (pathname === "/tenders") return "tenders_list";
+  if (pathname.startsWith("/risk")) return "risk_analysis";
+  if (pathname.startsWith("/epazar")) return "epazar";
+  if (pathname.startsWith("/alerts")) return "alerts";
+  if (pathname === "/dashboard" || pathname === "/") return "dashboard";
+  return undefined;
+}
 
 export function GlobalChatWidget() {
   const pathname = usePathname();
@@ -72,8 +124,8 @@ export function GlobalChatWidget() {
     }
   }, [isOpen, user]);
 
-  // Hide widget on pages that have their own chat widget
-  if (pathname === "/chat" || pathname.startsWith("/tenders/") || pathname.startsWith("/epazar/")) {
+  // Hide widget on full chat page only
+  if (pathname === "/chat") {
     return null;
   }
 
@@ -118,13 +170,17 @@ export function GlobalChatWidget() {
     setIsLoading(true);
 
     try {
-      // Server handles conversation history via session
+      // Extract tender ID from page context if on tender detail page
+      const pageCtx = getPageContext(pathname);
+      const tenderIdFromPath = pageCtx?.startsWith("tender:") ? pageCtx.split(":")[1] : undefined;
+
       const response = await api.queryRAG(
         userMessage.content,
+        tenderIdFromPath,
         undefined,
-        undefined,
-        alertsMode ? 'alerts' : undefined,
-        sessionId || undefined
+        alertsMode ? 'alerts' : pageCtx && !alertsMode ? pageCtx : undefined,
+        sessionId || undefined,
+        pageCtx
       );
 
       // Capture session_id from first response
@@ -292,7 +348,7 @@ export function GlobalChatWidget() {
                         {alertsMode ? "Прашајте за вашите алерти" : "Како можам да помогнам?"}
                       </p>
                       <div className="space-y-2">
-                        {(alertsMode ? ALERTS_SUGGESTED_QUESTIONS : SUGGESTED_QUESTIONS).map((q, i) => (
+                        {getQuestionsForPath(pathname, alertsMode).map((q, i) => (
                           <button
                             key={i}
                             onClick={() => handleSuggestedQuestion(q)}

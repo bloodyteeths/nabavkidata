@@ -229,7 +229,7 @@ async def query_rag(
     else:
         print(f"[RAG DEBUG] No conversation_history received")
     print(f"[RAG DEBUG] Question: {request.question[:100]}...")
-    print(f"[RAG DEBUG] context_type: {request.context_type}")
+    print(f"[RAG DEBUG] context_type: {request.context_type}, page_context: {request.page_context}")
 
     # Auto-detect alert-related queries even without explicit context_type
     ALERT_KEYWORDS = [
@@ -472,6 +472,25 @@ Question: {request.question}"""
             # Use memory-based history instead of client-sent if we have it
             if memory_history:
                 enriched_history = memory_history
+
+        # Inject page context if provided
+        if request.page_context:
+            page_ctx_map = {
+                "tenders_list": "Корисникот е на страницата со листа на тендери. Одговарај во контекст на пребарување и филтрирање тендери.",
+                "risk_analysis": "Корисникот е на страницата за анализа на ризик / корупција. Одговарај во контекст на ризик индикатори и транспарентност.",
+                "epazar": "Корисникот е на страницата за е-Пазар (мали набавки). Одговарај во контекст на цени и споредба на понуди.",
+                "dashboard": "Корисникот е на главната страница / dashboard. Одговарај со преглед на статистики и трендови.",
+                "alerts": "Корисникот е на страницата за алерти. Одговарај во контекст на нивните алерти и совпаѓања.",
+            }
+            ctx_msg = None
+            if request.page_context.startswith("tender:"):
+                tender_ref = request.page_context.split(":", 1)[1]
+                ctx_msg = f"Корисникот гледа конкретен тендер (ID: {tender_ref}). Одговарај во контекст на тој тендер — документи, барања, рокови."
+            else:
+                ctx_msg = page_ctx_map.get(request.page_context)
+
+            if ctx_msg:
+                enriched_history.insert(0, {"role": "system", "content": ctx_msg})
 
         # Generate answer
         answer = await pipeline.generate_answer(

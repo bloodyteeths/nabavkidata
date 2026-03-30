@@ -753,8 +753,7 @@ export default function EPazarDetailPage() {
           </Tabs>
         </Card>
 
-        {/* Floating AI Chat Widget */}
-        <TenderChatWidget tenderId={tenderId} tenderTitle={tender.title} />
+        {/* AI Chat Widget is now global — see GlobalChatWidget */}
       </div>
     </DashboardLayout>
   );

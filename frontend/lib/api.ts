@@ -1174,8 +1174,9 @@ class APIClient {
     question: string,
     tenderId?: string,
     conversationHistory?: Array<{ role: string; content: string }>,
-    contextType?: 'alerts',
-    sessionId?: string
+    contextType?: string,
+    sessionId?: string,
+    pageContext?: string
   ) {
     return this.request<RAGQueryResponse>('/api/rag/query', {
       method: 'POST',
@@ -1185,6 +1186,7 @@ class APIClient {
         conversation_history: conversationHistory,
         context_type: contextType,
         session_id: sessionId,
+        page_context: pageContext,
       }),
     });
   }

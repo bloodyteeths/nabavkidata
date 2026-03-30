@@ -239,6 +239,10 @@ class RAGQueryRequest(BaseModel):
         None,
         description="Chat session ID for persistent memory. Auto-created if not provided."
     )
+    page_context: Optional[str] = Field(
+        None,
+        description="Current page context: tender:<id>, tenders_list, risk_analysis, epazar, dashboard, alerts"
+    )
 
 
 class RAGSource(BaseModel):
