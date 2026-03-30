@@ -59,7 +59,7 @@ export default function AuthCallbackPage() {
           // Get the stored redirect URL or default to dashboard
           const storedRedirect = localStorage.getItem('auth_redirect');
           localStorage.removeItem('auth_redirect'); // Clean up
-          const redirectUrl = storedRedirect || '/dashboard';
+          const redirectUrl = storedRedirect || '/chat';
           router.push(redirectUrl);
         } catch (err) {
           console.error('Failed to process OAuth callback:', err);

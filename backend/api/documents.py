@@ -15,6 +15,7 @@ import os
 import json
 import hashlib
 import asyncio
+import httpx
 from datetime import datetime
 import re
 
@@ -95,6 +96,136 @@ def _is_gibberish(text: str) -> bool:
     return False
 
 
+def _parse_json_response(response_text: str) -> dict:
+    """Parse JSON from Gemini response, handling markdown wrappers and nested JSON."""
+    text = response_text.strip()
+    # Strip markdown code fences
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e1:
+        print(f"Direct JSON parse failed: {e1}")
+        print(f"Response repr (first 200): {repr(text[:200])}")
+        # Try to find JSON object in response
+        json_match = re.search(r'\{[\s\S]*\}', text)
+        if json_match:
+            try:
+                return json.loads(json_match.group())
+            except json.JSONDecodeError as e2:
+                print(f"Regex JSON parse also failed: {e2}")
+        # Last resort: try to extract summary field from truncated JSON
+        summary_match = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
+        if summary_match:
+            print(f"Recovered summary from truncated JSON")
+            reqs_matches = re.findall(r'"key_requirements"\s*:\s*\[(.*?)\]', text, re.DOTALL)
+            reqs = []
+            if reqs_matches:
+                reqs = re.findall(r'"((?:[^"\\]|\\.)*)"', reqs_matches[0])
+            return {"summary": summary_match.group(1), "key_requirements": reqs, "items_mentioned": []}
+
+        print(f"Failed to parse Gemini response (first 500 chars): {text[:500]}")
+        raise ValueError("Could not parse AI response as JSON")
+
+
+async def summarize_pdf_with_vision(file_url: str) -> Dict[str, Any]:
+    """
+    Download PDF from URL and use Gemini vision to analyze it directly.
+    Fallback for documents where OCR text is gibberish.
+    """
+    if not GEMINI_AVAILABLE:
+        raise Exception("Gemini not available")
+
+    # Download the PDF
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        resp = await client.get(file_url)
+        resp.raise_for_status()
+        pdf_bytes = resp.content
+
+    if len(pdf_bytes) < 100:
+        raise Exception("PDF too small or empty")
+
+    # Limit to 20MB for Gemini
+    if len(pdf_bytes) > 20 * 1024 * 1024:
+        raise Exception("PDF too large for vision analysis")
+
+    model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+
+    prompt = """Анализирај го овој PDF документ од јавна набавка и обезбеди:
+
+1. Кратко резиме (2-3 реченици на македонски јазик) што опишува главната цел и содржина на документот
+2. Список на клучни барања/услови (максимум 10 најважни барања)
+3. Список на производи/услуги споменати во документот (со количини ако се достапни)
+
+Врати резултат во JSON формат:
+{
+  "summary": "Кратко резиме на 2-3 реченици...",
+  "key_requirements": [
+    "Барање 1",
+    "Барање 2"
+  ],
+  "items_mentioned": [
+    {
+      "name": "Име на производ/услуга",
+      "quantity": "100",
+      "unit": "парчиња",
+      "notes": "Дополнителни белешки ако има"
+    }
+  ]
+}
+
+Важно:
+- Резимето да биде на македонски јазик
+- Барањата да бидат јасни и конкретни
+- Производите да се реални ставки од документот
+- Ако нема податоци, врати празни низи
+
+JSON:"""
+
+    def _sync_vision():
+        # Determine mime type from URL or default to PDF
+        mime = 'application/pdf'
+        lower_url = file_url.lower()
+        if lower_url.endswith('.doc') or ('fname=' in lower_url and '.doc' in lower_url and '.docx' not in lower_url):
+            mime = 'application/msword'
+        elif lower_url.endswith('.docx') or ('fname=' in lower_url and '.docx' in lower_url):
+            mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        elif lower_url.endswith('.xls') or ('fname=' in lower_url and '.xls' in lower_url and '.xlsx' not in lower_url):
+            mime = 'application/vnd.ms-excel'
+        elif lower_url.endswith('.xlsx') or ('fname=' in lower_url and '.xlsx' in lower_url):
+            mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+        doc_part = genai_types.Part.from_bytes(data=pdf_bytes, mime_type=mime)
+        response = _genai_client.models.generate_content(
+            model=model_name,
+            contents=[doc_part, prompt],
+            config=genai_types.GenerateContentConfig(
+                temperature=0.2,
+                max_output_tokens=2000,
+                response_mime_type="application/json"
+            )
+        )
+        try:
+            return response.text
+        except ValueError:
+            return "{}"
+
+    response_text = await asyncio.to_thread(_sync_vision)
+    result = _parse_json_response(response_text)
+
+    return {
+        "summary": result.get("summary", "Нема достапно резиме."),
+        "key_requirements": result.get("key_requirements", [])[:10],
+        "items_mentioned": result.get("items_mentioned", [])[:20]
+    }
+
+
 async def summarize_document_with_ai(content_text: str) -> Dict[str, Any]:
     """
     Use Gemini AI to summarize document content and extract key information.
@@ -124,7 +255,7 @@ async def summarize_document_with_ai(content_text: str) -> Dict[str, Any]:
             "items_mentioned": []
         }
 
-    # Check text quality — skip gibberish from failed OCR
+    # Check text quality — gibberish OCR text can't be summarized from text alone
     if _is_gibberish(content_text):
         return {
             "summary": "Документот не може да се анализира — текстот е нечитлив (лош OCR квалитет). Отворете го оригиналниот документ за детали.",
@@ -179,13 +310,13 @@ JSON:"""
 
     try:
         def _sync_generate():
-            # No safety settings to avoid blocks
             response = _genai_client.models.generate_content(
                 model=model_name,
                 contents=prompt,
                 config=genai_types.GenerateContentConfig(
-                    temperature=0.2,  # Low temperature for consistent extraction
-                    max_output_tokens=2000
+                    temperature=0.2,
+                    max_output_tokens=4000,
+                    response_mime_type="application/json"
                 )
             )
             try:
@@ -194,38 +325,16 @@ JSON:"""
                 return "{}"
 
         response_text = await asyncio.to_thread(_sync_generate)
+        result = _parse_json_response(response_text)
 
-        # Clean up response - extract JSON from markdown if needed
-        response_text = response_text.strip()
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        if response_text.startswith("```"):
-            response_text = response_text[3:]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-        response_text = response_text.strip()
-
-        # Parse JSON
-        try:
-            result = json.loads(response_text)
-        except json.JSONDecodeError:
-            # Try to find JSON in response
-            json_match = re.search(r'\{[\s\S]*\}', response_text)
-            if json_match:
-                result = json.loads(json_match.group())
-            else:
-                raise ValueError("Could not parse AI response as JSON")
-
-        # Validate structure
         return {
             "summary": result.get("summary", "Нема достапно резиме."),
-            "key_requirements": result.get("key_requirements", [])[:10],  # Limit to 10
-            "items_mentioned": result.get("items_mentioned", [])[:20]  # Limit to 20
+            "key_requirements": result.get("key_requirements", [])[:10],
+            "items_mentioned": result.get("items_mentioned", [])[:20]
         }
 
     except Exception as e:
         print(f"AI document summarization failed: {e}")
-        # Return fallback
         return {
             "summary": "Автоматско резиме не е достапно за овој документ.",
             "key_requirements": [],
@@ -427,6 +536,10 @@ async def get_document_content(
     # If source text is gibberish, return a clear message instead of AI analysis
     text_is_gibberish = _is_gibberish(content_text) if content_text else False
 
+    # Detect if cached summary is a failed/fallback placeholder
+    _fallback_prefixes = ("Автоматско резиме не е достапно", "Документот не може да се анализира", "Документот е премал")
+    has_real_summary = document.ai_summary and not document.ai_summary.startswith(_fallback_prefixes)
+
     # Check if we need to generate AI summary
     should_generate = (
         generate_ai_summary and
@@ -435,13 +548,44 @@ async def get_document_content(
         len(content_text) >= 50 and
         not text_is_gibberish and
         (
-            not document.ai_summary or  # No summary exists
+            not has_real_summary or  # No real summary exists (or has fallback)
             document.content_hash != compute_content_hash(content_text)  # Content changed
         )
     )
 
-    # Override cached summary if text is gibberish (clear old bad summaries)
-    if text_is_gibberish and content_text:
+    # Vision fallback: when OCR text is gibberish/empty but we have a file URL, use Gemini vision
+    should_use_vision = (
+        generate_ai_summary and
+        GEMINI_AVAILABLE and
+        document.file_url and
+        (text_is_gibberish or not content_text) and
+        not has_real_summary
+    )
+
+    if should_use_vision:
+        try:
+            print(f"Using Gemini vision for gibberish doc {doc_id} — URL: {document.file_url}")
+            ai_result = await summarize_pdf_with_vision(document.file_url)
+
+            document.ai_summary = ai_result["summary"]
+            document.key_requirements = ai_result["key_requirements"]
+            document.items_mentioned = ai_result["items_mentioned"]
+            document.content_hash = compute_content_hash(content_text or "vision")
+            document.ai_extracted_at = datetime.utcnow()
+
+            await db.commit()
+            await db.refresh(document)
+
+            ai_summary = document.ai_summary
+            key_requirements = document.key_requirements
+            items_mentioned = document.items_mentioned
+        except Exception as e:
+            print(f"Vision PDF analysis failed for {doc_id}: {e}")
+            ai_summary = "Документот не може да се анализира — текстот е нечитлив (лош OCR квалитет). Отворете го оригиналниот документ за детали."
+            key_requirements = []
+            items_mentioned = []
+    elif text_is_gibberish and content_text and not document.ai_summary:
+        # No file_url or Gemini unavailable — show warning
         ai_summary = "Документот не може да се анализира — текстот е нечитлив (лош OCR квалитет). Отворете го оригиналниот документ за детали."
         key_requirements = []
         items_mentioned = []

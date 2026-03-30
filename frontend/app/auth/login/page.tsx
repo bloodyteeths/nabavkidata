@@ -81,7 +81,7 @@ export default function LoginPage() {
         router.push(`/billing?checkout=true&plan=${plan}&interval=${interval || 'monthly'}&currency=${currency || 'mkd'}`);
       } else {
         // Redirect to the original page or dashboard
-        const redirectUrl = searchParams.get('redirect') || '/dashboard';
+        const redirectUrl = searchParams.get('redirect') || '/chat';
         router.push(redirectUrl);
       }
     } catch (error: any) {

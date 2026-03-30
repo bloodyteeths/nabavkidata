@@ -116,3 +116,5 @@ scraper/opendata_cache/
 
 # Claude Code
 .claude/
+.vercel
+.env*.local

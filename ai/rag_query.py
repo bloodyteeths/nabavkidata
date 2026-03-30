@@ -1733,6 +1733,73 @@ DATA_SOURCE_TOOLS = [
             },
             "required": ["analysis_type"]
         }
+    },
+    {
+        "name": "create_alert",
+        "description": "Create a tender alert so the user gets notified about future tenders matching their criteria. Use when user says: 'известувај ме', 'сакам алерт', 'notify me', 'креирај алерт', 'направи алерт', 'сакам нотификација', 'следи тендери за', 'пратете ми кога ќе излезе тендер за'. Creates an alert that monitors new tenders and sends email + in-app notifications.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Alert name in Macedonian (e.g., 'Веб дизајн тендери', 'ИТ опрема', 'Медицински материјали')"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Keywords to match in tender title/description (Macedonian). Use compound phrases to avoid false positives (e.g., ['перење и пеглање'] not ['перење']). Include synonyms and related terms."
+                },
+                "cpv_codes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional CPV codes to match (first 4 digits for category matching, e.g., ['3311', '3314'])"
+                },
+                "alert_type": {
+                    "type": "string",
+                    "enum": ["keyword", "competitor"],
+                    "description": "Alert type: 'keyword' for monitoring tenders by keywords (default), 'competitor' for tracking specific companies winning tenders"
+                }
+            },
+            "required": ["name", "keywords"]
+        }
+    },
+    {
+        "name": "update_user_preferences",
+        "description": "Save user preferences when they reveal information about themselves during conversation. Use when user mentions their industry/sector ('Јас сум веб дизајнер', 'работам во градежништво'), interests ('ме интересираат тендери за медицина'), competitors ('мојот конкурент е Сеавус'), or budget ('буџет до 2 милиони'). This helps personalize future recommendations. MERGE with existing preferences (append to arrays, update budgets).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sectors": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Industry sectors from: it, construction, consulting, equipment, medical, education, transport, food, cleaning, security, energy, printing"
+                },
+                "cpv_codes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "CPV codes to track (e.g., ['72000000', '45000000'])"
+                },
+                "competitor_companies": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Company names the user considers competitors"
+                },
+                "min_budget": {
+                    "type": "number",
+                    "description": "Minimum budget in MKD"
+                },
+                "max_budget": {
+                    "type": "number",
+                    "description": "Maximum budget in MKD"
+                },
+                "exclude_keywords": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Keywords to exclude from recommendations"
+                }
+            },
+            "required": []
+        }
     }
 ]
 
@@ -1761,6 +1828,15 @@ AGENT_SYSTEM_PROMPT = """Ти си ЕКСПЕРТСКИ КОНСУЛТАНТ з�
 10. get_entity_profile - Профил на институција или добавувач
 11. get_top_tenders - Топ/најголеми тендери (sort_by, limit, status, year)
 12. get_statistics - Агрегации (top_institutions, top_winners, by_year, by_category, market_overview)
+13. create_alert - Креирај алерт за идни тендери (keywords, cpv_codes, alert_type)
+14. update_user_preferences - Зачувај кориснички преференци (сектори, конкуренти, буџет)
+
+АВТОМАТСКО ЗАЧУВУВАЊЕ ПРЕФЕРЕНЦИ:
+- Кога корисникот кажува за индустријата ('Јас сум веб дизајнер') → update_user_preferences(sectors=["it"])
+- Кога спомнува конкурент ('Мојот конкурент е Сеавус') → update_user_preferences(competitor_companies=["Сеавус"])
+- Кога спомнува буџет ('Буџет до 2 милиони') → update_user_preferences(max_budget=2000000)
+- Можеш да го повикаш ЗАЕДНО со други tools (во паралел со пребарување)
+- НЕ чекај корисникот да побара - автоматски зачувај кога детектираш преференци
 
 ИЗБОР НА TOOLS:
 - Аналитика/статистика → get_statistics
@@ -1769,6 +1845,8 @@ AGENT_SYSTEM_PROMPT = """Ти си ЕКСПЕРТСКИ КОНСУЛТАНТ з�
 - Профил → get_entity_profile
 - Тековни/активни → web_search_procurement
 - Тендер ID → get_tender_by_id
+- Алерт/известувања → create_alert
+- Кориснички преференци → update_user_preferences (автоматски)
 - Ако нема резултати → пробај web_search_procurement како последна опција
 
 ВРЕМЕНСКИ ФИЛТРИ:
@@ -2225,7 +2303,7 @@ async def _fetch_tender_from_enabavki(tender_id: str) -> Optional[dict]:
     return None
 
 
-async def execute_tool(tool_name: str, tool_args: dict, conn) -> str:
+async def execute_tool(tool_name: str, tool_args: dict, conn, user_id: str = None) -> str:
     """Execute a data source tool and return results as formatted string"""
     # SECURITY: Sanitize all string inputs
     for key, value in tool_args.items():
@@ -4414,6 +4492,166 @@ CPV: [код]
             return f"Непознат тип на анализа: {analysis_type}"
 
 
+    elif tool_name == "create_alert":
+        if not user_id:
+            return "Грешка: Морате да бидете најавени за да креирате алерт."
+
+        name = tool_args.get("name", "")
+        keywords = tool_args.get("keywords", [])
+        cpv_codes = tool_args.get("cpv_codes", [])
+        alert_type = tool_args.get("alert_type", "keyword")
+
+        if not name or not keywords:
+            return "Потребни се име на алерт и клучни зборови."
+
+        if isinstance(keywords, str):
+            keywords = [keywords]
+        if isinstance(cpv_codes, str):
+            cpv_codes = [cpv_codes]
+
+        # Validate alert_type
+        if alert_type not in ("keyword", "competitor"):
+            alert_type = "keyword"
+
+        # Build criteria JSONB
+        criteria = {"keywords": keywords}
+        if cpv_codes:
+            criteria["cpv_codes"] = cpv_codes
+        if alert_type == "competitor":
+            criteria["competitors"] = keywords
+
+        import json as _json
+
+        try:
+            row = await conn.fetchrow("""
+                INSERT INTO tender_alerts
+                (user_id, name, alert_type, criteria, notification_channels, is_active, created_at, updated_at)
+                VALUES ($1::uuid, $2, $3, $4::jsonb, $5::jsonb, true, NOW(), NOW())
+                RETURNING alert_id, name
+            """, user_id, name, alert_type, _json.dumps(criteria), _json.dumps(["email", "in_app"]))
+
+            if row:
+                keywords_str = ", ".join(keywords)
+                result = f"Успешно креиран алерт '{row['name']}'!\n\n"
+                result += f"Тип: {alert_type}\n"
+                result += f"Клучни зборови: {keywords_str}\n"
+                if cpv_codes:
+                    result += f"CPV кодови: {', '.join(cpv_codes)}\n"
+                result += f"Известувања: email + во апликација\n\n"
+                result += "Ќе добивате известувања кога ќе се појават нови тендери што одговараат на вашите критериуми."
+                return result
+            else:
+                return "Грешка при креирање на алертот. Обидете се повторно."
+        except Exception as e:
+            logger.error(f"[CREATE_ALERT] Failed to create alert: {e}")
+            return f"Грешка при креирање на алертот: {str(e)}"
+
+    elif tool_name == "update_user_preferences":
+        if not user_id:
+            return "Грешка: Морате да бидете најавени за зачувување на преференци."
+
+        import json as _json
+
+        sectors = tool_args.get("sectors", [])
+        cpv_codes = tool_args.get("cpv_codes", [])
+        competitor_companies = tool_args.get("competitor_companies", [])
+        exclude_keywords = tool_args.get("exclude_keywords", [])
+        min_budget = tool_args.get("min_budget")
+        max_budget = tool_args.get("max_budget")
+
+        # Normalize list inputs
+        if isinstance(sectors, str):
+            sectors = [sectors]
+        if isinstance(cpv_codes, str):
+            cpv_codes = [cpv_codes]
+        if isinstance(competitor_companies, str):
+            competitor_companies = [competitor_companies]
+        if isinstance(exclude_keywords, str):
+            exclude_keywords = [exclude_keywords]
+
+        try:
+            # Fetch existing preferences
+            existing = await conn.fetchrow("""
+                SELECT sectors, cpv_codes, competitor_companies, exclude_keywords,
+                       min_budget, max_budget
+                FROM user_preferences
+                WHERE user_id = $1::uuid
+            """, user_id)
+
+            if existing:
+                # MERGE: append new values to existing arrays (deduplicate)
+                def merge_arrays(existing_val, new_val):
+                    if not new_val:
+                        return existing_val or []
+                    old = existing_val or []
+                    if isinstance(old, str):
+                        old = _json.loads(old) if old else []
+                    combined = list(set(old + new_val))
+                    return combined
+
+                merged_sectors = merge_arrays(existing['sectors'], sectors)
+                merged_cpv = merge_arrays(existing['cpv_codes'], cpv_codes)
+                merged_competitors = merge_arrays(existing['competitor_companies'], competitor_companies)
+                merged_exclude = merge_arrays(existing['exclude_keywords'], exclude_keywords)
+                merged_min_budget = min_budget if min_budget is not None else existing['min_budget']
+                merged_max_budget = max_budget if max_budget is not None else existing['max_budget']
+
+                await conn.execute("""
+                    UPDATE user_preferences
+                    SET sectors = $2::jsonb,
+                        cpv_codes = $3::jsonb,
+                        competitor_companies = $4::jsonb,
+                        exclude_keywords = $5::jsonb,
+                        min_budget = $6,
+                        max_budget = $7,
+                        updated_at = NOW()
+                    WHERE user_id = $1::uuid
+                """, user_id,
+                    _json.dumps(merged_sectors),
+                    _json.dumps(merged_cpv),
+                    _json.dumps(merged_competitors),
+                    _json.dumps(merged_exclude),
+                    merged_min_budget,
+                    merged_max_budget)
+            else:
+                # INSERT new preferences
+                await conn.execute("""
+                    INSERT INTO user_preferences
+                    (user_id, sectors, cpv_codes, competitor_companies, exclude_keywords,
+                     min_budget, max_budget, notification_frequency, email_enabled, created_at, updated_at)
+                    VALUES ($1::uuid, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb,
+                            $6, $7, 'daily', true, NOW(), NOW())
+                """, user_id,
+                    _json.dumps(sectors),
+                    _json.dumps(cpv_codes),
+                    _json.dumps(competitor_companies),
+                    _json.dumps(exclude_keywords),
+                    min_budget,
+                    max_budget)
+
+            # Build confirmation message
+            updates = []
+            if sectors:
+                updates.append(f"сектори: {', '.join(sectors)}")
+            if cpv_codes:
+                updates.append(f"CPV кодови: {', '.join(cpv_codes)}")
+            if competitor_companies:
+                updates.append(f"конкуренти: {', '.join(competitor_companies)}")
+            if min_budget is not None:
+                updates.append(f"минимален буџет: {min_budget:,.0f} МКД")
+            if max_budget is not None:
+                updates.append(f"максимален буџет: {max_budget:,.0f} МКД")
+            if exclude_keywords:
+                updates.append(f"исклучени зборови: {', '.join(exclude_keywords)}")
+
+            updates_str = ", ".join(updates) if updates else "без промени"
+            logger.info(f"[UPDATE_PREFS] Updated preferences for user {user_id}: {updates_str}")
+            return f"Преференците се зачувани: {updates_str}. Ова ќе ги подобри идните препораки за тендери."
+
+        except Exception as e:
+            logger.error(f"[UPDATE_PREFS] Failed to update preferences for user {user_id}: {e}")
+            return f"Грешка при зачувување преференци: {str(e)}"
+
     return f"Непознат tool: {tool_name}"
 
 
@@ -4733,6 +4971,21 @@ def classify_query_type(question: str) -> dict:
         'процент на победи', 'head to head'
     ]
 
+    # Alert creation queries
+    alert_patterns = [
+        'известувај ме', 'сакам алерт', 'креирај алерт', 'направи алерт',
+        'сакам нотификација', 'следи тендери', 'notify me', 'create alert',
+        'пратете ми', 'кога ќе излезе тендер', 'алерт за', 'нотификација за',
+        'известување за', 'следи', 'мониторирај'
+    ]
+
+    if any(p in question_lower for p in alert_patterns):
+        return {
+            'type': 'alert_creation',
+            'primary_tools': ['create_alert'],
+            'fallback_tools': []
+        }
+
     # Check patterns and return classification
     # IMPORTANT: top_patterns checked BEFORE analytical to avoid 'топ' stealing matches
     if any(p in question_lower for p in top_patterns):
@@ -4812,7 +5065,7 @@ class LLMDrivenAgent:
         # Maps session_id -> ConversationContext
         self.conversation_contexts: Dict[str, ConversationContext] = {}
 
-    async def answer_question(self, question: str, conversation_history: list = None, session_id: str = "default", tender_id: str = None) -> str:
+    async def answer_question(self, question: str, conversation_history: list = None, session_id: str = "default", tender_id: str = None, user_id: str = None) -> str:
         """
         Answer a question using LLM-driven data source selection.
 
@@ -4823,6 +5076,7 @@ class LLMDrivenAgent:
             conversation_history: Optional list of previous Q&A pairs
             session_id: Session identifier for follow-up context storage
             tender_id: Optional specific tender ID to focus the answer on
+            user_id: Optional user ID for tools that need it (e.g., create_alert)
 
         Returns:
             Answer text
@@ -5515,7 +5769,7 @@ class LLMDrivenAgent:
             for call in specialized_tools:
                 tool_name = call.get("tool")
                 tool_args = call.get("args", {})
-                result = await execute_tool(tool_name, tool_args, conn)
+                result = await execute_tool(tool_name, tool_args, conn, user_id=user_id)
                 tool_results.append(f"=== {tool_name.upper()} ===\n{result}")
                 tool_results_dict[tool_name] = result
 
@@ -6375,7 +6629,7 @@ class RAGQueryPipeline:
                 database_url=self.database_url,
                 gemini_api_key=self.gemini_api_key
             )
-            answer_text = await agent.answer_question(question, conversation_history, tender_id=tender_id)
+            answer_text = await agent.answer_question(question, conversation_history, tender_id=tender_id, user_id=user_id)
 
             # CRITICAL: Validate response quality before returning
             is_valid, reason = validate_response_quality(answer_text, question)

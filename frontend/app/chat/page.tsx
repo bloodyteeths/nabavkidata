@@ -34,9 +34,10 @@ interface UsageStatus {
 }
 
 const SUGGESTED_QUESTIONS = [
-  "Кои се најголемите тендери овој месец?",
-  "Покажи ми ИТ тендери",
-  "Која институција објавува најмногу тендери?",
+  "Јас сум [дејност], покажи ми релевантни тендери",
+  "Колку чинат тендери за [производ/услуга]?",
+  "Кои се моите главни конкуренти?",
+  "Постави алерт за нови тендери во мојата област",
 ];
 
 const ALERTS_SUGGESTED_QUESTIONS = [
@@ -326,12 +327,12 @@ function ChatPage() {
                 </div>
                 <div>
                   <h2 className="text-xl md:text-2xl font-bold">
-                    {alertsMode ? 'Анализа на Алерти' : 'Добредојдовте во AI Асистентот'}
+                    {alertsMode ? 'Анализа на Алерти' : 'Здраво! Јас сум твој личен консултант за тендери.'}
                   </h2>
-                  <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2 px-4">
+                  <p className="text-sm md:text-base text-muted-foreground mt-2 md:mt-3 px-4 max-w-lg mx-auto leading-relaxed">
                     {alertsMode
                       ? 'Прашајте за вашите совпаѓања со алерти'
-                      : 'Поставете прашање за тендерите или изберете од предлозите подолу'}
+                      : 'Кажи ми за твојата дејност и ќе ти помогнам да најдеш тендери, да анализираш цени, и да поставиш алерти.'}
                   </p>
                 </div>
               </div>

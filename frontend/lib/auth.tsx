@@ -260,7 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Set user from response instead of fetching again
       setUser(data.user);
       scheduleTokenRefresh();
-      const redirect = new URLSearchParams(window.location.search).get('redirect') || '/dashboard';
+      const redirect = new URLSearchParams(window.location.search).get('redirect') || '/chat';
       router.push(redirect);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';

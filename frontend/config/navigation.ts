@@ -19,9 +19,9 @@ export const navigationGroups: NavGroup[] = [
   {
     label: 'Главно',
     items: [
+      { name: 'AI Асистент', href: '/chat', icon: MessageSquare },
       { name: 'Тендери', href: '/tenders', icon: Search },
       { name: 'Алерти', href: '/alerts', icon: Bell },
-      { name: 'AI Асистент', href: '/chat', icon: MessageSquare },
     ],
   },
   {
