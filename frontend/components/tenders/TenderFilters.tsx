@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -37,12 +37,28 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
   const [cpvOptions, setCpvOptions] = useState<Array<{ code: string; name: string; name_mk: string }>>([]);
   const [cpvLoading, setCpvLoading] = useState(false);
   const [showCpvDropdown, setShowCpvDropdown] = useState(false);
+  const cpvContainerRef = useRef<HTMLDivElement>(null);
 
   // Entity autocomplete state
   const [entitySearch, setEntitySearch] = useState("");
   const [entityOptions, setEntityOptions] = useState<Array<{ entity_id: string; entity_name: string }>>([]);
   const [entityLoading, setEntityLoading] = useState(false);
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
+  const entityContainerRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside handler for CPV and Entity dropdowns
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (cpvContainerRef.current && !cpvContainerRef.current.contains(e.target as Node)) {
+        setShowCpvDropdown(false);
+      }
+      if (entityContainerRef.current && !entityContainerRef.current.contains(e.target as Node)) {
+        setShowEntityDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Show advanced section if any advanced filter is active
   useEffect(() => {
@@ -63,57 +79,47 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
     onReset();
   };
 
-  // CPV search with debounce
-  const searchCPV = useCallback(async (search: string) => {
-    if (search.length < 2) {
+  // Debounced CPV search — fetch is inlined to avoid circular dependency
+  useEffect(() => {
+    if (!cpvSearch || cpvSearch.length < 2) {
       setCpvOptions([]);
       return;
     }
-    setCpvLoading(true);
-    try {
-      const response = await api.searchCPVCodes(search, 15);
-      setCpvOptions(response.results || []);
-    } catch (error) {
-      console.error("CPV search failed:", error);
-      setCpvOptions([]);
-    } finally {
-      setCpvLoading(false);
-    }
-  }, []);
+    const timer = setTimeout(async () => {
+      setCpvLoading(true);
+      try {
+        const response = await api.searchCPVCodes(cpvSearch, 15);
+        setCpvOptions(response.results || []);
+      } catch (error) {
+        console.error("CPV search failed:", error);
+        setCpvOptions([]);
+      } finally {
+        setCpvLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [cpvSearch]);
 
-  // Entity search with debounce
-  const searchEntity = useCallback(async (search: string) => {
-    if (search.length < 2) {
+  // Debounced entity search — fetch is inlined to avoid circular dependency
+  useEffect(() => {
+    if (!entitySearch || entitySearch.length < 2) {
       setEntityOptions([]);
       return;
     }
-    setEntityLoading(true);
-    try {
-      const response = await api.searchEntities(search, 15);
-      setEntityOptions(response.items || []);
-    } catch (error) {
-      console.error("Entity search failed:", error);
-      setEntityOptions([]);
-    } finally {
-      setEntityLoading(false);
-    }
-  }, []);
-
-  // Debounced CPV search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (cpvSearch) searchCPV(cpvSearch);
+    const timer = setTimeout(async () => {
+      setEntityLoading(true);
+      try {
+        const response = await api.searchEntities(entitySearch, 15);
+        setEntityOptions(response.items || []);
+      } catch (error) {
+        console.error("Entity search failed:", error);
+        setEntityOptions([]);
+      } finally {
+        setEntityLoading(false);
+      }
     }, 300);
     return () => clearTimeout(timer);
-  }, [cpvSearch, searchCPV]);
-
-  // Debounced entity search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (entitySearch) searchEntity(entitySearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [entitySearch, searchEntity]);
+  }, [entitySearch]);
 
   // Check if any filter is active (for showing reset button)
   const hasActiveFilters = filters.category || filters.procedureType || filters.minBudget || filters.maxBudget || filters.cpvCode || filters.entity || filters.dateFrom || filters.dateTo || filters.closingDateFrom || filters.closingDateTo;
@@ -123,12 +129,12 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
       <CardContent className="p-4 space-y-3">
         {/* Primary: Category */}
         <div>
-          <label className="text-sm font-medium mb-1.5 block">Категорија</label>
+          <label htmlFor="filter-category" className="text-sm font-medium mb-1.5 block">Категорија</label>
           <Select
             value={filters.category || "all"}
             onValueChange={(value) => updateFilter("category", value === "all" ? undefined : value)}
           >
-            <SelectTrigger>
+            <SelectTrigger id="filter-category">
               <SelectValue placeholder="Сите" />
             </SelectTrigger>
             <SelectContent>
@@ -159,12 +165,12 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
           <div className="space-y-3 pt-1 border-t">
             {/* Procedure Type */}
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Тип на постапка</label>
+              <label htmlFor="filter-procedure-type" className="text-sm font-medium mb-1.5 block">Тип на постапка</label>
               <Select
                 value={filters.procedureType || "all"}
                 onValueChange={(value) => updateFilter("procedureType", value === "all" ? undefined : value)}
               >
-                <SelectTrigger>
+                <SelectTrigger id="filter-procedure-type">
                   <SelectValue placeholder="Сите" />
                 </SelectTrigger>
                 <SelectContent>
@@ -200,11 +206,12 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
 
             {/* CPV Code */}
             <div>
-              <label className="text-sm font-medium mb-1.5 block">CPV Код</label>
-              <div className="relative">
+              <label htmlFor="filter-cpv" className="text-sm font-medium mb-1.5 block">CPV Код</label>
+              <div className="relative" ref={cpvContainerRef}>
                 <Input
+                  id="filter-cpv"
                   placeholder="33 или медицинска опрема..."
-                  value={cpvSearch || filters.cpvCode || ""}
+                  value={cpvSearch}
                   onChange={(e) => {
                     setCpvSearch(e.target.value);
                     setShowCpvDropdown(true);
@@ -212,8 +219,10 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
                       updateFilter("cpvCode", undefined);
                     }
                   }}
-                  onFocus={() => setShowCpvDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowCpvDropdown(false), 200)}
+                  onFocus={() => {
+                    setCpvSearch("");
+                    setShowCpvDropdown(true);
+                  }}
                 />
                 {cpvLoading && (
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
@@ -228,7 +237,7 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
                         onMouseDown={(e) => {
                           e.preventDefault();
                           updateFilter("cpvCode", opt.code);
-                          setCpvSearch(opt.code);
+                          setCpvSearch("");
                           setShowCpvDropdown(false);
                         }}
                       >
@@ -244,13 +253,14 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
                   Избрано: <span className="font-mono">{filters.cpvCode}</span>
                   <button
                     type="button"
-                    className="text-destructive hover:underline"
+                    className="text-destructive hover:text-destructive/80 flex-shrink-0 p-0.5 rounded"
+                    aria-label="Отстрани CPV код"
                     onClick={() => {
                       updateFilter("cpvCode", undefined);
                       setCpvSearch("");
                     }}
                   >
-                    (отстрани)
+                    <X className="h-3 w-3" />
                   </button>
                 </div>
               )}
@@ -258,11 +268,12 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
 
             {/* Entity */}
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Институција</label>
-              <div className="relative">
+              <label htmlFor="filter-entity" className="text-sm font-medium mb-1.5 block">Институција</label>
+              <div className="relative" ref={entityContainerRef}>
                 <Input
+                  id="filter-entity"
                   placeholder="Пребарај институција..."
-                  value={entitySearch || filters.entity || ""}
+                  value={entitySearch}
                   onChange={(e) => {
                     setEntitySearch(e.target.value);
                     setShowEntityDropdown(true);
@@ -270,8 +281,10 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
                       updateFilter("entity", undefined);
                     }
                   }}
-                  onFocus={() => setShowEntityDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowEntityDropdown(false), 200)}
+                  onFocus={() => {
+                    setEntitySearch("");
+                    setShowEntityDropdown(true);
+                  }}
                 />
                 {entityLoading && (
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2" />
@@ -286,7 +299,7 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
                         onMouseDown={(e) => {
                           e.preventDefault();
                           updateFilter("entity", opt.entity_name);
-                          setEntitySearch(opt.entity_name);
+                          setEntitySearch("");
                           setShowEntityDropdown(false);
                         }}
                       >
@@ -301,13 +314,14 @@ export function TenderFilters({ filters, onFiltersChange, onReset }: TenderFilte
                   <span className="truncate max-w-[180px]">{filters.entity}</span>
                   <button
                     type="button"
-                    className="text-destructive hover:underline flex-shrink-0"
+                    className="text-destructive hover:text-destructive/80 flex-shrink-0 p-0.5 rounded"
+                    aria-label="Отстрани институција"
                     onClick={() => {
                       updateFilter("entity", undefined);
                       setEntitySearch("");
                     }}
                   >
-                    (отстрани)
+                    <X className="h-3 w-3" />
                   </button>
                 </div>
               )}

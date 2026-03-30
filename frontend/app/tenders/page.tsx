@@ -60,9 +60,13 @@ function TendersPageContent() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({});
-  const [stats, setStats] = useState({ total: 273772, open: 833, awarded: 268491 });
+  const [stats, setStats] = useState({ total: 0, open: 0, awarded: 0 });
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  // Track whether date filter was auto-applied (not explicitly set by user)
+  const [isAutoDateFilter, setIsAutoDateFilter] = useState(false);
+  // Local search input state (for debounce without race condition)
+  const [searchInput, setSearchInput] = useState("");
   // Sorting
   const [sortBy, setSortBy] = useState('publication_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -191,6 +195,12 @@ function TendersPageContent() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       initialFilters.dateFrom = thirtyDaysAgo.toISOString().split('T')[0];
+      setIsAutoDateFilter(true);
+    }
+
+    // Initialize local search input from URL
+    if (initialFilters.search) {
+      setSearchInput(initialFilters.search);
     }
 
     // Default status to open
@@ -277,42 +287,53 @@ function TendersPageContent() {
   }
 
   const handleFiltersChange = (newFilters: FilterState) => {
+    // If user explicitly changed date filters, mark as user-set
+    if (newFilters.dateFrom !== filters.dateFrom || newFilters.dateTo !== filters.dateTo) {
+      setIsAutoDateFilter(false);
+    }
     setFilters(newFilters);
     setPage(1);
   };
 
   const handleStatusChange = (status: string) => {
     const newFilters = { ...filters, status };
-    // When switching to "all" or "awarded", remove date default so we see historical data
+    // When switching to "all" or "awarded", only remove auto-applied date defaults (not user-set dates)
     if (status === 'all' || status === 'awarded') {
-      delete newFilters.dateFrom;
-      delete newFilters.dateTo;
+      if (isAutoDateFilter) {
+        delete newFilters.dateFrom;
+        delete newFilters.dateTo;
+        setIsAutoDateFilter(false);
+      }
     } else if (status === 'open' && !newFilters.dateFrom && !newFilters.search) {
       // When switching to open, apply 30-day default
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       newFilters.dateFrom = thirtyDaysAgo.toISOString().split('T')[0];
+      setIsAutoDateFilter(true);
     }
     setFilters(newFilters);
     setPage(1);
   };
 
   const handleSearchChange = (value: string) => {
-    // Debounce search input
+    // Update local input immediately for responsive UI
+    setSearchInput(value);
+    // Debounce the actual filter update
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    const newFilters = { ...filters, search: value || undefined };
-    // When searching, show all statuses
-    if (value && filters.status !== 'all') {
-      newFilters.status = 'all';
-      delete newFilters.dateFrom;
-      delete newFilters.dateTo;
-    }
     searchTimerRef.current = setTimeout(() => {
+      const newFilters = { ...filters, search: value || undefined };
+      // When searching, show all statuses and remove auto date filter
+      if (value && filters.status !== 'all') {
+        newFilters.status = 'all';
+        if (isAutoDateFilter) {
+          delete newFilters.dateFrom;
+          delete newFilters.dateTo;
+          setIsAutoDateFilter(false);
+        }
+      }
       setFilters(newFilters);
       setPage(1);
     }, 500);
-    // Update search display immediately (but don't trigger load yet)
-    setFilters(prev => ({ ...prev, search: value || undefined }));
   };
 
   const searchAllStatuses = () => {
@@ -329,6 +350,8 @@ function TendersPageContent() {
       dateFrom: thirtyDaysAgo.toISOString().split('T')[0]
     };
     setFilters(defaultFilters);
+    setSearchInput("");
+    setIsAutoDateFilter(true);
     setPage(1);
     router.replace('/tenders?status=open');
   };
@@ -376,7 +399,7 @@ function TendersPageContent() {
         <Input
           placeholder="Пребарај тендери по клучен збор..."
           className="pl-9 h-11 text-base"
-          value={filters.search || ""}
+          value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
         />
       </div>
@@ -426,6 +449,7 @@ function TendersPageContent() {
                   <>
                     <span className="font-bold">{total.toLocaleString()}</span>
                     {' '}{getStatusLabel()} тендери
+                    {isAutoDateFilter && <span className="text-muted-foreground"> (последните 30 дена)</span>}
                     {filters.search && <span className="text-muted-foreground"> за &ldquo;{filters.search}&rdquo;</span>}
                   </>
                 )}
@@ -480,8 +504,16 @@ function TendersPageContent() {
           </div>
 
           {error && (
-            <div className="rounded-md border border-destructive/50 bg-destructive/10 text-destructive p-3 text-sm">
-              {error}
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 text-destructive p-3 text-sm flex items-center justify-between">
+              <span>{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadTenders()}
+                className="ml-3 shrink-0"
+              >
+                Обиди се повторно
+              </Button>
             </div>
           )}
 
@@ -537,9 +569,14 @@ function TendersPageContent() {
               ) : (
                 <>
                   <p className="text-muted-foreground">Нема пронајдено тендери</p>
-                  <Button variant="outline" className="mt-4" onClick={handleReset}>
-                    Ресетирај филтри
-                  </Button>
+                  <div className="flex gap-2 mt-4">
+                    <Button variant="outline" onClick={handleReset}>
+                      Ресетирај филтри
+                    </Button>
+                    <Button variant="outline" onClick={() => loadTenders()}>
+                      Обиди се повторно
+                    </Button>
+                  </div>
                 </>
               )}
             </div>

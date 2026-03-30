@@ -260,7 +260,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Set user from response instead of fetching again
       setUser(data.user);
       scheduleTokenRefresh();
-      router.push('/');
+      const redirect = new URLSearchParams(window.location.search).get('redirect') || '/dashboard';
+      router.push(redirect);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
       setError(message);
@@ -359,13 +360,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ token }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Email verification failed');
+        throw new Error(data.detail || 'Email verification failed');
       }
 
       // Backend now returns tokens for auto-login
-      const data = await response.json();
       storeTokens({
         access_token: data.access_token,
         refresh_token: data.refresh_token,

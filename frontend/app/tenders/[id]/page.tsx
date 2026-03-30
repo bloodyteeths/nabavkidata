@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -157,12 +157,13 @@ export default function TenderDetailPage() {
   // [id] route uses dash-separated format: "12345-2024" → "12345/2024"
   const tenderId = rawId ? tenderIdFromParam(String(rawId)) : null;
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") || "details";
 
   const [tender, setTender] = useState<Tender | null>(null);
   const [loading, setLoading] = useState(true);
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
-  const [aiSummary, setAiSummary] = useState<string>("");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [documents, setDocuments] = useState<TenderDocument[]>([]);
@@ -240,6 +241,21 @@ export default function TenderDetailPage() {
   } | null>(null);
   const [bidAdviceLoading, setBidAdviceLoading] = useState(false);
   const [bidAdviceError, setBidAdviceError] = useState<string | null>(null);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+
+  function handleTabChange(value: string) {
+    const url = new URL(window.location.href);
+    if (value === "details") {
+      url.searchParams.delete("tab");
+    } else {
+      url.searchParams.set("tab", value);
+    }
+    window.history.replaceState({}, "", url.toString());
+    // Lazy-load products when user first clicks the Products tab
+    if (value === "products" && !productsLoaded && !productsLoading) {
+      loadProducts();
+    }
+  }
 
   useEffect(() => {
     if (!tenderId) return;
@@ -247,7 +263,10 @@ export default function TenderDetailPage() {
     loadNotifyPreference();
     loadSavedPreference();
     loadDocuments();
-    loadProducts(); // Auto-load products so prices are visible immediately
+    // Lazy-load products if user lands directly on products tab
+    if (activeTab === "products") {
+      loadProducts();
+    }
   }, [tenderId]);
 
   // Load bidders and lots after tender is loaded (to use embedded data first)
@@ -291,12 +310,10 @@ export default function TenderDetailPage() {
       const result = await api.getTenderAISummary(tenderId);
       // The API returns summary as an object with structured data
       setAiSummaryData(result.summary);
-      setAiSummary(result.summary.overview || "");
     } catch (error) {
       console.error("Failed to load AI summary:", error);
       setAiSummaryError("AI резимето не е достапно моментално.");
       setAiSummaryData(null);
-      setAiSummary("");
     } finally {
       setAiSummaryLoading(false);
     }
@@ -448,7 +465,11 @@ export default function TenderDetailPage() {
         extraction_status: result.extraction_status,
         source_documents: result.source_documents,
         price_gated: result.price_gated,
+        price_views_remaining: result.price_views_remaining,
+        price_views_limit: result.price_views_limit,
+        price_views_used: result.price_views_used,
       });
+      setProductsLoaded(true);
     } catch (error) {
       console.error("Failed to load AI products:", error);
       setProductsError("Грешка при извлекување на производи. Обидете се повторно.");
@@ -514,6 +535,7 @@ export default function TenderDetailPage() {
         {
           role: "assistant",
           content: result.answer,
+          sources: result.sources,
         },
       ]);
     } catch (error: any) {
@@ -703,7 +725,7 @@ export default function TenderDetailPage() {
           <Button asChild variant="ghost" size="sm" className="mb-2 pl-0 hover:bg-transparent">
             <Link href="/tenders" className="flex items-center text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Назад
+              Назад кон тендери
             </Link>
           </Button>
           <h1 className="text-xl md:text-3xl font-bold break-words">{tender.title || "Без наслов"}</h1>
@@ -813,7 +835,7 @@ export default function TenderDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Details */}
         <div className="lg:col-span-2 space-y-6">
-          <Tabs defaultValue="details">
+          <Tabs defaultValue={activeTab} onValueChange={handleTabChange}>
             <div className="w-full overflow-x-auto pb-2">
               <TabsList className="w-full justify-start inline-flex min-w-max">
                 <TabsTrigger value="details">
@@ -1438,7 +1460,7 @@ export default function TenderDetailPage() {
                           <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
                             <Lock className="h-4 w-4 text-amber-600 shrink-0" />
                             <p className="text-sm text-amber-800 dark:text-amber-300">
-                              Ги искористивте <strong>{aiProducts.price_views_limit}/{aiProducts.price_views_limit}</strong> ценовни прегледи денес.
+                              Ги искористивте <strong>{aiProducts.price_views_used ?? aiProducts.price_views_limit}/{aiProducts.price_views_limit}</strong> ценовни прегледи денес.
                               {" "}
                               <a href="/billing/plans" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
                                 Надградете за повеќе
@@ -1709,7 +1731,7 @@ export default function TenderDetailPage() {
                   {chatMessages.length > 0 && (
                     <div className="space-y-4 max-h-[400px] overflow-y-auto border rounded-lg p-3 bg-muted/20">
                       {chatMessages.map((msg, idx) => (
-                        <ChatMessage key={idx} role={msg.role} content={msg.content} />
+                        <ChatMessage key={idx} role={msg.role} content={msg.content} sources={msg.sources} />
                       ))}
                       {chatLoading && (
                         <div className="text-sm text-muted-foreground animate-pulse">AI пишува...</div>

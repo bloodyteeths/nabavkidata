@@ -68,6 +68,7 @@ export function tenderIdFromParam(param: string): string {
 
 export function formatCurrency(value: number | undefined, currency: string = "MKD"): string {
   if (value === undefined || value === null) return "N/A";
+  if (!Number.isFinite(value)) return "N/A";
 
   const formatted = Math.trunc(value)
     .toString()
@@ -90,6 +91,7 @@ export function formatDate(
   if (!date) return "N/A";
 
   const d = toDate(date);
+  if (isNaN(d.getTime())) return "N/A";
   const mkDate = toMacedoniaDate(d);
   const monthOpt = options.month ?? "short";
   const dayOpt = options.day ?? "numeric";

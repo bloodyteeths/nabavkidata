@@ -12,7 +12,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { GlobalChatWidget } from "@/components/ai/GlobalChatWidget";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function DashboardLayout({
     children,
@@ -48,7 +48,15 @@ export default function DashboardLayout({
     };
 
     // Progressive disclosure: hide advanced nav items until onboarding wizard is completed
-    const wizardCompleted = typeof window !== 'undefined' && localStorage.getItem('wizard_completed') === 'true';
+    const [wizardCompleted, setWizardCompleted] = useState(false);
+    useEffect(() => {
+        setWizardCompleted(localStorage.getItem('wizard_completed') === 'true');
+    }, []);
+
+    // Close mobile menu on route change
+    useEffect(() => {
+        setIsMobileMenuOpen(false);
+    }, [pathname]);
     const filteredGroups = navigationGroups
         .map(g => ({
             ...g,
@@ -62,7 +70,7 @@ export default function DashboardLayout({
 
     // Check if any item in a collapsed group is active (to auto-expand)
     const isGroupActive = (items: typeof filteredGroups[0]['items']) => {
-        return items.some(item => pathname === item.href);
+        return items.some(item => pathname === item.href || pathname.startsWith(item.href + '/'));
     };
 
     const SidebarContent = () => (
@@ -105,7 +113,7 @@ export default function DashboardLayout({
                                 <div className="space-y-0.5">
                                     {group.items.map((item) => {
                                         const Icon = item.icon;
-                                        const isActive = pathname === item.href;
+                                        const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                                         return (
                                             <Link
                                                 key={item.name}
@@ -164,7 +172,7 @@ export default function DashboardLayout({
                             <Settings className="mr-2 h-4 w-4" />
                             Поставки
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push('/settings')} className="focus:bg-primary/20 focus:text-foreground cursor-pointer">
+                        <DropdownMenuItem onClick={() => router.push('/settings#profile')} className="focus:bg-primary/20 focus:text-foreground cursor-pointer">
                             <User className="mr-2 h-4 w-4" />
                             Профил
                         </DropdownMenuItem>
