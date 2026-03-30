@@ -68,8 +68,8 @@ async function selectCategoryAndWait(page: Page, category: string) {
 
 // Helper: get the result count shown on the page
 async function getResultCount(page: Page): Promise<number> {
-  // Look for text patterns like "887 резултати" or "475 отворени тендери"
-  const countLocator = page.locator('text=/\\d[\\d,.]* (резултати|тендери)/i').first();
+  // Match patterns like "863 отворени тендери", "475 тендери", "887 резултати"
+  const countLocator = page.locator('text=/\\d[\\d,.]* .*тендери/i').first();
   await countLocator.waitFor({ state: 'visible', timeout: 10000 });
   const text = await countLocator.textContent();
   if (!text) return 0;
