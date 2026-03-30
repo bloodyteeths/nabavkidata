@@ -4558,6 +4558,12 @@ CPV: [код]
         exclude_keywords = tool_args.get("exclude_keywords", [])
         min_budget = tool_args.get("min_budget")
         max_budget = tool_args.get("max_budget")
+        # Convert budget to Decimal for asyncpg numeric column
+        from decimal import Decimal as _Decimal
+        if min_budget is not None:
+            min_budget = _Decimal(str(min_budget))
+        if max_budget is not None:
+            max_budget = _Decimal(str(max_budget))
 
         # Normalize list inputs
         if isinstance(sectors, str):
@@ -4598,19 +4604,19 @@ CPV: [код]
 
                 await conn.execute("""
                     UPDATE user_preferences
-                    SET sectors = $2::jsonb,
-                        cpv_codes = $3::jsonb,
-                        competitor_companies = $4::jsonb,
-                        exclude_keywords = $5::jsonb,
+                    SET sectors = $2::text[],
+                        cpv_codes = $3::text[],
+                        competitor_companies = $4::text[],
+                        exclude_keywords = $5::text[],
                         min_budget = $6,
                         max_budget = $7,
                         updated_at = NOW()
                     WHERE user_id = $1::uuid
                 """, user_id,
-                    _json.dumps(merged_sectors),
-                    _json.dumps(merged_cpv),
-                    _json.dumps(merged_competitors),
-                    _json.dumps(merged_exclude),
+                    merged_sectors,
+                    merged_cpv,
+                    merged_competitors,
+                    merged_exclude,
                     merged_min_budget,
                     merged_max_budget)
             else:
@@ -4619,13 +4625,13 @@ CPV: [код]
                     INSERT INTO user_preferences
                     (user_id, sectors, cpv_codes, competitor_companies, exclude_keywords,
                      min_budget, max_budget, notification_frequency, email_enabled, created_at, updated_at)
-                    VALUES ($1::uuid, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb,
+                    VALUES ($1::uuid, $2::text[], $3::text[], $4::text[], $5::text[],
                             $6, $7, 'daily', true, NOW(), NOW())
                 """, user_id,
-                    _json.dumps(sectors),
-                    _json.dumps(cpv_codes),
-                    _json.dumps(competitor_companies),
-                    _json.dumps(exclude_keywords),
+                    sectors,
+                    cpv_codes,
+                    competitor_companies,
+                    exclude_keywords,
                     min_budget,
                     max_budget)
 
