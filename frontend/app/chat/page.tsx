@@ -38,8 +38,8 @@ const SUGGESTED_QUESTIONS = [
   { text: "Направи анализа на пазарот за ИТ услуги", icon: TrendingUp },
   { text: "Кој ги добива тендерите за градежни работи?", icon: Trophy },
   { text: "Спореди ги компаниите Алкалоид и Реплек", icon: BarChart3 },
-  { text: "Постави алерт за медицински тендери", icon: Bell },
-  { text: "Најди слични тендери на 01234/2025", icon: Search },
+  { text: "Постави алерт за градежни тендери", icon: Bell },
+  { text: "Најди слични тендери на 15817/2025", icon: Search },
 ];
 
 const ALERTS_SUGGESTED_QUESTIONS = [

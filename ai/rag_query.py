@@ -367,25 +367,17 @@ def validate_response_quality(response: str, question: str) -> tuple[bool, str]:
     bad_patterns = [
         'немам директен пристап',
         'немам податоци',
-        'не можам да',
-        'не можам',
         'препорачувам да отидете',
         'препорачувам да посетите',
         'пребарај на e-nabavki',
         'користи го пребарувачот',
-        'провери на веб',
-        'одете на',
-        'посетете ја страницата',
-        'посети ја страната',
-        'e-nabavki.gov.mk',  # Never tell user to go to another site
-        'не е достапно',
-        'нема информации за',
-        'немам информации за',
+        'провери на веб страна',
+        'посетете ја страницата e-nabavki',
+        'посети ја страната e-nabavki',
+        'одете на e-nabavki',
         'немам пристап до',
-        'не располагам со',
-        'систем не содржи',
-        'база не содржи',
-        'јас не можам',
+        'не располагам со информации',
+        'јас не можам да пристапам',
     ]
 
     response_lower = response.lower()
@@ -4830,6 +4822,595 @@ CPV: [код]
         except Exception as e:
             logger.error(f"[UPDATE_PREFS] Failed to update preferences for user {user_id}: {e}")
             return f"Грешка при зачувување преференци: {str(e)}"
+
+    elif tool_name == "get_upcoming_deadlines":
+        days_ahead = tool_args.get("days_ahead", 7)
+        cpv_code = tool_args.get("cpv_code", "").strip()
+        sector = tool_args.get("sector", "").strip()
+
+        # Validate days_ahead
+        if not isinstance(days_ahead, int) or days_ahead < 1:
+            days_ahead = 7
+        if days_ahead > 30:
+            days_ahead = 30
+
+        try:
+            # Build query with optional filters
+            params = [days_ahead]
+            extra_filters = ""
+
+            if cpv_code:
+                extra_filters += f" AND cpv_code LIKE ${len(params) + 1}"
+                params.append(f"{cpv_code}%")
+            if sector:
+                sector_patterns = _build_bilingual_patterns(sector)
+                extra_filters += f" AND title ILIKE ANY(${len(params) + 1})"
+                params.append(sector_patterns)
+
+            query = f"""
+                SELECT tender_id, title, procuring_entity,
+                       estimated_value_mkd, closing_date, cpv_code,
+                       closing_date - CURRENT_DATE as days_remaining
+                FROM tenders
+                WHERE status = 'active'
+                  AND closing_date IS NOT NULL
+                  AND closing_date BETWEEN CURRENT_DATE AND CURRENT_DATE + ($1 || ' days')::interval
+                  {extra_filters}
+                ORDER BY closing_date ASC
+                LIMIT 20
+            """
+            rows = await conn.fetch(query, *params)
+
+            # Also check epazar
+            epazar_query = f"""
+                SELECT tender_id, title, contracting_authority as procuring_entity,
+                       estimated_value_mkd, closing_date, cpv_code,
+                       closing_date - CURRENT_DATE as days_remaining
+                FROM epazar_tenders
+                WHERE status = 'active'
+                  AND closing_date IS NOT NULL
+                  AND closing_date BETWEEN CURRENT_DATE AND CURRENT_DATE + ($1 || ' days')::interval
+                  {extra_filters.replace('procuring_entity', 'contracting_authority')}
+                ORDER BY closing_date ASC
+                LIMIT 10
+            """
+            try:
+                epazar_rows = await conn.fetch(epazar_query, *params)
+                rows = list(rows) + list(epazar_rows)
+                # Re-sort combined results by closing_date
+                rows.sort(key=lambda r: r['closing_date'] if r['closing_date'] else date.max)
+                rows = rows[:20]
+            except Exception:
+                pass  # epazar table might not exist
+
+            if not rows:
+                filter_desc = ""
+                if sector:
+                    filter_desc += f" за '{sector}'"
+                if cpv_code:
+                    filter_desc += f" (CPV: {cpv_code})"
+                return f"Нема отворени тендери со рок во наредните {days_ahead} дена{filter_desc}."
+
+            result = f"## Тендери со рок во наредните {days_ahead} дена ({len(rows)} најдени):\n\n"
+            for r in rows:
+                days_left = r['days_remaining'].days if hasattr(r['days_remaining'], 'days') else r['days_remaining']
+                urgency = "ИТНО" if days_left <= 2 else "скоро" if days_left <= 5 else ""
+                urgency_tag = f" **[{urgency}]**" if urgency else ""
+
+                result += f"**{r['title']}**{urgency_tag}\n"
+                result += f"  Набавувач: {r['procuring_entity']}\n"
+                if r['estimated_value_mkd']:
+                    result += f"  Проценета вредност: {r['estimated_value_mkd']:,.0f} МКД\n"
+                result += f"  Краен рок: {r['closing_date']} ({days_left} дена)\n"
+                if r['cpv_code']:
+                    result += f"  CPV: {r['cpv_code']}\n"
+                result += f"  ID: {r['tender_id']}\n\n"
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[UPCOMING_DEADLINES] Error: {e}")
+            return f"Грешка при пребарување на рокови: {str(e)}"
+
+    elif tool_name == "get_company_wins":
+        company_name = tool_args.get("company_name", "").strip()
+        year = tool_args.get("year")
+        limit = tool_args.get("limit", 20)
+
+        if not company_name:
+            return "Мора да наведете име на компанија."
+
+        # Validate limit
+        if not isinstance(limit, int) or limit < 1:
+            limit = 20
+        if limit > 50:
+            limit = 50
+
+        try:
+            # Build bilingual search patterns
+            search_patterns = _build_bilingual_patterns(company_name)
+
+            # Build year filter
+            year_filter = ""
+            params = [search_patterns]
+            if year:
+                year_filter = f" AND EXTRACT(YEAR FROM publication_date) = ${len(params) + 1}"
+                params.append(year)
+
+            # 1. Summary stats
+            stats_query = f"""
+                SELECT
+                    COUNT(*) as total_wins,
+                    COALESCE(SUM(estimated_value_mkd), 0) as total_estimated,
+                    COALESCE(SUM(actual_value_mkd), 0) as total_actual,
+                    COALESCE(AVG(estimated_value_mkd), 0) as avg_value,
+                    MIN(publication_date) as first_win,
+                    MAX(publication_date) as last_win
+                FROM tenders
+                WHERE winner ILIKE ANY($1){year_filter}
+            """
+            stats = await conn.fetchrow(stats_query, *params)
+
+            # 2. Top sectors (by CPV description or title keywords)
+            sectors_query = f"""
+                SELECT
+                    COALESCE(SUBSTRING(cpv_code FROM '^[0-9]{{2}}'), 'N/A') as cpv_prefix,
+                    COUNT(*) as cnt,
+                    SUM(estimated_value_mkd) as total_value
+                FROM tenders
+                WHERE winner ILIKE ANY($1){year_filter}
+                  AND cpv_code IS NOT NULL
+                GROUP BY cpv_prefix
+                ORDER BY cnt DESC
+                LIMIT 5
+            """
+            sectors = await conn.fetch(sectors_query, *params)
+
+            # 3. Recent wins list
+            wins_params = list(params) + [limit]
+            wins_query = f"""
+                SELECT tender_id, title, procuring_entity,
+                       estimated_value_mkd, actual_value_mkd,
+                       publication_date, cpv_code
+                FROM tenders
+                WHERE winner ILIKE ANY($1){year_filter}
+                ORDER BY publication_date DESC
+                LIMIT ${len(params) + 1}
+            """
+            wins = await conn.fetch(wins_query, *wins_params)
+
+            if not stats or stats['total_wins'] == 0:
+                return f"Не најдов победи за компанија: {company_name}"
+
+            # Format results
+            year_label = f" ({year})" if year else ""
+            result = f"## Победи на {company_name}{year_label}\n\n"
+            result += f"### Статистика:\n"
+            result += f"- **Вкупно победи:** {stats['total_wins']}\n"
+            total_val = stats['total_actual'] if stats['total_actual'] > 0 else stats['total_estimated']
+            if total_val > 0:
+                result += f"- **Вкупна вредност:** {total_val:,.0f} МКД\n"
+                result += f"- **Просечна вредност:** {stats['avg_value']:,.0f} МКД\n"
+            if stats['first_win']:
+                result += f"- **Прва победа:** {stats['first_win']}\n"
+            if stats['last_win']:
+                result += f"- **Последна победа:** {stats['last_win']}\n"
+
+            # Top sectors
+            if sectors:
+                result += f"\n### Топ сектори (по CPV):\n"
+                for s in sectors:
+                    val_str = f" ({s['total_value']:,.0f} МКД)" if s['total_value'] else ""
+                    result += f"- CPV {s['cpv_prefix']}xx: {s['cnt']} победи{val_str}\n"
+
+            # Recent wins
+            if wins:
+                result += f"\n### Последни победи:\n\n"
+                for w in wins:
+                    result += f"**{w['title']}**\n"
+                    result += f"  Набавувач: {w['procuring_entity']}\n"
+                    if w['actual_value_mkd']:
+                        result += f"  Договорена вредност: {w['actual_value_mkd']:,.0f} МКД\n"
+                    elif w['estimated_value_mkd']:
+                        result += f"  Проценета вредност: {w['estimated_value_mkd']:,.0f} МКД\n"
+                    result += f"  Датум: {w['publication_date']}\n"
+                    result += f"  ID: {w['tender_id']}\n\n"
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[COMPANY_WINS] Error: {e}")
+            return f"Грешка при пребарување победи на компанија: {str(e)}"
+
+    elif tool_name == "get_market_overview":
+        sector = tool_args.get("sector", "").strip()
+        year = tool_args.get("year")
+
+        if not sector:
+            return "Мора да наведете сектор (клучни зборови или CPV код)."
+
+        try:
+            # Determine if sector is CPV code or keywords
+            is_cpv = sector.replace('-', '').isdigit() and len(sector) >= 2
+
+            year_filter = ""
+            params = []
+            if is_cpv:
+                sector_filter = f"cpv_code LIKE ${len(params) + 1}"
+                params.append(f"{sector}%")
+            else:
+                sector_patterns = _build_bilingual_patterns(sector)
+                sector_filter = f"title ILIKE ANY(${len(params) + 1})"
+                params.append(sector_patterns)
+
+            if year:
+                year_filter = f" AND EXTRACT(YEAR FROM publication_date) = ${len(params) + 1}"
+                params.append(year)
+
+            # 1. Total tenders + total value
+            totals_query = f"""
+                SELECT
+                    COUNT(*) as total_tenders,
+                    COUNT(CASE WHEN status = 'awarded' THEN 1 END) as awarded_count,
+                    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count,
+                    COALESCE(SUM(estimated_value_mkd), 0) as total_estimated,
+                    COALESCE(SUM(actual_value_mkd), 0) as total_actual
+                FROM tenders
+                WHERE {sector_filter}{year_filter}
+            """
+            totals = await conn.fetchrow(totals_query, *params)
+
+            # 2. Top 10 winners
+            winners_query = f"""
+                SELECT
+                    winner,
+                    COUNT(*) as win_count,
+                    COALESCE(SUM(estimated_value_mkd), 0) as total_value
+                FROM tenders
+                WHERE {sector_filter}{year_filter}
+                  AND winner IS NOT NULL AND winner <> ''
+                GROUP BY winner
+                ORDER BY win_count DESC
+                LIMIT 10
+            """
+            winners = await conn.fetch(winners_query, *params)
+
+            # 3. Top 10 buyers
+            buyers_query = f"""
+                SELECT
+                    procuring_entity,
+                    COUNT(*) as tender_count,
+                    COALESCE(SUM(estimated_value_mkd), 0) as total_value
+                FROM tenders
+                WHERE {sector_filter}{year_filter}
+                GROUP BY procuring_entity
+                ORDER BY tender_count DESC
+                LIMIT 10
+            """
+            buyers = await conn.fetch(buyers_query, *params)
+
+            # 4. Price range
+            price_query = f"""
+                SELECT
+                    MIN(estimated_value_mkd) as min_value,
+                    AVG(estimated_value_mkd) as avg_value,
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY estimated_value_mkd) as median_value,
+                    MAX(estimated_value_mkd) as max_value
+                FROM tenders
+                WHERE {sector_filter}{year_filter}
+                  AND estimated_value_mkd > 0
+            """
+            prices = await conn.fetchrow(price_query, *params)
+
+            # 5. Monthly trend (last 12 months)
+            trend_query = f"""
+                SELECT
+                    TO_CHAR(publication_date, 'YYYY-MM') as month,
+                    COUNT(*) as cnt,
+                    COALESCE(SUM(estimated_value_mkd), 0) as total_value
+                FROM tenders
+                WHERE {sector_filter}
+                  AND publication_date >= CURRENT_DATE - INTERVAL '12 months'
+                GROUP BY month
+                ORDER BY month DESC
+                LIMIT 12
+            """
+            # Use only sector params (not year) for trend
+            trend_params = params[:1] if not is_cpv else params[:1]
+            trend = await conn.fetch(trend_query, *trend_params)
+
+            if not totals or totals['total_tenders'] == 0:
+                return f"Не најдов тендери за сектор: {sector}"
+
+            # Format results
+            year_label = f" ({year})" if year else ""
+            result = f"## Пазарна анализа: {sector}{year_label}\n\n"
+
+            # Totals
+            result += f"### Преглед:\n"
+            result += f"- **Вкупно тендери:** {totals['total_tenders']}\n"
+            result += f"- **Доделени:** {totals['awarded_count']}\n"
+            result += f"- **Активни:** {totals['active_count']}\n"
+            total_val = totals['total_actual'] if totals['total_actual'] > 0 else totals['total_estimated']
+            if total_val > 0:
+                result += f"- **Вкупна вредност:** {total_val:,.0f} МКД\n"
+
+            # Price range
+            if prices and prices['avg_value']:
+                result += f"\n### Ценовен распон:\n"
+                result += f"- **Минимум:** {prices['min_value']:,.0f} МКД\n"
+                result += f"- **Просек:** {prices['avg_value']:,.0f} МКД\n"
+                if prices['median_value']:
+                    result += f"- **Медијана:** {prices['median_value']:,.0f} МКД\n"
+                result += f"- **Максимум:** {prices['max_value']:,.0f} МКД\n"
+
+            # Top winners
+            if winners:
+                result += f"\n### Топ 10 победници (добавувачи):\n"
+                for i, w in enumerate(winners, 1):
+                    val_str = f" ({w['total_value']:,.0f} МКД)" if w['total_value'] else ""
+                    result += f"{i}. **{w['winner']}** - {w['win_count']} победи{val_str}\n"
+
+            # Top buyers
+            if buyers:
+                result += f"\n### Топ 10 набавувачи (институции):\n"
+                for i, b in enumerate(buyers, 1):
+                    val_str = f" ({b['total_value']:,.0f} МКД)" if b['total_value'] else ""
+                    result += f"{i}. **{b['procuring_entity']}** - {b['tender_count']} тендери{val_str}\n"
+
+            # Monthly trend
+            if trend:
+                result += f"\n### Месечен тренд (последни 12 месеци):\n"
+                for t in trend:
+                    result += f"- {t['month']}: {t['cnt']} тендери ({t['total_value']:,.0f} МКД)\n"
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[MARKET_OVERVIEW] Error: {e}")
+            return f"Грешка при пазарна анализа: {str(e)}"
+
+    elif tool_name == "compare_companies":
+        companies = tool_args.get("companies", [])
+
+        if isinstance(companies, str):
+            companies = [companies]
+
+        if len(companies) < 2:
+            return "Мора да наведете најмалку 2 компании за споредба."
+        if len(companies) > 5:
+            companies = companies[:5]
+
+        try:
+            company_data = []
+            for company_name in companies:
+                company_name = company_name.strip()
+                search_patterns = _build_bilingual_patterns(company_name)
+
+                # 1. Total wins, total value, average deal size
+                stats_query = """
+                    SELECT
+                        COUNT(*) as total_wins,
+                        COALESCE(SUM(estimated_value_mkd), 0) as total_value,
+                        COALESCE(AVG(estimated_value_mkd), 0) as avg_value,
+                        MIN(publication_date) as first_win,
+                        MAX(publication_date) as last_win
+                    FROM tenders
+                    WHERE winner ILIKE ANY($1)
+                """
+                stats = await conn.fetchrow(stats_query, search_patterns)
+
+                # 2. Top sectors (CPV prefixes)
+                sectors_query = """
+                    SELECT
+                        COALESCE(SUBSTRING(cpv_code FROM '^[0-9]{2}'), 'N/A') as cpv_prefix,
+                        COUNT(*) as cnt
+                    FROM tenders
+                    WHERE winner ILIKE ANY($1)
+                      AND cpv_code IS NOT NULL
+                    GROUP BY cpv_prefix
+                    ORDER BY cnt DESC
+                    LIMIT 3
+                """
+                sectors = await conn.fetch(sectors_query, search_patterns)
+
+                # 3. Top institutions they sell to
+                institutions_query = """
+                    SELECT procuring_entity, COUNT(*) as cnt
+                    FROM tenders
+                    WHERE winner ILIKE ANY($1)
+                    GROUP BY procuring_entity
+                    ORDER BY cnt DESC
+                    LIMIT 3
+                """
+                institutions = await conn.fetch(institutions_query, search_patterns)
+
+                # 4. Win trend (last 3 years)
+                trend_query = """
+                    SELECT
+                        EXTRACT(YEAR FROM publication_date)::int as year,
+                        COUNT(*) as wins,
+                        COALESCE(SUM(estimated_value_mkd), 0) as total_value
+                    FROM tenders
+                    WHERE winner ILIKE ANY($1)
+                      AND publication_date >= CURRENT_DATE - INTERVAL '3 years'
+                    GROUP BY year
+                    ORDER BY year DESC
+                """
+                trend = await conn.fetch(trend_query, search_patterns)
+
+                company_data.append({
+                    'name': company_name,
+                    'stats': stats,
+                    'sectors': sectors,
+                    'institutions': institutions,
+                    'trend': trend
+                })
+
+            # Format as comparison
+            result = f"## Споредба на компании: {', '.join(companies)}\n\n"
+
+            # Summary table
+            result += "### Преглед:\n"
+            result += "| Компанија | Победи | Вкупна вредност | Просечна вредност | Последна победа |\n"
+            result += "|-----------|--------|-----------------|-------------------|-----------------|\n"
+            for cd in company_data:
+                s = cd['stats']
+                if s and s['total_wins'] > 0:
+                    result += f"| **{cd['name']}** | {s['total_wins']} | {s['total_value']:,.0f} МКД | {s['avg_value']:,.0f} МКД | {s['last_win']} |\n"
+                else:
+                    result += f"| **{cd['name']}** | 0 | - | - | - |\n"
+
+            # Detailed per-company
+            for cd in company_data:
+                s = cd['stats']
+                if not s or s['total_wins'] == 0:
+                    result += f"\n### {cd['name']}\nНема најдено победи.\n"
+                    continue
+
+                result += f"\n### {cd['name']}\n"
+
+                # Top sectors
+                if cd['sectors']:
+                    sector_str = ", ".join([f"CPV {s['cpv_prefix']}xx ({s['cnt']})" for s in cd['sectors']])
+                    result += f"- **Топ сектори:** {sector_str}\n"
+
+                # Top institutions
+                if cd['institutions']:
+                    inst_str = ", ".join([f"{i['procuring_entity'][:40]} ({i['cnt']})" for i in cd['institutions']])
+                    result += f"- **Топ набавувачи:** {inst_str}\n"
+
+                # Trend
+                if cd['trend']:
+                    trend_str = ", ".join([f"{t['year']}: {t['wins']} победи" for t in cd['trend']])
+                    result += f"- **Тренд:** {trend_str}\n"
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[COMPARE_COMPANIES] Error: {e}")
+            return f"Грешка при споредба на компании: {str(e)}"
+
+    elif tool_name == "find_similar_tenders":
+        tender_id = tool_args.get("tender_id", "").strip()
+        keywords = tool_args.get("keywords", [])
+        cpv_code = tool_args.get("cpv_code", "").strip()
+        budget_min = tool_args.get("budget_range_min")
+        budget_max = tool_args.get("budget_range_max")
+
+        if isinstance(keywords, str):
+            keywords = [keywords]
+
+        try:
+            # If tender_id given, fetch that tender's details first
+            reference_tender = None
+            if tender_id:
+                ref_query = """
+                    SELECT tender_id, title, cpv_code, estimated_value_mkd, procuring_entity
+                    FROM tenders
+                    WHERE tender_id = $1
+                """
+                reference_tender = await conn.fetchrow(ref_query, tender_id)
+                if reference_tender:
+                    # Use reference tender's data to build search
+                    if not keywords:
+                        # Extract key words from title (split and take significant words)
+                        title_words = [w for w in reference_tender['title'].split() if len(w) > 3]
+                        keywords = title_words[:3]
+                    if not cpv_code and reference_tender['cpv_code']:
+                        cpv_code = reference_tender['cpv_code'][:4]  # Match first 4 digits
+                    if not budget_min and not budget_max and reference_tender['estimated_value_mkd']:
+                        # +/- 50% range
+                        val = float(reference_tender['estimated_value_mkd'])
+                        budget_min = val * 0.5
+                        budget_max = val * 1.5
+
+            if not keywords and not cpv_code:
+                return "Мора да наведете tender_id, keywords, или cpv_code за пребарување на слични тендери."
+
+            # Build query
+            conditions = ["status = 'awarded'"]
+            params = []
+
+            if keywords:
+                patterns = [f"%{kw}%" for kw in keywords if len(kw) >= 2]
+                if patterns:
+                    params.append(patterns)
+                    conditions.append(f"title ILIKE ANY(${len(params)})")
+
+            if cpv_code:
+                params.append(f"{cpv_code}%")
+                conditions.append(f"cpv_code LIKE ${len(params)}")
+
+            if budget_min is not None:
+                params.append(float(budget_min))
+                conditions.append(f"estimated_value_mkd >= ${len(params)}")
+
+            if budget_max is not None:
+                params.append(float(budget_max))
+                conditions.append(f"estimated_value_mkd <= ${len(params)}")
+
+            # Exclude the reference tender itself
+            if tender_id:
+                params.append(tender_id)
+                conditions.append(f"tender_id != ${len(params)}")
+
+            where_clause = " AND ".join(conditions)
+            query = f"""
+                SELECT tender_id, title, procuring_entity, winner,
+                       estimated_value_mkd, actual_value_mkd,
+                       publication_date, cpv_code
+                FROM tenders
+                WHERE {where_clause}
+                ORDER BY publication_date DESC
+                LIMIT 20
+            """
+            rows = await conn.fetch(query, *params)
+
+            if not rows:
+                search_desc = ", ".join(keywords) if keywords else cpv_code
+                return f"Не најдов слични доделени тендери за: {search_desc}"
+
+            # Format results
+            result = ""
+            if reference_tender:
+                result += f"## Референтен тендер: {reference_tender['title']}\n"
+                result += f"  ID: {reference_tender['tender_id']}\n"
+                if reference_tender['estimated_value_mkd']:
+                    result += f"  Вредност: {reference_tender['estimated_value_mkd']:,.0f} МКД\n"
+                result += f"\n"
+
+            result += f"## Слични доделени тендери ({len(rows)} најдени):\n\n"
+
+            # Calculate stats
+            values = [float(r['actual_value_mkd'] or r['estimated_value_mkd'] or 0) for r in rows if (r['actual_value_mkd'] or r['estimated_value_mkd'])]
+            if values:
+                result += f"### Ценовен benchmark:\n"
+                result += f"- **Минимум:** {min(values):,.0f} МКД\n"
+                result += f"- **Просек:** {sum(values)/len(values):,.0f} МКД\n"
+                sorted_vals = sorted(values)
+                median = sorted_vals[len(sorted_vals)//2]
+                result += f"- **Медијана:** {median:,.0f} МКД\n"
+                result += f"- **Максимум:** {max(values):,.0f} МКД\n\n"
+
+            result += f"### Листа:\n\n"
+            for r in rows:
+                result += f"**{r['title']}**\n"
+                result += f"  Набавувач: {r['procuring_entity']}\n"
+                if r['winner']:
+                    result += f"  Победник: {r['winner']}\n"
+                if r['actual_value_mkd']:
+                    result += f"  Договорена вредност: {r['actual_value_mkd']:,.0f} МКД\n"
+                elif r['estimated_value_mkd']:
+                    result += f"  Проценета вредност: {r['estimated_value_mkd']:,.0f} МКД\n"
+                result += f"  Датум: {r['publication_date']}\n"
+                result += f"  ID: {r['tender_id']}\n\n"
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[FIND_SIMILAR] Error: {e}")
+            return f"Грешка при пребарување слични тендери: {str(e)}"
 
     return f"Непознат tool: {tool_name}"
 
