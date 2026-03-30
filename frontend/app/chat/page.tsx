@@ -6,7 +6,7 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Sparkles, AlertCircle, ArrowRight, Zap, Bell, Plus } from "lucide-react";
+import { MessageSquare, Sparkles, AlertCircle, ArrowRight, Zap, Bell, Plus, Clock, TrendingUp, Trophy, BarChart3, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import Link from "next/link";
 
@@ -34,10 +34,12 @@ interface UsageStatus {
 }
 
 const SUGGESTED_QUESTIONS = [
-  "Јас сум [дејност], покажи ми релевантни тендери",
-  "Колку чинат тендери за [производ/услуга]?",
-  "Кои се моите главни конкуренти?",
-  "Постави алерт за нови тендери во мојата област",
+  { text: "Кои тендери се затвараат оваа недела?", icon: Clock },
+  { text: "Направи анализа на пазарот за ИТ услуги", icon: TrendingUp },
+  { text: "Кој ги добива тендерите за градежни работи?", icon: Trophy },
+  { text: "Спореди ги компаниите Алкалоид и Реплек", icon: BarChart3 },
+  { text: "Постави алерт за медицински тендери", icon: Bell },
+  { text: "Најди слични тендери на 01234/2025", icon: Search },
 ];
 
 const ALERTS_SUGGESTED_QUESTIONS = [
@@ -327,35 +329,62 @@ function ChatPage() {
                 </div>
                 <div>
                   <h2 className="text-xl md:text-2xl font-bold">
-                    {alertsMode ? 'Анализа на Алерти' : 'Здраво! Јас сум твој личен консултант за тендери.'}
+                    {alertsMode ? 'Анализа на Алерти' : 'Здраво! Јас сум вашиот личен консултант за тендери.'}
                   </h2>
-                  <p className="text-sm md:text-base text-muted-foreground mt-2 md:mt-3 px-4 max-w-lg mx-auto leading-relaxed">
+                  <p className="text-sm md:text-base text-muted-foreground mt-2 md:mt-3 px-4 max-w-xl mx-auto leading-relaxed">
                     {alertsMode
                       ? 'Прашајте за вашите совпаѓања со алерти'
-                      : 'Кажи ми за твојата дејност и ќе ти помогнам да најдеш тендери, да анализираш цени, и да поставиш алерти.'}
+                      : 'Можам да пребарувам тендери, анализирам пазари, споредувам компании, следам рокови и да поставам алерти за вас. Што ве интересира?'}
                   </p>
                 </div>
               </div>
 
-              <div className="w-full max-w-2xl space-y-2 md:space-y-3">
-                <p className="text-xs md:text-sm font-medium text-muted-foreground px-1">Предложени прашања:</p>
-                <div className="grid gap-2 md:gap-3">
-                  {(alertsMode ? ALERTS_SUGGESTED_QUESTIONS : SUGGESTED_QUESTIONS).map((question, index) => (
-                    <Card
-                      key={index}
-                      className={`p-3 md:p-4 transition-colors ${isLimitReached || isBlocked
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'cursor-pointer hover:bg-accent'
-                        }`}
-                      onClick={() => !isLimitReached && !isBlocked && handleSuggestedQuestion(question)}
-                    >
-                      <div className="flex items-start gap-2 md:gap-3">
-                        <MessageSquare className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        <p className="text-xs md:text-sm">{question}</p>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
+              <div className="w-full max-w-2xl space-y-3 md:space-y-4">
+                {alertsMode ? (
+                  <div className="grid gap-2 md:gap-3">
+                    {ALERTS_SUGGESTED_QUESTIONS.map((question, index) => (
+                      <Card
+                        key={index}
+                        className={`p-3 md:p-4 transition-colors ${isLimitReached || isBlocked
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'cursor-pointer hover:bg-accent'
+                          }`}
+                        onClick={() => !isLimitReached && !isBlocked && handleSuggestedQuestion(question)}
+                      >
+                        <div className="flex items-start gap-2 md:gap-3">
+                          <MessageSquare className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <p className="text-xs md:text-sm">{question}</p>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+                      {SUGGESTED_QUESTIONS.map((item, index) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            key={index}
+                            className={`flex items-start gap-2 md:gap-3 rounded-lg border p-3 md:p-4 text-left transition-colors ${
+                              isLimitReached || isBlocked
+                                ? 'opacity-50 cursor-not-allowed'
+                                : 'cursor-pointer hover:bg-accent hover:border-primary/30'
+                            }`}
+                            onClick={() => !isLimitReached && !isBlocked && handleSuggestedQuestion(item.text)}
+                            disabled={isLimitReached || isBlocked || false}
+                          >
+                            <Icon className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <span className="text-xs md:text-sm leading-snug">{item.text}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] md:text-xs text-muted-foreground text-center">
+                      Или напишете го вашето прашање подолу
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Current Plan Info */}
