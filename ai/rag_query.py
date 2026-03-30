@@ -6417,6 +6417,29 @@ class LLMDrivenAgent:
 - ВАЖНО: Подобро е да повикаш повеќе tools отколку помалку!
 - ПРЕПОРАКА: Користи ги препорачаните tools од класификацијата како водич!
 
+🔔 АЛЕРТИ → create_alert
+- "постави алерт за градежни тендери" → {{"tool": "create_alert", "args": {{"name": "Градежни Тендери", "keywords": ["градежни работи", "реконструкција", "изградба"]}}}}
+- "сакам известување за ИТ набавки" → {{"tool": "create_alert", "args": {{"name": "ИТ Набавки", "keywords": ["информатичка", "софтвер", "ИТ услуги"]}}}}
+
+📅 РОКОВИ/DEADLINES → get_upcoming_deadlines
+- "кои тендери се затвараат оваа недела" → {{"tool": "get_upcoming_deadlines", "args": {{"days_ahead": 7}}}}
+- "итни рокови за медицински тендери" → {{"tool": "get_upcoming_deadlines", "args": {{"days_ahead": 3, "sector": "медицински"}}}}
+
+🏢 ПОБЕДИ НА КОМПАНИЈА → get_company_wins
+- "покажи ми ги победите на Алкалоид" → {{"tool": "get_company_wins", "args": {{"company_name": "Алкалоид"}}}}
+- "историја на Гранит" → {{"tool": "get_company_wins", "args": {{"company_name": "Гранит"}}}}
+
+📊 ПАЗАРНА АНАЛИЗА → get_market_overview
+- "анализа на пазарот за ИТ услуги" → {{"tool": "get_market_overview", "args": {{"sector": "ИТ услуги"}}}}
+- "пазар за градежни работи" → {{"tool": "get_market_overview", "args": {{"sector": "градежни работи"}}}}
+
+⚖️ СПОРЕДБА НА КОМПАНИИ → compare_companies
+- "спореди Алкалоид и Реплек" → {{"tool": "compare_companies", "args": {{"companies": ["Алкалоид", "Реплек"]}}}}
+
+🔍 СЛИЧНИ ТЕНДЕРИ → find_similar_tenders
+- "најди слични тендери на 15817/2025" → {{"tool": "find_similar_tenders", "args": {{"tender_id": "15817/2025"}}}}
+- "слични набавки за софтвер" → {{"tool": "find_similar_tenders", "args": {{"keywords": "софтвер"}}}}
+
 🏆 НАЈГОЛЕМИ/ТОП ТЕНДЕРИ → get_top_tenders
 - "најголеми тендери во 2024" → {{"tool": "get_top_tenders", "args": {{"sort_by": "value_desc", "year": 2024, "limit": 10}}}}
 - "најскапи набавки" → {{"tool": "get_top_tenders", "args": {{"sort_by": "value_desc", "limit": 10}}}}
@@ -6463,6 +6486,20 @@ class LLMDrivenAgent:
                     # For analytical questions, use get_statistics
                     tool_calls = [
                         {"tool": "get_statistics", "args": {"stat_type": "top_institutions", "metric": "both", "limit": 10}}
+                    ]
+                elif query_classification['type'] == 'alert_creation':
+                    # Extract keywords from user message for alert
+                    import re as _re
+                    words = _re.findall(r'[\w]+', question)
+                    alert_keywords = [w for w in words if len(w) > 3 and w.lower() not in (
+                        'постави', 'алерт', 'креирај', 'направи', 'сакам', 'нотификација',
+                        'известување', 'следи', 'тендери', 'тендер', 'набавки', 'alert', 'create'
+                    )]
+                    tool_calls = [
+                        {"tool": "create_alert", "args": {
+                            "name": " ".join(alert_keywords[:3]) + " Алерт",
+                            "keywords": alert_keywords[:5] if alert_keywords else ["тендер"]
+                        }}
                     ]
                 elif query_classification['type'] == 'price':
                     tool_calls = [
