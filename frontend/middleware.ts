@@ -27,6 +27,7 @@ const PUBLIC_ROUTES = [
   '/terms',
   '/403',
   '/pricing',
+  '/transparency',
 ];
 
 // Helper function to check if a path matches a route pattern

@@ -1029,6 +1029,99 @@ async def get_corruption_stats():
 
 
 # ============================================================================
+# PUBLIC STATS ENDPOINT (no auth — for transparency dashboard)
+# ============================================================================
+
+@router.get("/public-stats")
+async def get_public_corruption_stats():
+    """
+    Public corruption statistics for the transparency dashboard.
+    No authentication required. Returns aggregate data only.
+    """
+    conn = await get_db_connection()
+    try:
+        import json as _json
+
+        # Aggregate stats from materialized view
+        row = await conn.fetchrow("""
+            SELECT total_flags, total_tenders_flagged, total_value_at_risk_mkd,
+                   by_severity, by_type
+            FROM mv_corruption_stats
+            LIMIT 1
+        """)
+
+        if row:
+            by_severity_raw = row['by_severity']
+            by_type_raw = row['by_type']
+            by_severity = _json.loads(by_severity_raw) if isinstance(by_severity_raw, str) else (by_severity_raw or {})
+            by_type = _json.loads(by_type_raw) if isinstance(by_type_raw, str) else (by_type_raw or {})
+            total_flags = row['total_flags'] or 0
+            total_tenders_flagged = row['total_tenders_flagged'] or 0
+            total_value_at_risk = float(row['total_value_at_risk_mkd']) if row['total_value_at_risk_mkd'] else 0
+        else:
+            by_severity = {}
+            by_type = {}
+            total_flags = 0
+            total_tenders_flagged = 0
+            total_value_at_risk = 0
+
+        # Total tenders monitored
+        total_tenders = await conn.fetchval("SELECT COUNT(*) FROM tenders")
+
+        # Total company relationships
+        total_relationships = await conn.fetchval("SELECT COUNT(*) FROM company_relationships")
+
+        # Top 10 flagged tenders (critical/high risk)
+        top_flagged = await conn.fetch("""
+            SELECT t.tender_id, t.title, t.procuring_entity,
+                   trs.risk_score, trs.risk_level,
+                   COALESCE(t.estimated_value_mkd, 0) as value_mkd,
+                   array_agg(DISTINCT cf.flag_type) as flag_types
+            FROM tender_risk_scores trs
+            JOIN tenders t ON t.tender_id = trs.tender_id
+            LEFT JOIN corruption_flags cf ON cf.tender_id = trs.tender_id
+            WHERE trs.risk_level IN ('critical', 'high')
+            GROUP BY t.tender_id, t.title, t.procuring_entity, trs.risk_score, trs.risk_level, t.estimated_value_mkd
+            ORDER BY trs.risk_score DESC
+            LIMIT 10
+        """)
+
+        top_flagged_list = [
+            {
+                "tender_id": r["tender_id"],
+                "title": r["title"],
+                "institution": r["procuring_entity"],
+                "risk_score": r["risk_score"],
+                "risk_level": r["risk_level"],
+                "value_mkd": float(r["value_mkd"]) if r["value_mkd"] else 0,
+                "flag_types": [f for f in (r["flag_types"] or []) if f],
+            }
+            for r in top_flagged
+        ]
+
+        return {
+            "total_tenders": total_tenders,
+            "total_flags": total_flags,
+            "total_tenders_flagged": total_tenders_flagged,
+            "total_value_at_risk_mkd": total_value_at_risk,
+            "total_relationships": total_relationships,
+            "by_severity": by_severity,
+            "by_type": by_type,
+            "top_flagged": top_flagged_list,
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching public corruption stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch public stats"
+        )
+    finally:
+        pool = await get_asyncpg_pool()
+        await pool.release(conn)
+
+
+# ============================================================================
 # TRIGGER ANALYSIS ENDPOINT
 # ============================================================================
 
