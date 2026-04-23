@@ -38,7 +38,7 @@ if database_url:
 else:
     print("   ⚠️  DATABASE_URL: Not set (database tests will be skipped)")
 
-print(f"   ✅ GEMINI_MODEL: {os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')}")
+print(f"   ✅ GEMINI_MODEL: {os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')}")
 print(f"   ✅ EMBEDDING_MODEL: {os.getenv('EMBEDDING_MODEL', 'text-embedding-004')}")
 print(f"   ✅ VECTOR_DIMENSION: {os.getenv('VECTOR_DIMENSION', '768')}")
 

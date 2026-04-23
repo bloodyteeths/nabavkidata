@@ -33,7 +33,7 @@ try:
     GEMINI_AVAILABLE = bool(os.getenv('GEMINI_API_KEY'))
     if GEMINI_AVAILABLE:
         _genai_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
-        GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
+        GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 except ImportError:
     GEMINI_AVAILABLE = False
     _genai_client = None
