@@ -26,9 +26,9 @@ const partners = [
         description: "Database"
     },
     {
-        name: "Vercel",
-        logo: "https://assets.vercel.com/image/upload/front/favicon/vercel/180x180.png",
-        description: "Deployment Platform"
+        name: "Hetzner",
+        logo: "https://www.hetzner.com/assets/Uploads/Hetzner-Icon.svg",
+        description: "Cloud Hosting"
     }
 ];
 

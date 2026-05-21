@@ -1,6 +1,17 @@
 import { MetadataRoute } from 'next'
 import { getAllPosts } from '@/lib/blog-posts'
 
+const SECTOR_SLUGS = [
+  'it-digitalni-uslugi', 'gradeznistvo', 'medicinska-oprema', 'kancelariski-materijali',
+  'hrana-pijaloci', 'transport-vozila', 'cistenje-odrzuvanje', 'obezbeduvawe',
+  'konsultantski-uslugi', 'oprema-masini', 'energetika', 'pecatenje-marketing',
+]
+
+const REGION_SLUGS = [
+  'skopje', 'bitola', 'kumanovo', 'prilep', 'tetovo', 'ohrid',
+  'veles', 'stip', 'strumica', 'gostivar', 'kavadarci', 'kocani',
+]
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://www.nabavkidata.com'
   const currentDate = new Date()
@@ -22,6 +33,22 @@ export default function sitemap(): MetadataRoute.Sitemap {
     })),
   ]
 
+  const sectorRoutes: MetadataRoute.Sitemap = SECTOR_SLUGS.map(sector => ({
+    url: `${baseUrl}/sectors/${sector}`,
+    lastModified: currentDate,
+    changeFrequency: 'weekly' as const,
+    priority: 0.7,
+  }))
+
+  const sectorRegionRoutes: MetadataRoute.Sitemap = SECTOR_SLUGS.flatMap(sector =>
+    REGION_SLUGS.map(region => ({
+      url: `${baseUrl}/sectors/${sector}/${region}`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly' as const,
+      priority: 0.6,
+    }))
+  )
+
   return [
     {
       url: baseUrl,
@@ -42,6 +69,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
+      url: `${baseUrl}/awards`,
+      lastModified: currentDate,
+      changeFrequency: 'daily',
+      priority: 0.7,
+    },
+    {
       url: `${baseUrl}/pricing`,
       lastModified: currentDate,
       changeFrequency: 'weekly',
@@ -59,15 +92,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly',
       priority: 0.5,
     },
+    {
+      url: `${baseUrl}/sectors`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    ...sectorRoutes,
+    ...sectorRegionRoutes,
     ...blogRoutes,
-    // Note: Dynamic tender and supplier pages can be added here in the future
-    // by fetching data from the API and mapping each tender/supplier to a URL
-    // Example:
-    // ...tenders.map((tender) => ({
-    //   url: `${baseUrl}/tenders/${encodeURIComponent(tender.tender_id)}`,
-    //   lastModified: tender.updated_at || currentDate,
-    //   changeFrequency: 'weekly' as const,
-    //   priority: 0.6,
-    // })),
   ]
 }

@@ -28,13 +28,16 @@ import {
   Bot,
   Building2,
   Package,
-  Send
+  Send,
+  Swords
 } from "lucide-react";
 import Link from "next/link";
 import { CompetitorSearch } from "@/components/competitors/CompetitorSearch";
 import ActivityFeed from "@/components/competitors/ActivityFeed";
 import { CompetitorComparison, CompetitorStats } from "@/components/competitors/CompetitorComparison";
 import HeadToHead from "@/components/competitors/HeadToHead";
+import { PageContainer } from "@/components/ui/page-container";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Competitor {
   name?: string;
@@ -366,13 +369,12 @@ export default function CompetitorsPage() {
   // Show login/upgrade gate
   if (!isLoggedIn || tier === "free") {
     return (
-      <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Анализа на конкуренти</h1>
-          <p className="text-sm text-muted-foreground">
-            Дознајте кои компании најмногу добиваат тендери
-          </p>
-        </div>
+      <PageContainer>
+        <PageHeader
+          icon={Swords}
+          title="Анализа на конкуренти"
+          description="Дознајте кои компании најмногу добиваат тендери"
+        />
 
         <Card className="border-2 border-dashed">
           <CardContent className="py-12 flex flex-col items-center text-center space-y-4">
@@ -444,49 +446,33 @@ export default function CompetitorsPage() {
             </Card>
           </div>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold">Анализа на конкуренти</h1>
-          <p className="text-xs md:text-sm text-muted-foreground">
-            Следете ги топ компаниите и нивната активност
-          </p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        icon={Swords}
+        title="Анализа на конкуренти"
+        description="Следете ги топ компаниите и нивната активност"
+      >
         <div className="flex items-center gap-2">
-          {/* Period selector */}
           <div className="flex bg-muted rounded-lg p-0.5">
-            <button
-              onClick={() => setPeriod("all")}
-              className={`px-3 py-1.5 text-xs md:text-sm rounded-md transition-colors ${
-                period === "all"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
+            <button onClick={() => setPeriod("all")}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${period === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               Сите години
             </button>
-            <button
-              onClick={() => setPeriod("1y")}
-              className={`px-3 py-1.5 text-xs md:text-sm rounded-md transition-colors ${
-                period === "1y"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
+            <button onClick={() => setPeriod("1y")}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${period === "1y" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               Последна година
             </button>
           </div>
-          <Button size="sm" variant="outline" onClick={() => load()} disabled={loading} className="h-8 md:h-10 text-xs md:text-sm">
-            <RefreshCcw className="h-3 w-3 md:h-4 md:w-4 mr-2" />
-            Освежи
+          <Button size="sm" variant="outline" onClick={() => load()} disabled={loading}>
+            <RefreshCcw className="h-4 w-4 mr-2" /> Освежи
           </Button>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Quick Guide */}
       <Card className="bg-muted/30 border-dashed">
@@ -1131,6 +1117,6 @@ export default function CompetitorsPage() {
           <HeadToHead />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }

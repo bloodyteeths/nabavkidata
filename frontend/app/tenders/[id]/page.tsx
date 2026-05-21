@@ -1,1848 +1,209 @@
-"use client";
+import { Metadata } from "next";
+import { Suspense } from "react";
+import TenderDetailClient from "./TenderDetailClient";
 
-import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChatMessage } from "@/components/chat/ChatMessage";
-import { ChatInput } from "@/components/chat/ChatInput";
-import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
-import { formatCurrency, formatDate, tenderIdFromParam } from "@/lib/utils";
-import { useAuth } from "@/lib/auth";
-import { DocumentViewer } from "@/components/tenders/DocumentViewer";
-import { DocumentSearch } from "@/components/documents/DocumentSearch";
-import { QuickActions } from "@/components/ai/QuickActions";
-import { TenderChatWidget } from "@/components/ai/TenderChatWidget";
-import { BidRecommendation } from "@/components/pricing/BidRecommendation";
-import { RelatedTenders } from "@/components/RelatedTenders";
-import {
-  ArrowLeft,
-  Building2,
-  Calendar,
-  Tag,
-  FileText,
-  MessageSquare,
-  Bookmark,
-  ExternalLink,
-  Sparkles,
-  Download,
-  File,
-  User,
-  Mail,
-  Phone,
-  Briefcase,
-  Users,
-  Package,
-  Trophy,
-  XCircle,
-  Award,
-  ShoppingCart,
-  Clock,
-  MapPin,
-  CreditCard,
-  TrendingUp,
-  FileSpreadsheet,
-  FileType,
-  Lock,
-} from "lucide-react";
-import Link from "next/link";
-import { toast } from "sonner";
-import { Breadcrumb } from "@/components/Breadcrumb";
-import { UpgradePrompt } from "@/components/billing/UpgradePrompt";
+const API_URL = "https://api.nabavkidata.com";
 
-// Compute effective status based on closing_date
-// If status is 'open' but closing_date has passed, it's actually 'closed'
-function getEffectiveStatus(status?: string, closingDate?: string): string {
-  if (status === 'awarded' || status === 'cancelled') {
-    return status;
-  }
-  if (status === 'open' && closingDate) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const closeDate = new Date(closingDate);
-    closeDate.setHours(0, 0, 0, 0);
-    if (closeDate < today) {
-      return 'closed';
-    }
-  }
-  return status || 'open';
+function tenderIdFromParam(param: string): string {
+  const match = param.match(/^(\d+)-(\d{4})$/);
+  if (match) return `${match[1]}/${match[2]}`;
+  return param;
 }
 
-function getStatusLabel(status: string): string {
-  switch (status) {
-    case 'open': return 'Отворен';
-    case 'closed': return 'Затворен';
-    case 'awarded': return 'Доделен';
-    case 'cancelled': return 'Поништен';
-    default: return status;
+function formatMKD(value: number | null | undefined): string {
+  if (!value) return "";
+  return Math.trunc(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") + " ден";
+}
+
+interface SeoTender {
+  tender_id: string;
+  title: string | null;
+  description: string | null;
+  procuring_entity: string | null;
+  estimated_value_mkd: number | null;
+  actual_value_mkd: number | null;
+  status: string | null;
+  closing_date: string | null;
+  publication_date: string | null;
+  opening_date: string | null;
+  cpv_code: string | null;
+  winner: string | null;
+  procedure_type: string | null;
+  category: string | null;
+}
+
+async function fetchSeoTender(tenderId: string): Promise<SeoTender | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/seo/tender/${encodeURIComponent(tenderId)}`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
   }
 }
 
-function formatPaymentTerms(value?: string): string {
-  if (!value) return 'Не е наведено';
-  const trimmed = value.trim().toLowerCase();
-  // Handle common cases
-  if (trimmed === 'не' || trimmed === 'no') return 'Нема посебни услови';
-  if (trimmed === 'да' || trimmed === 'yes') return 'Има услови - видете документи';
-  // If it's just a number, assume it's days
-  const num = parseInt(value.trim(), 10);
-  if (!isNaN(num) && num > 0 && num <= 365) {
-    return `${num} денови по фактура`;
-  }
-  // Return as-is if it's already descriptive
-  return value;
-}
-
-function formatContractDuration(value?: string | number): string {
-  if (!value) return 'Не е наведено';
-  const str = String(value).trim();
-  const num = parseInt(str, 10);
-  if (!isNaN(num) && num > 0) {
-    if (num <= 24) {
-      return `${num} месеци`;
-    } else if (num <= 365) {
-      return `${num} денови`;
-    } else {
-      return `${num} денови (${Math.round(num / 30)} месеци)`;
-    }
-  }
-  return str;
-}
-
-const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const isValidPhone = (phone: string) => /^[+\d\s()\-]+$/.test(phone);
-const isSafeUrl = (url: string) => /^https?:\/\//i.test(url);
-
-function extractDocumentName(doc: { file_name?: string; file_url?: string }): string {
-  const isGenericName = (name: string) =>
-    /^document_[a-f0-9]+\.pdf$/i.test(name) ||
-    /^[a-f0-9]{32}/i.test(name) ||
-    /^\d+_\d+_[a-f0-9]+/.test(name);
-
-  // If we have a proper file_name that's not just a hash, use it
-  if (doc.file_name && !isGenericName(doc.file_name)) {
-    return doc.file_name;
-  }
-  // Try to extract fname from URL query parameter
-  if (doc.file_url) {
-    try {
-      const url = new URL(doc.file_url);
-      const fname = url.searchParams.get('fname');
-      if (fname) {
-        return decodeURIComponent(fname);
-      }
-    } catch {
-      const fnameMatch = doc.file_url.match(/fname=([^&]+)/i);
-      if (fnameMatch) {
-        return decodeURIComponent(fnameMatch[1]);
-      }
-    }
-    // Map URL patterns to meaningful document type names
-    if (doc.file_url.includes('DownloadBidFile')) return 'Понуда (финансиска)';
-    if (doc.file_url.includes('DownloadContractFile')) return 'Договор';
-    if (doc.file_url.includes('DownloadPublicFile')) return 'Тендерска документација';
-    if (doc.file_url.includes('DownloadDoc')) return 'Документ';
-  }
-  // Fallback to file_name or unknown
-  return doc.file_name || "Документ";
-}
-
-interface ChatMsg {
-  role: "user" | "assistant";
-  content: string;
-  sources?: RAGQueryResponse["sources"];
-}
-
-export default function TenderDetailPage() {
-  const params = useParams();
-  const rawId = params?.id;
-  // [id] route uses dash-separated format: "12345-2024" → "12345/2024"
-  const tenderId = rawId ? tenderIdFromParam(String(rawId)) : null;
-  const { user } = useAuth();
-  const searchParams = useSearchParams();
-  const activeTab = searchParams.get("tab") || "details";
-
-  const [tender, setTender] = useState<Tender | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [notifyEnabled, setNotifyEnabled] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
-  const [documents, setDocuments] = useState<TenderDocument[]>([]);
-  const [documentsLoading, setDocumentsLoading] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState<TenderDocument | null>(null);
-  const [bidders, setBidders] = useState<TenderBidder[]>([]);
-  const [biddersLoading, setBiddersLoading] = useState(false);
-  const [lots, setLots] = useState<TenderLot[]>([]);
-  const [lotsLoading, setLotsLoading] = useState(false);
-  const [hasLots, setHasLots] = useState(false);
-  // AI-extracted products
-  const [aiProducts, setAiProducts] = useState<{
-    products: Array<{
-      name: string;
-      quantity?: string;
-      unit?: string;
-      unit_price?: string;
-      total_price?: string;
-      specifications?: string;
-      category?: string;
-    }>;
-    summary?: string;
-    extraction_status: string;
-    source_documents: number;
-    price_gated?: boolean;
-    price_views_remaining?: number | null;
-    price_views_limit?: number | null;
-    price_views_used?: number;
-  } | null>(null);
-  const [productsLoading, setProductsLoading] = useState(false);
-  const [productsError, setProductsError] = useState<string | null>(null);
-  const [aiSummaryData, setAiSummaryData] = useState<{
-    overview: string;
-    key_requirements: string[];
-    estimated_complexity: string;
-    complexity_factors: string[];
-    deadline_urgency: string;
-    days_remaining: number | null;
-    competition_level: string;
-  } | null>(null);
-  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
-  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
-  const [tier, setTier] = useState<string>("unknown");
-  const [summaryGated, setSummaryGated] = useState<boolean>(false);
-  const [bidAdvice, setBidAdvice] = useState<{
-    tender_id: string;
-    estimated_value: number;
-    market_analysis: {
-      avg_discount: number;
-      typical_bidders: number;
-      price_trend: string;
-    };
-    recommendations: Array<{
-      strategy: string;
-      recommended_bid: number;
-      win_probability: number;
-      reasoning: string;
-    }>;
-    competitor_insights: Array<{
-      company: string;
-      win_rate: number;
-      avg_discount: number;
-    }>;
-    ai_summary: string;
-    item_prices?: Array<{
-      item_name: string;
-      unit_price?: number;
-      avg_price?: number;
-      min_price?: number;
-      max_price?: number;
-      quantity?: number;
-      unit?: string;
-      source?: string;
-    }>;
-  } | null>(null);
-  const [bidAdviceLoading, setBidAdviceLoading] = useState(false);
-  const [bidAdviceError, setBidAdviceError] = useState<string | null>(null);
-  const [productsLoaded, setProductsLoaded] = useState(false);
-
-  function handleTabChange(value: string) {
-    const url = new URL(window.location.href);
-    if (value === "details") {
-      url.searchParams.delete("tab");
-    } else {
-      url.searchParams.set("tab", value);
-    }
-    window.history.replaceState({}, "", url.toString());
-    // Lazy-load products when user first clicks the Products tab
-    if (value === "products" && !productsLoaded && !productsLoading) {
-      loadProducts();
-    }
-  }
-
-  useEffect(() => {
-    if (!tenderId) return;
-    loadTender();
-    loadNotifyPreference();
-    loadSavedPreference();
-    loadDocuments();
-    // Lazy-load products if user lands directly on products tab
-    if (activeTab === "products") {
-      loadProducts();
-    }
-  }, [tenderId]);
-
-  // Load bidders and lots after tender is loaded (to use embedded data first)
-  useEffect(() => {
-    if (tender) {
-      loadBidders();
-      loadLots();
-    }
-  }, [tender]);
-
-  // Log "view" behavior when tender is loaded and user is authenticated
-  useEffect(() => {
-    if (tender && user?.user_id) {
-      logBehavior("view");
-    }
-  }, [tender, user?.user_id]);
-
-  useEffect(() => {
-    loadTier();
-  }, [tenderId]);
-
-  async function loadTender() {
-    if (!tenderId) return;
-    try {
-      setLoading(true);
-      const result = await api.getTender(tenderId);
-      setTender(result);
-    } catch (error) {
-      console.error("Failed to load tender:", error);
-      toast.error("Не успеавме да го вчитаме тендерот.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadAISummary() {
-    if (!tenderId) return;
-    try {
-      setAiSummaryLoading(true);
-      setAiSummaryError(null);
-      const result = await api.getTenderAISummary(tenderId);
-      // The API returns summary as an object with structured data
-      setAiSummaryData(result.summary);
-    } catch (error) {
-      console.error("Failed to load AI summary:", error);
-      setAiSummaryError("AI резимето не е достапно моментално.");
-      setAiSummaryData(null);
-    } finally {
-      setAiSummaryLoading(false);
-    }
-  }
-
-  async function loadBidAdvice() {
-    if (!tenderId) return;
-    const parts = tenderId.split('/');
-    if (parts.length !== 2) {
-      console.log("Invalid tender ID format for bid advice");
-      return;
-    }
-    const [tenderNumber, tenderYear] = parts;
-    try {
-      setBidAdviceLoading(true);
-      setBidAdviceError(null);
-      const result = await api.getBidAdvice(tenderNumber, tenderYear);
-      setBidAdvice(result);
-    } catch (error) {
-      console.error("Failed to load bid advice:", error);
-      setBidAdvice(null);
-      setBidAdviceError("Препораките не се достапни за овој тендер.");
-    } finally {
-      setBidAdviceLoading(false);
-    }
-  }
-
-  async function loadTier() {
-    try {
-      const status = await api.getSubscriptionStatus();
-      setTier(status.tier || "free");
-      const gated = status.tier === "free";
-      setSummaryGated(gated);
-    } catch {
-      setTier("free");
-      setSummaryGated(true);
-    }
-  }
-
-  async function loadDocuments() {
-    if (!tenderId) return;
-    try {
-      setDocumentsLoading(true);
-      const result = await api.getTenderDocuments(tenderId);
-      // Normalize field names (backend may send legacy or new format)
-      const docs = (result.documents || []).map((doc: any) => ({
-        ...doc,
-        doc_id: doc.doc_id || doc.document_id,
-        file_name: doc.file_name || doc.filename,
-        file_url: doc.file_url || doc.download_url,
-        extraction_status: doc.extraction_status || 'pending',
-      }));
-      setDocuments(docs);
-    } catch (error) {
-      console.error("Failed to load documents:", error);
-      setDocuments([]);
-    } finally {
-      setDocumentsLoading(false);
-    }
-  }
-
-  async function loadBidders() {
-    if (!tenderId) return;
-    setBiddersLoading(true);
-    try {
-      // First check if tender has embedded bidders (from raw_data_json)
-      if (tender?.bidders && tender.bidders.length > 0) {
-        // Map embedded bidders to TenderBidder format
-        const mappedBidders: TenderBidder[] = tender.bidders.map((b, idx) => ({
-          bidder_id: `embedded-${idx}`,
-          company_name: b.company_name,
-          bid_amount_mkd: b.bid_amount_mkd,
-          is_winner: b.is_winner || false,
-          is_disqualified: b.disqualified || false,
-          rank: b.rank,
-        }));
-        setBidders(mappedBidders);
-        return;
-      }
-
-      // Fallback: Try separate bidders API for old format tenders
-      const parts = tenderId.split('/');
-      if (parts.length !== 2) {
-        console.log("Invalid tender ID format for bidders, and no embedded bidders");
-        setBidders([]);
-        return;
-      }
-      const [tenderNumber, tenderYear] = parts;
-      const result = await api.getTenderBidders(tenderNumber, tenderYear);
-      setBidders(result.bidders || []);
-    } catch (error) {
-      console.error("Failed to load bidders:", error);
-      setBidders([]);
-    } finally {
-      setBiddersLoading(false);
-    }
-  }
-
-  async function loadLots() {
-    if (!tenderId) return;
-    setLotsLoading(true);
-    try {
-      // First check if tender has embedded lots (from raw_data_json)
-      if (tender?.lots && tender.lots.length > 0) {
-        // Map embedded lots to TenderLot format
-        const mappedLots: TenderLot[] = tender.lots.map((l, idx) => ({
-          lot_id: `embedded-${idx}`,
-          lot_number: l.lot_number || idx + 1,
-          title: l.title || `Лот ${idx + 1}`,
-          estimated_value_mkd: l.estimated_value_mkd,
-          actual_value_mkd: l.actual_value_mkd,
-          winner: l.winner,
-        }));
-        setLots(mappedLots);
-        setHasLots(true);
-        return;
-      }
-
-      // Fallback: Try separate lots API for old format tenders
-      const parts = tenderId.split('/');
-      if (parts.length !== 2) {
-        console.log("Invalid tender ID format for lots, and no embedded lots");
-        setLots([]);
-        setHasLots(false);
-        return;
-      }
-      const [tenderNumber, tenderYear] = parts;
-      const result = await api.getTenderLots(tenderNumber, tenderYear);
-      setLots(result.lots || []);
-      setHasLots(result.has_lots || false);
-    } catch (error) {
-      console.error("Failed to load lots:", error);
-      setLots([]);
-      setHasLots(false);
-    } finally {
-      setLotsLoading(false);
-    }
-  }
-
-  async function loadProducts() {
-    if (!tenderId) return;
-    try {
-      setProductsLoading(true);
-      setProductsError(null);
-      const result = await api.getAIExtractedProducts(tenderId);
-      setAiProducts({
-        products: result.products || [],
-        summary: result.summary,
-        extraction_status: result.extraction_status,
-        source_documents: result.source_documents,
-        price_gated: result.price_gated,
-        price_views_remaining: result.price_views_remaining,
-        price_views_limit: result.price_views_limit,
-        price_views_used: result.price_views_used,
-      });
-      setProductsLoaded(true);
-    } catch (error) {
-      console.error("Failed to load AI products:", error);
-      setProductsError("Грешка при извлекување на производи. Обидете се повторно.");
-      setAiProducts(null);
-    } finally {
-      setProductsLoading(false);
-    }
-  }
-
-  function formatFileSize(bytes?: number): string {
-    if (!bytes) return "";
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
-  }
-
-  function getFileIcon(fileName?: string, mimeType?: string) {
-    const extension = fileName?.split('.').pop()?.toLowerCase();
-    const mime = mimeType?.toLowerCase();
-
-    // Check by extension or mime type
-    if (extension === 'pdf' || mime?.includes('pdf')) {
-      return <FileText className="h-5 w-5 text-red-500 flex-shrink-0" />;
-    }
-    if (extension === 'doc' || extension === 'docx' || mime?.includes('word') || mime?.includes('msword')) {
-      return <FileType className="h-5 w-5 text-blue-500 flex-shrink-0" />;
-    }
-    if (extension === 'xls' || extension === 'xlsx' || mime?.includes('excel') || mime?.includes('spreadsheet')) {
-      return <FileSpreadsheet className="h-5 w-5 text-green-600 flex-shrink-0" />;
-    }
-    // Default file icon
-    return <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />;
-  }
-
-  async function handleChatSend(message: string) {
-    // Check if user is authenticated
-    if (!user) {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "user", content: message },
-        {
-          role: "assistant",
-          content: "За да го користите AI асистентот, потребно е да се најавите. Кликнете на 'Најава' за да продолжите.",
-        },
-      ]);
-      toast.error("Најавете се за да го користите AI асистентот");
-      return;
-    }
-
-    setChatMessages((prev) => [...prev, { role: "user", content: message }]);
-    setChatLoading(true);
-
-    try {
-      // Build conversation history for context
-      const conversationHistory = chatMessages.slice(-10).map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
-
-      const result = await api.queryRAG(message, tenderId!, conversationHistory);
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: result.answer,
-          sources: result.sources,
-        },
-      ]);
-    } catch (error: any) {
-      console.error("Failed to get AI response:", error);
-
-      // Check for specific error types
-      let errorMessage = "Грешка при добивање одговор. Ве молиме обидете се повторно.";
-
-      if (error?.message?.includes("401") || error?.message?.includes("credentials") || error?.message?.includes("authenticated")) {
-        errorMessage = "Сесијата истече. Ве молиме најавете се повторно.";
-        toast.error("Сесијата истече. Најавете се повторно.");
-      } else if (error?.message?.includes("429")) {
-        errorMessage = "Го достигнавте дневниот лимит на прашања. Надградете го планот за повеќе прашања.";
-        toast.error("Дневен лимит достигнат");
-      } else {
-        toast.error("AI одговорот не успеа. Обидете се повторно.");
-      }
-
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: errorMessage,
-        },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  }
-
-  const logBehavior = async (action: string) => {
-    // Only log behavior for authenticated users
-    if (!user?.user_id || !tenderId) return;
-
-    try {
-      await api.logBehavior(user.user_id, {
-        tender_id: tenderId,
-        action,
-        duration_seconds: 0,
-      });
-    } catch (error) {
-      // Silently fail - behavior logging should not affect user experience
-      console.debug("Failed to log behavior:", error);
-    }
-  };
-
-  const loadNotifyPreference = () => {
-    try {
-      const stored = localStorage.getItem("followed_tenders");
-      if (!stored) return;
-      const parsed: string[] = JSON.parse(stored);
-      setNotifyEnabled(parsed.includes(tenderId!));
-    } catch {
-      // ignore
-    }
-  };
-
-  const toggleNotify = () => {
-    try {
-      const stored = localStorage.getItem("followed_tenders");
-      const parsed: string[] = stored ? JSON.parse(stored) : [];
-      let updated: string[];
-      if (parsed.includes(tenderId!)) {
-        updated = parsed.filter((id) => id !== tenderId);
-        setNotifyEnabled(false);
-        toast.success("Известувањата се исклучени за овој тендер.");
-      } else {
-        updated = [...parsed, tenderId!];
-        setNotifyEnabled(true);
-        toast.success("Ќе добивате известувања за овој тендер (само активни).");
-      }
-      localStorage.setItem("followed_tenders", JSON.stringify(updated));
-      void logBehavior("notify_toggle");
-    } catch {
-      toast.error("Не може да се зачува поставката за известувања.");
-    }
-  };
-
-  const quickPrompts = [
-    "Кои се главните услови и документи?",
-    "Какви се критериумите за евалуација?",
-    "Постојат ли гаранции или депозити?",
-  ];
-
-  const handleOpenSource = () => {
-    if (!tender?.source_url) return;
-    void logBehavior("open_source");
-    window.open(tender.source_url, "_blank", "noopener,noreferrer");
-  };
-
-  const loadSavedPreference = () => {
-    try {
-      const stored = localStorage.getItem("saved_tenders");
-      if (!stored) return;
-      const parsed: string[] = JSON.parse(stored);
-      setIsSaved(parsed.includes(tenderId!));
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleSave = () => {
-    if (!tenderId) return;
-    try {
-      const stored = localStorage.getItem("saved_tenders");
-      const parsed: string[] = stored ? JSON.parse(stored) : [];
-      let updated: string[];
-      if (parsed.includes(tenderId)) {
-        updated = parsed.filter((id) => id !== tenderId);
-        setIsSaved(false);
-        toast.success("Тендерот е отстранет од зачувани.");
-      } else {
-        updated = [...parsed, tenderId];
-        setIsSaved(true);
-        toast.success("Тендерот е зачуван! Пристапете до него од Зачувани тендери.");
-      }
-      localStorage.setItem("saved_tenders", JSON.stringify(updated));
-      void logBehavior("save");
-    } catch {
-      toast.error("Не може да се зачува тендерот.");
-    }
-  };
-
-  const handleShare = async () => {
-    if (!tenderId) return;
-    const url = window.location.href;
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: tender?.title || "Тендер",
-          text: `Погледнете го тендерот: ${tender?.title || tenderId}`,
-          url: url,
-        });
-        toast.success("Споделено!");
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Линкот е копиран!");
-      }
-      void logBehavior("share");
-    } catch (error) {
-      // User cancelled share or clipboard failed
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success("Линкот е копиран!");
-        void logBehavior("share");
-      } catch {
-        toast.error("Не може да се сподели.");
-      }
-    }
-  };
-
-  if (!tenderId || loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-muted-foreground">Се вчитува...</p>
-      </div>
-    );
-  }
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const tenderId = tenderIdFromParam(id);
+  const tender = await fetchSeoTender(tenderId);
 
   if (!tender) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <p className="text-muted-foreground">Тендерот не е пронајден</p>
-        <Button asChild variant="outline">
-          <Link href="/tenders">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Назад на тендери
-          </Link>
-        </Button>
-      </div>
-    );
+    return {
+      title: `Тендер ${tenderId} | NabavkiData`,
+      description: "Детали за јавна набавка на NabavkiData.",
+    };
   }
 
-  return (
-    <div className="p-4 md:p-8 space-y-6">
-      {/* Breadcrumb */}
-      <Breadcrumb
-        items={[
-          { label: "Тендери", href: "/tenders" }
-        ]}
-        currentPage={tender.title || "Без наслов"}
-      />
+  const title = tender.title
+    ? `${tender.title.slice(0, 70)} | NabavkiData`
+    : `Тендер ${tenderId} | NabavkiData`;
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <Button asChild variant="ghost" size="sm" className="mb-2 pl-0 hover:bg-transparent">
-            <Link href="/tenders" className="flex items-center text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Назад кон тендери
-            </Link>
-          </Button>
-          <h1 className="text-xl md:text-3xl font-bold break-words">{tender.title || "Без наслов"}</h1>
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            <Badge variant={getEffectiveStatus(tender.status, tender.closing_date) === 'open' ? 'default' : 'secondary'}>
-              {getStatusLabel(getEffectiveStatus(tender.status, tender.closing_date))}
-            </Badge>
-            {tender.category && <Badge variant="outline">{tender.category}</Badge>}
+  const descParts: string[] = [];
+  if (tender.procuring_entity) descParts.push(tender.procuring_entity);
+  if (tender.estimated_value_mkd) descParts.push(formatMKD(tender.estimated_value_mkd));
+  if (tender.status === "awarded" && tender.winner) descParts.push(`Победник: ${tender.winner}`);
+  if (tender.closing_date) descParts.push(`Рок: ${tender.closing_date}`);
+  const description = descParts.length > 0
+    ? descParts.join(" | ")
+    : tender.description?.slice(0, 160) || "Детали за јавна набавка.";
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title: tender.title || `Тендер ${tenderId}`,
+      description,
+      url: `https://nabavkidata.com/tenders/${id}`,
+      type: "article",
+    },
+    alternates: {
+      canonical: `https://nabavkidata.com/tenders/${id}`,
+    },
+  };
+}
+
+function statusLabel(status: string | null): string {
+  switch (status) {
+    case "open": return "Отворен";
+    case "awarded": return "Доделен";
+    case "cancelled": return "Поништен";
+    default: return status || "Непознат";
+  }
+}
+
+function JsonLd({ tender, paramId }: { tender: SeoTender; paramId: string }) {
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "GovernmentService",
+    name: tender.title || `Тендер ${tender.tender_id}`,
+    description: tender.description?.slice(0, 500) || undefined,
+    provider: tender.procuring_entity
+      ? { "@type": "GovernmentOrganization", name: tender.procuring_entity }
+      : undefined,
+    url: `https://nabavkidata.com/tenders/${paramId}`,
+    areaServed: { "@type": "Country", name: "North Macedonia" },
+  };
+
+  if (tender.publication_date) {
+    jsonLd.datePublished = tender.publication_date;
+  }
+  if (tender.closing_date) {
+    jsonLd.expires = tender.closing_date;
+  }
+
+  const offers: Record<string, unknown> = { "@type": "Offer" };
+  if (tender.estimated_value_mkd) {
+    offers.price = tender.estimated_value_mkd;
+    offers.priceCurrency = "MKD";
+  }
+  if (tender.status === "awarded" && tender.actual_value_mkd) {
+    offers.price = tender.actual_value_mkd;
+    offers.priceCurrency = "MKD";
+  }
+  if (offers.price) {
+    jsonLd.offers = offers;
+  }
+
+  const breadcrumb = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+      { "@type": "ListItem", position: 2, name: "Тендери", item: "https://nabavkidata.com/tenders" },
+      { "@type": "ListItem", position: 3, name: tender.title || tender.tender_id },
+    ],
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
+    </>
+  );
+}
+
+export default async function TenderPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const tenderId = tenderIdFromParam(id);
+  const tender = await fetchSeoTender(tenderId);
+
+  return (
+    <>
+      {tender && <JsonLd tender={tender} paramId={id} />}
+
+      {/* SSR-visible content for crawlers */}
+      {tender && (
+        <div className="sr-only" aria-hidden="true">
+          <h1>{tender.title || `Тендер ${tender.tender_id}`}</h1>
+          {tender.procuring_entity && <p>Договорен орган: {tender.procuring_entity}</p>}
+          {tender.estimated_value_mkd && <p>Проценета вредност: {formatMKD(tender.estimated_value_mkd)}</p>}
+          {tender.winner && <p>Победник: {tender.winner}</p>}
+          {tender.status && <p>Статус: {statusLabel(tender.status)}</p>}
+          {tender.closing_date && <p>Рок: {tender.closing_date}</p>}
+          {tender.cpv_code && <p>CPV: {tender.cpv_code}</p>}
+          {tender.description && <p>{tender.description.slice(0, 500)}</p>}
+          <nav>
+            {tender.procuring_entity && (
+              <a href={`/entity/${encodeURIComponent(tender.procuring_entity)}`}>Тендери од {tender.procuring_entity}</a>
+            )}
+            {tender.winner && (
+              <a href={`/suppliers?search=${encodeURIComponent(tender.winner)}`}>Профил на {tender.winner}</a>
+            )}
+            {tender.cpv_code && (
+              <a href={`/categories/${tender.cpv_code}`}>Сите тендери со CPV {tender.cpv_code}</a>
+            )}
+          </nav>
+        </div>
+      )}
+
+      <Suspense fallback={
+        <div className="container mx-auto py-8 px-4">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+              <span>Се вчитува...</span>
+            </div>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
-          <Button
-            variant={isSaved ? "default" : "outline"}
-            onClick={handleSave}
-            className="flex-1 md:flex-none"
-          >
-            <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
-            {isSaved ? "Зачувано" : "Зачувај"}
-          </Button>
-          <Button
-            variant={notifyEnabled ? "default" : "outline"}
-            onClick={toggleNotify}
-            className="flex-1 md:flex-none"
-          >
-            <Sparkles className="h-4 w-4 mr-2" />
-            {notifyEnabled ? "Вклучени" : "Известувања"}
-          </Button>
-          <Button
-            onClick={handleOpenSource}
-            disabled={!tender.source_url}
-            variant={tender.source_url ? "default" : "outline"}
-            className="flex-1 md:flex-none"
-          >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            {tender.source_url ? "Извор" : "Нема извор"}
-          </Button>
-        </div>
-      </div>
-
-      {/* Compact Key Metrics Strip — always shown */}
-      <div className="flex flex-wrap gap-4 p-4 rounded-lg border bg-card">
-          {tender.estimated_value_mkd ? (
-            <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Буџет</p>
-                <p className="text-sm font-bold">{formatCurrency(tender.estimated_value_mkd)}</p>
-              </div>
-            </div>
-          ) : !tender.actual_value_mkd ? (
-            <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Буџет</p>
-                <p className="text-sm text-muted-foreground">Нема податок</p>
-              </div>
-            </div>
-          ) : null}
-          {tender.actual_value_mkd && (
-            <div className="flex items-center gap-2">
-              <Award className="h-4 w-4 text-green-600" />
-              <div>
-                <p className="text-xs text-muted-foreground">Доделен</p>
-                <p className="text-sm font-bold text-green-600">{formatCurrency(tender.actual_value_mkd)}</p>
-              </div>
-            </div>
-          )}
-          {bidders.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Понуди</p>
-                <p className="text-sm font-bold">{bidders.length}</p>
-              </div>
-            </div>
-          )}
-          {tender.closing_date && (
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Краен рок</p>
-                <p className="text-sm font-bold">{formatDate(tender.closing_date)}</p>
-              </div>
-            </div>
-          )}
-          {documents.length > 0 && (
-            <div className="flex items-center gap-2">
-              <File className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Документи</p>
-                <p className="text-sm font-bold">{documents.length}</p>
-              </div>
-            </div>
-          )}
-          {aiProducts && aiProducts.products.length > 0 && (
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4 text-primary" />
-              <div>
-                <p className="text-xs text-muted-foreground">Производи</p>
-                <p className="text-sm font-bold">{aiProducts.products.length} ставки</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Details */}
-        <div className="lg:col-span-2 space-y-6">
-          <Tabs defaultValue={activeTab} onValueChange={handleTabChange}>
-            <div className="w-full overflow-x-auto pb-2">
-              <TabsList className="w-full justify-start inline-flex min-w-max">
-                <TabsTrigger value="details">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Детали
-                </TabsTrigger>
-                <TabsTrigger value="documents">
-                  <File className="h-4 w-4 mr-2" />
-                  Документи ({documents.length})
-                </TabsTrigger>
-                <TabsTrigger value="bidders">
-                  <Users className="h-4 w-4 mr-2" />
-                  Понудувачи ({bidders.length})
-                </TabsTrigger>
-                {hasLots && (
-                  <TabsTrigger value="lots">
-                    <Package className="h-4 w-4 mr-2" />
-                    Лотови ({lots.length})
-                  </TabsTrigger>
-                )}
-                <TabsTrigger value="products">
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Производи {aiProducts?.products?.length ? `(${aiProducts.products.length})` : ''}
-                </TabsTrigger>
-                <TabsTrigger value="ai-analysis">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  AI Анализа
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="details" className="space-y-4 mt-4">
-              {/* Description */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Опис</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {tender.description ? (
-                    <p className="text-sm whitespace-pre-wrap">{tender.description}</p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground italic">
-                      Нема достапен опис за овој тендер. Проверете ги документите за детални информации.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Metadata */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Информации</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {tender.procuring_entity && (
-                    <div className="flex items-start gap-3">
-                      <Building2 className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Институција</p>
-                        <p className="text-sm text-muted-foreground">{tender.procuring_entity}</p>
-                      </div>
-                    </div>
-                  )}
-                  {tender.procedure_type && (
-                    <div className="flex items-start gap-3">
-                      <Briefcase className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Тип на постапка</p>
-                        <Badge variant="secondary">{tender.procedure_type}</Badge>
-                      </div>
-                    </div>
-                  )}
-                  {tender.evaluation_method && (
-                    <div className="flex items-start gap-3">
-                      <Award className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Метод на евалуација</p>
-                        <p className="text-sm text-muted-foreground">{tender.evaluation_method}</p>
-                      </div>
-                    </div>
-                  )}
-                  {tender.estimated_value_mkd && (
-                    <div className="flex items-start gap-3">
-                      <Tag className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Проценета вредност</p>
-                        <p className="text-sm font-semibold text-primary">
-                          {formatCurrency(tender.estimated_value_mkd)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {tender.actual_value_mkd && (
-                    <div className="flex items-start gap-3">
-                      <Trophy className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Договорена вредност</p>
-                        <p className="text-sm font-semibold text-green-600">
-                          {formatCurrency(tender.actual_value_mkd)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {tender.cpv_code && (
-                    <div className="flex items-start gap-3">
-                      <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">CPV Код</p>
-                        <p className="text-sm text-muted-foreground font-mono">{tender.cpv_code}</p>
-                      </div>
-                    </div>
-                  )}
-                  {tender.num_bidders !== undefined && tender.num_bidders !== null && (
-                    <div className="flex items-start gap-3">
-                      <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Број на понудувачи</p>
-                        <p className="text-sm text-muted-foreground">{tender.num_bidders}</p>
-                      </div>
-                    </div>
-                  )}
-                  {tender.winner && (
-                    <div className="flex items-start gap-3">
-                      <Trophy className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Добитник</p>
-                        <p className="text-sm text-muted-foreground">{tender.winner}</p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Contact Information */}
-              {(tender.contact_person || tender.contact_email || tender.contact_phone) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Контакт информации</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {tender.contact_person && (
-                      <div className="flex items-start gap-3">
-                        <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Контакт лице</p>
-                          <p className="text-sm text-muted-foreground">{tender.contact_person}</p>
-                        </div>
-                      </div>
-                    )}
-                    {tender.contact_email && (
-                      <div className="flex items-start gap-3">
-                        <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Е-пошта</p>
-                          {isValidEmail(tender.contact_email) ? (
-                            <a
-                              href={`mailto:${tender.contact_email}`}
-                              className="text-sm text-primary hover:underline"
-                            >
-                              {tender.contact_email}
-                            </a>
-                          ) : (
-                            <span className="text-sm">{tender.contact_email}</span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {tender.contact_phone && (
-                      <div className="flex items-start gap-3">
-                        <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Телефон</p>
-                          {isValidPhone(tender.contact_phone) ? (
-                            <a
-                              href={`tel:${tender.contact_phone}`}
-                              className="text-sm text-primary hover:underline"
-                            >
-                              {tender.contact_phone}
-                            </a>
-                          ) : (
-                            <span className="text-sm">{tender.contact_phone}</span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Requirements / Contract Details */}
-              {(tender.contract_duration || tender.payment_terms || tender.delivery_location || tender.security_deposit_mkd || tender.performance_guarantee_mkd) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Барања и услови</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {tender.contract_duration && (
-                      <div className="flex items-start gap-3">
-                        <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Времетраење на договор</p>
-                          <p className="text-sm text-muted-foreground">{formatContractDuration(tender.contract_duration)}</p>
-                        </div>
-                      </div>
-                    )}
-                    {tender.payment_terms && (
-                      <div className="flex items-start gap-3">
-                        <CreditCard className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Услови за плаќање</p>
-                          <p className="text-sm text-muted-foreground">{formatPaymentTerms(tender.payment_terms)}</p>
-                        </div>
-                      </div>
-                    )}
-                    {tender.delivery_location && (
-                      <div className="flex items-start gap-3">
-                        <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Место на испорака</p>
-                          <p className="text-sm text-muted-foreground">{tender.delivery_location}</p>
-                        </div>
-                      </div>
-                    )}
-                    {tender.security_deposit_mkd && (
-                      <div className="flex items-start gap-3">
-                        <Tag className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Гаранција за понуда</p>
-                          <p className="text-sm text-muted-foreground font-semibold">
-                            {formatCurrency(tender.security_deposit_mkd)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    {tender.performance_guarantee_mkd && (
-                      <div className="flex items-start gap-3">
-                        <Tag className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium">Гаранција за извршување</p>
-                          <p className="text-sm text-muted-foreground font-semibold">
-                            {formatCurrency(tender.performance_guarantee_mkd)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="documents" className="mt-4">
-              <div className="space-y-4">
-                {/* Selected Document Viewer */}
-                {selectedDocument && (
-                  <DocumentViewer
-                    docId={selectedDocument.doc_id}
-                    fileName={selectedDocument.file_name || "Непознат документ"}
-                    fileUrl={selectedDocument.file_url}
-                    contentText={selectedDocument.content_text}
-                    onClose={() => setSelectedDocument(null)}
-                  />
-                )}
-
-                {/* Document List */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Тендерска документација</CardTitle>
-                    <CardDescription>
-                      Кликнете на документ за да го видите целосниот текст или преземете го
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {documentsLoading ? (
-                      <p className="text-sm text-muted-foreground">Се вчитуваат документи...</p>
-                    ) : documents.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                        <File className="h-12 w-12 mb-2 opacity-20" />
-                        <p className="text-sm">Нема достапни документи</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {documents.map((doc) => (
-                          <div
-                            key={doc.doc_id}
-                            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                          >
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              {getFileIcon(doc.file_name, doc.mime_type)}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">
-                                  {extractDocumentName(doc)}
-                                </p>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  {doc.doc_type && <span>{doc.doc_type}</span>}
-                                  {doc.file_size_bytes && (
-                                    <>
-                                      <span>•</span>
-                                      <span>{formatFileSize(doc.file_size_bytes)}</span>
-                                    </>
-                                  )}
-                                  {doc.page_count && (
-                                    <>
-                                      <span>•</span>
-                                      <span>{doc.page_count} страници</span>
-                                    </>
-                                  )}
-                                  {doc.has_content || (doc.extraction_status === 'success' && doc.content_text) ? (
-                                    <>
-                                      <span>•</span>
-                                      <Badge variant="outline" className="text-xs text-green-600 border-green-300">
-                                        <Sparkles className="h-3 w-3 mr-1" />
-                                        Извлечено
-                                      </Badge>
-                                    </>
-                                  ) : doc.extraction_status === 'pending' ? (
-                                    <>
-                                      <span>•</span>
-                                      <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-300">
-                                        Чека обработка
-                                      </Badge>
-                                    </>
-                                  ) : doc.extraction_status === 'auth_required' ? (
-                                    <>
-                                      <span>•</span>
-                                      <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                                        Потребна авторизација
-                                      </Badge>
-                                    </>
-                                  ) : doc.extraction_status && doc.extraction_status !== 'success' ? (
-                                    <>
-                                      <span>•</span>
-                                      <Badge variant="outline" className="text-xs text-red-600 border-red-300">
-                                        Недостапен
-                                      </Badge>
-                                    </>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {/* AI Analysis button - active only if content was extracted */}
-                              {doc.has_content ? (
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => setSelectedDocument(doc)}
-                                >
-                                  <Sparkles className="h-4 w-4 mr-1" />
-                                  AI Анализа
-                                </Button>
-                              ) : doc.extraction_status === 'pending' ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled
-                                  className="text-muted-foreground"
-                                >
-                                  <Clock className="h-4 w-4 mr-1" />
-                                  Се обработува
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled
-                                  className="text-muted-foreground"
-                                >
-                                  <FileText className="h-4 w-4 mr-1" />
-                                  Нема содржина
-                                </Button>
-                              )}
-                              {/* External link buttons - only shown for safe URLs */}
-                              {doc.file_url && isSafeUrl(doc.file_url) && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    asChild
-                                  >
-                                    <a
-                                      href={doc.file_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                    >
-                                      <ExternalLink className="h-4 w-4 mr-1" />
-                                      Отвори
-                                    </a>
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    asChild
-                                  >
-                                    <a
-                                      href={doc.file_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      download
-                                    >
-                                      <Download className="h-4 w-4 mr-1" />
-                                      Преземи
-                                    </a>
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="bidders" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Понудувачи</CardTitle>
-                  <CardDescription>
-                    Список на сите понудувачи кои аплицирале за овој тендер
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {biddersLoading ? (
-                    <p className="text-sm text-muted-foreground">Се вчитуваат понудувачи...</p>
-                  ) : bidders.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                      <Users className="h-12 w-12 mb-2 opacity-20" />
-                      <p className="text-sm">Нема понудувачи</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {bidders.map((bidder) => (
-                        <div
-                          key={bidder.bidder_id}
-                          className="flex items-start justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold">{bidder.company_name}</p>
-                              {bidder.is_winner && (
-                                <Badge variant="default" className="bg-green-600">
-                                  <Trophy className="h-3 w-3 mr-1" />
-                                  Добитник
-                                </Badge>
-                              )}
-                              {bidder.is_disqualified && (
-                                <Badge variant="destructive">
-                                  <XCircle className="h-3 w-3 mr-1" />
-                                  Дисквалификуван
-                                </Badge>
-                              )}
-                            </div>
-                            {bidder.tax_id && (
-                              <p className="text-xs text-muted-foreground">
-                                Даночен број: {bidder.tax_id}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-4 text-sm">
-                              {bidder.bid_amount_mkd && (
-                                <div>
-                                  <span className="text-muted-foreground">Понуда: </span>
-                                  <span className="font-semibold text-primary">
-                                    {formatCurrency(bidder.bid_amount_mkd)}
-                                  </span>
-                                </div>
-                              )}
-                              {bidder.rank && (
-                                <div>
-                                  <span className="text-muted-foreground">Ранг: </span>
-                                  <span className="font-semibold">#{bidder.rank}</span>
-                                </div>
-                              )}
-                            </div>
-                            {bidder.is_disqualified && bidder.disqualification_reason && (
-                              <p className="text-xs text-destructive">
-                                Причина: {bidder.disqualification_reason}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="lots" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Лотови</CardTitle>
-                  <CardDescription>
-                    Поделба на тендерот на лотови/ставки
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {lotsLoading ? (
-                    <p className="text-sm text-muted-foreground">Се вчитуваат лотови...</p>
-                  ) : lots.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                      <Package className="h-12 w-12 mb-2 opacity-20" />
-                      <p className="text-sm">Нема лотови</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {lots.map((lot) => (
-                        <div
-                          key={lot.lot_id}
-                          className="p-4 rounded-lg border bg-card"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline">Лот #{lot.lot_number}</Badge>
-                                {lot.winner && (
-                                  <Badge variant="default" className="bg-green-600">
-                                    <Trophy className="h-3 w-3 mr-1" />
-                                    Доделен
-                                  </Badge>
-                                )}
-                              </div>
-                              <h4 className="text-sm font-semibold">{lot.title}</h4>
-                            </div>
-                          </div>
-                          {lot.description && (
-                            <p className="text-xs text-muted-foreground mb-2">
-                              {lot.description}
-                            </p>
-                          )}
-                          <div className="grid grid-cols-2 gap-3 text-sm">
-                            {lot.estimated_value_mkd && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">Проценета вредност</p>
-                                <p className="font-semibold text-primary">
-                                  {formatCurrency(lot.estimated_value_mkd)}
-                                </p>
-                              </div>
-                            )}
-                            {lot.actual_value_mkd && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">Договорена вредност</p>
-                                <p className="font-semibold text-green-600">
-                                  {formatCurrency(lot.actual_value_mkd)}
-                                </p>
-                              </div>
-                            )}
-                            {lot.cpv_code && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">CPV Код</p>
-                                <p className="font-mono text-xs">{lot.cpv_code}</p>
-                              </div>
-                            )}
-                            {lot.winner && (
-                              <div>
-                                <p className="text-xs text-muted-foreground">Добитник</p>
-                                <p className="font-semibold text-xs">{lot.winner}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="products" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5" />
-                    Производи / Ставки
-                  </CardTitle>
-                  <CardDescription>
-                    Производи и услуги извлечени од тендерската документација
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {productsLoading ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
-                      <p className="text-sm text-muted-foreground">Се извлекуваат производи...</p>
-                    </div>
-                  ) : productsError ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <XCircle className="h-12 w-12 mb-2 text-destructive opacity-50" />
-                      <p className="text-sm text-muted-foreground">{productsError}</p>
-                      <Button variant="outline" size="sm" className="mt-4" onClick={loadProducts}>
-                        Обиди се повторно
-                      </Button>
-                    </div>
-                  ) : !aiProducts ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <ShoppingCart className="h-12 w-12 mb-2 opacity-20 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground mb-3">Извлечи производи и ставки од тендерската документација</p>
-                      <Button onClick={loadProducts} disabled={productsLoading} size="sm">
-                        <ShoppingCart className="h-4 w-4 mr-2" />
-                        Извлечи производи
-                      </Button>
-                    </div>
-                  ) : aiProducts.extraction_status === 'no_documents' ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                      <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
-                      <p className="text-sm">{aiProducts.summary || "Нема достапни документи за анализа"}</p>
-                    </div>
-                  ) : aiProducts.products.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                      <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
-                      <p className="text-sm">Нема конкретни производи или услуги извлечени од документацијата</p>
-                      <p className="text-xs mt-2">Овој тендер можеби нема детална спецификација на ставки, или ставките се опишани само во PDF документите. Проверете го табот Документи за детали.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {/* Summary */}
-                      {aiProducts.summary && (
-                        <div className="p-3 rounded-lg bg-muted/50 border">
-                          <p className="text-sm text-muted-foreground">{aiProducts.summary}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Извор: {aiProducts.source_documents} документ(и)
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Price gating / quota notice */}
-                      {aiProducts.price_gated && (
-                        aiProducts.price_views_limit != null && aiProducts.price_views_limit > 0 ? (
-                          <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
-                            <Lock className="h-4 w-4 text-amber-600 shrink-0" />
-                            <p className="text-sm text-amber-800 dark:text-amber-300">
-                              Ги искористивте <strong>{aiProducts.price_views_used ?? aiProducts.price_views_limit}/{aiProducts.price_views_limit}</strong> ценовни прегледи денес.
-                              {" "}
-                              <a href="/billing/plans" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
-                                Надградете за повеќе
-                              </a>
-                            </p>
-                          </div>
-                        ) : (
-                          <UpgradePrompt
-                            feature="price_intelligence"
-                            currentTier="free"
-                            tierRequired="starter"
-                            message="Регистрирајте се за да видите цени на производите од овој тендер."
-                            variant="banner"
-                          />
-                        )
-                      )}
-                      {!aiProducts.price_gated && aiProducts.price_views_remaining != null && aiProducts.price_views_limit != null && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>Преостануваат {aiProducts.price_views_remaining} од {aiProducts.price_views_limit} ценовни прегледи денес</span>
-                        </div>
-                      )}
-
-                      {/* Products List */}
-                      <div className="space-y-3">
-                        {aiProducts.products.map((product, idx) => (
-                          <div
-                            key={idx}
-                            className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <h4 className="text-sm font-semibold">{product.name}</h4>
-                              {product.category && (
-                                <Badge variant="outline" className="text-xs">
-                                  {product.category}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                              {product.quantity && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Количина</p>
-                                  <p className="font-medium">{product.quantity} {product.unit || ''}</p>
-                                </div>
-                              )}
-                              {aiProducts.price_gated ? (
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Цена</p>
-                                  <p className="font-medium text-muted-foreground flex items-center gap-1">
-                                    <Lock className="h-3 w-3" /> Надградете
-                                  </p>
-                                </div>
-                              ) : (
-                                <>
-                                  {product.unit_price && (
-                                    <div>
-                                      <p className="text-xs text-muted-foreground">Единечна цена</p>
-                                      <p className="font-medium">{product.unit_price}</p>
-                                    </div>
-                                  )}
-                                  {product.total_price && (
-                                    <div>
-                                      <p className="text-xs text-muted-foreground">Вкупна цена</p>
-                                      <p className="font-semibold text-primary">{product.total_price}</p>
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                            {product.specifications && product.specifications !== '{}' && product.specifications !== 'null' && product.specifications.trim() !== '' && (
-                              <div className="mt-2 pt-2 border-t">
-                                <p className="text-xs text-muted-foreground mb-1">Спецификации:</p>
-                                <p className="text-xs">{product.specifications}</p>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Refresh button */}
-                      <div className="flex justify-center pt-4">
-                        <Button variant="outline" size="sm" onClick={loadProducts} disabled={productsLoading}>
-                          <ShoppingCart className="h-4 w-4 mr-2" />
-                          Извлечи повторно
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Historical Pricing Link */}
-              <Card className="border-dashed">
-                <CardContent className="p-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <CreditCard className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">Историски цени</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        Споредете цени на слични производи од минати тендери
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    href={`/products?q=${encodeURIComponent(
-                      (aiProducts?.products?.[0]?.name || tender?.title || '').split(/\s+/).slice(0, 3).join(' ')
-                    )}`}
-                  >
-                    <Button variant="outline" size="sm">
-                      <Package className="h-3.5 w-3.5 mr-1.5" />
-                      Погледни
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="ai-analysis" className="mt-4 space-y-4">
-              {/* AI Summary — click to load */}
-              <Card className="border-primary/50 bg-primary/5">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    AI Резиме
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {summaryGated ? (
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">AI резимето е достапно за платени корисници.</p>
-                      <Link href="/settings">
-                        <Button size="sm" variant="outline">Надградете</Button>
-                      </Link>
-                    </div>
-                  ) : aiSummaryLoading ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">AI ги анализира документите...</p>
-                      <div className="h-2 w-full rounded bg-white/40 animate-pulse" />
-                      <div className="h-2 w-5/6 rounded bg-white/30 animate-pulse" />
-                    </div>
-                  ) : aiSummaryData ? (
-                    <div className="space-y-4">
-                      <p className="text-sm">{aiSummaryData.overview}</p>
-                      {aiSummaryData.key_requirements && aiSummaryData.key_requirements.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">Клучни барања:</p>
-                          <ul className="list-disc list-inside text-sm space-y-0.5">
-                            {aiSummaryData.key_requirements.map((req: string, idx: number) => (
-                              <li key={idx}>{req}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-                        <div className="text-center p-2 rounded-md bg-background/50">
-                          <p className="text-xs text-muted-foreground">Комплексност</p>
-                          <Badge variant={aiSummaryData.estimated_complexity === 'high' ? 'destructive' : aiSummaryData.estimated_complexity === 'medium' ? 'default' : 'secondary'} className="mt-1">
-                            {aiSummaryData.estimated_complexity === 'high' ? 'Висока' : aiSummaryData.estimated_complexity === 'medium' ? 'Средна' : 'Ниска'}
-                          </Badge>
-                        </div>
-                        <div className="text-center p-2 rounded-md bg-background/50">
-                          <p className="text-xs text-muted-foreground">Конкуренција</p>
-                          <Badge variant={aiSummaryData.competition_level === 'high' ? 'destructive' : aiSummaryData.competition_level === 'medium' ? 'default' : 'outline'} className="mt-1">
-                            {aiSummaryData.competition_level === 'high' ? 'Висока' : aiSummaryData.competition_level === 'medium' ? 'Средна' : aiSummaryData.competition_level === 'low' ? 'Ниска' : 'Нема податоци'}
-                          </Badge>
-                        </div>
-                        <div className="text-center p-2 rounded-md bg-background/50">
-                          <p className="text-xs text-muted-foreground">Итност</p>
-                          <Badge variant={aiSummaryData.deadline_urgency === 'critical' ? 'destructive' : aiSummaryData.deadline_urgency === 'urgent' ? 'default' : 'outline'} className="mt-1">
-                            {aiSummaryData.deadline_urgency === 'critical' ? 'Критична' : aiSummaryData.deadline_urgency === 'urgent' ? 'Итна' : aiSummaryData.deadline_urgency === 'soon' ? 'Наскоро' : aiSummaryData.deadline_urgency === 'closed' ? 'Затворен' : 'Нормална'}
-                          </Badge>
-                        </div>
-                        <div className="text-center p-2 rounded-md bg-background/50">
-                          <p className="text-xs text-muted-foreground">Преостанати денови</p>
-                          <p className="text-lg font-bold mt-1">
-                            {aiSummaryData.days_remaining !== null && aiSummaryData.days_remaining >= 0 ? aiSummaryData.days_remaining : '—'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center py-4">
-                      <p className="text-sm text-muted-foreground mb-3">Генерирај AI резиме за овој тендер</p>
-                      <Button onClick={loadAISummary} disabled={aiSummaryLoading} size="sm">
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Генерирај резиме
-                      </Button>
-                      {aiSummaryError && <p className="text-sm text-destructive mt-2">{aiSummaryError}</p>}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Bid Recommendation — click to load */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Briefcase className="h-4 w-4" />
-                    Препорака за понуда
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {bidAdviceLoading ? (
-                    <div className="flex items-center gap-2 py-4">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
-                      <p className="text-sm text-muted-foreground">Се анализираат историски податоци...</p>
-                    </div>
-                  ) : bidAdvice ? (
-                    <BidRecommendation
-                      tenderId={tenderId}
-                      estimatedValue={bidAdvice.estimated_value || tender?.estimated_value_mkd}
-                      marketAnalysis={bidAdvice.market_analysis}
-                      recommendations={bidAdvice.recommendations || []}
-                      competitorInsights={bidAdvice.competitor_insights}
-                      itemPrices={bidAdvice.item_prices}
-                      aiSummary={bidAdvice.ai_summary}
-                      loading={false}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center py-4">
-                      <p className="text-sm text-muted-foreground mb-3">Анализирај конкуренција и добиј препорака за цена</p>
-                      <Button onClick={loadBidAdvice} disabled={bidAdviceLoading} size="sm" variant="outline">
-                        <Briefcase className="h-4 w-4 mr-2" />
-                        Анализирај понуди
-                      </Button>
-                      {bidAdviceError && <p className="text-sm text-destructive mt-2">{bidAdviceError}</p>}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Quick Actions */}
-              <Card>
-                <CardContent className="pt-6">
-                  <QuickActions tenderId={tenderId} />
-                </CardContent>
-              </Card>
-
-              {/* Chat */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    AI Асистент
-                  </CardTitle>
-                  <CardDescription>
-                    Постави прашања за овој тендер
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {chatMessages.length === 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {quickPrompts.map((prompt) => (
-                        <Button
-                          key={prompt}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleChatSend(prompt)}
-                          disabled={chatLoading}
-                          className="text-left h-auto py-2"
-                        >
-                          {prompt}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                  {chatMessages.length > 0 && (
-                    <div className="space-y-4 max-h-[400px] overflow-y-auto border rounded-lg p-3 bg-muted/20">
-                      {chatMessages.map((msg, idx) => (
-                        <ChatMessage key={idx} role={msg.role} content={msg.content} sources={msg.sources} />
-                      ))}
-                      {chatLoading && (
-                        <div className="text-sm text-muted-foreground animate-pulse">AI пишува...</div>
-                      )}
-                    </div>
-                  )}
-                  <div className="pt-2 border-t">
-                    <ChatInput
-                      onSend={handleChatSend}
-                      disabled={chatLoading}
-                      placeholder="Прашај нешто за овој тендер..."
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Right Column - Sidebar */}
-        <div className="space-y-4">
-          {/* Dates */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Важни датуми</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {tender.publication_date && (
-                <div className="flex items-start gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <div>
-                    <p className="text-xs font-medium">Објавен</p>
-                    <p className="text-sm">{formatDate(tender.publication_date)}</p>
-                  </div>
-                </div>
-              )}
-              {tender.closing_date && (
-                <div className="flex items-start gap-2">
-                  <Clock className="h-4 w-4 text-orange-500 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-medium">Краен рок</p>
-                    <p className="text-sm">{formatDate(tender.closing_date)}</p>
-                  </div>
-                </div>
-              )}
-              {tender.contract_signing_date && (
-                <div className="flex items-start gap-2">
-                  <Calendar className="h-4 w-4 text-green-600 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-medium text-green-600">Датум на договор</p>
-                    <p className="text-sm">{formatDate(tender.contract_signing_date)}</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Акции</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={handleShare}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Сподели
-              </Button>
-              <Button
-                variant={isSaved ? "default" : "outline"}
-                className="w-full justify-start"
-                onClick={handleSave}
-              >
-                <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
-                {isSaved ? "Зачувано" : "Зачувај"}
-              </Button>
-              <Link href={`/tenders?status=awarded${tender.cpv_code ? `&cpv_code=${encodeURIComponent(tender.cpv_code)}` : `&search=${encodeURIComponent((tender?.title || '').split(/\s+/).slice(0, 3).join(' '))}`}`}>
-                <Button variant="outline" className="w-full justify-start">
-                  <TrendingUp className="h-4 w-4 mr-2" />
-                  Слични доделени тендери
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Related Tenders */}
-          <RelatedTenders
-            currentTenderId={tenderId}
-            cpvCode={tender.cpv_code}
-            category={tender.category}
-            limit={5}
-          />
-        </div>
-      </div>
-
-      {/* AI Chat Widget is now global — see GlobalChatWidget */}
-    </div>
+      }>
+        <TenderDetailClient />
+      </Suspense>
+    </>
   );
 }

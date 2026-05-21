@@ -1,16 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { api, type DashboardData } from "@/lib/api";
 import { formatCurrency, formatDate, tenderUrl } from "@/lib/utils";
-import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Bell, Search, Clock, Package, DollarSign, Users } from "lucide-react";
+import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Bell, Search, Clock, DollarSign, Users, RefreshCw, Zap, FileText } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { WelcomeWizard } from "@/components/onboarding/WelcomeWizard";
+import { PageContainer } from "@/components/ui/page-container";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsGrid } from "@/components/ui/stat-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadingStats } from "@/components/ui/loading-card";
 
 const SEARCH_CHIPS = [
   "канцелариски материјали",
@@ -28,157 +34,105 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const { user } = useAuth();
   const router = useRouter();
-
-  // Welcome wizard state
   const [showWizard, setShowWizard] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     loadDashboard();
-
-    // Show wizard for users who haven't completed it
     if (typeof window !== 'undefined') {
       const wizardDone = localStorage.getItem('wizard_completed') === 'true';
-      if (!wizardDone) {
-        setShowWizard(true);
-      }
+      if (!wizardDone) setShowWizard(true);
     }
   }, [user]);
 
   async function loadDashboard() {
     if (!user?.user_id) return;
-
     try {
       setLoading(true);
       setError(null);
-
-      // Get personalized dashboard data (backend generates fresh analysis each time)
       const dashboardData = await api.getPersonalizedDashboard(user.user_id);
       setData(dashboardData);
-    } catch (error) {
-      console.error("Failed to load personalized dashboard:", error);
-
-      // Fallback to generic tenders if personalization fails
+    } catch {
       try {
         const tenders = await api.searchTenders({ page: 1, page_size: 10 });
-        const fallbackData: DashboardData = {
-          stats: {
-            recommended_count: tenders.items?.length || 0,
-            competitor_activity_count: 0,
-            insights_count: 0,
-          },
-          recommended_tenders: (tenders.items || []).map(t => ({
-            ...t,
-            score: 0.75,
-            match_reasons: ['Нов тендер']
-          })),
+        setData({
+          stats: { recommended_count: tenders.items?.length || 0, competitor_activity_count: 0, insights_count: 0 },
+          recommended_tenders: (tenders.items || []).map(t => ({ ...t, score: 0.75, match_reasons: ['Нов тендер'] })),
           insights: [],
           competitor_activity: []
-        };
-        setData(fallbackData);
-      } catch (fallbackError) {
-        console.error("Failed to load fallback data:", fallbackError);
-        setError("Не можевме да ги вчитаме податоците. Ве молиме обидете се повторно.");
+        });
+      } catch {
+        setError("Не можевме да ги вчитаме податоците.");
       }
     } finally {
       setLoading(false);
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-full p-8">
-        <Card className="max-w-md">
-          <CardContent className="p-6 text-center">
-            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
-            <h3 className="text-lg font-semibold mb-2">Грешка при вчитување</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={() => loadDashboard()}>Обиди се повторно</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const firstName = user?.full_name?.split(" ")[0] || "User";
+  const isFree = user?.subscription_tier?.toLowerCase() === 'free';
+  const hasPersonalData = (data?.stats.recommended_count || 0) > 0;
 
   return (
-    <div className="p-3 md:p-6 lg:p-8 space-y-3 md:space-y-6 lg:space-y-8">
-      {/* Free Tier Upgrade Banner - Only show for FREE plan users */}
-      {user?.subscription_tier?.toLowerCase() === 'free' && (
-        <div>
-          <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 border-primary/30">
-            <CardContent className="p-3 md:p-6">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4">
-                <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1">
-                  <div className="h-8 w-8 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="h-4 w-4 md:h-6 md:w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-sm md:text-lg font-bold text-foreground">Вие сте на FREE планот</h3>
-                    <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                      Надоградете за целосен пристап до напредна аналитика, неограничени пребарувања и повеќе функции
-                    </p>
-                  </div>
-                </div>
-                <Link href="/settings" className="w-full md:w-auto">
-                  <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg h-8 md:h-10 text-xs md:text-sm">
-                    <Award className="mr-2 h-3 w-3 md:h-4 md:w-4" />
-                    <span className="hidden sm:inline">Надогради сега</span>
-                    <span className="sm:hidden">Надогради</span>
-                  </Button>
-                </Link>
+    <PageContainer>
+      {showWizard && <WelcomeWizard onComplete={() => setShowWizard(false)} />}
+
+      {/* Trial/Upgrade Banner */}
+      {isFree && (
+        <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 p-4 md:p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                <Zap className="h-5 w-5 text-primary" />
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <p className="text-sm font-semibold">Бесплатен план</p>
+                <p className="text-xs text-muted-foreground">3 AI пребарувања дневно. Надоградете за неограничен пристап.</p>
+              </div>
+            </div>
+            <Link href="/settings">
+              <Button size="sm" className="shadow-[0_0_20px_rgba(124,58,237,0.2)]">
+                <Award className="mr-2 h-4 w-4" /> Надогради
+              </Button>
+            </Link>
+          </div>
         </div>
       )}
 
-      {/* Welcome Wizard Modal */}
-      {showWizard && (
-        <WelcomeWizard onComplete={() => setShowWizard(false)} />
-      )}
+      {/* Page Header */}
+      <PageHeader
+        icon={Target}
+        title={`Добредојде, ${firstName}`}
+        description="Вашите препорачани тендери и конкурентна интелигенција"
+      >
+        <Button onClick={loadDashboard} disabled={loading} variant="outline" size="sm">
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Освежи
+        </Button>
+      </PageHeader>
 
-      {/* Search Hero */}
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-purple-500/5 to-primary/5">
-        <CardContent className="p-4 md:p-6">
-          <h2 className="text-sm md:text-base font-medium text-foreground mb-3">
-            Што продавате? Пребарајте тендери за вашите производи:
-          </h2>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (searchQuery.trim()) {
-              router.push(`/tenders?search=${encodeURIComponent(searchQuery.trim())}`);
-            }
-          }} className="flex gap-2">
+      {/* Search Bar */}
+      <Card className="border-primary/20">
+        <CardContent className="p-4">
+          <form onSubmit={(e) => { e.preventDefault(); if (searchQuery.trim()) router.push(`/tenders?search=${encodeURIComponent(searchQuery.trim())}`); }} className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 md:h-5 md:w-5 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="пр. канцелариски материјали, медицинска опрема, ИТ услуги..."
+                placeholder="Пребарајте тендери по клучен збор, купувач или сектор..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 md:pl-11 h-10 md:h-12 text-sm md:text-base"
+                className="pl-10 h-11"
               />
             </div>
-            <Button type="submit" disabled={!searchQuery.trim()} className="h-10 md:h-12 px-4 md:px-6">
+            <Button type="submit" disabled={!searchQuery.trim()} className="h-11 px-5">
               <Search className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Пребарај</span>
             </Button>
           </form>
           <div className="flex flex-wrap gap-1.5 mt-3">
             {SEARCH_CHIPS.map((chip) => (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => router.push(`/tenders?search=${encodeURIComponent(chip)}`)}
-                className="text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-primary/20 hover:bg-primary/10 hover:border-primary/40 transition-colors text-muted-foreground hover:text-foreground"
-              >
+              <button key={chip} type="button" onClick={() => router.push(`/tenders?search=${encodeURIComponent(chip)}`)}
+                className="text-xs px-3 py-1.5 rounded-full border border-primary/20 hover:bg-primary/10 hover:border-primary/40 transition-colors text-muted-foreground hover:text-foreground">
                 {chip}
               </button>
             ))}
@@ -186,386 +140,235 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
-        <div>
-          <h1 className="text-xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-muted-foreground">
-            Персонализирана Табла
-          </h1>
-          <p className="text-xs md:text-base text-muted-foreground mt-1">
-            Вашите препорачани тендери и анализа на конкуренцијата
-          </p>
-        </div>
-        <Button
-          onClick={() => loadDashboard()}
-          disabled={loading}
-          className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(124,58,237,0.3)] h-9 md:h-10 text-xs md:text-sm"
-        >
-          <Sparkles className={`mr-2 h-3 w-3 md:h-4 md:w-4 ${loading ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline">{loading ? 'Анализирам...' : 'Освежи'}</span>
-          <span className="sm:hidden">{loading ? '...' : 'Освежи'}</span>
-        </Button>
-      </div>
+      {/* Stats Grid */}
+      {loading ? (
+        <LoadingStats count={4} />
+      ) : error ? (
+        <Card className="border-destructive/30">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="h-10 w-10 mx-auto mb-3 text-destructive" />
+            <p className="text-sm text-muted-foreground mb-3">{error}</p>
+            <Button size="sm" onClick={loadDashboard}>Обиди се повторно</Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <StatsGrid columns={4}>
+            <StatCard
+              icon={Target}
+              iconColor="bg-primary/10 text-primary"
+              label={hasPersonalData ? "Препораки" : "Тендери"}
+              value={hasPersonalData ? data?.stats.recommended_count || 0 : "290K+"}
+              subtitle={hasPersonalData ? "Тендери за вас" : "Во базата"}
+            />
+            <StatCard
+              icon={FileText}
+              iconColor="bg-green-500/10 text-green-500"
+              label="Отворени"
+              value={hasPersonalData ? data?.recommended_tenders?.filter(t => t.status === 'open').length || 0 : "880+"}
+              subtitle="Активни тендери"
+            />
+            <StatCard
+              icon={Users}
+              iconColor="bg-orange-500/10 text-orange-500"
+              label="Конкуренти"
+              value={data?.stats.competitor_activity_count || 0}
+              subtitle="Активности"
+            />
+            <StatCard
+              icon={Sparkles}
+              iconColor="bg-purple-500/10 text-purple-500"
+              label="AI Инсајти"
+              value={data?.stats.insights_count || 0}
+              subtitle="Анализи за вас"
+            />
+          </StatsGrid>
 
-      {/* Stats Grid - show platform stats when user has no personal data */}
-      {(() => {
-        const hasPersonalData = (data?.stats.recommended_count || 0) > 0 ||
-          (data?.stats.competitor_activity_count || 0) > 0 ||
-          (data?.stats.insights_count || 0) > 0;
-        const showPlatform = !hasPersonalData;
+          {/* Closing Soon */}
+          {(() => {
+            const now = new Date();
+            const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+            const closingSoon = (data?.recommended_tenders || []).filter(t => {
+              if (!t.closing_date) return false;
+              const cd = new Date(t.closing_date);
+              return cd > now && cd <= weekFromNow;
+            }).sort((a, b) => new Date(a.closing_date!).getTime() - new Date(b.closing_date!).getTime());
 
-        return (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            <div>
-              <Card className="bg-primary/10 border-primary/20 h-full">
-                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-                  <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-primary">
-                    <Target className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    {showPlatform ? 'Тендери' : 'Препораки'}
+            if (closingSoon.length === 0) return null;
+            return (
+              <Card className="border-orange-500/30">
+                <CardHeader className="p-4 pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 text-orange-500">
+                    <Clock className="h-5 w-5" />
+                    Затвораат наскоро
+                    <Badge variant="outline" className="ml-auto text-xs font-normal border-orange-500/20 text-orange-500">следните 7 дена</Badge>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-                  <div className="text-2xl md:text-3xl font-bold text-foreground">
-                    {showPlatform ? '282K+' : data?.stats.recommended_count || 0}
-                  </div>
-                  <p className="text-[10px] md:text-xs text-primary/70 mt-1">
-                    {showPlatform ? 'Во базата' : 'Тендери за вас'}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div>
-              <Card className="h-full">
-                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-                  <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-green-400">
-                    <Package className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    {showPlatform ? 'Производи' : 'Конкуренти'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-                  <div className="text-2xl md:text-3xl font-bold text-foreground">
-                    {showPlatform ? '3.2M' : data?.stats.competitor_activity_count || 0}
-                  </div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
-                    {showPlatform ? 'Со цени' : 'Активности'}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div>
-              <Card className="h-full">
-                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-                  <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-orange-400">
-                    <Search className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    {showPlatform ? 'Документи' : 'Инсајти'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-                  <div className="text-2xl md:text-3xl font-bold text-foreground">
-                    {showPlatform ? '70K+' : data?.stats.insights_count || 0}
-                  </div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
-                    {showPlatform ? 'AI пребарливи' : 'AI анализи'}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div>
-              <Card className="h-full">
-                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-                  <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-blue-400">
-                    <Award className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    Отворени
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 md:p-6 pt-0 md:pt-0">
-                  <div className="text-2xl md:text-3xl font-bold text-foreground">
-                    {showPlatform ? '800+' : (data?.recommended_tenders?.filter(t => t.status === 'open').length || 0)}
-                  </div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1">Активни тендери</p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Closing Soon - Urgency Section */}
-      {(() => {
-        const now = new Date();
-        const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const closingSoon = (data?.recommended_tenders || []).filter(t => {
-          if (!t.closing_date) return false;
-          const cd = new Date(t.closing_date);
-          return cd > now && cd <= weekFromNow;
-        }).sort((a, b) => new Date(a.closing_date!).getTime() - new Date(b.closing_date!).getTime());
-
-        if (closingSoon.length > 0) return (
-          <Card className="border-orange-500/30 bg-gradient-to-r from-orange-500/5 to-red-500/5">
-            <CardHeader className="p-4 md:p-6 pb-3">
-              <CardTitle className="text-base md:text-lg flex items-center gap-2 text-orange-400">
-                <Clock className="h-5 w-5" />
-                Затвораат наскоро
-                <span className="ml-auto text-xs font-normal text-muted-foreground">следните 7 дена</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 md:p-6 pt-0">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {closingSoon.slice(0, 3).map(tender => {
-                  const daysLeft = Math.ceil((new Date(tender.closing_date!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                  return (
-                    <Link key={tender.tender_id} href={tenderUrl(tender.tender_id)}
-                      className="group p-3 rounded-xl border border-orange-500/20 bg-background/50 hover:bg-foreground/5 hover:border-orange-500/40 transition-all">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${daysLeft <= 2 ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
-                          {daysLeft <= 1 ? 'УТРЕ!' : `${daysLeft} дена`}
-                        </span>
-                        <span className="text-[10px] text-green-400">{Math.round(tender.score * 100)}% match</span>
-                      </div>
-                      <h4 className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">{tender.title}</h4>
-                      <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1">{tender.procuring_entity}</p>
-                      {tender.estimated_value_mkd && (
-                        <p className="text-xs font-medium text-primary mt-2">{formatCurrency(tender.estimated_value_mkd)}</p>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-              {closingSoon.length > 3 && (
-                <Link href="/trends" className="flex items-center justify-center gap-1 mt-3 text-xs text-orange-400 hover:text-orange-300 transition-colors">
-                  Уште {closingSoon.length - 3} тендери затвораат наскоро <ArrowRight className="h-3 w-3" />
-                </Link>
-              )}
-            </CardContent>
-          </Card>
-        );
-        return null;
-      })()}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6 lg:gap-8">
-        {/* Recommended Tenders */}
-        <div className="lg:col-span-2">
-          <Card className="h-full">
-            <CardHeader className="p-4 md:p-6">
-              <CardTitle className="text-lg md:text-xl">Препорачани Тендери</CardTitle>
-              <CardDescription className="text-xs md:text-sm">Базирано на вашите преференци и интереси</CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 md:p-6 pt-0">
-              <div className="space-y-3 md:space-y-4">
-                {(!data?.recommended_tenders || data.recommended_tenders.length === 0) && (
-                  <div className="text-center py-8">
-                    <Target className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 text-primary/50" />
-                    <h3 className="text-sm font-semibold mb-2">Персонализирајте ги препораките</h3>
-                    <p className="text-xs text-muted-foreground mb-4 max-w-sm mx-auto">
-                      Поставете ги вашите преференци за да добивате AI препораки за релевантни тендери.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                      <Link href="/settings">
-                        <Button size="sm" className="w-full sm:w-auto">
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Постави преференци
-                        </Button>
-                      </Link>
-                      <Link href="/tenders">
-                        <Button size="sm" variant="outline" className="w-full sm:w-auto">
-                          <Search className="h-4 w-4 mr-2" />
-                          Истражи тендери
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                )}
-                {(data?.recommended_tenders || []).slice(0, 5).map((tender) => (
-                  <Link
-                    key={tender.tender_id}
-                    href={tenderUrl(tender.tender_id)}
-                    className="group flex items-start justify-between p-3 md:p-4 rounded-xl border border-border bg-foreground/5 hover:bg-foreground/10 transition-all hover:border-primary/20 cursor-pointer block"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h4 className="font-medium text-sm md:text-base text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                          {tender.title}
-                        </h4>
-                        <span className="px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] md:text-xs font-medium border border-green-500/20 whitespace-nowrap">
-                          {Math.round(tender.score * 100)}% match
-                        </span>
-                      </div>
-                      <p className="text-xs md:text-sm text-muted-foreground line-clamp-1">
-                        {tender.procuring_entity}
-                      </p>
-                      <div className="flex items-center gap-3 md:gap-4 mt-2 md:mt-3 text-[10px] md:text-xs text-muted-foreground flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-                          {formatCurrency(tender.estimated_value_mkd)}
-                        </span>
-                        {tender.closing_date && (
-                          <span>Рок: {formatDate(tender.closing_date)}</span>
-                        )}
-                      </div>
-                      <div className="flex gap-1.5 md:gap-2 mt-2 md:mt-3 flex-wrap">
-                        {tender.match_reasons.map((reason, idx) => (
-                          <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            {reason}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0 hidden sm:block">
-                      <ArrowRight className="h-4 w-4 text-primary" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar Column */}
-        <div className="space-y-4 md:space-y-8">
-          {/* AI Insights */}
-          <div>
-            <Card className="bg-gradient-to-b from-primary/10 to-transparent border-primary/20">
-              <CardHeader className="p-4 md:p-6">
-                <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  AI Инсајти
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 md:p-6 pt-0 space-y-3 md:space-y-4">
-                {(!data?.insights || data.insights.length === 0) ? (
-                  <div className="space-y-2">
-                    <p className="text-[10px] text-muted-foreground mb-3">Брзи акции:</p>
-                    <Link href="/products" className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:bg-foreground/5 hover:border-primary/20 transition-all group">
-                      <DollarSign className="h-4 w-4 text-green-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium group-hover:text-primary transition-colors">Провери цени</p>
-                        <p className="text-[10px] text-muted-foreground">Пазарни цени за производи</p>
-                      </div>
-                    </Link>
-                    <Link href="/trends" className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:bg-foreground/5 hover:border-primary/20 transition-all group">
-                      <TrendingUp className="h-4 w-4 text-blue-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium group-hover:text-primary transition-colors">Бизнис трендови</p>
-                        <p className="text-[10px] text-muted-foreground">Итни можности во 7 дена</p>
-                      </div>
-                    </Link>
-                    <Link href="/competitors" className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:bg-foreground/5 hover:border-primary/20 transition-all group">
-                      <Users className="h-4 w-4 text-orange-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium group-hover:text-primary transition-colors">Анализа на конкуренти</p>
-                        <p className="text-[10px] text-muted-foreground">Кој понудува во вашиот сектор</p>
-                      </div>
-                    </Link>
-                    <Link href="/alerts?tab=create" className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:bg-foreground/5 hover:border-primary/20 transition-all group">
-                      <Bell className="h-4 w-4 text-purple-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium group-hover:text-primary transition-colors">Креирај алерт</p>
-                        <p className="text-[10px] text-muted-foreground">Известувања за нови тендери</p>
-                      </div>
-                    </Link>
-                  </div>
-                ) : (
-                  data.insights.map((insight, idx) => {
-                    // Build URL based on insight type
-                    const getInsightUrl = () => {
-                      switch (insight.insight_type) {
-                        case 'alert':
-                          // Deadlines approaching - show tenders closing soon
-                          return '/tenders?status=open&closing_within=7';
-                        case 'opportunity':
-                          // Budget opportunities - show open tenders
-                          return '/tenders?status=open';
-                        case 'trend':
-                          // Trending sectors - show open tenders
-                          return '/tenders?status=open';
-                        default:
-                          return '/tenders?status=open';
-                      }
-                    };
-
-                    // Translate insight type to Macedonian
-                    const getInsightTypeLabel = () => {
-                      switch (insight.insight_type) {
-                        case 'alert':
-                          return 'Известување';
-                        case 'opportunity':
-                          return 'Можност';
-                        case 'trend':
-                          return 'Тренд';
-                        default:
-                          return insight.insight_type;
-                      }
-                    };
-
-                    return (
-                      <Link
-                        key={idx}
-                        href={getInsightUrl()}
-                        className="group block p-3 md:p-4 rounded-xl bg-background/50 border border-border hover:bg-background/80 hover:border-primary/20 transition-all cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] md:text-xs font-medium px-2 py-1 rounded bg-primary/10 text-primary">
-                            {getInsightTypeLabel()}
-                          </span>
-                          <span className="text-[10px] md:text-xs text-muted-foreground">
-                            {Math.round(insight.confidence * 100)}% доверба
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-xs md:text-sm text-foreground mb-1 group-hover:text-primary transition-colors">{insight.title}</h4>
-                            <p className="text-[10px] md:text-xs text-muted-foreground">{insight.description}</p>
+                <CardContent className="p-4 pt-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {closingSoon.slice(0, 3).map(tender => {
+                      const daysLeft = Math.ceil((new Date(tender.closing_date!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                      return (
+                        <Link key={tender.tender_id} href={tenderUrl(tender.tender_id)}
+                          className="group p-3 rounded-xl border hover:border-primary/30 hover:bg-accent/5 transition-all">
+                          <div className="flex items-center justify-between mb-2">
+                            <Badge variant="outline" className={daysLeft <= 2 ? 'border-red-500/30 text-red-500 text-[10px]' : 'border-orange-500/30 text-orange-500 text-[10px]'}>
+                              {daysLeft <= 1 ? 'УТРЕ!' : `${daysLeft} дена`}
+                            </Badge>
+                            <span className="text-[10px] text-green-500 font-medium">{Math.round(tender.score * 100)}%</span>
                           </div>
-                          <ArrowRight className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0 hidden sm:block" />
-                        </div>
-                      </Link>
-                    );
-                  })
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                          <h4 className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">{tender.title}</h4>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{tender.procuring_entity}</p>
+                          {tender.estimated_value_mkd && (
+                            <p className="text-xs font-semibold text-primary mt-2">{formatCurrency(tender.estimated_value_mkd)}</p>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
-          {/* Competitor Activity */}
-          {data?.competitor_activity && data.competitor_activity.length > 0 && (
-            <div>
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Recommended Tenders */}
+            <div className="lg:col-span-2">
               <Card>
                 <CardHeader className="p-4 md:p-6">
-                  <CardTitle className="text-base md:text-lg">Активности</CardTitle>
+                  <CardTitle className="text-lg">Препорачани Тендери</CardTitle>
+                  <CardDescription>Базирано на вашите преференци и интереси</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6 pt-0">
-                  <div className="space-y-3">
-                    {data.competitor_activity.map((activity, idx) => (
-                      <Link
-                        key={idx}
-                        href={tenderUrl(activity.tender_id)}
-                        className="group flex items-center justify-between p-3 rounded-lg border border-border bg-foreground/5 hover:bg-foreground/10 hover:border-primary/20 transition-all cursor-pointer block"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-xs md:text-sm text-foreground group-hover:text-primary transition-colors line-clamp-2">{activity.title}</h4>
-                          <p className="text-[10px] md:text-xs text-muted-foreground mt-1">
-                            {activity.competitor_name}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                          <span className="text-[10px] px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
-                            {activity.status}
-                          </span>
-                          <ArrowRight className="h-3 w-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" />
-                        </div>
+                  {(!data?.recommended_tenders || data.recommended_tenders.length === 0) ? (
+                    <EmptyState
+                      icon={Target}
+                      title="Персонализирајте ги препораките"
+                      description="Поставете ги вашите преференци за да добивате AI препораки за релевантни тендери."
+                      action={{ label: "Постави преференци", href: "/settings" }}
+                      secondaryAction={{ label: "Истражи тендери", href: "/tenders" }}
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      {data.recommended_tenders.slice(0, 5).map((tender) => (
+                        <Link key={tender.tender_id} href={tenderUrl(tender.tender_id)}
+                          className="group flex items-start justify-between p-4 rounded-xl border hover:border-primary/20 hover:bg-accent/5 transition-all">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h4 className="font-medium text-sm text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                                {tender.title}
+                              </h4>
+                              <Badge variant="outline" className="border-green-500/20 text-green-500 text-[10px]">
+                                {Math.round(tender.score * 100)}%
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{tender.procuring_entity}</p>
+                            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
+                              <span className="font-medium text-foreground">{formatCurrency(tender.estimated_value_mkd)}</span>
+                              {tender.closing_date && <span>Рок: {formatDate(tender.closing_date)}</span>}
+                            </div>
+                            <div className="flex gap-1.5 mt-2 flex-wrap">
+                              {tender.match_reasons.map((reason, idx) => (
+                                <span key={idx} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                  {reason}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity ml-3 mt-1 shrink-0 hidden sm:block" />
+                        </Link>
+                      ))}
+                      <Link href="/tenders" className="flex items-center justify-center gap-1 pt-2 text-sm text-primary hover:text-primary/80 transition-colors">
+                        Погледни ги сите тендери <ArrowRight className="h-4 w-4" />
                       </Link>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
-          )}
-        </div>
-      </div>
-    </div>
 
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Quick Actions */}
+              <Card>
+                <CardHeader className="p-4">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" /> Брзи акции
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 space-y-2">
+                  {[
+                    { href: "/products", icon: DollarSign, color: "text-green-500", label: "Провери цени", desc: "Пазарни цени за производи" },
+                    { href: "/trends", icon: TrendingUp, color: "text-blue-500", label: "Трендови", desc: "Итни можности во 7 дена" },
+                    { href: "/competitors", icon: Users, color: "text-orange-500", label: "Конкуренти", desc: "Кој понудува во вашиот сектор" },
+                    { href: "/alerts?tab=create", icon: Bell, color: "text-purple-500", label: "Креирај алерт", desc: "Известувања за нови тендери" },
+                  ].map(({ href, icon: Icon, color, label, desc }) => (
+                    <Link key={href} href={href}
+                      className="flex items-center gap-3 p-3 rounded-xl border hover:border-primary/20 hover:bg-accent/5 transition-all group">
+                      <div className={`h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0`}>
+                        <Icon className={`h-4 w-4 ${color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium group-hover:text-primary transition-colors">{label}</p>
+                        <p className="text-xs text-muted-foreground">{desc}</p>
+                      </div>
+                      <ArrowRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+
+              {/* AI Insights */}
+              {data?.insights && data.insights.length > 0 && (
+                <Card className="border-primary/20">
+                  <CardHeader className="p-4">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" /> AI Инсајти
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0 space-y-3">
+                    {data.insights.map((insight, idx) => (
+                      <Link key={idx} href="/tenders?status=open"
+                        className="group block p-3 rounded-xl border hover:border-primary/20 hover:bg-accent/5 transition-all">
+                        <div className="flex items-center justify-between mb-1">
+                          <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">
+                            {insight.insight_type === 'alert' ? 'Известување' : insight.insight_type === 'opportunity' ? 'Можност' : 'Тренд'}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">{Math.round(insight.confidence * 100)}%</span>
+                        </div>
+                        <h4 className="text-sm font-medium group-hover:text-primary transition-colors">{insight.title}</h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">{insight.description}</p>
+                      </Link>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Competitor Activity */}
+              {data?.competitor_activity && data.competitor_activity.length > 0 && (
+                <Card>
+                  <CardHeader className="p-4">
+                    <CardTitle className="text-base">Активности на конкуренти</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0 space-y-2">
+                    {data.competitor_activity.map((activity, idx) => (
+                      <Link key={idx} href={tenderUrl(activity.tender_id)}
+                        className="group flex items-center justify-between p-3 rounded-xl border hover:border-primary/20 hover:bg-accent/5 transition-all">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium group-hover:text-primary transition-colors line-clamp-1">{activity.title}</h4>
+                          <p className="text-xs text-muted-foreground mt-0.5">{activity.competitor_name}</p>
+                        </div>
+                        <Badge variant="outline" className="ml-2 shrink-0 text-[10px] border-yellow-500/20 text-yellow-500">{activity.status}</Badge>
+                      </Link>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </PageContainer>
   );
 }

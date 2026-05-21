@@ -33,6 +33,41 @@ export function generateMetadata({ params }: BlogPostPageProps): Metadata {
   };
 }
 
+function JsonLd({ post, slug }: { post: { title: string; date: string; author: string }; slug: string }) {
+  const breadcrumb = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+      { "@type": "ListItem", position: 2, name: "Блог", item: "https://nabavkidata.com/blog" },
+      { "@type": "ListItem", position: 3, name: post.title },
+    ],
+  };
+
+  const blogPosting = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    datePublished: post.date,
+    author: { "@type": "Organization", name: "NabavkiData" },
+    publisher: { "@type": "Organization", name: "NabavkiData" },
+    url: `https://nabavkidata.com/blog/${slug}`,
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogPosting) }}
+      />
+    </>
+  );
+}
+
 export default function BlogPostPage({ params }: BlogPostPageProps) {
   const post = getPostBySlug(params.slug);
   if (!post) {
@@ -43,6 +78,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
+      <JsonLd post={post} slug={params.slug} />
       {/* Header */}
       <header className="border-b border-border bg-background/20">
         <div className="container mx-auto px-4 md:px-6 py-6">

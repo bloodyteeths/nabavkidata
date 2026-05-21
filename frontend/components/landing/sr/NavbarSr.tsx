@@ -4,11 +4,23 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Globe } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 
 export default function NavbarSr() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [countryOpen, setCountryOpen] = useState(false);
+    const countryRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (countryRef.current && !countryRef.current.contains(e.target as Node)) {
+                setCountryOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const menuItems = [
         { href: "/sr#features", label: "Mogućnosti" },
@@ -60,6 +72,36 @@ export default function NavbarSr() {
                         <Globe className="w-4 h-4" />
                         <span>MK</span>
                     </Link>
+                    {/* Country Switch */}
+                    <div className="relative" ref={countryRef}>
+                        <button
+                            onClick={() => setCountryOpen(!countryOpen)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors"
+                            aria-label="Promeni zemlju"
+                        >
+                            <span>🇲🇰</span>
+                            <span>MK</span>
+                            <svg className={`w-3 h-3 transition-transform ${countryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        {countryOpen && (
+                            <div className="absolute top-full right-0 mt-1 w-36 rounded-lg border border-border bg-background/95 backdrop-blur-xl shadow-lg overflow-hidden z-50">
+                                <button
+                                    onClick={() => setCountryOpen(false)}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground bg-foreground/5 font-medium"
+                                >
+                                    <span>🇲🇰</span>
+                                    <span>MK</span>
+                                </button>
+                                <a
+                                    href="https://uk.nabavkidata.com"
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+                                >
+                                    <span>🇬🇧</span>
+                                    <span>UK</span>
+                                </a>
+                            </div>
+                        )}
+                    </div>
                     <Link href="/auth/login">
                         <Button variant="ghost" className="text-foreground hover:text-foreground hover:bg-foreground/10">
                             Prijava
@@ -125,6 +167,27 @@ export default function NavbarSr() {
                                         <Globe className="w-5 h-5" />
                                         <span>Makedonski (MK)</span>
                                     </Link>
+                                </motion.div>
+                                {/* Mobile Country Switch */}
+                                <motion.div
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 0.4 }}
+                                >
+                                    <div className="px-4 py-3">
+                                        <p className="text-xs uppercase tracking-wider text-muted-foreground/60 mb-2">Zemlja</p>
+                                        <div className="flex gap-2">
+                                            <span className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-foreground/5 rounded-lg">
+                                                <span>🇲🇰</span> MK
+                                            </span>
+                                            <a
+                                                href="https://uk.nabavkidata.com"
+                                                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-lg transition-colors"
+                                            >
+                                                <span>🇬🇧</span> UK
+                                            </a>
+                                        </div>
+                                    </div>
                                 </motion.div>
                             </nav>
 

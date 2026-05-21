@@ -14,28 +14,18 @@ import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from "lucide-rea
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { LoadingStats, LoadingCard } from "@/components/ui/loading-card";
+import { FileText } from "lucide-react";
 
-// Loading fallback for Suspense
 function TendersLoadingFallback() {
   return (
-    <div className="p-3 md:p-6 lg:p-8 space-y-4 md:space-y-6">
-      <div>
-        <Skeleton className="h-8 w-64 mb-2" />
-        <Skeleton className="h-4 w-96" />
-      </div>
-      <div className="flex gap-2">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-10 w-32 rounded-lg" />
-        ))}
-      </div>
-      <div className="space-y-4">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-5">
+      <Skeleton className="h-8 w-48" />
+      <LoadingStats count={4} />
+      <div className="space-y-3">
         {[...Array(5)].map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <Skeleton className="h-5 w-3/4 mb-2" />
-              <Skeleton className="h-4 w-1/2" />
-            </CardContent>
-          </Card>
+          <LoadingCard key={i} rows={2} />
         ))}
       </div>
     </div>
@@ -387,11 +377,12 @@ function TendersPageContent() {
   }
 
   return (
-    <div className="p-3 md:p-6 lg:p-8 space-y-4 md:space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold">Тендери</h1>
-      </div>
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-5">
+      <PageHeader
+        icon={FileText}
+        title="Тендери"
+        description="Пребарувајте и следете јавни набавки"
+      />
 
       {/* Search Bar - prominent, above everything */}
       <div className="relative max-w-2xl">

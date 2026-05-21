@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Deploy nabavkidata changes to production. Frontend deploys via Vercel on git push. Backend auto-deploys via GitHub Actions on push to main. Use when user wants to deploy, push changes, or update production.
+description: Deploy nabavkidata changes to production. Frontend deploys via Vercel on git push. Backend auto-deploys via GitHub Actions on push to main.
 allowed-tools: Bash
 ---
 
@@ -8,10 +8,10 @@ allowed-tools: Bash
 
 ## Automatic Deployment (Preferred)
 
-Push to `main` triggers GitHub Actions which auto-deploys:
+Push to `main` triggers auto-deploy:
 
 - **Frontend**: Vercel (instant, automatic)
-- **Backend/AI/Scraper**: GitHub Actions SSHs to Hetzner, runs `git pull`, restarts service
+- **Backend/Scraper**: GitHub Actions SSHs to Hetzner, runs `git pull`, restarts service
 
 ```bash
 git add <files>

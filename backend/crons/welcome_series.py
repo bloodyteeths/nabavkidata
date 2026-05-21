@@ -44,7 +44,10 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 DATABASE_URL = os.getenv('DATABASE_URL')
-POSTMARK_API_TOKEN = os.getenv('POSTMARK_API_TOKEN', '33d10a6c-0906-42c6-ab14-441ad12b9e2a')
+POSTMARK_API_TOKEN = os.getenv('POSTMARK_API_TOKEN')
+if not POSTMARK_API_TOKEN:
+    logger.error("POSTMARK_API_TOKEN not set in environment — welcome series cannot send emails")
+    sys.exit(1)
 POSTMARK_FROM_EMAIL = 'hello@nabavkidata.com'
 POSTMARK_FROM_NAME = 'Тамара од НабавкиДата'
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://nabavkidata.com')

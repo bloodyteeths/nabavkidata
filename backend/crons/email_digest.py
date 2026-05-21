@@ -42,6 +42,11 @@ logger = logging.getLogger(__name__)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.nabavkidata.com")
 
 
+def tender_url(tender_id: str) -> str:
+    """Convert tender_id like '12345/2024' to frontend URL."""
+    return f"{FRONTEND_URL}/tenders/{tender_id.replace('/', '-')}"
+
+
 def generate_match_reasons(tender: Tender, prefs: Optional[UserPreferences]) -> List[str]:
     """Generate human-readable match reasons for a tender"""
     reasons = []
@@ -147,7 +152,7 @@ async def generate_personalized_digest_html(
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                     <div style="flex: 1;">
                         <h3 style="margin: 0 0 8px 0; color: #1f2937; font-size: 16px; line-height: 1.4;">
-                            <a href="{FRONTEND_URL}/tenders/{tender.tender_id}"
+                            <a href="{tender_url(tender.tender_id)}"
                                style="color: #2563eb; text-decoration: none;">
                                 {tender.title or 'Без наслов'}
                             </a>
@@ -202,7 +207,7 @@ async def generate_personalized_digest_html(
             competitor_items += f"""
             <li style="margin-bottom: 8px; color: #374151; font-size: 13px;">
                 <strong>{activity.get('competitor_name', '')}</strong> -
-                <a href="{FRONTEND_URL}/tenders/{activity.get('tender_id', '')}" style="color: #2563eb; text-decoration: none;">
+                <a href="{tender_url(activity.get('tender_id', ''))}" style="color: #2563eb; text-decoration: none;">
                     {activity.get('title', '')[:50]}...
                 </a>
             </li>
@@ -235,7 +240,7 @@ async def generate_personalized_digest_html(
                         <span style="background-color: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 4px;">{int(score)}%</span>
                     </div>
                     <h4 style="margin: 8px 0 4px 0; font-size: 14px;">
-                        <a href="{FRONTEND_URL}/tenders/{tender_id}" style="color: #2563eb; text-decoration: none;">{title or 'Без наслов'}</a>
+                        <a href="{tender_url(tender_id)}" style="color: #2563eb; text-decoration: none;">{title or 'Без наслов'}</a>
                     </h4>
                     <p style="margin: 0; font-size: 12px; color: #6b7280;">
                         {entity or 'N/A'} | {value_str} | Рок: {closing_str}
@@ -368,8 +373,9 @@ async def send_personalized_digest(
     name: str,
     prefs: Optional[UserPreferences],
     frequency: str
-) -> bool:
-    """Generate and send personalized digest to a single user"""
+) -> str:
+    """Generate and send personalized digest to a single user.
+    Returns: 'sent', 'no_tenders', 'send_failed', or error description."""
 
     try:
         # Get personalized tenders
@@ -377,7 +383,7 @@ async def send_personalized_digest(
 
         if not tenders:
             logger.info(f"No tenders for user {email}, skipping")
-            return False
+            return "no_tenders"
 
         # Get AI insights
         insights = await get_user_insights(db, user_id)
@@ -450,11 +456,13 @@ async def send_personalized_digest(
                 except Exception as e:
                     logger.warning(f"Failed to mark alert matches as notified: {e}")
 
-        return success
+        if success:
+            return "sent"
+        return "send_failed"
 
     except Exception as e:
         logger.error(f"Error generating digest for {email}: {e}")
-        return False
+        return f"error: {e}"
 
 
 async def generate_all_digests(frequency: str = "daily"):
@@ -511,7 +519,7 @@ async def generate_all_digests(frequency: str = "daily"):
 
             for user, prefs in users_data:
                 try:
-                    success = await send_personalized_digest(
+                    result = await send_personalized_digest(
                         db=db,
                         user_id=str(user.user_id),
                         email=user.email,
@@ -520,15 +528,15 @@ async def generate_all_digests(frequency: str = "daily"):
                         frequency=frequency
                     )
 
-                    if success:
+                    if result == "sent":
                         sent_count += 1
                         print(f"  ✓ Sent to {user.email}")
-                    elif success is False:
+                    elif result == "no_tenders":
                         skipped_count += 1
                         print(f"  - Skipped {user.email} (no matching tenders)")
                     else:
                         failed_count += 1
-                        print(f"  ✗ Failed: {user.email}")
+                        print(f"  ✗ Failed: {user.email} ({result})")
 
                 except Exception as e:
                     failed_count += 1

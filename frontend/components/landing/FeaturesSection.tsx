@@ -1,65 +1,61 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Brain, Search, Zap, Shield, BarChart3, Bell } from "lucide-react";
+import { MessageSquare, Target, PoundSterling, Shield, FileSearch, Bell } from "lucide-react";
 
 const features = [
     {
-        icon: Brain,
-        title: "Разговарај со Тендери",
-        description: "Поставете прашање и добијте одговор веднаш од 40,000+ документи. AI го чита содржината, не општи претпоставки."
-    },
-    {
-        icon: Search,
-        title: "Паметно Пребарување",
-        description: "Природен јазик на македонски и англиски. AI разбира контекст, синоними и индустриска терминологија."
-    },
-    {
-        icon: BarChart3,
-        title: "Ценовна Интелигенција",
-        description: "Историски цени за 7,597 производи. Просечни, минимални и максимални цени со трендови по година и институција."
+        icon: PoundSterling,
+        title: "Престанете да нудите наслепо",
+        description: "Видете го точниот ценовен ранг што победува — мин, просек, макс од илјадници доделени тендери. Дознајте дали 500.000 МКД е конкурентно за медицински материјали.",
+        outcome: "Знајте ја победничката цена пред да понудите"
     },
     {
         icon: Shield,
-        title: "Анализа на Конкуренти",
-        description: "Win rate, market share по CPV код, head-to-head споредби. Дознајте кој доминира во вашиот сектор."
+        title: "Дознајте кој победува и зошто",
+        description: "Win rate, историја на победи, пазарен удел по сектор. Видете кои 3 фирми доминираат во вашата категорија — и каде не учествуваат.",
+        outcome: "Избегнете битки кои ги губите. Најдете празнини кои ги добивате."
     },
     {
-        icon: Zap,
-        title: "Документна Интелигенција",
-        description: "Пребарувајте во 40,000+ PDF документи. AI ги извлекува клучните барања и спецификации за секунди."
+        icon: MessageSquare,
+        title: "Прашајте, добијте одговор",
+        description: "\"Кои тендери за ИТ опрема се отворени?\" — AI пребарува 170K тендери и 70K документи. Директни одговори, не листа на линкови.",
+        outcome: "2 минути наместо 2 часа"
+    },
+    {
+        icon: FileSearch,
+        title: "AI чита документи за вас",
+        description: "Листи за усогласеност, задолжителни барања, критериуми за евалуација — извлечени од реални тендерски документи. Поставете follow-up: \"Дали ми треба ISO за ова?\"",
+        outcome: "Никогаш не губете поради пропуштено барање"
+    },
+    {
+        icon: Target,
+        title: "Тендери прилагодени на вашиот бизнис",
+        description: "Поставете ја вашата дејност, регион и буџет. AI ги наоѓа тендерите што ги пропуштате на е-набавки — вклучувајќи мали набавки и рамковни договори.",
+        outcome: "Релевантни тендери, не шум"
     },
     {
         icon: Bell,
-        title: "AI Препораки",
-        description: "Персонализирани стратегии за наддавање, оптимални цени и тајминг базирани на 17 години историски податоци."
-    },
-    {
-        icon: Brain,
-        title: "Контекстуални Разговори",
-        description: "AI памети контекст. Поставувајте follow-up прашања природно без да повторувате информации."
-    },
-    {
-        icon: Search,
-        title: "Специјализирана за Македонија",
-        description: "Податоци за 1,873 компании и 1,013 институции. Не општи одговори, туку локални инсајти."
+        title: "Нови тендери пред конкурентите",
+        description: "Скрепирање на секои 3 часа од е-набавки.гов.мк. Добијте алерт штом се појави релевантен тендер — дневен дигест или инстант.",
+        outcome: "Прв знае = прв се подготвува"
     }
 ];
 
 export default function FeaturesSection() {
     return (
-        <section id="features" className="py-24 relative overflow-hidden">
+        <section id="features" className="py-16 relative overflow-hidden">
             <div className="container px-4 md:px-6">
-                <div className="text-center mb-16">
+                <div className="text-center mb-12">
                     <h2 className="text-3xl md:text-5xl font-bold mb-4">
-                        <span className="text-gradient">AI Магија</span> во ваша служба
+                        Престанете да погодувате. <span className="text-gradient">Нудете со податоци.</span>
                     </h2>
                     <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
-                        Повеќе од обичен пребарувач. Nabavkidata е вашиот паметен асистент за јавни набавки.
+                        Разликата меѓу победа и пораз е знаење на тоа што другите не го знаат.
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {features.map((feature, index) => (
                         <motion.div
                             key={index}
@@ -73,7 +69,8 @@ export default function FeaturesSection() {
                                 <feature.icon className="w-6 h-6 text-primary" />
                             </div>
                             <h3 className="text-xl font-bold mb-2 text-foreground">{feature.title}</h3>
-                            <p className="text-muted-foreground">{feature.description}</p>
+                            <p className="text-muted-foreground text-sm leading-relaxed mb-3">{feature.description}</p>
+                            <p className="text-xs font-medium text-primary">{feature.outcome}</p>
                         </motion.div>
                     ))}
                 </div>

@@ -226,6 +226,28 @@ async def update_preferences(
 
 
 # ============================================================================
+# ONBOARDING TRACKING
+# ============================================================================
+
+@router.post("/onboarding/complete")
+async def complete_onboarding(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark onboarding wizard as completed in the database"""
+    await db.execute(
+        text("""
+            UPDATE users
+            SET onboarding_completed = true, onboarding_completed_at = NOW()
+            WHERE user_id = :user_id AND (onboarding_completed IS NULL OR onboarding_completed = false)
+        """),
+        {"user_id": str(current_user.user_id)}
+    )
+    await db.commit()
+    return {"status": "ok"}
+
+
+# ============================================================================
 # BEHAVIOR TRACKING
 # ============================================================================
 

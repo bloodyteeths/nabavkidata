@@ -137,4 +137,4 @@ const query = searchParams.get('search') || '';
 - **Database**: PostgreSQL 16 on Hetzner (local)
 - **AI**: Gemini embeddings, RAG search
 - **Scraping**: Scrapy + Playwright, Tesseract OCR
-- **Hosting**: Vercel (frontend), Hetzner VPS (backend/scraper)
+- **Hosting**: Vercel (frontend), Hetzner VPS (backend/scraper) — planned full migration to Hetzner

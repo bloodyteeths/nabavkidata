@@ -4,9 +4,6 @@ import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
 
 // Lazy load below-the-fold sections for better performance
-const ValuePropositionSection = dynamic(() => import("@/components/landing/ValuePropositionSection"), {
-    loading: () => <div className="min-h-[400px]" />
-});
 const HowItWorksSection = dynamic(() => import("@/components/landing/HowItWorksSection"), {
     loading: () => <div className="min-h-[600px]" />
 });
@@ -22,6 +19,9 @@ const ComparisonSection = dynamic(() => import("@/components/landing/ComparisonS
 const PricingSection = dynamic(() => import("@/components/landing/PricingSection"), {
     loading: () => <div className="min-h-[700px]" />
 });
+const SocialProofSection = dynamic(() => import("@/components/landing/SocialProofSection"), {
+    loading: () => <div className="min-h-[300px]" />
+});
 const SocialProofNotifications = dynamic(() => import("@/components/landing/SocialProofNotifications"), {
     ssr: false
 });
@@ -33,8 +33,8 @@ const TestimonialsSection = dynamic(() => import("@/components/landing/Testimoni
 });
 
 export const metadata: Metadata = {
-    title: "Почетна",
-    description: "Најсовремена платформа за анализа на јавни набавки во Македонија. AI-базирани препораки, следење на конкуренти и детални инсајти.",
+    title: "Видете ги победничките цени пред да понудите | NabavkiData",
+    description: "Престанете да погодувате. AI анализира 170,000+ тендери од е-набавки.гов.мк — минати цени, историја на конкуренти, барања — за да понудите правилно и да победите.",
 };
 
 export default function LandingPage() {
@@ -42,11 +42,11 @@ export default function LandingPage() {
         <main className="min-h-screen bg-background text-foreground overflow-x-hidden">
             <Navbar />
             <HeroSection />
-            <ValuePropositionSection />
             <HowItWorksSection />
+            <SocialProofSection />
             <FeaturesSection />
-            <TrustSection />
             <ComparisonSection />
+            <TrustSection />
             <PricingSection />
             <TestimonialsSection />
             <FAQSection />

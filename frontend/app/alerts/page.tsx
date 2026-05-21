@@ -1,23 +1,28 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertList } from '@/components/alerts/AlertList';
 import { AlertCreator } from '@/components/alerts/AlertCreator';
 import { AlertMatches } from '@/components/alerts/AlertMatches';
 import { Bell, Plus, Inbox } from 'lucide-react';
+import { PageContainer } from '@/components/ui/page-container';
+import { PageHeader } from '@/components/ui/page-header';
+import { Suspense } from 'react';
 
-export default function AlertsPage() {
-  const [activeTab, setActiveTab] = useState('alerts');
+function AlertsContent() {
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'alerts';
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   return (
-    <div className="container mx-auto py-6 px-4">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Паметни Алерти</h1>
-          <p className="text-muted-foreground">Никогаш не пропуштајте релевантен тендер</p>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        icon={Bell}
+        title="Паметни Алерти"
+        description="Никогаш не пропуштајте релевантен тендер"
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3 lg:w-auto">
@@ -48,6 +53,14 @@ export default function AlertsPage() {
           <AlertCreator onCreated={() => setActiveTab('alerts')} />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
+  );
+}
+
+export default function AlertsPage() {
+  return (
+    <Suspense fallback={<PageContainer><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mt-20" /></PageContainer>}>
+      <AlertsContent />
+    </Suspense>
   );
 }

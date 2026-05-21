@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import dynamic from "next/dynamic";
 import NavbarSr from "@/components/landing/sr/NavbarSr";
 import HeroSectionSr from "@/components/landing/sr/HeroSectionSr";
 import HowItWorksSectionSr from "@/components/landing/sr/HowItWorksSectionSr";
@@ -7,6 +8,16 @@ import TrustSectionSr from "@/components/landing/sr/TrustSectionSr";
 import ComparisonSectionSr from "@/components/landing/sr/ComparisonSectionSr";
 import PricingSectionSr from "@/components/landing/sr/PricingSectionSr";
 import SocialProofNotificationsSr from "@/components/landing/sr/SocialProofNotificationsSr";
+
+const SocialProofSection = dynamic(() => import("@/components/landing/SocialProofSection"), {
+    loading: () => <div className="min-h-[300px]" />
+});
+const TestimonialsSection = dynamic(() => import("@/components/landing/TestimonialsSection"), {
+    loading: () => <div className="min-h-[600px]" />
+});
+const FAQSection = dynamic(() => import("@/components/landing/FAQSection"), {
+    loading: () => <div className="min-h-[600px]" />
+});
 
 export const metadata: Metadata = {
     title: "Početna | Nabavkidata - AI Platforma za Javne Nabavke",
@@ -19,10 +30,13 @@ export default function LandingPageSr() {
             <NavbarSr />
             <HeroSectionSr />
             <HowItWorksSectionSr />
+            <SocialProofSection />
             <FeaturesSectionSr />
-            <TrustSectionSr />
             <ComparisonSectionSr />
+            <TrustSectionSr />
             <PricingSectionSr />
+            <TestimonialsSection />
+            <FAQSection />
             <SocialProofNotificationsSr />
 
             {/* Footer */}

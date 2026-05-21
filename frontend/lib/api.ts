@@ -1129,6 +1129,12 @@ class APIClient {
     }
   }
 
+  async completeOnboarding() {
+    return this.request('/api/personalization/onboarding/complete', {
+      method: 'POST',
+    });
+  }
+
   async logBehavior(_userId: string, behavior: { tender_id: string; action: string; duration_seconds?: number }) {
     // user_id is extracted from auth token on the backend
     return this.request(`/api/personalization/behavior`, {
@@ -2790,6 +2796,31 @@ class APIClient {
       avg_confidence: number;
       total_companies: number;
     }>>('/api/corruption/collusion/patterns');
+  }
+
+  // Pipeline
+  async getPipeline() {
+    return this.request<{ items: any[] }>('/api/pipeline');
+  }
+
+  async addToPipeline(tenderId: string, status: string = 'interested') {
+    return this.request<any>('/api/pipeline', {
+      method: 'POST',
+      body: JSON.stringify({ tender_id: tenderId, status }),
+    });
+  }
+
+  async updatePipelineItem(pipelineId: string, data: { status?: string; notes?: string; estimated_bid_amount?: number }) {
+    return this.request<any>(`/api/pipeline/${pipelineId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removePipelineItem(pipelineId: string) {
+    return this.request<any>(`/api/pipeline/${pipelineId}`, {
+      method: 'DELETE',
+    });
   }
 }
 

@@ -23,11 +23,25 @@ const PUBLIC_ROUTES = [
   '/auth/verify-email',
   '/auth/callback',
   '/tenders',
+  '/suppliers',
+  '/entity',
+  '/categories',
+  '/sectors',
+  '/blog',
   '/privacy',
   '/terms',
   '/403',
   '/pricing',
   '/transparency',
+  '/contact',
+  '/unsubscribe',
+  '/whistleblower',
+  '/awards',
+  '/reactivate',
+  '/trends',
+  '/briefings',
+  '/epazar',
+  '/products',
 ];
 
 // Helper function to check if a path matches a route pattern
@@ -104,6 +118,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public files (public folder)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif|.*\\.svg|.*\\.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sitemap\\.xml|robots\\.txt|.*\\/sitemap.*\\.xml|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif|.*\\.svg|.*\\.ico).*)',
   ],
 };
