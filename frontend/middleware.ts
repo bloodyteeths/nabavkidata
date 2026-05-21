@@ -73,6 +73,16 @@ function getRequiredRoles(path: string): string[] | null {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Never intercept sitemaps, robots, or static assets
+  if (
+    pathname === '/sitemap.xml' ||
+    pathname === '/robots.txt' ||
+    pathname.endsWith('.xml') ||
+    pathname.startsWith('/_next/')
+  ) {
+    return NextResponse.next();
+  }
+
   // Allow public routes
   if (isPublicRoute(pathname)) {
     return NextResponse.next();
