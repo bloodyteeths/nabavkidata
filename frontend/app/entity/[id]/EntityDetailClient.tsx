@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import { formatCurrency, formatDate, tenderUrl } from "@/lib/utils";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { SignupGate } from "@/components/SignupGate";
 
 const API_URL =
   typeof window !== "undefined"
@@ -198,6 +199,7 @@ export default function EntityDetailClient() {
         </Card>
       </div>
 
+      <SignupGate message="Регистрирајте се за да ги видите деталите за институцијата">
       {(entity.contact_email || entity.contact_phone || entity.website || entity.address) && (
         <Card className="mb-6">
           <CardHeader>
@@ -290,6 +292,7 @@ export default function EntityDetailClient() {
           )}
         </CardContent>
       </Card>
+      </SignupGate>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { api, type Tender } from "@/lib/api";
 import { ArrowLeft, Tag, TrendingUp, Building2, Calendar } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
+import { SignupGate } from "@/components/SignupGate";
 
 // CPV Code to Macedonian name mapping (common categories)
 const CPV_CATEGORIES: Record<string, string> = {
@@ -248,6 +249,7 @@ export default function CategoryClient() {
         </Card>
 
         {/* Tenders List */}
+        <SignupGate message="Регистрирајте се за да ги видите тендерите во оваа категорија">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">Тендери во оваа категорија</h2>
@@ -283,6 +285,7 @@ export default function CategoryClient() {
             </div>
           )}
         </div>
+        </SignupGate>
       </div>
     </div>
   );

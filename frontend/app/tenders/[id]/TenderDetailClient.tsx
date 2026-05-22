@@ -51,6 +51,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { UpgradePrompt } from "@/components/billing/UpgradePrompt";
+import { SignupGate } from "@/components/SignupGate";
 
 // Compute effective status based on closing_date
 // If status is 'open' but closing_date has passed, it's actually 'closed'
@@ -836,6 +837,7 @@ export default function TenderDetailClient() {
         </div>
 
       {/* Main Content */}
+      <SignupGate message="Регистрирајте се за да ги видите деталите за тендерот">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Details */}
         <div className="lg:col-span-2 space-y-6">
@@ -1841,6 +1843,7 @@ export default function TenderDetailClient() {
           />
         </div>
       </div>
+      </SignupGate>
 
       {/* AI Chat Widget is now global — see GlobalChatWidget */}
     </div>

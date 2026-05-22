@@ -31,6 +31,7 @@ import {
 import Link from 'next/link';
 import { formatCurrency, formatDate, tenderUrl } from '@/lib/utils';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { SignupGate } from '@/components/SignupGate';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -198,6 +199,7 @@ export default function SupplierDetailClient() {
         </CardContent>
       </Card>
 
+      <SignupGate message="Регистрирајте се за да ги видите деталите за добавувачот">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Contact Information */}
         <Card>
@@ -304,8 +306,10 @@ export default function SupplierDetailClient() {
           </CardContent>
         </Card>
       </div>
+      </SignupGate>
 
       {/* Recent Participations with Pagination */}
+      <SignupGate message="Регистрирајте се за да ги видите тендерските учества">
       <Card className="mt-6">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Последни учества во тендери</CardTitle>
@@ -407,6 +411,7 @@ export default function SupplierDetailClient() {
           )}
         </CardContent>
       </Card>
+      </SignupGate>
     </div>
   );
 }

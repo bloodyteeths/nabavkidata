@@ -17,6 +17,7 @@ import {
   FileText,
 } from "lucide-react";
 import Link from "next/link";
+import { SignupGate } from "@/components/SignupGate";
 
 const API_URL = "https://api.nabavkidata.com";
 
@@ -106,6 +107,7 @@ export default function AwardDetailClient() {
       </div>
 
       {/* Details Grid */}
+      <SignupGate message="Регистрирајте се за да ги видите деталите за набавката">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Procuring Entity */}
         {award.procuring_entity && (
@@ -218,6 +220,7 @@ export default function AwardDetailClient() {
           </Button>
         </CardContent>
       </Card>
+      </SignupGate>
     </div>
   );
 }
