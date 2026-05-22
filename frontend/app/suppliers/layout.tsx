@@ -11,5 +11,5 @@ export default function SuppliersLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return <DashboardLayout requireAuth={false}>{children}</DashboardLayout>;
 }
