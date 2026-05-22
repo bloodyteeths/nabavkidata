@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TenderCard } from "@/components/tenders/TenderCard";
 import { api, type Tender } from "@/lib/api";
-import { ArrowLeft, Tag, TrendingUp, Building2, Calendar } from "lucide-react";
+import { ArrowLeft, Tag, TrendingUp, Building2, Calendar, Bell, ArrowRight, Lock } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 import { SignupGate } from "@/components/SignupGate";
 
 // CPV Code to Macedonian name mapping (common categories)
@@ -56,6 +57,7 @@ export default function CategoryClient() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<CategoryStats | null>(null);
 
+  const { user } = useAuth();
   const categoryName = cpvCode ? (CPV_CATEGORIES[cpvCode] || `CPV ${cpvCode}`) : "Непозната категорија";
 
   useEffect(() => {
@@ -163,12 +165,15 @@ export default function CategoryClient() {
               <Tag className="h-8 w-8 text-primary" />
               <h1 className="text-3xl md:text-4xl font-bold">{categoryName}</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-2">
               <Badge variant="outline" className="font-mono">CPV {cpvCode}</Badge>
               {stats && stats.active_tenders > 0 && (
                 <Badge variant="default">{stats.active_tenders} активни тендери</Badge>
               )}
             </div>
+            <p className="text-sm text-muted-foreground max-w-2xl">
+              Сите јавни набавки за {categoryName.toLowerCase()} во Македонија. Следете ги тендерите, анализирајте ги цените и победете на набавки.
+            </p>
           </div>
         </div>
 
@@ -225,71 +230,45 @@ export default function CategoryClient() {
           </div>
         )}
 
-        {/* Category Description */}
-        <Card>
-          <CardHeader>
-            <CardTitle>За категоријата</CardTitle>
-            <CardDescription>
-              CPV код {cpvCode} ги вклучува сите јавни набавки поврзани со {categoryName.toLowerCase()} во Република Македонија.
-              Оваа категорија ги опфаќа тендерите објавени на платформата за е-набавки.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>
-                На оваа страница можете да ги прегледате сите тендери класифицирани под CPV код {cpvCode}.
-                Користете ги филтрите за да ги најдете тендерите што одговараат на вашите потреби.
-              </p>
-              <p>
-                CPV (Common Procurement Vocabulary) кодот е стандарден класификациски систем користен во јавните набавки
-                во Европската Унија и земјите кои го применуваат истиот систем.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Teaser Insights — visible to everyone */}
-        {stats && stats.total_tenders > 0 && (
-          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
-            <CardContent className="py-5">
-              <h2 className="font-semibold text-lg mb-3">Клучни увиди за {categoryName}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                <div className="flex items-start gap-2">
-                  <Tag className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
-                  <span>
-                    Вкупно <strong>{stats.total_tenders} тендери</strong> во оваа категорија
+        {/* CTA Banner — for anonymous users */}
+        {!user && (
+          <div className="rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold mb-2">
+                  Следете ги тендерите за {categoryName.toLowerCase()}
+                </h2>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Поставете аларм и добивајте известување на e-mail кога ќе се објави нов тендер во оваа категорија.
+                  Бесплатно — без кредитна картичка.
+                </p>
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Bell className="h-3.5 w-3.5 text-blue-500" /> Аларми за нови тендери
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <TrendingUp className="h-3.5 w-3.5 text-green-500" /> Ценовна интелигенција
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Building2 className="h-3.5 w-3.5 text-purple-500" /> Конкурентска анализа
                   </span>
                 </div>
-                {stats.active_tenders > 0 && (
-                  <div className="flex items-start gap-2">
-                    <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                    <span>
-                      <strong>{stats.active_tenders} активни</strong> тендери — отворени за понуда
-                    </span>
-                  </div>
-                )}
-                {stats.total_value_mkd > 0 && (
-                  <div className="flex items-start gap-2">
-                    <Building2 className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
-                    <span>
-                      Пазар од <strong>{formatCurrency(stats.total_value_mkd)}</strong> вкупна вредност
-                    </span>
-                  </div>
-                )}
-                {stats.avg_value_mkd > 0 && (
-                  <div className="flex items-start gap-2">
-                    <Calendar className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
-                    <span>
-                      Просечна вредност по тендер: <strong>{formatCurrency(stats.avg_value_mkd)}</strong>
-                    </span>
-                  </div>
-                )}
               </div>
-              <p className="text-xs text-muted-foreground mt-3">
-                Регистрирајте се за да ги прегледате тендерите, поставите аларм и добивате известувања за нови набавки.
-              </p>
-            </CardContent>
-          </Card>
+              <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                <Link href={`/auth/register?redirect=/categories/${cpvCode}`}>
+                  <Button size="lg" className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+                    Регистрирајте се бесплатно
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
+                <Link href={`/auth/login?redirect=/categories/${cpvCode}`}>
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                    Најавете се
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Tenders List */}
