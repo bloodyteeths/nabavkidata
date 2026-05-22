@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, formatDate, tenderUrl } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { SignupGate } from "@/components/SignupGate";
 
@@ -56,6 +57,7 @@ interface EntityTender {
 export default function EntityDetailClient() {
   const params = useParams();
   const entityId = params?.id as string;
+  const { user } = useAuth();
 
   const [entity, setEntity] = useState<EntityData | null>(null);
   const [tenders, setTenders] = useState<EntityTender[]>([]);
@@ -181,7 +183,11 @@ export default function EntityDetailClient() {
               <TrendingUp className="h-8 w-8 text-green-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Вкупна вредност</p>
-                <p className="text-xl font-bold">{formatCurrency(entity.total_value_mkd)}</p>
+                {user ? (
+                  <p className="text-xl font-bold">{formatCurrency(entity.total_value_mkd)}</p>
+                ) : (
+                  <p className="text-sm font-medium text-blue-600">Бесплатна регистрација</p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -216,7 +222,7 @@ export default function EntityDetailClient() {
               <div className="flex items-start gap-2">
                 <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
                 <span>
-                  Вкупна вредност на набавки: <strong>{formatCurrency(entity.total_value_mkd)}</strong>
+                  Вкупна вредност на набавки: {user ? <strong>{formatCurrency(entity.total_value_mkd)}</strong> : <strong className="text-blue-600">регистрирајте се</strong>}
                 </span>
               </div>
             )}
@@ -232,7 +238,7 @@ export default function EntityDetailClient() {
               <div className="flex items-start gap-2">
                 <Building2 className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
                 <span>
-                  Просечна вредност по тендер: <strong>{formatCurrency(entity.total_value_mkd / entity.total_tenders)}</strong>
+                  Просечна вредност по тендер: {user ? <strong>{formatCurrency(entity.total_value_mkd / entity.total_tenders)}</strong> : <strong className="text-blue-600">регистрирајте се</strong>}
                 </span>
               </div>
             )}
@@ -243,7 +249,55 @@ export default function EntityDetailClient() {
         </CardContent>
       </Card>
 
-      <SignupGate message="Регистрирајте се за да ги видите контакт информации, листа на тендери и победници">
+      {/* Tender titles — visible to everyone (no values shown) */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Последни тендери ({tenders.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {tenders.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-4">Нема пронајдени тендери.</p>
+          ) : (
+            <div className="space-y-3">
+              {tenders.slice(0, 5).map((t) => (
+                <div
+                  key={t.tender_id}
+                  className="p-4 rounded-lg border"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm line-clamp-2">{t.title}</h3>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        {t.closing_date && <span>Рок: {formatDate(t.closing_date)}</span>}
+                      </div>
+                    </div>
+                    <Badge
+                      className={
+                        t.status === "open"
+                          ? "bg-green-500 text-white"
+                          : t.status === "awarded"
+                          ? ""
+                          : "bg-red-500 text-white"
+                      }
+                      variant={t.status === "awarded" ? "default" : "secondary"}
+                    >
+                      {statusLabel(t.status)}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+              {tenders.length > 5 && (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  + уште {tenders.length - 5} тендери — регистрирајте се за целосен преглед
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Gated: contact info + full tender links with values */}
+      <SignupGate message="Регистрирајте се за контакт информации, вредности на тендери и победници">
       {(entity.contact_email || entity.contact_phone || entity.website || entity.address) && (
         <Card className="mb-6">
           <CardHeader>
@@ -290,52 +344,6 @@ export default function EntityDetailClient() {
           </CardContent>
         </Card>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Последни тендери ({tenders.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {tenders.length === 0 ? (
-            <p className="text-muted-foreground text-sm py-4">Нема пронајдени тендери.</p>
-          ) : (
-            <div className="space-y-3">
-              {tenders.map((t) => (
-                <Link
-                  key={t.tender_id}
-                  href={tenderUrl(t.tender_id)}
-                  className="block p-4 rounded-lg border hover:border-primary/40 hover:bg-muted/50 transition-all"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-sm line-clamp-2">{t.title}</h3>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        {t.estimated_value_mkd && (
-                          <span>{formatCurrency(t.estimated_value_mkd)}</span>
-                        )}
-                        {t.closing_date && <span>Рок: {formatDate(t.closing_date)}</span>}
-                        {t.winner && <span className="text-green-600">Победник: {t.winner}</span>}
-                      </div>
-                    </div>
-                    <Badge
-                      className={
-                        t.status === "open"
-                          ? "bg-green-500 text-white"
-                          : t.status === "awarded"
-                          ? ""
-                          : "bg-red-500 text-white"
-                      }
-                      variant={t.status === "awarded" ? "default" : "secondary"}
-                    >
-                      {statusLabel(t.status)}
-                    </Badge>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
       </SignupGate>
     </div>
   );

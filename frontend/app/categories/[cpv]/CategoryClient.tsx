@@ -271,12 +271,9 @@ export default function CategoryClient() {
           </div>
         )}
 
-        {/* Tenders List */}
-        <SignupGate message="Регистрирајте се за да ги видите тендерите, поставите аларм и добивате известувања">
+        {/* Tender titles — first 3 visible, rest gated */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Тендери во оваа категорија</h2>
-          </div>
+          <h2 className="text-2xl font-bold">Тендери во оваа категорија</h2>
 
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -290,25 +287,34 @@ export default function CategoryClient() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {tenders.map((tender) => (
-                <TenderCard key={tender.tender_id} tender={tender} />
-              ))}
-            </div>
-          )}
+            <>
+              {/* First 3 tenders visible */}
+              <div className="space-y-4">
+                {tenders.slice(0, 3).map((tender) => (
+                  <TenderCard key={tender.tender_id} tender={tender} />
+                ))}
+              </div>
 
-          {/* View All Link */}
-          {!loading && tenders.length > 0 && (
-            <div className="flex justify-center pt-4">
-              <Button asChild variant="outline">
-                <Link href={`/tenders?cpv_code=${cpvCode}`}>
-                  Види ги сите тендери во оваа категорија
-                </Link>
-              </Button>
-            </div>
+              {/* Rest gated */}
+              {tenders.length > 3 && (
+                <SignupGate message="Регистрирајте се за да ги видите сите тендери и поставите аларм">
+                <div className="space-y-4">
+                  {tenders.slice(3).map((tender) => (
+                    <TenderCard key={tender.tender_id} tender={tender} />
+                  ))}
+                  <div className="flex justify-center pt-4">
+                    <Button asChild variant="outline">
+                      <Link href={`/tenders?cpv_code=${cpvCode}`}>
+                        Види ги сите тендери во оваа категорија
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+                </SignupGate>
+              )}
+            </>
           )}
         </div>
-        </SignupGate>
       </div>
     </div>
   );

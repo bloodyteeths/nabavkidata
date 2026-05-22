@@ -123,7 +123,7 @@ export default function AwardDetailClient() {
               <div className="flex items-start gap-2">
                 <Tag className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
                 <span>
-                  {award.actual_value_mkd ? 'Договорена' : 'Проценета'} вредност: <strong>{formatCurrency(award.actual_value_mkd || award.estimated_value_mkd || 0)}</strong>
+                  Вредност на договорот: <strong className="text-blue-600">регистрирајте се за да ја видите</strong>
                 </span>
               </div>
             )}

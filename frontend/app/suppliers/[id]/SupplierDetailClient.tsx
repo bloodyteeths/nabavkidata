@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDate, tenderUrl } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { SignupGate } from '@/components/SignupGate';
 
@@ -43,6 +44,7 @@ export default function SupplierDetailClient() {
   const [error, setError] = useState<string | null>(null);
   const [participationsPage, setParticipationsPage] = useState(1);
 
+  const { user } = useAuth();
   const supplierId = params.id as string;
 
   useEffect(() => {
@@ -171,7 +173,11 @@ export default function SupplierDetailClient() {
               <Building2 className="h-8 w-8 text-purple-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Вкупна вредност</p>
-                <p className="text-xl font-bold">{formatCurrency(supplier.total_value_won_mkd)}</p>
+                {user ? (
+                  <p className="text-xl font-bold">{formatCurrency(supplier.total_value_won_mkd)}</p>
+                ) : (
+                  <p className="text-sm font-medium text-blue-600">Бесплатна регистрација</p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -187,7 +193,7 @@ export default function SupplierDetailClient() {
               <div className="flex items-start gap-2">
                 <Trophy className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
                 <span>
-                  Победила на <strong>{supplier.total_wins} тендери</strong> со вкупна вредност од <strong>{formatCurrency(supplier.total_value_won_mkd)}</strong>
+                  Победила на <strong>{supplier.total_wins} тендери</strong> — регистрирајте се за да ја видите вкупната вредност
                 </span>
               </div>
             )}
@@ -243,66 +249,8 @@ export default function SupplierDetailClient() {
         </CardContent>
       </Card>
 
-      <SignupGate message="Регистрирајте се за да видите контакт информации, историја на тендери и конкурентска анализа">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Contact Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Контакт информации
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {supplier.address && (
-              <div className="flex items-start gap-2">
-                <MapPin className="h-4 w-4 mt-1 text-muted-foreground" />
-                <span>{supplier.address}</span>
-              </div>
-            )}
-            {supplier.city && (
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <span>{supplier.city}, {supplier.country || 'Северна Македонија'}</span>
-              </div>
-            )}
-            {supplier.contact_person && (
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span>{supplier.contact_person}</span>
-              </div>
-            )}
-            {supplier.contact_email && (
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <a href={`mailto:${supplier.contact_email}`} className="hover:text-primary">
-                  {supplier.contact_email}
-                </a>
-              </div>
-            )}
-            {supplier.contact_phone && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <a href={`tel:${supplier.contact_phone}`} className="hover:text-primary">
-                  {supplier.contact_phone}
-                </a>
-              </div>
-            )}
-            {supplier.website && (
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-muted-foreground" />
-                <a href={supplier.website} target="_blank" rel="noopener noreferrer" className="hover:text-primary flex items-center gap-1">
-                  {supplier.website}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-            )}
-            {!supplier.address && !supplier.city && !supplier.contact_person && !supplier.contact_email && !supplier.contact_phone && !supplier.website && (
-              <p className="text-muted-foreground text-sm">Нема достапни контакт информации</p>
-            )}
-          </CardContent>
-        </Card>
-
+      {/* Wins breakdowns — visible to everyone (creates curiosity) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Wins by Category */}
         <Card>
           <CardHeader>
@@ -350,6 +298,65 @@ export default function SupplierDetailClient() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Gated: contact info only */}
+      <SignupGate message="Регистрирајте се за контакт информации, вредности на договори и целосна историја">
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Контакт информации
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {supplier.address && (
+            <div className="flex items-start gap-2">
+              <MapPin className="h-4 w-4 mt-1 text-muted-foreground" />
+              <span>{supplier.address}</span>
+            </div>
+          )}
+          {supplier.city && (
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <span>{supplier.city}, {supplier.country || 'Северна Македонија'}</span>
+            </div>
+          )}
+          {supplier.contact_person && (
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <span>{supplier.contact_person}</span>
+            </div>
+          )}
+          {supplier.contact_email && (
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <a href={`mailto:${supplier.contact_email}`} className="hover:text-primary">
+                {supplier.contact_email}
+              </a>
+            </div>
+          )}
+          {supplier.contact_phone && (
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              <a href={`tel:${supplier.contact_phone}`} className="hover:text-primary">
+                {supplier.contact_phone}
+              </a>
+            </div>
+          )}
+          {supplier.website && (
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4 text-muted-foreground" />
+              <a href={supplier.website} target="_blank" rel="noopener noreferrer" className="hover:text-primary flex items-center gap-1">
+                {supplier.website}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          )}
+          {!supplier.address && !supplier.city && !supplier.contact_person && !supplier.contact_email && !supplier.contact_phone && !supplier.website && (
+            <p className="text-muted-foreground text-sm">Нема достапни контакт информации</p>
+          )}
+        </CardContent>
+      </Card>
       </SignupGate>
 
       {/* Recent Participations with Pagination */}
