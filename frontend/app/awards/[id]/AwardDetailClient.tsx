@@ -106,8 +106,52 @@ export default function AwardDetailClient() {
         </div>
       </div>
 
+      {/* Teaser Insights — visible to everyone */}
+      <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
+        <CardContent className="py-5">
+          <h2 className="font-semibold text-lg mb-3">Клучни увиди</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            {award.winner && (
+              <div className="flex items-start gap-2">
+                <Trophy className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <span>
+                  Победник: <strong>{award.winner}</strong>
+                </span>
+              </div>
+            )}
+            {(award.actual_value_mkd || award.estimated_value_mkd) && (
+              <div className="flex items-start gap-2">
+                <Tag className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                <span>
+                  {award.actual_value_mkd ? 'Договорена' : 'Проценета'} вредност: <strong>{formatCurrency(award.actual_value_mkd || award.estimated_value_mkd || 0)}</strong>
+                </span>
+              </div>
+            )}
+            {award.num_bidders != null && award.num_bidders > 0 && (
+              <div className="flex items-start gap-2">
+                <Users className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+                <span>
+                  <strong>{award.num_bidders} компании</strong> поднеле понуда {award.num_bidders === 1 ? '— без конкуренција' : '— конкурентна постапка'}
+                </span>
+              </div>
+            )}
+            {award.procuring_entity && (
+              <div className="flex items-start gap-2">
+                <Building2 className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                <span>
+                  Нарачувач: <strong>{award.procuring_entity}</strong>
+                </span>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Регистрирајте се за целосни детали: документи, постапка, датуми и AI анализа на тендерот.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Details Grid */}
-      <SignupGate message="Регистрирајте се за да ги видите деталите за набавката">
+      <SignupGate message="Регистрирајте се за да ги видите деталите, документи и AI анализа">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Procuring Entity */}
         {award.procuring_entity && (

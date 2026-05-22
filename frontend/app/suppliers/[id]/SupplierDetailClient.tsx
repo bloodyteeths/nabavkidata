@@ -178,6 +178,50 @@ export default function SupplierDetailClient() {
         </Card>
       </div>
 
+      {/* Teaser Insights — visible to everyone */}
+      <Card className="mb-6 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
+        <CardContent className="py-5">
+          <h2 className="font-semibold text-lg mb-3">Клучни увиди</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            {supplier.total_wins > 0 && (
+              <div className="flex items-start gap-2">
+                <Trophy className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                <span>
+                  Победила на <strong>{supplier.total_wins} тендери</strong> со вкупна вредност од <strong>{formatCurrency(supplier.total_value_won_mkd)}</strong>
+                </span>
+              </div>
+            )}
+            {supplier.win_rate != null && supplier.win_rate > 0 && (
+              <div className="flex items-start gap-2">
+                <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                <span>
+                  Стапка на победи: <strong>{formatPercent(supplier.win_rate)}</strong> — {supplier.win_rate > 50 ? 'над просекот' : 'под просекот'} за слични добавувачи
+                </span>
+              </div>
+            )}
+            {supplier.total_bids > 0 && (
+              <div className="flex items-start gap-2">
+                <FileText className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                <span>
+                  Учествувала на <strong>{supplier.total_bids} тендери</strong> вкупно
+                </span>
+              </div>
+            )}
+            {Object.keys(supplier.wins_by_category || {}).length > 0 && (
+              <div className="flex items-start gap-2">
+                <Building2 className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+                <span>
+                  Активна во <strong>{Object.keys(supplier.wins_by_category).length} категории</strong> на набавки
+                </span>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Регистрирајте се за детален преглед: контакт информации, историја на учество, конкурентска анализа и повеќе.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Strength Analysis Link */}
       <Card className="mb-6 border-primary/20 bg-primary/5">
         <CardContent className="py-4 flex items-center justify-between">
@@ -199,7 +243,7 @@ export default function SupplierDetailClient() {
         </CardContent>
       </Card>
 
-      <SignupGate message="Регистрирајте се за да ги видите деталите за добавувачот">
+      <SignupGate message="Регистрирајте се за да видите контакт информации, историја на тендери и конкурентска анализа">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Contact Information */}
         <Card>

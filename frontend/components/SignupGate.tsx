@@ -45,9 +45,20 @@ export function SignupGate({ children, teaser, message, feature }: SignupGatePro
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             {message || 'Регистрирајте се за да ги видите деталите'}
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Бесплатна регистрација — пристапете до сите податоци за јавни набавки
-          </p>
+          <ul className="text-sm text-gray-500 dark:text-gray-400 mb-6 text-left space-y-1.5">
+            <li className="flex items-center gap-2">
+              <span className="text-green-500 font-bold">&#10003;</span>
+              Бесплатна регистрација — без кредитна картичка
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500 font-bold">&#10003;</span>
+              290,000+ тендери и 19,000+ добавувачи
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500 font-bold">&#10003;</span>
+              AI анализа, аларми и ценовна интелигенција
+            </li>
+          </ul>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href={`/auth/register?redirect=${encodeURIComponent(redirectPath)}`}>
               <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">

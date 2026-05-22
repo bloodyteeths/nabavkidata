@@ -248,8 +248,52 @@ export default function CategoryClient() {
           </CardContent>
         </Card>
 
+        {/* Teaser Insights — visible to everyone */}
+        {stats && stats.total_tenders > 0 && (
+          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
+            <CardContent className="py-5">
+              <h2 className="font-semibold text-lg mb-3">Клучни увиди за {categoryName}</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="flex items-start gap-2">
+                  <Tag className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                  <span>
+                    Вкупно <strong>{stats.total_tenders} тендери</strong> во оваа категорија
+                  </span>
+                </div>
+                {stats.active_tenders > 0 && (
+                  <div className="flex items-start gap-2">
+                    <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                    <span>
+                      <strong>{stats.active_tenders} активни</strong> тендери — отворени за понуда
+                    </span>
+                  </div>
+                )}
+                {stats.total_value_mkd > 0 && (
+                  <div className="flex items-start gap-2">
+                    <Building2 className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+                    <span>
+                      Пазар од <strong>{formatCurrency(stats.total_value_mkd)}</strong> вкупна вредност
+                    </span>
+                  </div>
+                )}
+                {stats.avg_value_mkd > 0 && (
+                  <div className="flex items-start gap-2">
+                    <Calendar className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                    <span>
+                      Просечна вредност по тендер: <strong>{formatCurrency(stats.avg_value_mkd)}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Регистрирајте се за да ги прегледате тендерите, поставите аларм и добивате известувања за нови набавки.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tenders List */}
-        <SignupGate message="Регистрирајте се за да ги видите тендерите во оваа категорија">
+        <SignupGate message="Регистрирајте се за да ги видите тендерите, поставите аларм и добивате известувања">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">Тендери во оваа категорија</h2>

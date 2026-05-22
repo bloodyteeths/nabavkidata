@@ -836,8 +836,69 @@ export default function TenderDetailClient() {
           )}
         </div>
 
+      {/* Teaser Insights — visible to everyone */}
+      <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
+        <CardContent className="py-5">
+          <h2 className="font-semibold text-lg mb-3">Клучни увиди</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            {tender.procuring_entity && (
+              <div className="flex items-start gap-2">
+                <Building2 className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+                <span>
+                  Нарачувач: <strong>{tender.procuring_entity}</strong>
+                </span>
+              </div>
+            )}
+            {tender.estimated_value_mkd && (
+              <div className="flex items-start gap-2">
+                <Tag className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                <span>
+                  Проценета вредност: <strong>{formatCurrency(tender.estimated_value_mkd)}</strong>
+                </span>
+              </div>
+            )}
+            {getEffectiveStatus(tender.status, tender.closing_date) === 'awarded' && tender.winner && (
+              <div className="flex items-start gap-2">
+                <Trophy className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <span>
+                  Победник: <strong>{tender.winner}</strong>
+                  {tender.actual_value_mkd ? ` за ${formatCurrency(tender.actual_value_mkd)}` : ''}
+                </span>
+              </div>
+            )}
+            {bidders.length > 0 && (
+              <div className="flex items-start gap-2">
+                <Users className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                <span>
+                  <strong>{bidders.length} компании</strong> учествувале на овој тендер
+                </span>
+              </div>
+            )}
+            {documents.length > 0 && (
+              <div className="flex items-start gap-2">
+                <FileText className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                <span>
+                  <strong>{documents.length} документи</strong> достапни за анализа
+                </span>
+              </div>
+            )}
+            {getEffectiveStatus(tender.status, tender.closing_date) === 'open' && tender.closing_date && (
+              <div className="flex items-start gap-2">
+                <Clock className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                <span>
+                  Краен рок: <strong>{formatDate(tender.closing_date)}</strong> — побрзајте!
+                </span>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Регистрирајте се за целосна документација, AI анализа, ценовна интелигенција и советник за понуда.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Main Content */}
-      <SignupGate message="Регистрирајте се за да ги видите деталите за тендерот">
+      <SignupGate message="Регистрирајте се за документи, AI анализа и ценовна интелигенција">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Details */}
         <div className="lg:col-span-2 space-y-6">

@@ -199,7 +199,51 @@ export default function EntityDetailClient() {
         </Card>
       </div>
 
-      <SignupGate message="Регистрирајте се за да ги видите деталите за институцијата">
+      {/* Teaser Insights — visible to everyone */}
+      <Card className="mb-6 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
+        <CardContent className="py-5">
+          <h2 className="font-semibold text-lg mb-3">Клучни увиди</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            {entity.total_tenders > 0 && (
+              <div className="flex items-start gap-2">
+                <FileText className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                <span>
+                  Објавила <strong>{entity.total_tenders} тендери</strong> на платформата за е-набавки
+                </span>
+              </div>
+            )}
+            {entity.total_value_mkd != null && entity.total_value_mkd > 0 && (
+              <div className="flex items-start gap-2">
+                <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                <span>
+                  Вкупна вредност на набавки: <strong>{formatCurrency(entity.total_value_mkd)}</strong>
+                </span>
+              </div>
+            )}
+            {entity.city && (
+              <div className="flex items-start gap-2">
+                <MapPin className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+                <span>
+                  Локација: <strong>{entity.city}</strong>
+                </span>
+              </div>
+            )}
+            {entity.total_tenders > 0 && entity.total_value_mkd != null && entity.total_value_mkd > 0 && (
+              <div className="flex items-start gap-2">
+                <Building2 className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                <span>
+                  Просечна вредност по тендер: <strong>{formatCurrency(entity.total_value_mkd / entity.total_tenders)}</strong>
+                </span>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Регистрирајте се за контакт информации, листа на тендери, победници и детална анализа.
+          </p>
+        </CardContent>
+      </Card>
+
+      <SignupGate message="Регистрирајте се за да ги видите контакт информации, листа на тендери и победници">
       {(entity.contact_email || entity.contact_phone || entity.website || entity.address) && (
         <Card className="mb-6">
           <CardHeader>
