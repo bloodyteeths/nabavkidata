@@ -351,3 +351,25 @@ async def sitemap_awards_count(db: AsyncSession = Depends(get_db)):
     )
     total = result.scalar()
     return {"total": total, "pages": (total + 49999) // 50000}
+
+
+@router.get("/sitemap/cpv")
+async def sitemap_cpv(db: AsyncSession = Depends(get_db)):
+    """Return all unique CPV codes with tender counts for sitemap."""
+    result = await db.execute(
+        text("""
+            SELECT cpv_code, COUNT(*) as tender_count
+            FROM tenders
+            WHERE cpv_code IS NOT NULL AND cpv_code != ''
+            GROUP BY cpv_code
+            ORDER BY tender_count DESC
+        """)
+    )
+    rows = result.all()
+    return {
+        "count": len(rows),
+        "items": [
+            {"cpv_code": r.cpv_code, "tender_count": r.tender_count}
+            for r in rows
+        ],
+    }

@@ -1,6 +1,14 @@
 import type { MetadataRoute } from 'next';
 
+const BASE = 'https://www.nabavkidata.com';
+const TENDER_SITEMAP_CHUNKS = 6;
+
 export default function robots(): MetadataRoute.Robots {
+  const tenderSitemaps = Array.from(
+    { length: TENDER_SITEMAP_CHUNKS },
+    (_, i) => `${BASE}/tenders/sitemap/${i}.xml`
+  );
+
   return {
     rules: [
       {
@@ -10,12 +18,13 @@ export default function robots(): MetadataRoute.Robots {
       },
     ],
     sitemap: [
-      'https://www.nabavkidata.com/sitemap.xml',
-      'https://www.nabavkidata.com/tenders/sitemap.xml',
-      'https://www.nabavkidata.com/suppliers/sitemap.xml',
-      'https://www.nabavkidata.com/entity/sitemap.xml',
-      'https://www.nabavkidata.com/awards/sitemap.xml',
+      `${BASE}/sitemap.xml`,
+      ...tenderSitemaps,
+      `${BASE}/suppliers/sitemap.xml`,
+      `${BASE}/entity/sitemap.xml`,
+      `${BASE}/awards/sitemap.xml`,
+      `${BASE}/categories/sitemap.xml`,
     ],
-    host: 'https://www.nabavkidata.com',
+    host: BASE,
   };
 }
