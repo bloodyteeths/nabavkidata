@@ -1,6 +1,7 @@
 import { batch1Posts } from './blog-posts-batch1';
 import { batch2Posts } from './blog-posts-batch2';
 import { batch3Posts } from './blog-posts-batch3';
+import { batch4Posts } from './blog-posts-batch4';
 
 export interface BlogPost {
   slug: string;
@@ -13,7 +14,7 @@ export interface BlogPost {
   relatedSlugs: string[];
 }
 
-const posts: BlogPost[] = [...batch1Posts, ...batch2Posts, ...batch3Posts];
+const posts: BlogPost[] = [...batch1Posts, ...batch2Posts, ...batch3Posts, ...batch4Posts];
 
 export function getAllPosts(): BlogPost[] {
   return [...posts].sort(

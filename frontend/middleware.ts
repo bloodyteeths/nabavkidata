@@ -42,6 +42,7 @@ const PUBLIC_ROUTES = [
   '/briefings',
   '/epazar',
   '/products',
+  '/alternative',
 ];
 
 // Helper function to check if a path matches a route pattern
