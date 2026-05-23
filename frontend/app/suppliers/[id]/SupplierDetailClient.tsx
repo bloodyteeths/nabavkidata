@@ -374,10 +374,9 @@ export default function SupplierDetailClient() {
           )}
         </CardContent>
       </Card>
-      </SignupGate>
+
 
       {/* Recent Participations with Pagination */}
-      <SignupGate message="Регистрирајте се за да ги видите тендерските учества">
       <Card className="mt-6">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Последни учества во тендери</CardTitle>
