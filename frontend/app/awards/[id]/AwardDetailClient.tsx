@@ -115,7 +115,13 @@ export default function AwardDetailClient() {
               <div className="flex items-start gap-2">
                 <Trophy className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
                 <span>
-                  Победник: <strong>{award.winner}</strong>
+                  Победник:{" "}
+                  <Link
+                    href={`/suppliers?search=${encodeURIComponent(award.winner)}`}
+                    className="text-primary hover:underline font-bold"
+                  >
+                    {award.winner}
+                  </Link>
                 </span>
               </div>
             )}
@@ -139,7 +145,13 @@ export default function AwardDetailClient() {
               <div className="flex items-start gap-2">
                 <Building2 className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
                 <span>
-                  Нарачувач: <strong>{award.procuring_entity}</strong>
+                  Нарачувач:{" "}
+                  <Link
+                    href={`/entity?search=${encodeURIComponent(award.procuring_entity)}`}
+                    className="text-primary hover:underline font-bold"
+                  >
+                    {award.procuring_entity}
+                  </Link>
                 </span>
               </div>
             )}

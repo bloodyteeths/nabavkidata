@@ -266,6 +266,16 @@ export default function SupplierDetailClient() {
         </CardContent>
       </Card>
 
+      {/* Search tenders link */}
+      <div className="flex justify-center mb-6">
+        <Link
+          href={`/tenders?search=${encodeURIComponent(supplier.company_name)}`}
+          className="text-primary hover:underline text-sm font-medium"
+        >
+          Пребарајте тендери каде учествувал
+        </Link>
+      </div>
+
       {/* Wins breakdowns — visible to everyone (creates curiosity) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Wins by Category */}

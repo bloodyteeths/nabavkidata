@@ -296,6 +296,18 @@ export default function EntityDetailClient() {
         </CardContent>
       </Card>
 
+      {/* View all tenders link */}
+      {entity.entity_name && (
+        <div className="flex justify-center mb-6">
+          <Link
+            href={`/tenders?search=${encodeURIComponent(entity.entity_name)}`}
+            className="text-primary hover:underline text-sm font-medium"
+          >
+            Видете ги сите тендери од оваа институција
+          </Link>
+        </div>
+      )}
+
       {/* Gated: contact info + full tender links with values */}
       <SignupGate message="Регистрирајте се за контакт информации, вредности на тендери и победници">
       {(entity.contact_email || entity.contact_phone || entity.website || entity.address) && (

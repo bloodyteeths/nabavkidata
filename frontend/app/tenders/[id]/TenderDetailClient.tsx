@@ -845,7 +845,13 @@ export default function TenderDetailClient() {
               <div className="flex items-start gap-2">
                 <Building2 className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
                 <span>
-                  Нарачувач: <strong>{tender.procuring_entity}</strong>
+                  Нарачувач:{" "}
+                  <Link
+                    href={`/entity?search=${encodeURIComponent(tender.procuring_entity)}`}
+                    className="text-primary hover:underline font-bold"
+                  >
+                    {tender.procuring_entity}
+                  </Link>
                 </span>
               </div>
             )}
@@ -861,7 +867,13 @@ export default function TenderDetailClient() {
               <div className="flex items-start gap-2">
                 <Trophy className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
                 <span>
-                  Победник: <strong>{tender.winner}</strong>
+                  Победник:{" "}
+                  <Link
+                    href={`/suppliers?search=${encodeURIComponent(tender.winner)}`}
+                    className="text-primary hover:underline font-bold"
+                  >
+                    {tender.winner}
+                  </Link>
                   {tender.actual_value_mkd ? ` за ${formatCurrency(tender.actual_value_mkd)}` : ''}
                 </span>
               </div>

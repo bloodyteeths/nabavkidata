@@ -315,6 +315,37 @@ export default function CategoryClient() {
             </>
           )}
         </div>
+        {/* Related Categories */}
+        {cpvCode && (
+          <div className="space-y-3">
+            <h2 className="text-xl font-bold">Слични категории</h2>
+            <div className="flex flex-wrap gap-2">
+              {cpvCode.startsWith("45") && cpvCode !== "45000000" && (
+                <Link href="/categories/45000000" className="text-primary hover:underline text-sm">
+                  Градежни работи
+                </Link>
+              )}
+              {cpvCode.startsWith("33") && cpvCode !== "33000000" && (
+                <Link href="/categories/33000000" className="text-primary hover:underline text-sm">
+                  Медицинска опрема
+                </Link>
+              )}
+              {cpvCode.startsWith("72") && cpvCode !== "72000000" && (
+                <Link href="/categories/72000000" className="text-primary hover:underline text-sm">
+                  ИТ услуги
+                </Link>
+              )}
+              {cpvCode.startsWith("30") && cpvCode !== "30000000" && (
+                <Link href="/categories/30000000" className="text-primary hover:underline text-sm">
+                  Канцелариска опрема
+                </Link>
+              )}
+              <Link href="/categories" className="text-primary hover:underline text-sm">
+                Видете ги сите категории
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
