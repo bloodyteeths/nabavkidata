@@ -51,14 +51,31 @@ export default function SupplierDetailClient() {
     if (supplierId) {
       fetchSupplier();
     }
-  }, [supplierId]);
+  }, [supplierId, user]);
 
   const fetchSupplier = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.getSupplier(supplierId);
-      setSupplier(response);
+      if (user) {
+        const response = await api.getSupplier(supplierId);
+        setSupplier(response);
+      } else {
+        const res = await fetch(`https://api.nabavkidata.com/api/seo/supplier/${encodeURIComponent(supplierId)}`);
+        if (!res.ok) throw new Error('Supplier not found');
+        const data = await res.json();
+        setSupplier({
+          ...data,
+          address: data.address || '',
+          contact_person: data.contact_person || '',
+          contact_email: data.contact_email || '',
+          contact_phone: data.contact_phone || '',
+          website: data.website || '',
+          wins_by_category: data.wins_by_category || {},
+          wins_by_entity: data.wins_by_entity || {},
+          recent_participations: data.recent_participations || [],
+        });
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load supplier');
     } finally {
