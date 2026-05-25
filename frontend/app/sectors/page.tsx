@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Сектори — тендери по дејност",
     description: "12 сектори со јавни набавки во Македонија.",
-    url: "https://nabavkidata.com/sectors",
+    url: "https://www.nabavkidata.com/sectors",
   },
 };
 

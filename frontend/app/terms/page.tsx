@@ -553,7 +553,7 @@ function MacedonianTerms() {
             Одјава од е-пошта: <a href="mailto:unsubscribe@nabavkidata.com" className="text-primary hover:underline">unsubscribe@nabavkidata.com</a>
           </p>
           <p className="text-muted-foreground">
-            Веб-страница: <a href="https://nabavkidata.com" className="text-primary hover:underline">https://nabavkidata.com</a>
+            Веб-страница: <a href="https://www.nabavkidata.com" className="text-primary hover:underline">https://nabavkidata.com</a>
           </p>
         </div>
       </section>
@@ -1074,7 +1074,7 @@ function EnglishTerms() {
             Email Unsubscribe: <a href="mailto:unsubscribe@nabavkidata.com" className="text-primary hover:underline">unsubscribe@nabavkidata.com</a>
           </p>
           <p className="text-muted-foreground">
-            Website: <a href="https://nabavkidata.com" className="text-primary hover:underline">https://nabavkidata.com</a>
+            Website: <a href="https://www.nabavkidata.com" className="text-primary hover:underline">https://nabavkidata.com</a>
           </p>
         </div>
       </section>

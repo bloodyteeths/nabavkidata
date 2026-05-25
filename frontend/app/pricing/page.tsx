@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     title: "Цени и планови | NabavkiData",
     description:
       "Бесплатен план, Стартер (1,990 ден/мес), Про (5,990 ден/мес), Претпријатие (12,990 ден/мес). AI тендерска интелигенција за Македонија.",
-    url: "https://nabavkidata.com/pricing",
+    url: "https://www.nabavkidata.com/pricing",
   },
 };
 
@@ -40,7 +40,7 @@ function PricingJsonLd() {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
       { "@type": "ListItem", position: 2, name: "Цени" },
     ],
   };

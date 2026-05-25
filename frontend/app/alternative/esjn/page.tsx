@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     description: "Зошто компаниите го избираат NabavkiData наместо само ЕСЈН за следење на тендери.",
   },
   alternates: {
-    canonical: "https://nabavkidata.com/alternative/esjn",
+    canonical: "https://www.nabavkidata.com/alternative/esjn",
   },
 };
 
@@ -43,11 +43,11 @@ export default function EsjnAlternativePage() {
             "@type": "WebPage",
             name: "NabavkiData vs ЕСЈН — Споредба",
             description: "Споредба на NabavkiData и ЕСЈН платформите за јавни набавки",
-            url: "https://nabavkidata.com/alternative/esjn",
+            url: "https://www.nabavkidata.com/alternative/esjn",
             breadcrumb: {
               "@type": "BreadcrumbList",
               itemListElement: [
-                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
                 { "@type": "ListItem", position: 2, name: "NabavkiData vs ЕСЈН" },
               ],
             },

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     description: "Зошто NabavkiData е подобар избор за македонскиот пазар на јавни набавки.",
   },
   alternates: {
-    canonical: "https://nabavkidata.com/alternative/tenderwatch",
+    canonical: "https://www.nabavkidata.com/alternative/tenderwatch",
   },
 };
 
@@ -43,11 +43,11 @@ export default function TenderWatchAlternativePage() {
             "@type": "WebPage",
             name: "NabavkiData vs TenderWatch",
             description: "Споредба на NabavkiData со TenderWatch и други платформи за следење тендери",
-            url: "https://nabavkidata.com/alternative/tenderwatch",
+            url: "https://www.nabavkidata.com/alternative/tenderwatch",
             breadcrumb: {
               "@type": "BreadcrumbList",
               itemListElement: [
-                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
                 { "@type": "ListItem", position: 2, name: "NabavkiData vs TenderWatch" },
               ],
             },

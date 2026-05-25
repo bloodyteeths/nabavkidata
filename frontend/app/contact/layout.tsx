@@ -6,10 +6,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Контакт | NabavkiData",
     description: "Контактирајте го тимот на NabavkiData за помош со јавни набавки и тендери.",
-    url: "https://nabavkidata.com/contact",
+    url: "https://www.nabavkidata.com/contact",
   },
   alternates: {
-    canonical: "https://nabavkidata.com/contact",
+    canonical: "https://www.nabavkidata.com/contact",
   },
 };
 

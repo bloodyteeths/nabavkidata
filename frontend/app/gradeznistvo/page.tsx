@@ -8,10 +8,10 @@ export function generateMetadata(): Metadata {
     openGraph: {
       title: "Тендери за Градежништво | NabavkiData",
       description: "Најдете и анализирајте тендери за градежништво во Македонија — градба, реконструкција, патишта, инфраструктура.",
-      url: "https://nabavkidata.com/gradeznistvo",
+      url: "https://www.nabavkidata.com/gradeznistvo",
     },
     alternates: {
-      canonical: "https://nabavkidata.com/gradeznistvo",
+      canonical: "https://www.nabavkidata.com/gradeznistvo",
     },
   };
 }
@@ -27,11 +27,11 @@ export default function GradeznishtvoPage() {
             "@type": "WebPage",
             name: "Тендери за Градежништво — NabavkiData",
             description: "Следете тендери за градежништво во Македонија. AI анализа, аларми и ценовна интелигенција за градежни компании.",
-            url: "https://nabavkidata.com/gradeznistvo",
+            url: "https://www.nabavkidata.com/gradeznistvo",
             breadcrumb: {
               "@type": "BreadcrumbList",
               itemListElement: [
-                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
                 { "@type": "ListItem", position: 2, name: "Градежништво" },
               ],
             },

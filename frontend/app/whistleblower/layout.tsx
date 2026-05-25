@@ -6,10 +6,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Пријави корупција | NabavkiData",
     description: "Безбедна анонимна пријава на корупција во јавни набавки во Македонија.",
-    url: "https://nabavkidata.com/whistleblower",
+    url: "https://www.nabavkidata.com/whistleblower",
   },
   alternates: {
-    canonical: "https://nabavkidata.com/whistleblower",
+    canonical: "https://www.nabavkidata.com/whistleblower",
   },
 };
 

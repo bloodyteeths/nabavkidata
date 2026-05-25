@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     description: "Open Finance е портал за отворени податоци. NabavkiData е специјализирана за тендерска интелигенција.",
   },
   alternates: {
-    canonical: "https://nabavkidata.com/alternative/open-finance",
+    canonical: "https://www.nabavkidata.com/alternative/open-finance",
   },
 };
 
@@ -44,11 +44,11 @@ export default function OpenFinanceAlternativePage() {
             "@type": "WebPage",
             name: "NabavkiData vs Open Finance — Споредба",
             description: "Споредба на NabavkiData и Open Finance платформите за јавни податоци",
-            url: "https://nabavkidata.com/alternative/open-finance",
+            url: "https://www.nabavkidata.com/alternative/open-finance",
             breadcrumb: {
               "@type": "BreadcrumbList",
               itemListElement: [
-                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
                 { "@type": "ListItem", position: 2, name: "NabavkiData vs Open Finance" },
               ],
             },

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     description: "Буџет.мк покажува каде одат парите. NabavkiData покажува како се трошат — преку тендери.",
   },
   alternates: {
-    canonical: "https://nabavkidata.com/alternative/budzet-mk",
+    canonical: "https://www.nabavkidata.com/alternative/budzet-mk",
   },
 };
 
@@ -44,11 +44,11 @@ export default function BudzetMkAlternativePage() {
             "@type": "WebPage",
             name: "NabavkiData vs Буџет.мк — Споредба",
             description: "Споредба на NabavkiData и Буџет.мк платформите за јавни финансии и набавки",
-            url: "https://nabavkidata.com/alternative/budzet-mk",
+            url: "https://www.nabavkidata.com/alternative/budzet-mk",
             breadcrumb: {
               "@type": "BreadcrumbList",
               itemListElement: [
-                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
                 { "@type": "ListItem", position: 2, name: "NabavkiData vs Буџет.мк" },
               ],
             },

@@ -8,10 +8,10 @@ export function generateMetadata(): Metadata {
     openGraph: {
       title: "Тендери за Медицина и Здравство | NabavkiData",
       description: "Најдете тендери за медицинска опрема, лекови и здравствени услуги во Македонија.",
-      url: "https://nabavkidata.com/medicina",
+      url: "https://www.nabavkidata.com/medicina",
     },
     alternates: {
-      canonical: "https://nabavkidata.com/medicina",
+      canonical: "https://www.nabavkidata.com/medicina",
     },
   };
 }
@@ -27,11 +27,11 @@ export default function MedicinaPage() {
             "@type": "WebPage",
             name: "Тендери за Медицина и Здравство — NabavkiData",
             description: "Следете тендери за медицинска опрема, лекови и здравствени услуги во Македонија.",
-            url: "https://nabavkidata.com/medicina",
+            url: "https://www.nabavkidata.com/medicina",
             breadcrumb: {
               "@type": "BreadcrumbList",
               itemListElement: [
-                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
                 { "@type": "ListItem", position: 2, name: "Медицина" },
               ],
             },

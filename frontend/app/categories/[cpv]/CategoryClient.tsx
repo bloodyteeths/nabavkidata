@@ -124,13 +124,13 @@ export default function CategoryClient() {
                   "@type": "ListItem",
                   "position": 1,
                   "name": "Почетна",
-                  "item": "https://nabavkidata.com"
+                  "item": "https://www.nabavkidata.com"
                 },
                 {
                   "@type": "ListItem",
                   "position": 2,
                   "name": "Категории",
-                  "item": "https://nabavkidata.com/categories"
+                  "item": "https://www.nabavkidata.com/categories"
                 },
                 {
                   "@type": "ListItem",

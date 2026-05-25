@@ -343,7 +343,7 @@ function MacedonianContent() {
           </p>
           <p className="text-foreground mb-2"><strong>Веб-страница:</strong></p>
           <p className="mb-4">
-            <a href="https://nabavkidata.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+            <a href="https://www.nabavkidata.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
               nabavkidata.com
             </a>
           </p>
@@ -668,7 +668,7 @@ function EnglishContent() {
           </p>
           <p className="text-foreground mb-2"><strong>Website:</strong></p>
           <p className="mb-4">
-            <a href="https://nabavkidata.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+            <a href="https://www.nabavkidata.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
               nabavkidata.com
             </a>
           </p>

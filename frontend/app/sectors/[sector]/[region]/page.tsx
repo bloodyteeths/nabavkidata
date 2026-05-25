@@ -182,13 +182,13 @@ export default async function SectorRegionPage({
                 "@type": "ListItem",
                 position: 1,
                 name: "Почетна",
-                item: "https://nabavkidata.com",
+                item: "https://www.nabavkidata.com",
               },
               {
                 "@type": "ListItem",
                 position: 2,
                 name: "Сектори",
-                item: "https://nabavkidata.com/sectors",
+                item: "https://www.nabavkidata.com/sectors",
               },
               {
                 "@type": "ListItem",

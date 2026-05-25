@@ -8,10 +8,10 @@ export function generateMetadata(): Metadata {
     openGraph: {
       title: "Тендери за ИТ услуги | NabavkiData",
       description: "Најдете тендери за софтвер, хардвер, ИТ услуги и дигитализација во Македонија.",
-      url: "https://nabavkidata.com/it-uslugi",
+      url: "https://www.nabavkidata.com/it-uslugi",
     },
     alternates: {
-      canonical: "https://nabavkidata.com/it-uslugi",
+      canonical: "https://www.nabavkidata.com/it-uslugi",
     },
   };
 }
@@ -27,11 +27,11 @@ export default function ITUslugiPage() {
             "@type": "WebPage",
             name: "Тендери за ИТ услуги — NabavkiData",
             description: "Следете тендери за ИТ услуги, софтвер, хардвер и дигитализација во Македонија.",
-            url: "https://nabavkidata.com/it-uslugi",
+            url: "https://www.nabavkidata.com/it-uslugi",
             breadcrumb: {
               "@type": "BreadcrumbList",
               itemListElement: [
-                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
+                { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
                 { "@type": "ListItem", position: 2, name: "ИТ услуги" },
               ],
             },
