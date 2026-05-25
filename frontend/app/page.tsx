@@ -35,6 +35,9 @@ const TestimonialsSection = dynamic(() => import("@/components/landing/Testimoni
 export const metadata: Metadata = {
     title: "Видете ги победничките цени пред да понудите | NabavkiData",
     description: "Престанете да погодувате. AI анализира 170,000+ тендери од е-набавки.гов.мк — минати цени, историја на конкуренти, барања — за да понудите правилно и да победите.",
+    alternates: {
+        canonical: '/',
+    },
 };
 
 export default function LandingPage() {

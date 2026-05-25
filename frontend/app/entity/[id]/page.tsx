@@ -42,6 +42,9 @@ export async function generateMetadata({
     return {
       title: "Договорен орган | NabavkiData",
       description: "Профил на институција во јавни набавки.",
+      alternates: {
+        canonical: `https://www.nabavkidata.com/entity/${encodeURIComponent(id)}`,
+      },
     };
   }
 
@@ -57,10 +60,10 @@ export async function generateMetadata({
     openGraph: {
       title: `${name} — договорен орган`,
       description: descParts.join(" | "),
-      url: `https://nabavkidata.com/entity/${encodeURIComponent(id)}`,
+      url: `https://www.nabavkidata.com/entity/${encodeURIComponent(id)}`,
     },
     alternates: {
-      canonical: `https://nabavkidata.com/entity/${encodeURIComponent(id)}`,
+      canonical: `https://www.nabavkidata.com/entity/${encodeURIComponent(id)}`,
     },
   };
 }
@@ -70,7 +73,7 @@ function JsonLd({ entity, paramId }: { entity: SeoEntity; paramId: string }) {
     "@context": "https://schema.org",
     "@type": "GovernmentOrganization",
     name: entity.entity_name,
-    url: `https://nabavkidata.com/entity/${encodeURIComponent(paramId)}`,
+    url: `https://www.nabavkidata.com/entity/${encodeURIComponent(paramId)}`,
     areaServed: { "@type": "Country", name: "North Macedonia" },
   };
 
@@ -86,8 +89,8 @@ function JsonLd({ entity, paramId }: { entity: SeoEntity; paramId: string }) {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
-      { "@type": "ListItem", position: 2, name: "Институции", item: "https://nabavkidata.com/entity" },
+      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
+      { "@type": "ListItem", position: 2, name: "Институции", item: "https://www.nabavkidata.com/entity" },
       { "@type": "ListItem", position: 3, name: entity.entity_name },
     ],
   };

@@ -5,7 +5,7 @@ import AwardDetailClient from "./AwardDetailClient";
 const API_URL = "https://api.nabavkidata.com";
 
 function tenderIdFromParam(param: string): string {
-  const match = param.match(/^(\d+)-(\d{4})$/);
+  const match = param.match(/^(.+)-(\d{4})$/);
   if (match) return `${match[1]}/${match[2]}`;
   return param;
 }
@@ -56,6 +56,9 @@ export async function generateMetadata({
     return {
       title: `Доделена набавка ${tenderId} | NabavkiData`,
       description: "Детали за доделена јавна набавка на NabavkiData.",
+      alternates: {
+        canonical: `https://www.nabavkidata.com/awards/${id}`,
+      },
     };
   }
 
@@ -81,11 +84,11 @@ export async function generateMetadata({
         ? `${award.winner} ја доби набавката: ${award.title || tenderId}`
         : `Доделена набавка ${tenderId}`,
       description,
-      url: `https://nabavkidata.com/awards/${id}`,
+      url: `https://www.nabavkidata.com/awards/${id}`,
       type: "article",
     },
     alternates: {
-      canonical: `https://nabavkidata.com/awards/${id}`,
+      canonical: `https://www.nabavkidata.com/awards/${id}`,
     },
   };
 }
@@ -111,7 +114,7 @@ function JsonLd({ award, paramId }: { award: SeoAward; paramId: string }) {
       "@type": "Organization",
       name: "NabavkiData",
     },
-    url: `https://nabavkidata.com/awards/${paramId}`,
+    url: `https://www.nabavkidata.com/awards/${paramId}`,
     about: {
       "@type": "GovernmentService",
       name: award.title || `Набавка ${award.tender_id}`,

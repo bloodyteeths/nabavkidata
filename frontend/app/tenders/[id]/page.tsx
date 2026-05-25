@@ -5,7 +5,7 @@ import TenderDetailClient from "./TenderDetailClient";
 const API_URL = "https://api.nabavkidata.com";
 
 function tenderIdFromParam(param: string): string {
-  const match = param.match(/^(\d+)-(\d{4})$/);
+  const match = param.match(/^(.+)-(\d{4})$/);
   if (match) return `${match[1]}/${match[2]}`;
   return param;
 }
@@ -57,6 +57,9 @@ export async function generateMetadata({
     return {
       title: `Тендер ${tenderId} | NabavkiData`,
       description: "Детали за јавна набавка на NabavkiData.",
+      alternates: {
+        canonical: `https://www.nabavkidata.com/tenders/${id}`,
+      },
     };
   }
 
@@ -79,11 +82,11 @@ export async function generateMetadata({
     openGraph: {
       title: tender.title || `Тендер ${tenderId}`,
       description,
-      url: `https://nabavkidata.com/tenders/${id}`,
+      url: `https://www.nabavkidata.com/tenders/${id}`,
       type: "article",
     },
     alternates: {
-      canonical: `https://nabavkidata.com/tenders/${id}`,
+      canonical: `https://www.nabavkidata.com/tenders/${id}`,
     },
   };
 }
@@ -106,7 +109,7 @@ function JsonLd({ tender, paramId }: { tender: SeoTender; paramId: string }) {
     provider: tender.procuring_entity
       ? { "@type": "GovernmentOrganization", name: tender.procuring_entity }
       : undefined,
-    url: `https://nabavkidata.com/tenders/${paramId}`,
+    url: `https://www.nabavkidata.com/tenders/${paramId}`,
     areaServed: { "@type": "Country", name: "North Macedonia" },
   };
 
@@ -134,8 +137,8 @@ function JsonLd({ tender, paramId }: { tender: SeoTender; paramId: string }) {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
-      { "@type": "ListItem", position: 2, name: "Тендери", item: "https://nabavkidata.com/tenders" },
+      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
+      { "@type": "ListItem", position: 2, name: "Тендери", item: "https://www.nabavkidata.com/tenders" },
       { "@type": "ListItem", position: 3, name: tender.title || tender.tender_id },
     ],
   };

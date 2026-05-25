@@ -22,7 +22,6 @@ export const metadata: Metadata = {
   description: "Македонска платформа за анализа и следење на јавни набавки со AI-базирани препораки и инсајти.",
   keywords: ["јавни набавки", "тендери", "Македонија", "AI анализа", "набавки", "tender analysis", "procurement"],
   alternates: {
-    canonical: '/',
     languages: {
       'mk': '/',
       'sr': '/sr',

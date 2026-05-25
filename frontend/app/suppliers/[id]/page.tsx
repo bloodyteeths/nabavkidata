@@ -45,6 +45,9 @@ export async function generateMetadata({
     return {
       title: "Добавувач | NabavkiData",
       description: "Профил на добавувач во јавни набавки.",
+      alternates: {
+        canonical: `https://www.nabavkidata.com/suppliers/${encodeURIComponent(id)}`,
+      },
     };
   }
 
@@ -61,10 +64,10 @@ export async function generateMetadata({
     openGraph: {
       title: `${name} — профил на добавувач`,
       description: descParts.join(" | "),
-      url: `https://nabavkidata.com/suppliers/${encodeURIComponent(id)}`,
+      url: `https://www.nabavkidata.com/suppliers/${encodeURIComponent(id)}`,
     },
     alternates: {
-      canonical: `https://nabavkidata.com/suppliers/${encodeURIComponent(id)}`,
+      canonical: `https://www.nabavkidata.com/suppliers/${encodeURIComponent(id)}`,
     },
   };
 }
@@ -74,7 +77,7 @@ function JsonLd({ supplier, paramId }: { supplier: SeoSupplier; paramId: string 
     "@context": "https://schema.org",
     "@type": "Organization",
     name: supplier.company_name,
-    url: `https://nabavkidata.com/suppliers/${encodeURIComponent(paramId)}`,
+    url: `https://www.nabavkidata.com/suppliers/${encodeURIComponent(paramId)}`,
   };
 
   if (supplier.tax_id) {
@@ -92,8 +95,8 @@ function JsonLd({ supplier, paramId }: { supplier: SeoSupplier; paramId: string 
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://nabavkidata.com" },
-      { "@type": "ListItem", position: 2, name: "Добавувачи", item: "https://nabavkidata.com/suppliers" },
+      { "@type": "ListItem", position: 1, name: "Почетна", item: "https://www.nabavkidata.com" },
+      { "@type": "ListItem", position: 2, name: "Добавувачи", item: "https://www.nabavkidata.com/suppliers" },
       { "@type": "ListItem", position: 3, name: supplier.company_name || "Добавувач" },
     ],
   };
