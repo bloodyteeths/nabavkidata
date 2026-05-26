@@ -3,6 +3,7 @@ import { batch2Posts } from './blog-posts-batch2';
 import { batch3Posts } from './blog-posts-batch3';
 import { batch4Posts } from './blog-posts-batch4';
 import { batch5Posts } from './blog-posts-batch5';
+import { batch6Posts } from './blog-posts-batch6';
 
 export interface BlogPost {
   slug: string;
@@ -15,7 +16,7 @@ export interface BlogPost {
   relatedSlugs: string[];
 }
 
-const posts: BlogPost[] = [...batch1Posts, ...batch2Posts, ...batch3Posts, ...batch4Posts, ...batch5Posts];
+const posts: BlogPost[] = [...batch1Posts, ...batch2Posts, ...batch3Posts, ...batch4Posts, ...batch5Posts, ...batch6Posts];
 
 export function getAllPosts(): BlogPost[] {
   return [...posts].sort(
