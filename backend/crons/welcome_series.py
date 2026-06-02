@@ -99,7 +99,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
         <p>Добредојде во НабавкиДата!</p>
 
-        <p>Сега имаш пристап до <strong>15,000+ тендери</strong> и AI алатки што ќе ти заштедат часови работа.</p>
+        <p>Сега имаш пристап до <strong>290,000+ тендери</strong> и AI алатки што ќе ти заштедат часови работа.</p>
 
         <p>&nbsp;</p>
 
@@ -124,7 +124,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
         <hr style="border:none; border-top:1px solid #eeeeee; margin:30px 0;">
 
         <p style="font-size:12px; color:#666666;">
-            TAMSAR INC | hello@nabavkidata.com<br>
+            Фактурино ДООЕЛ | hello@nabavkidata.com<br>
             <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
@@ -135,7 +135,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
 Добредојде во НабавкиДата!
 
-Сега имаш пристап до 15,000+ тендери и AI алатки што ќе ти заштедат часови работа.
+Сега имаш пристап до 290,000+ тендери и AI алатки што ќе ти заштедат часови работа.
 
 Еве што можеш да направиш веднаш:
 
@@ -201,7 +201,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
         <hr style="border:none; border-top:1px solid #eeeeee; margin:30px 0;">
 
         <p style="font-size:12px; color:#666666;">
-            TAMSAR INC | hello@nabavkidata.com<br>
+            Фактурино ДООЕЛ | hello@nabavkidata.com<br>
             <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
@@ -281,7 +281,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
         <hr style="border:none; border-top:1px solid #eeeeee; margin:30px 0;">
 
         <p style="font-size:12px; color:#666666;">
-            TAMSAR INC | hello@nabavkidata.com<br>
+            Фактурино ДООЕЛ | hello@nabavkidata.com<br>
             <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
@@ -364,7 +364,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
         <hr style="border:none; border-top:1px solid #eeeeee; margin:30px 0;">
 
         <p style="font-size:12px; color:#666666;">
-            TAMSAR INC | hello@nabavkidata.com<br>
+            Фактурино ДООЕЛ | hello@nabavkidata.com<br>
             <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
@@ -401,10 +401,10 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
         },
 
         # =====================================================================
-        # EMAIL 5: Discount Code Introduction (Day 7)
+        # EMAIL 5: Pro Value + Direct CTA (Day 7)
         # =====================================================================
         5: {
-            "subject": f"{first_name}, еве 15% попуст - само за тебе",
+            "subject": f"{first_name}, со Pro знаеш точно колку да понудиш",
             "html": f"""<!DOCTYPE html>
 <html>
 <head>
@@ -416,45 +416,42 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
         <p>Здраво {first_name},</p>
 
-        <p>Минатата недела ти покажав како НабавкиДата заштедува часови работа - AI чат, известувања, историски цени.</p>
+        <p>Веќе една недела имаш пристап до НабавкиДата. Денеска сакам да ти покажам што добиваш со Pro — и зошто корисниците кои бидуваат сериозно за тендери го избираат.</p>
 
-        <p>Сега сакам да ти дадам нешто специјално.</p>
+        <p>Најголемиот проблем кога правиш понуда: <strong>која цена да ја ставиш?</strong> Премногу ниска = губиш пари. Премногу висока = губиш тендер. На бесплатниот план понудуваш на слепо.</p>
 
-        <p>&nbsp;</p>
+        <p style="margin-top: 25px; font-weight: 600;">Што ти отклучува Pro планот:</p>
 
-        <p>Еден од најголемите проблеми кога правиш понуда: <strong>која цена да ја ставиш?</strong></p>
+        <table style="width:100%; border-collapse:collapse; font-size:14px; margin:15px 0;">
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;"><strong>AI препорака за цена</strong> за секој тендер посебно</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#10b981; font-size:13px;">Pro</td>
+            </tr>
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;"><strong>Историски цени</strong> на победниците — знаеш колку понудиле</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#10b981; font-size:13px;">Pro</td>
+            </tr>
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;"><strong>Анализа на ризик и корупција</strong> (DOZORRO)</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#10b981; font-size:13px;">Pro</td>
+            </tr>
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;">25 AI прашања дневно (наместо 5)</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#10b981; font-size:13px;">Pro</td>
+            </tr>
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;">CSV/PDF извоз + следење на конкуренти</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#10b981; font-size:13px;">Pro</td>
+            </tr>
+        </table>
 
-        <p>Премногу ниска = губиш пари. Премногу висока = губиш тендер.</p>
-
-        <p>Со <strong>Pro планот</strong> добиваш:</p>
-
-        <ul style="padding-left:20px;">
-            <li>Историски цени - знаеш точно колку понудиле победниците</li>
-            <li>Неограничени AI прашања (наместо 2 дневно)</li>
-            <li>Известувања штом излезе тендер од твојата област</li>
-            <li>Извоз на податоци и анализа на конкуренти</li>
-        </ul>
-
-        <p>&nbsp;</p>
-
-        <div style="background:#f0f9ff; border:2px dashed #2563eb; border-radius:12px; padding:20px; text-align:center;">
-            <p style="margin:0 0 5px 0; font-size:14px; color:#666;">Твој ексклузивен код:</p>
-            <p style="margin:0 0 10px 0; font-size:28px; font-weight:bold; color:#2563eb; letter-spacing:2px;">DOBRODOJDE15</p>
-            <p style="margin:0 0 15px 0; font-size:16px;"><strong>15% попуст</strong> на Pro план</p>
-            <p style="margin:0; font-size:14px; color:#ef4444; font-weight:bold;">Кодот важи само 5 дена</p>
-        </div>
-
-        <p>&nbsp;</p>
-
-        <p style="text-align:center;">
-            <a href="{FRONTEND_URL}/billing" style="background:#2563eb; color:white; padding:14px 28px; border-radius:5px; text-decoration:none; display:inline-block; font-size:16px; font-weight:bold;">Активирај го попустот</a>
+        <p style="text-align:center; margin-top: 30px;">
+            <a href="{FRONTEND_URL}/settings" style="background:#2563eb; color:white; padding:14px 28px; border-radius:5px; text-decoration:none; display:inline-block; font-size:16px; font-weight:bold;">Активирај Pro — 1,990 МКД/месец</a>
         </p>
 
-        <p>&nbsp;</p>
+        <p style="text-align:center; color:#94a3b8; font-size:12px; margin-top:8px;">Можеш да откажеш во секое време од Поставки.</p>
 
-        <p>Внеси го кодот <strong>DOBRODOJDE15</strong> при плаќање.</p>
-
-        <p>Ако имаш прашања - само одговори на овој мејл.</p>
+        <p style="margin-top: 25px;">Ако имаш прашања - само одговори на овој мејл.</p>
 
         <p>- Тамара</p>
 
@@ -463,7 +460,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
         <hr style="border:none; border-top:1px solid #eeeeee; margin:30px 0;">
 
         <p style="font-size:12px; color:#666666;">
-            TAMSAR INC | hello@nabavkidata.com<br>
+            Фактурино ДООЕЛ | hello@nabavkidata.com<br>
             <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
@@ -472,27 +469,20 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 </html>""",
             "text": f"""Здраво {first_name},
 
-Минатата недела ти покажав како НабавкиДата заштедува часови работа - AI чат, известувања, историски цени.
+Веќе една недела имаш пристап до НабавкиДата. Денеска сакам да ти покажам што добиваш со Pro — и зошто корисниците кои бидуваат сериозно за тендери го избираат.
 
-Сега сакам да ти дадам нешто специјално.
+Најголемиот проблем кога правиш понуда: која цена да ја ставиш? Премногу ниска = губиш пари. Премногу висока = губиш тендер. На бесплатниот план понудуваш на слепо.
 
-Еден од најголемите проблеми кога правиш понуда: која цена да ја ставиш?
+Што ти отклучува Pro планот:
+- AI препорака за цена за секој тендер посебно
+- Историски цени на победниците — знаеш колку понудиле
+- Анализа на ризик и корупција (DOZORRO)
+- 25 AI прашања дневно (наместо 5)
+- CSV/PDF извоз + следење на конкуренти
 
-Премногу ниска = губиш пари. Премногу висока = губиш тендер.
+Активирај Pro — 1,990 МКД/месец: {FRONTEND_URL}/settings
 
-Со Pro планот добиваш:
-- Историски цени - знаеш точно колку понудиле победниците
-- Неограничени AI прашања (наместо 2 дневно)
-- Известувања штом излезе тендер од твојата област
-- Извоз на податоци и анализа на конкуренти
-
-Твој ексклузивен код: DOBRODOJDE15
-15% попуст на Pro план
-Кодот важи само 5 дена!
-
-Активирај го попустот: {FRONTEND_URL}/billing
-
-Внеси го кодот DOBRODOJDE15 при плаќање.
+Можеш да откажеш во секое време од Поставки.
 
 Ако имаш прашања - само одговори на овој мејл.
 
@@ -503,10 +493,10 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
         },
 
         # =====================================================================
-        # EMAIL 6: Discount Expiry Urgency (Day 10)
+        # EMAIL 6: Cost of staying on Free (Day 10)
         # =====================================================================
         6: {
-            "subject": f"{first_name}, попустот истекува за 2 дена!",
+            "subject": f"{first_name}, што пропушташ на бесплатниот план",
             "html": f"""<!DOCTYPE html>
 <html>
 <head>
@@ -518,47 +508,44 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 
         <p>Здраво {first_name},</p>
 
-        <p>Пред 3 дена ти испратив код за <strong>15% попуст</strong> на Pro планот.</p>
+        <p>Поминаа 10 дена откако се регистрираше. Ова е последниот мејл од оваа серија.</p>
 
-        <p style="background:#fef2f2; padding:15px; border-radius:8px; border-left:4px solid #ef4444;">
-            <strong>Кодот DOBRODOJDE15 истекува за 2 дена.</strong><br>
-            Потоа - полна цена, без исклучоци.
+        <p>Бесплатниот план е добар за да ја разгледаш платформата. Но за реално да освоиш тендери, ти треба алатка која ти го кажува точниот опсег на цени и кои се ризиците. Тоа е Pro.</p>
+
+        <p style="margin-top: 25px; font-weight: 600;">Што не гледаш на бесплатниот план:</p>
+
+        <table style="width:100%; border-collapse:collapse; font-size:14px; margin:15px 0;">
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;">AI препорака за цена на понуда</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#94a3b8; font-size:13px;">Заклучено</td>
+            </tr>
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;">Историски цени на победниците за секој тендер</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#94a3b8; font-size:13px;">Заклучено</td>
+            </tr>
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;">Анализа на ризик и корупција (DOZORRO)</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#94a3b8; font-size:13px;">Заклучено</td>
+            </tr>
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;">25 AI прашања/ден наместо 5</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#94a3b8; font-size:13px;">Заклучено</td>
+            </tr>
+            <tr>
+                <td style="padding:10px 0; border-bottom:1px solid #e5e7eb;">CSV/PDF извоз + следење на конкуренти</td>
+                <td style="padding:10px 0; text-align:right; border-bottom:1px solid #e5e7eb; color:#94a3b8; font-size:13px;">Заклучено</td>
+            </tr>
+        </table>
+
+        <p>Секој пропуштен тендер е изгубена прилика. Секој лошо ценет тендер е директна загуба.</p>
+
+        <p style="text-align:center; margin-top: 30px;">
+            <a href="{FRONTEND_URL}/settings" style="background:#2563eb; color:white; padding:14px 28px; border-radius:5px; text-decoration:none; display:inline-block; font-size:16px; font-weight:bold;">Активирај Pro — 1,990 МКД/месец</a>
         </p>
 
-        <p>&nbsp;</p>
+        <p style="text-align:center; color:#94a3b8; font-size:12px; margin-top:8px;">Можеш да откажеш во секое време од Поставки.</p>
 
-        <p>Еве што пропушташ на бесплатната верзија:</p>
-
-        <ul style="padding-left:20px;">
-            <li>Имаш само <strong>5 AI прашања дневно</strong> - со Pro добиваш 25</li>
-            <li><strong>Не добиваш известувања</strong> за нови тендери од твојата дејност</li>
-            <li><strong>Не можеш да извезеш</strong> податоци или да споредиш конкуренти</li>
-            <li><strong>Не гледаш историски цени</strong> - понудуваш на слепо</li>
-        </ul>
-
-        <p>&nbsp;</p>
-
-        <p>Секој пропуштен тендер е изгубена прилика. Секој лошо ценет тендер е загуба.</p>
-
-        <p><strong>Колку вреди да ги избегнеш тие грешки?</strong></p>
-
-        <p>&nbsp;</p>
-
-        <div style="background:#f0f9ff; border:2px dashed #2563eb; border-radius:12px; padding:20px; text-align:center;">
-            <p style="margin:0 0 5px 0; font-size:14px; color:#ef4444; font-weight:bold;">Истекува за 2 дена!</p>
-            <p style="margin:0 0 10px 0; font-size:28px; font-weight:bold; color:#2563eb; letter-spacing:2px;">DOBRODOJDE15</p>
-            <p style="margin:0; font-size:16px;"><strong>15% попуст</strong> на Pro план</p>
-        </div>
-
-        <p>&nbsp;</p>
-
-        <p style="text-align:center;">
-            <a href="{FRONTEND_URL}/billing" style="background:#ef4444; color:white; padding:14px 28px; border-radius:5px; text-decoration:none; display:inline-block; font-size:16px; font-weight:bold;">Искористи го попустот сега</a>
-        </p>
-
-        <p>&nbsp;</p>
-
-        <p>Ако имаш прашања - само одговори на овој мејл.</p>
+        <p style="margin-top: 25px;">Ако сè уште се двоумиш — само одговори на овој мејл и кажи ми што не ти е јасно.</p>
 
         <p>- Тамара</p>
 
@@ -571,7 +558,7 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
         <hr style="border:none; border-top:1px solid #eeeeee; margin:30px 0;">
 
         <p style="font-size:12px; color:#666666;">
-            TAMSAR INC | hello@nabavkidata.com<br>
+            Фактурино ДООЕЛ | hello@nabavkidata.com<br>
             <a href="{unsub_url}" style="color:#666666;">Отпиши се</a>
         </p>
 
@@ -580,27 +567,24 @@ def get_email_template(step: int, user_name: str, user_email: str) -> Dict:
 </html>""",
             "text": f"""Здраво {first_name},
 
-Пред 3 дена ти испратив код за 15% попуст на Pro планот.
+Поминаа 10 дена откако се регистрираше. Ова е последниот мејл од оваа серија.
 
-Кодот DOBRODOJDE15 истекува за 2 дена.
-Потоа - полна цена, без исклучоци.
+Бесплатниот план е добар за да ја разгледаш платформата. Но за реално да освоиш тендери, ти треба алатка која ти го кажува точниот опсег на цени и кои се ризиците. Тоа е Pro.
 
-Еве што пропушташ на бесплатната верзија:
-- Имаш само 5 AI прашања дневно - со Pro добиваш 25
-- Не добиваш известувања за нови тендери од твојата дејност
-- Не можеш да извезеш податоци или да споредиш конкуренти
-- Не гледаш историски цени - понудуваш на слепо
+Што не гледаш на бесплатниот план:
+- AI препорака за цена на понуда — Заклучено
+- Историски цени на победниците за секој тендер — Заклучено
+- Анализа на ризик и корупција (DOZORRO) — Заклучено
+- 25 AI прашања/ден наместо 5 — Заклучено
+- CSV/PDF извоз + следење на конкуренти — Заклучено
 
-Секој пропуштен тендер е изгубена прилика. Секој лошо ценет тендер е загуба.
-Колку вреди да ги избегнеш тие грешки?
+Секој пропуштен тендер е изгубена прилика. Секој лошо ценет тендер е директна загуба.
 
-Код: DOBRODOJDE15
-15% попуст на Pro план
-Истекува за 2 дена!
+Активирај Pro — 1,990 МКД/месец: {FRONTEND_URL}/settings
 
-Искористи го попустот: {FRONTEND_URL}/billing
+Можеш да откажеш во секое време од Поставки.
 
-Ако имаш прашања - само одговори на овој мејл.
+Ако сè уште се двоумиш — само одговори на овој мејл и кажи ми што не ти е јасно.
 
 - Тамара
 
