@@ -115,6 +115,50 @@ def generate_match_reasons(tender: Tender, prefs: Optional[UserPreferences]) -> 
     return reasons
 
 
+def generate_pro_upgrade_section(user_tier: str, alert_matches_count: int, tenders_count: int) -> str:
+    """Render Pro upgrade curiosity-gap + CTA for non-paying users. Empty string for paid users."""
+    if user_tier in ("starter", "professional", "pro", "enterprise"):
+        return ""
+
+    settings_url = f"{FRONTEND_URL}/settings"
+    return f"""
+    <div style="margin: 30px 0; padding: 22px; background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px;">
+        <h3 style="margin: 0 0 14px 0; color: #0f172a; font-size: 17px;">Што уште би видел со Pro</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #475569; margin-bottom: 16px;">
+            <tr>
+                <td style="padding: 8px 0;">AI препорака за цена на понуда (по тендер)</td>
+                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0;">Историски цени на победниците за секој тендер</td>
+                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0;">Анализа на ризик и корупција (DOZORRO)</td>
+                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0;">Неограничен AI чат (25 прашања/ден)</td>
+                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0;">CSV/PDF извоз и следење на конкуренти</td>
+                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
+            </tr>
+        </table>
+        <p style="margin: 0 0 14px 0; font-size: 13px; color: #64748b;">
+            Денеска ти стигнаа {alert_matches_count} совпаѓања и {tenders_count} препораки. Со Pro ги добиваш и AI препораките и историјата на цени за секој тендер — да знаеш точно колку да понудиш.
+        </p>
+        <p style="margin: 0; text-align: center;">
+            <a href="{settings_url}" style="background-color: #2563eb; color: #ffffff; padding: 12px 26px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 14px; font-weight: 600;">Активирај Pro — 1,990 МКД/месец</a>
+        </p>
+        <p style="margin: 10px 0 0 0; text-align: center; font-size: 12px; color: #94a3b8;">
+            Можеш да откажеш во секое време од Поставки.
+        </p>
+    </div>
+    """
+
+
 async def generate_personalized_digest_html(
     user_name: str,
     tenders: List[Tuple[Tender, float]],
@@ -122,7 +166,8 @@ async def generate_personalized_digest_html(
     insights: List[Dict],
     competitor_activity: List[Dict],
     frequency: str = "daily",
-    alert_matches: List = None
+    alert_matches: List = None,
+    user_tier: str = "free"
 ) -> str:
     """Generate HTML digest with personalized content"""
 
@@ -282,6 +327,8 @@ async def generate_personalized_digest_html(
 
     {competitor_html}
 
+    {generate_pro_upgrade_section(user_tier, len(alert_matches or []), len(tenders))}
+
     <p style="margin-top: 25px; color: #6b7280; font-size: 14px;">
         Оваа листа е генерирана од нашиот AI систем врз основа на вашите преференци и однесување.
         <a href="{FRONTEND_URL}/settings" style="color: #2563eb;">Ажурирајте ги преференците</a> за подобри препораки.
@@ -372,7 +419,8 @@ async def send_personalized_digest(
     email: str,
     name: str,
     prefs: Optional[UserPreferences],
-    frequency: str
+    frequency: str,
+    user_tier: str = "free"
 ) -> str:
     """Generate and send personalized digest to a single user.
     Returns: 'sent', 'no_tenders', 'send_failed', or error description."""
@@ -419,7 +467,8 @@ async def send_personalized_digest(
             insights=insights,
             competitor_activity=competitor_activity,
             frequency=frequency,
-            alert_matches=alert_matches_data
+            alert_matches=alert_matches_data,
+            user_tier=user_tier
         )
 
         # Send email
@@ -525,7 +574,8 @@ async def generate_all_digests(frequency: str = "daily"):
                         email=user.email,
                         name=user.full_name or "User",
                         prefs=prefs,
-                        frequency=frequency
+                        frequency=frequency,
+                        user_tier=user.subscription_tier or "free"
                     )
 
                     if result == "sent":
