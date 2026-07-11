@@ -139,66 +139,142 @@ def tender_matches_preferences(tender: Tender, prefs: UserPreferences) -> tuple[
     return len(reasons) > 0, reasons
 
 
-async def generate_instant_alert_html(
-    user_name: str,
-    tender: Tender,
-    reasons: List[str],
-    email: Optional[str] = None
-) -> str:
-    """Generate HTML for instant alert email"""
 
-    value = tender.estimated_value_mkd
-    value_str = f"{value:,.0f} МКД" if value else "N/A"
-    closing = tender.closing_date
-    if hasattr(closing, 'strftime'):
-        closing = closing.strftime('%d.%m.%Y')
+def _build_alert_content(tender_id: str, title: str, procuring_entity: str, description: str,
+                         value_str: str, closing_str: str, days_left_str: str,
+                         cpv_code: str, contact_person: str, contact_email: str,
+                         source_url: str, reasons_html: str) -> str:
+    """Unified email body builder — used by both Tender-based and dict-based senders."""
+    days_color = "#dc2626" if not days_left_str.startswith("+") else "#059669"
+    desc_snippet = ""
+    if description:
+        clean = " ".join(description.split())[:280]
+        if len(clean) == 280:
+            clean += "..."
+        desc_snippet = f'''<p style="margin: 12px 0 0 0; color: #4b5563; font-size: 14px; line-height: 1.5; font-style: italic;">
+            "{clean}"
+        </p>'''
+    contact_row = ""
+    if contact_person or contact_email:
+        parts = [p for p in [contact_person, contact_email] if p]
+        contact_row = f'''<tr><td style="padding: 8px 0; color: #6b7280;">Контакт:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-size: 13px;">{" · ".join(parts)}</td></tr>'''
+    esjn_link = ""  # Removed — keep users on nabavkidata.com
+    return f"""
+    <p style="margin: 0 0 6px 0; color: #6b7280; font-size: 12px;">Нов тендер што одговара на вашите алерти:</p>
 
-    reasons_html = " ".join([f'<span style="background-color: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-right: 4px;">{r}</span>' for r in reasons])
-
-    content = f"""
-    <p>Здраво <strong>{user_name}</strong>,</p>
-    <p>Нов тендер што одговара на вашите преференци е објавен!</p>
-
-    <div style="margin: 25px 0; padding: 20px; background-color: #f0fdf4; border-radius: 12px; border-left: 4px solid #22c55e;">
-        <h2 style="margin: 0 0 12px 0; color: #166534; font-size: 18px; line-height: 1.4;">
-            {tender.title or 'Без наслов'}
+    <div style="margin: 16px 0; padding: 22px; background-color: #f0fdf4; border-radius: 12px; border-left: 4px solid #22c55e;">
+        <div style="display: inline-block; background-color: #22c55e; color: white; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; margin-bottom: 10px;">
+            {tender_id or "TENDER"}
+        </div>
+        <h2 style="margin: 0 0 6px 0; color: #166534; font-size: 18px; line-height: 1.4;">
+            {title or 'Без наслов'}
         </h2>
+        <p style="margin: 0 0 12px 0; color: #4b5563; font-size: 14px; font-weight: 500;">
+            {procuring_entity or 'Непознат договорен орган'}
+        </p>
+        {desc_snippet}
 
-        <table style="width: 100%; margin: 15px 0;">
-            <tr>
-                <td style="padding: 8px 0; color: #6b7280; width: 140px;">Договорен орган:</td>
-                <td style="padding: 8px 0; color: #1f2937; font-weight: 500;">{tender.procuring_entity or 'N/A'}</td>
+        <table style="width: 100%; margin: 18px 0 8px 0; border-collapse: collapse;">
+            <tr style="background-color: #ecfdf5;">
+                <td style="padding: 10px 8px; color: #065f46; font-size: 12px; font-weight: 600; width: 42%;">РОК ЗА ПОНУДА</td>
+                <td style="padding: 10px 8px; color: {days_color}; font-size: 15px; font-weight: 700; text-align: right;">
+                    {closing_str}<br>
+                    <span style="font-weight: 400; font-size: 12px;">({days_left_str})</span>
+                </td>
             </tr>
             <tr>
-                <td style="padding: 8px 0; color: #6b7280;">Проценета вредност:</td>
-                <td style="padding: 8px 0; color: #1f2937; font-weight: 500;">{value_str}</td>
+                <td style="padding: 8px; color: #6b7280; font-size: 12px;">Проценета вредност</td>
+                <td style="padding: 8px; color: #1f2937; font-weight: 500; text-align: right;">{value_str}</td>
             </tr>
-            <tr>
-                <td style="padding: 8px 0; color: #6b7280;">Рок за поднесување:</td>
-                <td style="padding: 8px 0; color: #dc2626; font-weight: 600;">{closing}</td>
+            <tr style="background-color: #ecfdf5;">
+                <td style="padding: 8px; color: #6b7280; font-size: 12px;">CPV код</td>
+                <td style="padding: 8px; color: #1f2937; text-align: right;">{cpv_code or "N/A"}</td>
             </tr>
-            <tr>
-                <td style="padding: 8px 0; color: #6b7280;">CPV код:</td>
-                <td style="padding: 8px 0; color: #1f2937;">{tender.cpv_code or 'N/A'}</td>
-            </tr>
+            {contact_row}
         </table>
 
         <div style="margin-top: 15px;">
-            <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 13px;">Зошто ви го препорачуваме:</p>
+            <p style="margin: 0 0 6px 0; color: #6b7280; font-size: 12px;">Зошто ви го препорачуваме:</p>
             {reasons_html}
         </div>
-    </div>
 
-    <p style="margin-top: 20px; color: #6b7280; font-size: 14px;">
-        Кликнете подолу за да ги видите целосните детали и документација за тендерот.
-    </p>
+        {esjn_link}
+    </div>
     """
+
+
+def _days_until(closing) -> str:
+    """Format days remaining as 'X дена' or 'X дена/истечено'."""
+    from datetime import date, datetime
+    if not closing:
+        return "N/A"
+    if isinstance(closing, str):
+        try:
+            closing = datetime.fromisoformat(closing).date()
+        except:
+            return "N/A"
+    if isinstance(closing, datetime):
+        closing = closing.date()
+    today = date.today()
+    delta = (closing - today).days
+    if delta < 0:
+        return f"истечено {-delta} ден"
+    if delta == 0:
+        return "истекува денес"
+    if delta == 1:
+        return "истекува утре"
+    return f"уште {delta} дена"
+
+
+
+async def generate_instant_alert_html(
+    user_name: str,
+    tender,
+    reasons: list,
+    email: Optional[str] = None
+) -> str:
+    """Generate HTML for instant alert email (Tender ORM object)."""
+    value = tender.estimated_value_mkd
+    value_str = f"{value:,.0f} МКД" if value else "Необјавена"
+    closing = tender.closing_date
+    if hasattr(closing, 'strftime'):
+        closing_str = closing.strftime('%d.%m.%Y')
+    else:
+        closing_str = str(closing) if closing else "N/A"
+    days_left_str = _days_until(tender.closing_date)
+
+    reasons_html = " ".join([
+        f'<span style="background-color: #e0e7ff; color: #3730a3; padding: 3px 10px; '
+        f'border-radius: 12px; font-size: 11px; margin-right: 4px;">{r}</span>'
+        for r in reasons
+    ])
+
+    description = getattr(tender, 'description', '') or ''
+    contact_person = getattr(tender, 'contact_person', '') or ''
+    contact_email = getattr(tender, 'contact_email', '') or ''
+    source_url = getattr(tender, 'source_url', '') or ''
+
+    content = _build_alert_content(
+        tender_id=tender.tender_id,
+        title=tender.title,
+        procuring_entity=tender.procuring_entity,
+        description=description,
+        value_str=value_str,
+        closing_str=closing_str,
+        days_left_str=days_left_str,
+        cpv_code=tender.cpv_code,
+        contact_person=contact_person,
+        contact_email=contact_email,
+        source_url=source_url,
+        reasons_html=reasons_html,
+    )
 
     from urllib.parse import quote
     return postmark_service._get_email_template(
-        title="🔔 Нов Тендер",
+        title="🔔 Нов тендер",
         content=content,
-        button_text="Погледни го тендерот",
+        button_text="Погледни на nabavkidata.com",
         button_link=f"{FRONTEND_URL}/tenders/{quote(tender.tender_id, safe='')}",
         recipient_email=email
     )
@@ -234,56 +310,45 @@ async def send_instant_alert(
         return False
 
 
-async def generate_alert_email_html(user_name: str, tender: dict, reasons: List[str], email: Optional[str] = None) -> str:
+async def generate_alert_email_html(user_name: str, tender: dict, reasons, email: Optional[str] = None) -> str:
     """Generate HTML for alert email from a dict-based tender (e-nabavki or e-pazar)."""
     value = tender.get('estimated_value_mkd')
-    value_str = f"{value:,.0f} МКД" if value else "N/A"
+    value_str = f"{value:,.0f} МКД" if value else "Необјавена"
     closing = tender.get('closing_date')
     if hasattr(closing, 'strftime'):
-        closing = closing.strftime('%d.%m.%Y')
+        closing_str = closing.strftime('%d.%m.%Y')
     elif closing:
-        closing = str(closing)
+        closing_str = str(closing)
     else:
-        closing = "N/A"
+        closing_str = "N/A"
+    days_left_str = _days_until(tender.get('closing_date'))
 
-    source_label = "е-Пазар" if tender.get('source') == 'e-pazar' else "е-Набавки"
     reasons_html = " ".join([
-        f'<span style="background-color: #e0e7ff; color: #3730a3; padding: 2px 8px; '
+        f'<span style="background-color: #e0e7ff; color: #3730a3; padding: 3px 10px; '
         f'border-radius: 12px; font-size: 11px; margin-right: 4px;">{r}</span>'
         for r in reasons
     ])
 
-    content = f"""
-    <p>Здраво <strong>{user_name}</strong>,</p>
-    <p>Нов тендер од <strong>{source_label}</strong> што одговара на вашите алерти!</p>
+    content = _build_alert_content(
+        tender_id=tender.get('tender_id', ''),
+        title=tender.get('title'),
+        procuring_entity=tender.get('procuring_entity'),
+        description=tender.get('description') or '',
+        value_str=value_str,
+        closing_str=closing_str,
+        days_left_str=days_left_str,
+        cpv_code=tender.get('cpv_code'),
+        contact_person=tender.get('contact_person') or '',
+        contact_email=tender.get('contact_email') or '',
+        source_url=tender.get('source_url') or '',
+        reasons_html=reasons_html,
+    )
 
-    <div style="margin: 25px 0; padding: 20px; background-color: #f0fdf4; border-radius: 12px; border-left: 4px solid #22c55e;">
-        <h2 style="margin: 0 0 12px 0; color: #166534; font-size: 18px; line-height: 1.4;">
-            {tender.get('title') or 'Без наслов'}
-        </h2>
-        <table style="width: 100%; margin: 15px 0;">
-            <tr><td style="padding: 8px 0; color: #6b7280; width: 140px;">Договорен орган:</td>
-                <td style="padding: 8px 0; color: #1f2937; font-weight: 500;">{tender.get('procuring_entity') or 'N/A'}</td></tr>
-            <tr><td style="padding: 8px 0; color: #6b7280;">Проценета вредност:</td>
-                <td style="padding: 8px 0; color: #1f2937; font-weight: 500;">{value_str}</td></tr>
-            <tr><td style="padding: 8px 0; color: #6b7280;">Рок за поднесување:</td>
-                <td style="padding: 8px 0; color: #dc2626; font-weight: 600;">{closing}</td></tr>
-            <tr><td style="padding: 8px 0; color: #6b7280;">CPV код:</td>
-                <td style="padding: 8px 0; color: #1f2937;">{tender.get('cpv_code') or 'N/A'}</td></tr>
-            <tr><td style="padding: 8px 0; color: #6b7280;">Извор:</td>
-                <td style="padding: 8px 0; color: #1f2937;">{source_label}</td></tr>
-        </table>
-        <div style="margin-top: 15px;">
-            <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 13px;">Зошто ви го препорачуваме:</p>
-            {reasons_html}
-        </div>
-    </div>
-    """
-
+    from urllib.parse import quote
     return postmark_service._get_email_template(
-        title="🔔 Нов Тендер",
+        title="🔔 Нов тендер",
         content=content,
-        button_text="Погледни го тендерот",
+        button_text="Погледни на nabavkidata.com",
         button_link=f"{FRONTEND_URL}/tenders/{quote(tender.get('tender_id', ''), safe='')}",
         recipient_email=email
     )
