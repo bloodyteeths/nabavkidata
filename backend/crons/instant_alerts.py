@@ -142,7 +142,8 @@ def tender_matches_preferences(tender: Tender, prefs: UserPreferences) -> tuple[
 async def generate_instant_alert_html(
     user_name: str,
     tender: Tender,
-    reasons: List[str]
+    reasons: List[str],
+    email: Optional[str] = None
 ) -> str:
     """Generate HTML for instant alert email"""
 
@@ -198,7 +199,8 @@ async def generate_instant_alert_html(
         title="🔔 Нов Тендер",
         content=content,
         button_text="Погледни го тендерот",
-        button_link=f"{FRONTEND_URL}/tenders/{quote(tender.tender_id, safe='')}"
+        button_link=f"{FRONTEND_URL}/tenders/{quote(tender.tender_id, safe='')}",
+        recipient_email=email
     )
 
 
@@ -213,7 +215,8 @@ async def send_instant_alert(
         html_content = await generate_instant_alert_html(
             user_name=user.full_name or "User",
             tender=tender,
-            reasons=reasons
+            reasons=reasons,
+            email=user.email
         )
 
         success = await postmark_service.send_email(
@@ -231,7 +234,7 @@ async def send_instant_alert(
         return False
 
 
-async def generate_alert_email_html(user_name: str, tender: dict, reasons: List[str]) -> str:
+async def generate_alert_email_html(user_name: str, tender: dict, reasons: List[str], email: Optional[str] = None) -> str:
     """Generate HTML for alert email from a dict-based tender (e-nabavki or e-pazar)."""
     value = tender.get('estimated_value_mkd')
     value_str = f"{value:,.0f} МКД" if value else "N/A"
@@ -281,14 +284,15 @@ async def generate_alert_email_html(user_name: str, tender: dict, reasons: List[
         title="🔔 Нов Тендер",
         content=content,
         button_text="Погледни го тендерот",
-        button_link=f"{FRONTEND_URL}/tenders/{quote(tender.get('tender_id', ''), safe='')}"
+        button_link=f"{FRONTEND_URL}/tenders/{quote(tender.get('tender_id', ''), safe='')}",
+        recipient_email=email
     )
 
 
 async def send_alert_email(user_email: str, user_name: str, tender: dict, reasons: List[str]) -> bool:
     """Send alert email for a dict-based tender."""
     try:
-        html = await generate_alert_email_html(user_name, tender, reasons)
+        html = await generate_alert_email_html(user_name, tender, reasons, email=user_email)
         title = tender.get('title') or 'Без наслов'
         subject = f"🔔 Нов тендер: {title[:50]}..." if len(title) > 50 else f"🔔 Нов тендер: {title}"
         return await postmark_service.send_email(

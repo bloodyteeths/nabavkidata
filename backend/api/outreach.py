@@ -67,6 +67,42 @@ async def add_to_suppression_sql(db: AsyncSession, email: str, reason: str, sour
     await db.commit()
 
 
+async def disable_account_emails(db: AsyncSession, email: str):
+    """Turn off ALL email for a registered user, not just marketing.
+
+    Digest/instant-alert crons gate on user_preferences.email_enabled, so suppressing
+    the marketing list alone does NOT stop tender digests or alerts. This disables the
+    account-level email switch, deactivates the user's alerts, and stops the welcome
+    series so a single unsubscribe click stops every kind of mail.
+    """
+    email = email.lower().strip()
+    result = await db.execute(
+        text("SELECT user_id FROM users WHERE LOWER(email) = :email"),
+        {"email": email}
+    )
+    row = result.first()
+    if not row:
+        return
+    user_id = row[0]
+    await db.execute(
+        text("UPDATE user_preferences SET email_enabled = FALSE, updated_at = NOW() WHERE user_id = :uid"),
+        {"uid": user_id}
+    )
+    await db.execute(
+        text("UPDATE tender_alerts SET is_active = FALSE WHERE user_id = :uid"),
+        {"uid": user_id}
+    )
+    await db.execute(
+        text("""
+            UPDATE welcome_series
+            SET stopped_reason = 'unsubscribed', next_email_at = NULL
+            WHERE user_id = :uid AND completed_at IS NULL AND stopped_reason IS NULL
+        """),
+        {"uid": user_id}
+    )
+    await db.commit()
+
+
 # ============================================================================
 # UNSUBSCRIBE ENDPOINT (PUBLIC)
 # ============================================================================
@@ -91,10 +127,11 @@ async def unsubscribe_get(
         raise HTTPException(status_code=400, detail="Invalid or expired unsubscribe link")
 
     await add_to_suppression_sql(db, resolved_email, "unsubscribed", "user_request")
+    await disable_account_emails(db, resolved_email)
 
     return UnsubscribeResponse(
         success=True,
-        message="Успешно се одјавивте од маркетинг пораки. Нема да добивате повеќе е-пошта од нас."
+        message="Успешно се одјавивте. Нема да добивате повеќе е-пошта од нас (известувања, алерти и прегледи)."
     )
 
 
@@ -108,10 +145,11 @@ async def unsubscribe_post(
         raise HTTPException(status_code=400, detail="Invalid or expired unsubscribe link")
 
     await add_to_suppression_sql(db, request.email, "unsubscribed", "user_request")
+    await disable_account_emails(db, request.email)
 
     return UnsubscribeResponse(
         success=True,
-        message="Successfully unsubscribed from marketing emails."
+        message="Successfully unsubscribed from all emails."
     )
 
 

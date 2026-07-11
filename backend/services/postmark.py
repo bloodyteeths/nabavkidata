@@ -4,9 +4,11 @@ Handles all transactional emails via Postmark HTTP API
 """
 
 import os
+import hashlib
 import logging
 import httpx
 from typing import Optional, Dict, Any
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,21 @@ POSTMARK_API_TOKEN = os.getenv("POSTMARK_API_TOKEN", "")
 POSTMARK_FROM_EMAIL = os.getenv("POSTMARK_FROM_EMAIL", "hello@nabavkidata.com")
 POSTMARK_FROM_NAME = os.getenv("POSTMARK_FROM_NAME", "NabavkiData")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://nabavkidata.com")
+
+# Must match verify_unsubscribe_token() in backend/api/outreach.py
+UNSUBSCRIBE_SECRET = os.getenv("UNSUBSCRIBE_SECRET", "nabavki-unsub-secret-2025")
+
+
+def build_unsubscribe_url(email: str) -> str:
+    """Build a one-click, tokenized unsubscribe URL for a recipient.
+
+    Token algorithm mirrors verify_unsubscribe_token() in api/outreach.py so the
+    frontend /unsubscribe page (which calls GET /api/outreach/unsubscribe?e=&t=)
+    validates successfully.
+    """
+    email = email.lower().strip()
+    token = hashlib.sha256(f"{email}:{UNSUBSCRIBE_SECRET}".encode()).hexdigest()[:32]
+    return f"{FRONTEND_URL}/unsubscribe?e={quote(email)}&t={token}"
 
 
 class PostmarkService:
@@ -117,7 +134,8 @@ class PostmarkService:
         title: str,
         content: str,
         button_text: Optional[str] = None,
-        button_link: Optional[str] = None
+        button_link: Optional[str] = None,
+        recipient_email: Optional[str] = None
     ) -> str:
         """
         Generate HTML email template with inline CSS.
@@ -127,10 +145,20 @@ class PostmarkService:
             content: Main content text (can include HTML)
             button_text: Optional button text
             button_link: Optional button link
+            recipient_email: Recipient address. When provided, a working one-click
+                unsubscribe link is added to the footer.
 
         Returns:
             str: HTML email template
         """
+        # Working, tokenized unsubscribe link (only when we know the recipient).
+        unsubscribe_html = ""
+        if recipient_email:
+            unsubscribe_html = (
+                f'<a href="{build_unsubscribe_url(recipient_email)}" '
+                f'style="color: #2563eb; text-decoration: none;">Одјави се</a> |\n'
+            )
+
         button_html = ""
         if button_text and button_link:
             button_html = f"""
@@ -189,7 +217,7 @@ class PostmarkService:
                                 Skopje, North Macedonia
                             </p>
                             <p style="margin: 0; color: #9ca3af; font-size: 11px;">
-                                <a href="{self.frontend_url}/privacy" style="color: #2563eb; text-decoration: none;">Privacy Policy</a> |
+                                {unsubscribe_html}<a href="{self.frontend_url}/privacy" style="color: #2563eb; text-decoration: none;">Privacy Policy</a> |
                                 <a href="mailto:support@nabavkidata.com" style="color: #2563eb; text-decoration: none;">Contact Support</a>
                             </p>
                         </td>
@@ -281,7 +309,8 @@ class PostmarkService:
             title="Добредојдовте на NabavkiData!",
             content=content,
             button_text="Оди на контролна табла",
-            button_link=dashboard_link
+            button_link=dashboard_link,
+            recipient_email=email
         )
 
         return await self.send_email(
@@ -386,7 +415,8 @@ class PostmarkService:
             title="New Tender Alert",
             content=content,
             button_text="View Tender Details",
-            button_link=tender_link
+            button_link=tender_link,
+            recipient_email=email
         )
 
         return await self.send_email(

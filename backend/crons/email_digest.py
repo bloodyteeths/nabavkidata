@@ -167,7 +167,8 @@ async def generate_personalized_digest_html(
     competitor_activity: List[Dict],
     frequency: str = "daily",
     alert_matches: List = None,
-    user_tier: str = "free"
+    user_tier: str = "free",
+    email: Optional[str] = None
 ) -> str:
     """Generate HTML digest with personalized content"""
 
@@ -339,7 +340,8 @@ async def generate_personalized_digest_html(
         title=f"{period} Преглед на Тендери",
         content=content,
         button_text="Погледни ги сите тендери",
-        button_link=f"{FRONTEND_URL}/dashboard"
+        button_link=f"{FRONTEND_URL}/dashboard",
+        recipient_email=email
     )
 
 
@@ -468,7 +470,8 @@ async def send_personalized_digest(
             competitor_activity=competitor_activity,
             frequency=frequency,
             alert_matches=alert_matches_data,
-            user_tier=user_tier
+            user_tier=user_tier,
+            email=email
         )
 
         # Send email
