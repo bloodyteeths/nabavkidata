@@ -295,7 +295,7 @@ class RetryProcessor:
             return None
 
         # Generate filename
-        url_hash = hashlib.md5(file_url.encode('utf-8')).hexdigest()[:12]
+        url_hash = hashlib.md5(file_url.encode('utf-8')).hexdigest()
         tender_id = doc.get('tender_id', 'unknown').replace('/', '_')
         ext = self._get_extension(file_url)
         filename = f"{tender_id}_{url_hash}{ext}"

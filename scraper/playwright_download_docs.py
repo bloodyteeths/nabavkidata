@@ -193,7 +193,7 @@ class PlaywrightDocDownloader:
         file_url = doc['file_url']
 
         # Generate filename
-        url_hash = hashlib.md5(file_url.encode()).hexdigest()[:12]
+        url_hash = hashlib.md5(file_url.encode()).hexdigest()
         ext = self._get_extension(file_url)
         local_filename = f"{tender_id}_{url_hash}{ext}"
         dest_path = FILES_STORE / local_filename
