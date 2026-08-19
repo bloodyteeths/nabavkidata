@@ -2,32 +2,48 @@
 
 import { useState, type FormEvent } from "react";
 
+const API = "https://api.nabavkidata.com";
+
 export default function KGAlertsSignupPage() {
   const [email, setEmail] = useState("");
   const [keywords, setKeywords] = useState("");
+  const [status, setStatus] = useState<null | "loading" | "success" | "error">(null);
   const [message, setMessage] = useState("");
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    setStatus("loading");
+    setMessage("");
+
     const kwList = keywords
       .split(/[,\n]+/)
       .map((k) => k.trim())
       .filter(Boolean);
 
     if (!email || kwList.length === 0) {
+      setStatus("error");
       setMessage("Введите email и хотя бы одно ключевое слово.");
       return;
     }
 
-    const subject = encodeURIComponent(`Подписка на тендер-уведомления · Zakupki.KG`);
-    const body = encodeURIComponent(
-      `Здравствуйте,\n\nПрошу подключить меня к ежедневным уведомлениям на портале Zakupki.KG.\n\n` +
-      `Email: ${email}\n\n` +
-      `Ключевые слова:\n${kwList.map((k) => `  • ${k}`).join("\n")}\n\n` +
-      `Спасибо!`
-    );
-    window.location.href = `mailto:hello@facturino.mk?subject=${subject}&body=${body}`;
-    setMessage("Открывается ваш email-клиент. Отправьте письмо, и мы подключим вас в течение 24 часов.");
+    try {
+      const res = await fetch(`${API}/api/kg/alerts/subscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, keywords: kwList }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Ошибка сервера");
+      }
+      setStatus("success");
+      setMessage(data.message || "Проверьте вашу почту для подтверждения подписки.");
+      setEmail("");
+      setKeywords("");
+    } catch (err: unknown) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Не удалось подписаться. Попробуйте позже.");
+    }
   }
 
   return (
@@ -75,13 +91,17 @@ export default function KGAlertsSignupPage() {
 
         <button
           type="submit"
-          className="w-full sm:w-auto bg-blue-600 text-white rounded-md px-6 py-2.5 text-sm font-medium hover:bg-blue-700"
+          disabled={status === "loading"}
+          className="w-full sm:w-auto bg-blue-600 text-white rounded-md px-6 py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Подписаться
+          {status === "loading" ? "Отправка..." : "Подписаться"}
         </button>
 
-        {message && (
-          <div className="p-3 bg-blue-50 text-blue-800 text-sm rounded-md">{message}</div>
+        {status === "success" && (
+          <div className="p-3 bg-green-50 text-green-800 text-sm rounded-md">{message}</div>
+        )}
+        {status === "error" && (
+          <div className="p-3 bg-red-50 text-red-800 text-sm rounded-md">{message}</div>
         )}
       </form>
 
@@ -89,11 +109,7 @@ export default function KGAlertsSignupPage() {
         <p>
           <b>Как это работает:</b> Каждый день в 09:00 (Бишкекское время) наш скрипт проверяет
           все новые тендеры и отправляет вам сводку тех, что совпадают с вашими ключевыми словами.
-          Отписаться можно в любой момент через ссылку в email.
-        </p>
-        <p>
-          Пока подписка обрабатывается вручную (24 часа). В следующей версии подписка будет
-          мгновенной прямо через сайт.
+          Отписаться можно в один клик через ссылку в каждом уведомлении.
         </p>
       </div>
     </div>
