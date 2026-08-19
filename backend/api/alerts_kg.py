@@ -109,7 +109,7 @@ async def convert_latin_to_russian(text: str = Query(..., description="Latin tex
 import secrets
 import os
 
-from services.mailer import mailer_service
+from services.postmark import postmark_service
 
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://nabavkidata.com")
 
@@ -202,11 +202,12 @@ async def subscribe_kg_alerts(req: KGSubscribeRequest):
         f"Если вы не оформляли подписку, проигнорируйте письмо."
     )
 
-    sent = await mailer_service.send_transactional_email(
+    sent = await postmark_service.send_email(
         to=email,
         subject="Подтвердите подписку на Zakupki.KG",
         html_content=html,
         text_content=text,
+        tag="kg-alert-verify",
     )
 
     if not sent:
