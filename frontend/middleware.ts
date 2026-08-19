@@ -46,6 +46,7 @@ const PUBLIC_ROUTES = [
   '/gradeznistvo',
   '/medicina',
   '/it-uslugi',
+  '/kg',
 ];
 
 // Helper function to check if a path matches a route pattern
