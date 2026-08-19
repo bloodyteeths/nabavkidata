@@ -5,7 +5,9 @@ const API = "https://api.nabavkidata.com";
 
 async function fetchTender(id: string) {
   try {
-    const res = await fetch(`${API}/api/kg/tenders/${encodeURIComponent(id)}`, {
+    // params.id from Next.js dynamic route is URL-encoded — decode first, then re-encode for API
+    const decoded = decodeURIComponent(id);
+    const res = await fetch(`${API}/api/kg/tenders/${encodeURIComponent(decoded)}`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return null;
