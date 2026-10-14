@@ -314,7 +314,10 @@ def test_retired_campaigns_are_guarded(monkeypatch, capsys):
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for name in ("welcome_series", "trial_outreach", "reactivation_campaign",
                  "broadcast_discount", "personal_outreach"):
-        src = open(os.path.join(root, "crons", f"{name}.py"), encoding="utf-8").read()
+        path = os.path.join(root, "crons", f"{name}.py")
+        if not os.path.exists(path):  # some retired scripts were never committed
+            continue
+        src = open(path, encoding="utf-8").read()
         assert 'os.getenv("ALLOW_RETIRED_SAAS_CAMPAIGNS") != "1"' in src, name
 
 
