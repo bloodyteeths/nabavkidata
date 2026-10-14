@@ -20,6 +20,8 @@ class User(Base):
     full_name = Column(String(255))
     role = Column(String(20), default="user")  # admin, moderator, user
     subscription_tier = Column(String(50), default="free")
+    account_type = Column(String(20), default="free")  # free | prospect | managed_client
+    company_name = Column(String(500))
     stripe_customer_id = Column(String(255))
     email_verified = Column(Boolean, default=False)
     verification_token = Column(String(255), index=True)

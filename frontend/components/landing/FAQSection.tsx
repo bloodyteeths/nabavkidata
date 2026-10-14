@@ -126,7 +126,7 @@ export default function FAQSection() {
             className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg bg-foreground/5 hover:bg-foreground/10 border border-border hover:border-primary/50 text-foreground font-medium transition-all duration-300"
           >
             <MessageCircle className="h-4 w-4 mr-2" />
-            Контактирајте не
+            Контактирајте нè
           </a>
         </motion.div>
       </div>

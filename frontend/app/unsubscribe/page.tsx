@@ -18,7 +18,7 @@ export default function UnsubscribePage() {
 
     if (!email || !token) {
       setStatus('error');
-      setMessage('Невалиден линк за одјава. Ве молиме контактирајте не на support@nabavkidata.com');
+      setMessage('Невалиден линк за одјава. Ве молиме контактирајте нè на support@nabavkidata.com');
       return;
     }
 
@@ -39,7 +39,7 @@ export default function UnsubscribePage() {
         }
       } catch (error) {
         setStatus('error');
-        setMessage('Настана грешка. Ве молиме обидете се повторно или контактирајте не на support@nabavkidata.com');
+        setMessage('Настана грешка. Ве молиме обидете се повторно или контактирајте нè на support@nabavkidata.com');
       }
     };
 
@@ -83,7 +83,7 @@ export default function UnsubscribePage() {
               </div>
               <p className="text-muted-foreground">{message}</p>
               <p className="text-sm text-muted-foreground">
-                Ако проблемот продолжи, контактирајте не на{' '}
+                Ако проблемот продолжи, контактирајте нè на{' '}
                 <a href="mailto:support@nabavkidata.com" className="text-primary hover:underline">
                   support@nabavkidata.com
                 </a>

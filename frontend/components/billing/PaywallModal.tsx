@@ -1,25 +1,37 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { UpgradePrompt } from './UpgradePrompt';
 
+interface PaywallEventDetail {
+  feature?: string;
+  message?: string;
+  tierRequired?: string;
+  status?: number;
+}
+
+/**
+ * Global service prompt. Opens on any 'paywall-required' event dispatched by
+ * lib/api.ts (402/403 upgrade responses) and points the user to the
+ * done-for-you service instead of a paid plan.
+ */
 export function PaywallModal() {
   const [show, setShow] = useState(false);
   const [feature, setFeature] = useState('premium');
-  const [tierRequired, setTierRequired] = useState('starter');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
+      const detail = ((e as CustomEvent<PaywallEventDetail>).detail ?? {}) as PaywallEventDetail;
       setFeature(detail.feature || 'premium');
-      setTierRequired(detail.tierRequired || 'starter');
-      setMessage(detail.message || '');
+      setMessage(typeof detail.message === 'string' ? detail.message : '');
       setShow(true);
     };
     window.addEventListener('paywall-required', handler);
     return () => window.removeEventListener('paywall-required', handler);
   }, []);
+
+  const close = useCallback(() => setShow(false), []);
 
   if (!show) return null;
 
@@ -27,9 +39,8 @@ export function PaywallModal() {
     <UpgradePrompt
       feature={feature}
       currentTier="free"
-      tierRequired={tierRequired}
       message={message}
-      onClose={() => setShow(false)}
+      onClose={close}
       variant="modal"
     />
   );

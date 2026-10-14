@@ -47,6 +47,7 @@ const PUBLIC_ROUTES = [
   '/medicina',
   '/it-uslugi',
   '/kg',
+  '/usluga',
 ];
 
 // Helper function to check if a path matches a route pattern
@@ -86,6 +87,30 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/_next/')
   ) {
     return NextResponse.next();
+  }
+
+  // Retired self-serve doors -> the service front door (/usluga).
+  // Done here, before the auth check, so anonymous visitors to /billing/plans
+  // are not bounced through /auth/login first.
+  // /billing/success and /billing/cancelled were Stripe checkout return pages
+  // (subscriptions are gone: payment is by invoice).
+  const retiredBilling = ['/billing/plans', '/billing/success', '/billing/cancelled'].find(
+    (p) => pathname === p || pathname.startsWith(`${p}/`)
+  );
+  if (retiredBilling) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/usluga';
+    url.search = `?src=${retiredBilling.slice(1).replace('/', '_')}`;
+    return NextResponse.redirect(url);
+  }
+
+  // The Serbian landing (/sr) still describes the retired SaaS plans; send it
+  // to the service homepage until it is rebuilt around the service.
+  if (pathname === '/sr' || pathname.startsWith('/sr/')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    url.search = '';
+    return NextResponse.redirect(url);
   }
 
   // Allow public routes

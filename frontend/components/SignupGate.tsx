@@ -48,7 +48,7 @@ export function SignupGate({ children, teaser, message, feature }: SignupGatePro
           <ul className="text-sm text-gray-500 dark:text-gray-400 mb-6 text-left space-y-1.5">
             <li className="flex items-center gap-2">
               <span className="text-green-500 font-bold">&#10003;</span>
-              Бесплатна регистрација — без кредитна картичка
+              Бесплатна регистрација
             </li>
             <li className="flex items-center gap-2">
               <span className="text-green-500 font-bold">&#10003;</span>

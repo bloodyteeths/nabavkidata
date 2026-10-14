@@ -28,7 +28,8 @@ const FEATURES = [
   { name: "Детекција на корупција", nabavki: true, other: false, icon: Shield },
   { name: "Профили на добавувачи", nabavki: true, other: true, icon: BarChart3 },
   { name: "Историски податоци (2008+)", nabavki: true, other: false, icon: Clock },
-  { name: "Бесплатен план", nabavki: true, other: false, icon: Zap },
+  { name: "Бесплатно следење на тендери", nabavki: true, other: false, icon: Zap },
+  { name: "Подготовка на понуда за вас", nabavki: true, other: false, icon: Zap },
   { name: "EU/Меѓународни тендери", nabavki: false, other: true, icon: Globe },
 ];
 
@@ -126,21 +127,21 @@ export default function TenderWatchAlternativePage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Достапна цена</CardTitle>
+              <CardTitle className="text-lg">Јасна цена</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              <p>Започнете бесплатно. Стартер план од 1,990 МКД/месец — значително поевтино од меѓународните платформи кои чинат 100-500€/месец.</p>
+              <p>Следењето и проценката се бесплатни. Подготовка на понуда од 30.000 МКД, договорено однапред, и 5% од вредноста на договорот за првата година само ако победите. Плаќање со фактура, без претплата.</p>
             </CardContent>
           </Card>
         </div>
 
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Пробајте бесплатно</h2>
-          <p className="text-muted-foreground mb-6">Регистрацијата е бесплатна. Споредете сами.</p>
+          <h2 className="text-2xl font-bold mb-4">Ние ја пишуваме понудата за вас</h2>
+          <p className="text-muted-foreground mb-6">Следењето на тендери и проценката се бесплатни. Подготовката на понуда се договара однапред, а плаќањето е со фактура.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/auth/register">
+            <Link href="/usluga?src=alternative_tenderwatch">
               <Button size="lg" className="w-full sm:w-auto">
-                Регистрирајте се бесплатно
+                Побарајте бесплатна проценка
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>

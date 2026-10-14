@@ -10,7 +10,7 @@ import os
 
 from passlib.context import CryptContext
 from jose import JWTError, jwt
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import User
@@ -197,7 +197,7 @@ async def register_user(
     """
     # Check if user already exists
     result = await db.execute(
-        select(User).where(User.email == email.lower())
+        select(User).where(func.lower(User.email) == email.strip().lower()).limit(1)
     )
     existing_user = result.scalar_one_or_none()
 
@@ -240,7 +240,7 @@ async def authenticate_user(
     """
     # Get user by email
     result = await db.execute(
-        select(User).where(User.email == email.lower())
+        select(User).where(func.lower(User.email) == email.strip().lower()).limit(1)
     )
     user = result.scalar_one_or_none()
 
@@ -283,7 +283,7 @@ async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
         User object if found, None otherwise
     """
     result = await db.execute(
-        select(User).where(User.email == email.lower())
+        select(User).where(func.lower(User.email) == email.strip().lower()).limit(1)
     )
     return result.scalar_one_or_none()
 
@@ -422,6 +422,9 @@ async def reset_password(
             password_hash=new_password_hash,
             password_reset_token=None,
             password_reset_token_expires_at=None,
+            # Using a link that was emailed to this address proves the mailbox
+            # owner is here (bid-service prospects are created unverified).
+            email_verified=True,
             updated_at=datetime.utcnow()
         )
     )

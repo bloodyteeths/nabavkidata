@@ -116,44 +116,21 @@ def generate_match_reasons(tender: Tender, prefs: Optional[UserPreferences]) -> 
 
 
 def generate_pro_upgrade_section(user_tier: str, alert_matches_count: int, tenders_count: int) -> str:
-    """Render Pro upgrade curiosity-gap + CTA for non-paying users. Empty string for paid users."""
-    if user_tier in ("starter", "professional", "pro", "enterprise"):
-        return ""
+    """Bid-writing service CTA (Oct 2026: plans retired, NabavkiData is now a done-for-you service).
 
-    settings_url = f"{FRONTEND_URL}/settings"
+    Name kept so callers don't change. No pricing here: outreach rule is never price in emails.
+    """
+    service_url = f"{FRONTEND_URL}/usluga?src=digest"
     return f"""
     <div style="margin: 30px 0; padding: 22px; background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px;">
-        <h3 style="margin: 0 0 14px 0; color: #0f172a; font-size: 17px;">Што уште би видел со Pro</h3>
-        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #475569; margin-bottom: 16px;">
-            <tr>
-                <td style="padding: 8px 0;">AI препорака за цена на понуда (по тендер)</td>
-                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
-            </tr>
-            <tr>
-                <td style="padding: 8px 0;">Историски цени на победниците за секој тендер</td>
-                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
-            </tr>
-            <tr>
-                <td style="padding: 8px 0;">Анализа на ризик и корупција (DOZORRO)</td>
-                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
-            </tr>
-            <tr>
-                <td style="padding: 8px 0;">Неограничен AI чат (25 прашања/ден)</td>
-                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
-            </tr>
-            <tr>
-                <td style="padding: 8px 0;">CSV/PDF извоз и следење на конкуренти</td>
-                <td style="padding: 8px 0; text-align: right;"><span style="color:#94a3b8;">Заклучено</span></td>
-            </tr>
-        </table>
-        <p style="margin: 0 0 14px 0; font-size: 13px; color: #64748b;">
-            Денеска ти стигнаа {alert_matches_count} совпаѓања и {tenders_count} препораки. Со Pro ги добиваш и AI препораките и историјата на цени за секој тендер — да знаеш точно колку да понудиш.
+        <h3 style="margin: 0 0 10px 0; color: #0f172a; font-size: 17px;">Ние ја пишуваме понудата наместо вас</h3>
+        <p style="margin: 0 0 14px 0; font-size: 14px; color: #475569; line-height: 1.6;">
+            Ако некој од овие тендери ви одговара, нашиот тим ја подготвува целата понуда:
+            тендерската документација, условите за способност, техничката и финансиската понуда.
+            Вие ја прегледувате и ја поднесувате.
         </p>
         <p style="margin: 0; text-align: center;">
-            <a href="{settings_url}" style="background-color: #2563eb; color: #ffffff; padding: 12px 26px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 14px; font-weight: 600;">Активирај Pro — 1,990 МКД/месец</a>
-        </p>
-        <p style="margin: 10px 0 0 0; text-align: center; font-size: 12px; color: #94a3b8;">
-            Можеш да откажеш во секое време од Поставки.
+            <a href="{service_url}" style="background-color: #2563eb; color: #ffffff; padding: 12px 26px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 14px; font-weight: 600;">Побарајте бесплатна проценка</a>
         </p>
     </div>
     """

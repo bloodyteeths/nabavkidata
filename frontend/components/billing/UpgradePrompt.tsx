@@ -1,18 +1,32 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { AlertTriangle, Zap, ArrowRight, X } from 'lucide-react';
+import { useEffect } from 'react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { ArrowRight, FileText, HeartHandshake, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
+/**
+ * Service prompt (formerly a plan-upgrade prompt).
+ *
+ * NabavkiData is now a done-for-you bid-writing + tender-monitoring service,
+ * so anything that used to be gated behind a paid plan now points the user to
+ * the service page instead. The props are kept identical to the old
+ * plan-based component so existing call sites keep compiling; the tier and
+ * credit props are accepted but no longer drive the copy.
+ */
 interface UpgradePromptProps {
   feature: string;
+  /** @deprecated kept for call-site compatibility; ignored. */
   currentTier: string;
+  /** @deprecated kept for call-site compatibility; ignored. */
   tierRequired?: string;
   message?: string;
+  /** @deprecated kept for call-site compatibility; ignored. */
   creditsUsed?: number;
+  /** @deprecated kept for call-site compatibility; ignored. */
   creditsTotal?: number;
   onClose?: () => void;
   variant?: 'modal' | 'inline' | 'banner';
@@ -25,70 +39,72 @@ const FEATURE_LABELS: Record<string, string> = {
   exports: 'Извоз на податоци',
   competitor_alerts: 'Следење конкуренти',
   risk_analysis: 'Анализа на ризик',
-  price_intelligence: 'Ценовна интелигенција',
+  price_intelligence: 'Ценовна анализа',
 };
 
-const TIER_LABELS: Record<string, string> = {
-  free: 'Бесплатен',
-  trial: 'Пробен период',
-  starter: 'Стартер',
-  professional: 'Про',
-  enterprise: 'Претпријатие',
-};
+export const SERVICE_HEADLINE = 'Ова го правиме ние за вас';
+export const SERVICE_BODY =
+  'Ние ја правиме анализата и ја пишуваме понудата за вас. Вие ја прегледувате, ја потпишувате со ваш сертификат и ја поднесувате на е-набавки.';
+const SERVICE_PRICE_NOTE = 'Бесплатна проценка. Подготовка од 30.000 МКД по понуда.';
 
-const TIER_PRICES: Record<string, string> = {
-  starter: '1,990 МКД/месец',
-  professional: '5,990 МКД/месец',
-  enterprise: '12,990 МКД/месец',
-};
+/**
+ * Messages coming from the backend or older call sites may still talk about
+ * plans/upgrades. Those must never reach the user; anything else (e.g.
+ * "Регистрирајте се за да видите цени...") is shown as useful context.
+ */
+const PLAN_LANGUAGE = /надград|надгради|план|претплат|кредит|upgrade|plan|subscri|stripe/i;
+
+export function serviceContextMessage(message?: string): string | null {
+  const trimmed = message?.trim();
+  if (!trimmed) return null;
+  return PLAN_LANGUAGE.test(trimmed) ? null : trimmed;
+}
+
+export function serviceHref(feature?: string): string {
+  const params = new URLSearchParams({ src: 'paywall' });
+  if (feature && feature !== 'premium') params.set('feature', feature);
+  return `/usluga?${params.toString()}`;
+}
 
 export function UpgradePrompt({
   feature,
-  currentTier,
-  tierRequired,
   message,
-  creditsUsed,
-  creditsTotal,
   onClose,
   variant = 'inline',
 }: UpgradePromptProps) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const featureLabel = FEATURE_LABELS[feature];
+  const context = serviceContextMessage(message);
+  const href = serviceHref(feature);
 
-  const featureLabel = FEATURE_LABELS[feature] || feature;
-  const requiredTierLabel = tierRequired ? TIER_LABELS[tierRequired] : 'Стартер';
-  const requiredTierPrice = tierRequired ? TIER_PRICES[tierRequired] : TIER_PRICES.start;
-
-  const handleUpgrade = () => {
-    setLoading(true);
-    router.push('/settings#plans');
-  };
+  // Close the modal with Escape.
+  useEffect(() => {
+    if (variant !== 'modal' || !onClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [variant, onClose]);
 
   if (variant === 'banner') {
     return (
-      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-amber-100 rounded-full">
-            <AlertTriangle className="h-5 w-5 text-amber-600" />
+      <div className="glass border border-primary/20 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-full shrink-0">
+            <HeartHandshake className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="font-medium text-amber-900">
-              {creditsUsed !== undefined && creditsTotal !== undefined
-                ? `Искористивте ${creditsUsed}/${creditsTotal} кредити за ${featureLabel}`
-                : `${featureLabel} не е достапна на вашиот план`}
-            </p>
-            <p className="text-sm text-amber-700">
-              {message || `Надградете на ${requiredTierLabel} за неограничен пристап`}
+            <p className="font-medium text-foreground">{SERVICE_HEADLINE}</p>
+            <p className="text-sm text-muted-foreground">
+              {context || 'Ние ја правиме анализата и ја пишуваме понудата за вас.'}
             </p>
           </div>
         </div>
-        <Button
-          onClick={handleUpgrade}
-          disabled={loading}
-          className="bg-amber-600 hover:bg-amber-700 text-primary-foreground"
-        >
-          {loading ? 'Се вчитува...' : 'Надогради'}
-          <ArrowRight className="ml-2 h-4 w-4" />
+        <Button asChild className="shrink-0">
+          <Link href={href}>
+            Побарајте бесплатна проценка
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
         </Button>
       </div>
     );
@@ -96,97 +112,94 @@ export function UpgradePrompt({
 
   if (variant === 'modal') {
     return (
-      <div className="fixed inset-0 bg-background/50 flex items-center justify-center z-50 p-4">
-        <Card className="max-w-md w-full relative">
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
-              <Zap className="h-8 w-8 text-primary-foreground" />
-            </div>
-            <CardTitle className="text-xl">Надградете го вашиот план</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <div className="space-y-2">
-              <Badge variant="secondary" className="bg-amber-100 text-amber-700">
-                {featureLabel}
-              </Badge>
-              <p className="text-muted-foreground">
-                {creditsUsed !== undefined && creditsTotal !== undefined
-                  ? `Ги искористивте сите ${creditsTotal} кредити за ${featureLabel}.`
-                  : `Оваа функција не е достапна на ${TIER_LABELS[currentTier] || currentTier} план.`}
-              </p>
-            </div>
-
-            <div className="bg-muted rounded-lg p-4">
-              <p className="font-semibold text-foreground">
-                {requiredTierLabel} план
-              </p>
-              <p className="text-2xl font-bold text-blue-600 mt-1">
-                {requiredTierPrice}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Добијте пристап до сите Pro функции
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              {onClose && (
-                <Button variant="outline" onClick={onClose} className="flex-1">
-                  Можеби подоцна
-                </Button>
-              )}
-              <Button
-                onClick={handleUpgrade}
-                disabled={loading}
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
+      <div
+        className="fixed inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.2 }}
+          className="max-w-md w-full"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="service-prompt-title"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Card className="relative glass">
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Затвори"
+                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
               >
-                {loading ? 'Се вчитува...' : 'Надогради сега'}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                <X className="h-5 w-5" />
+              </button>
+            )}
+            <CardHeader className="text-center pb-2">
+              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                <FileText className="h-8 w-8 text-primary" />
+              </div>
+              <CardTitle id="service-prompt-title" className="text-xl">
+                <span className="text-gradient">{SERVICE_HEADLINE}</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              {featureLabel && (
+                <Badge variant="secondary">{featureLabel}</Badge>
+              )}
+              {context && <p className="text-sm text-foreground">{context}</p>}
+              <p className="text-muted-foreground">{SERVICE_BODY}</p>
+
+              <ul className="bg-muted/60 rounded-lg p-4 text-left text-sm space-y-1.5 text-foreground">
+                <li>Следење и избор на тендери за вас, бесплатно</li>
+                <li>Анализа на условите и цените на конкуренцијата</li>
+                <li>Целосна понуда, подготвена за поднесување</li>
+              </ul>
+              <p className="text-xs text-muted-foreground">{SERVICE_PRICE_NOTE}</p>
+
+              <div className="flex flex-col-reverse sm:flex-row gap-3">
+                {onClose && (
+                  <Button variant="outline" onClick={onClose} className="flex-1">
+                    Затвори
+                  </Button>
+                )}
+                <Button asChild className="flex-1">
+                  <Link href={href} onClick={onClose}>
+                    Дознајте повеќе
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     );
   }
 
   // Default inline variant
   return (
-    <div className="bg-gradient-to-r from-gray-50 to-blue-50 border border-gray-200 rounded-lg p-6 text-center">
-      <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-        <Zap className="h-6 w-6 text-blue-600" />
+    <div className="glass border border-primary/20 rounded-lg p-6 text-center">
+      <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+        <HeartHandshake className="h-6 w-6 text-primary" />
       </div>
-      <h3 className="font-semibold text-foreground mb-2">
-        {creditsUsed !== undefined
-          ? 'Кредитите се искористени'
-          : 'Надградете за пристап'}
-      </h3>
-      <p className="text-sm text-muted-foreground mb-4">
-        {message ||
-          `${featureLabel} е достапна од ${requiredTierLabel} план (${requiredTierPrice})`}
-      </p>
-      <Button
-        onClick={handleUpgrade}
-        disabled={loading}
-        size="sm"
-        className="bg-blue-600 hover:bg-blue-700"
-      >
-        {loading ? 'Се вчитува...' : 'Преглед на планови'}
-        <ArrowRight className="ml-2 h-4 w-4" />
+      <h3 className="font-semibold text-foreground mb-2">{SERVICE_HEADLINE}</h3>
+      {context && <p className="text-sm text-foreground mb-2">{context}</p>}
+      <p className="text-sm text-muted-foreground mb-4 max-w-lg mx-auto">{SERVICE_BODY}</p>
+      <Button asChild size="sm">
+        <Link href={href}>
+          Побарајте бесплатна проценка
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Link>
       </Button>
     </div>
   );
 }
 
 /**
- * Credit usage display component
+ * Usage display component (kept for compatibility; no plan/upgrade language).
  */
 interface CreditDisplayProps {
   creditType: string;
@@ -197,7 +210,7 @@ interface CreditDisplayProps {
 
 export function CreditDisplay({ creditType, used, total, daysRemaining }: CreditDisplayProps) {
   const remaining = total - used;
-  const percentage = Math.round((used / total) * 100);
+  const percentage = total > 0 ? Math.round((used / total) * 100) : 100;
   const isLow = percentage >= 80;
   const isDepleted = remaining <= 0;
 
@@ -219,12 +232,15 @@ export function CreditDisplay({ creditType, used, total, daysRemaining }: Credit
       </div>
       {daysRemaining !== undefined && daysRemaining > 0 && (
         <p className="text-xs text-muted-foreground">
-          Истекува за {daysRemaining} {daysRemaining === 1 ? 'ден' : 'дена'}
+          Се обновува за {daysRemaining} {daysRemaining === 1 ? 'ден' : 'дена'}
         </p>
       )}
       {isDepleted && (
-        <p className="text-xs text-red-600 font-medium">
-          Кредитите се искористени - надградете за да продолжите
+        <p className="text-xs text-muted-foreground">
+          Дневниот лимит е искористен.{' '}
+          <Link href={serviceHref(creditType)} className="underline font-medium text-primary">
+            Ние ја правиме анализата за вас
+          </Link>
         </p>
       )}
     </div>

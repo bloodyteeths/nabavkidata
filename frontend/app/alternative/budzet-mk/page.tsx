@@ -149,12 +149,12 @@ export default function BudzetMkAlternativePage() {
         </div>
 
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Започнете бесплатно</h2>
-          <p className="text-muted-foreground mb-6">Регистрацијата е бесплатна. Погледнете што NabavkiData може да направи за вашиот бизнис.</p>
+          <h2 className="text-2xl font-bold mb-4">Ние ја пишуваме понудата за вас</h2>
+          <p className="text-muted-foreground mb-6">Следењето на тендери и проценката се бесплатни. Подготовката на понуда се договара однапред, а плаќањето е со фактура.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/auth/register">
+            <Link href="/usluga?src=alternative_budzet-mk">
               <Button size="lg" className="w-full sm:w-auto">
-                Регистрирајте се бесплатно
+                Побарајте бесплатна проценка
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>

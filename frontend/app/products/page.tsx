@@ -694,8 +694,9 @@ function ProductsPageContent() {
                 <p className="text-sm text-amber-800 dark:text-amber-300 flex-1">
                   Ги искористивте <strong>{priceViewsLimit}/{priceViewsLimit}</strong> ценовни прегледи денес.
                   {" "}
-                  <Link href="/billing/plans" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
-                    Надградете за повеќе
+                  Ние ја правиме ценовната анализа и ја пишуваме понудата за вас.{" "}
+                  <Link href="/usluga?src=products" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+                    Побарајте бесплатна проценка
                   </Link>
                 </p>
               </div>

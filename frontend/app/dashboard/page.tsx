@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { api, type DashboardData } from "@/lib/api";
 import { formatCurrency, formatDate, tenderUrl } from "@/lib/utils";
-import { TrendingUp, AlertCircle, Target, Award, Sparkles, ArrowRight, Bell, Search, Clock, DollarSign, Users, RefreshCw, Zap, FileText } from "lucide-react";
+import { TrendingUp, AlertCircle, Target, Sparkles, ArrowRight, Bell, Search, Clock, DollarSign, Users, RefreshCw, FileText, CheckCircle2, PenLine } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -39,7 +39,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     loadDashboard();
-    if (typeof window !== 'undefined') {
+    // Service prospects/clients get the status card above, not the SaaS tour.
+    const serviceAccount = user.account_type === 'prospect' || user.account_type === 'managed_client';
+    if (!serviceAccount && typeof window !== 'undefined') {
       const wizardDone = localStorage.getItem('wizard_completed') === 'true';
       if (!wizardDone) setShowWizard(true);
     }
@@ -70,29 +72,47 @@ export default function DashboardPage() {
   }
 
   const firstName = user?.full_name?.split(" ")[0] || "User";
-  const isFree = user?.subscription_tier?.toLowerCase() === 'free';
+  const isProspect = user?.account_type === 'prospect';
+  const isClient = user?.account_type === 'managed_client';
   const hasPersonalData = (data?.stats.recommended_count || 0) > 0;
 
   return (
     <PageContainer>
       {showWizard && <WelcomeWizard onComplete={() => setShowWizard(false)} />}
 
-      {/* Trial/Upgrade Banner */}
-      {isFree && (
+      {/* Service status (the bid-writing service replaced the old plans) */}
+      {isProspect ? (
+        <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4 md:p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Го примивме вашето барање</p>
+                <p className="text-xs text-muted-foreground">Ќе ви одговориме во рок од еден работен ден со бесплатна проценка.</p>
+              </div>
+            </div>
+            <Link href="/usluga?src=dashboard">
+              <Button size="sm" variant="outline">Барање за друг тендер</Button>
+            </Link>
+          </div>
+        </div>
+      ) : !isClient && (
         <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 p-4 md:p-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                <Zap className="h-5 w-5 text-primary" />
+                <PenLine className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-semibold">Бесплатен план</p>
-                <p className="text-xs text-muted-foreground">3 AI пребарувања дневно. Надоградете за неограничен пристап.</p>
+                <p className="text-sm font-semibold">Ние ја пишуваме вашата понуда</p>
+                <p className="text-xs text-muted-foreground">Следењето на тендери и проценката се бесплатни. Вие ја прегледувате и ја поднесувате понудата.</p>
               </div>
             </div>
-            <Link href="/settings">
+            <Link href="/usluga?src=dashboard">
               <Button size="sm" className="shadow-[0_0_20px_rgba(124,58,237,0.2)]">
-                <Award className="mr-2 h-4 w-4" /> Надогради
+                Побарајте бесплатна проценка <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>

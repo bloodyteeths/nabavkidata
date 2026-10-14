@@ -24,7 +24,6 @@ export const metadata: Metadata = {
   alternates: {
     languages: {
       'mk': '/',
-      'sr': '/sr',
     },
   },
   openGraph: {

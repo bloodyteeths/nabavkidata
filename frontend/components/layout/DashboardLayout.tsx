@@ -14,6 +14,13 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { GlobalChatWidget } from "@/components/ai/GlobalChatWidget";
 import { useState, useEffect, useRef, useCallback } from "react";
 
+/** Service status shown under the user's name (no plan language). */
+function accountLabel(user: { account_type?: string | null; company_name?: string | null } | null | undefined): string {
+    if (user?.account_type === 'managed_client') return 'Клиент';
+    if (user?.account_type === 'prospect') return 'Проценка во тек';
+    return user?.company_name || 'Бесплатно следење';
+}
+
 export default function DashboardLayout({
     children,
     requireAuth = true,
@@ -164,7 +171,7 @@ export default function DashboardLayout({
                     <DropdownMenuContent side="right" align="end" className="w-56 bg-card/95 backdrop-blur-xl border-border">
                         <div className="px-3 py-2">
                             <p className="text-sm font-medium truncate">{user?.full_name || user?.email}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{user?.subscription_tier} план</p>
+                            <p className="text-xs text-muted-foreground">{accountLabel(user)}</p>
                         </div>
                         <DropdownMenuSeparator className="bg-border" />
                         <DropdownMenuItem onClick={() => router.push('/settings')} className="focus:bg-primary/20 cursor-pointer">
@@ -267,8 +274,8 @@ export default function DashboardLayout({
                                 </Avatar>
                                 <div className="flex-1 text-left overflow-hidden">
                                     <p className="text-sm font-medium truncate text-foreground">{user?.full_name || user?.email}</p>
-                                    <p className="text-xs text-muted-foreground truncate capitalize">
-                                        {user?.subscription_tier} план
+                                    <p className="text-xs text-muted-foreground truncate">
+                                        {accountLabel(user)}
                                     </p>
                                 </div>
                             </div>

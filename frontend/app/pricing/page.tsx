@@ -1,38 +1,65 @@
 import { Metadata } from "next";
 import dynamic from "next/dynamic";
 import Navbar from "@/components/landing/Navbar";
-import Link from "next/link";
+import { ServiceFooter } from "@/components/service/ServiceCTA";
 
-const PricingSection = dynamic(() => import("@/components/landing/PricingSection"), {
+const ServicePricing = dynamic(() => import("@/components/service/ServicePricing"), {
   loading: () => <div className="min-h-[700px]" />,
 });
-const FAQSection = dynamic(() => import("@/components/landing/FAQSection"), {
+const ServiceFAQ = dynamic(() => import("@/components/service/ServiceFAQ"), {
   loading: () => <div className="min-h-[600px]" />,
+});
+const ServiceCTA = dynamic(() => import("@/components/service/ServiceCTA"), {
+  loading: () => <div className="min-h-[400px]" />,
 });
 
 export const metadata: Metadata = {
-  title: "Цени и планови | NabavkiData",
+  title: "Цени за подготовка на понуди | NabavkiData",
   description:
-    "Изберете го вистинскиот план за вашиот бизнис. Од бесплатен преглед до Enterprise — AI анализа на тендери, известувања, историски цени и конкурентска анализа.",
+    "Бесплатно следење на тендери и бесплатна проценка. Подготовка на понуда од 30.000 МКД, договорено однапред. 5% од вредноста за првата година само ако победите. Плаќање со фактура, без претплата.",
+  alternates: {
+    canonical: "/pricing",
+  },
   openGraph: {
-    title: "Цени и планови | NabavkiData",
+    title: "Цени за подготовка на понуди | NabavkiData",
     description:
-      "Бесплатен план, Стартер (1,990 ден/мес), Про (5,990 ден/мес), Претпријатие (12,990 ден/мес). AI тендерска интелигенција за Македонија.",
+      "Следење на тендери: бесплатно. Подготовка на понуда: од 30.000 МКД. Надомест за успех: 5% од вредноста за првата година, само ако победите.",
     url: "https://www.nabavkidata.com/pricing",
   },
 };
 
 function PricingJsonLd() {
-  const product = {
+  const service = {
     "@context": "https://schema.org",
-    "@type": "Product",
-    name: "NabavkiData - AI тендерска платформа",
-    description: "AI-базирана платформа за анализа на јавни набавки во Македонија",
+    "@type": "Service",
+    name: "Подготовка на понуди за јавни набавки",
+    serviceType: "Подготовка на тендерски понуди",
+    areaServed: "MK",
+    provider: {
+      "@type": "Organization",
+      name: "Фактурино ДООЕЛ",
+      email: "hello@nabavkidata.com",
+      telephone: "+389 70 253 467",
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "ул. Сараевска 37",
+        postalCode: "1400",
+        addressLocality: "Велес",
+        addressCountry: "MK",
+      },
+    },
     offers: [
-      { "@type": "Offer", name: "Бесплатен", price: "0", priceCurrency: "MKD" },
-      { "@type": "Offer", name: "Стартер", price: "1990", priceCurrency: "MKD", billingIncrement: "P1M" },
-      { "@type": "Offer", name: "Про", price: "5990", priceCurrency: "MKD", billingIncrement: "P1M" },
-      { "@type": "Offer", name: "Претпријатие", price: "12990", priceCurrency: "MKD", billingIncrement: "P1M" },
+      { "@type": "Offer", name: "Следење на тендери", price: "0", priceCurrency: "MKD" },
+      {
+        "@type": "Offer",
+        name: "Подготовка на понуда",
+        priceCurrency: "MKD",
+        priceSpecification: {
+          "@type": "PriceSpecification",
+          minPrice: "30000",
+          priceCurrency: "MKD",
+        },
+      },
     ],
   };
 
@@ -47,14 +74,8 @@ function PricingJsonLd() {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(product) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(service) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
     </>
   );
 }
@@ -65,28 +86,11 @@ export default function PricingPage() {
       <PricingJsonLd />
       <Navbar />
       <div className="pt-20">
-        <PricingSection />
-        <FAQSection />
+        <ServicePricing />
+        <ServiceFAQ />
+        <ServiceCTA />
       </div>
-
-      <footer className="py-12 border-t border-border bg-background/20">
-        <div className="container px-4 md:px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-muted-foreground">
-            <p className="text-sm">&copy; 2024 Nabavkidata. Сите права се задржани.</p>
-            <nav className="flex gap-6 text-sm">
-              <Link href="/privacy" className="hover:text-primary transition-colors">
-                Политика за приватност
-              </Link>
-              <Link href="/terms" className="hover:text-primary transition-colors">
-                Услови за користење
-              </Link>
-              <Link href="/contact" className="hover:text-primary transition-colors">
-                Контакт
-              </Link>
-            </nav>
-          </div>
-        </div>
-      </footer>
+      <ServiceFooter />
     </main>
   );
 }

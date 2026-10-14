@@ -432,10 +432,10 @@ export default function EPazarPage() {
               {priceAuthRequired && !priceLoading && (
                 <div className="text-center py-6 space-y-3">
                   <Lock className="h-8 w-8 text-muted-foreground mx-auto" />
-                  <p className="font-medium">Ценовната анализа е достапна за претплатници</p>
-                  <p className="text-sm text-muted-foreground">Надградете го вашиот план за пристап до пазарни цени, препорачани понуди и победнички брендови.</p>
-                  <Link href="/billing/plans">
-                    <Button size="sm" className="mt-2">Прегледај планови</Button>
+                  <p className="font-medium">Цените не се прикажани</p>
+                  <p className="text-sm text-muted-foreground">Ние ја правиме ценовната анализа и ја пишуваме понудата за вас. Проценката е бесплатна.</p>
+                  <Link href="/usluga?src=epazar">
+                    <Button size="sm" className="mt-2">Побарајте бесплатна проценка</Button>
                   </Link>
                 </div>
               )}

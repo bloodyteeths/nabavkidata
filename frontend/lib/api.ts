@@ -2516,6 +2516,26 @@ class APIClient {
     });
   }
 
+  // Bid-writing service (Oct 2026) — the one front door
+  async submitBidRequest(data: {
+    company: string;
+    email: string;
+    lead_person?: string;
+    phone?: string;
+    wants_to_win?: string;
+    tender_id?: string | null;
+    source?: string;
+  }) {
+    return this.request<{
+      lead_id: string;
+      message: string;
+      auth: { access_token: string; refresh_token: string } | null;
+    }>('/api/bid-service/qualify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // ==========================================
   // ML EXPLAINABILITY & COLLUSION DETECTION
   // ==========================================
@@ -2822,6 +2842,55 @@ class APIClient {
       method: 'DELETE',
     });
   }
+
+  // ==========================================
+  // BID-SERVICE LEADS (admin, Oct 2026)
+  // ==========================================
+
+  async getBidLeads(status?: string, limit: number = 200) {
+    const params = new URLSearchParams({ limit: limit.toString() });
+    if (status && status !== 'all') params.append('status', status);
+    return this.request<{ leads: BidLead[] }>(`/api/bid-service/admin/leads?${params}`);
+  }
+
+  async updateBidLead(id: string, data: { status?: BidLeadStatus; admin_notes?: string }) {
+    return this.request<{ id: string; status: BidLeadStatus }>(
+      `/api/bid-service/admin/leads/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+}
+
+export type BidLeadStatus = 'new' | 'contacted' | 'qualified' | 'client' | 'rejected';
+
+export interface BidLeadHistory {
+  bids?: number;
+  wins?: number;
+  last_bid?: string | null;
+  avg_win_mkd?: number | null;
+  top_buyers?: Array<{ buyer: string; wins: number }>;
+}
+
+export interface BidLead {
+  id: string;
+  email: string;
+  company_name: string;
+  lead_person: string | null;
+  phone: string | null;
+  wants_to_win: string | null;
+  tender_id: string | null;
+  tender_title: string | null;
+  closing_date: string | null;
+  source: string | null;
+  user_id: string | null;
+  status: BidLeadStatus;
+  admin_notes: string | null;
+  history: BidLeadHistory | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // E-Pazar Types

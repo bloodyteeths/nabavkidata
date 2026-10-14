@@ -588,9 +588,9 @@ export default function RiskAnalysisPage() {
               <Shield className="h-8 w-8 text-muted-foreground" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">Премиум функција</h2>
+              <h2 className="text-xl font-semibold">Ова го правиме ние за вас</h2>
               <p className="text-muted-foreground mt-1 max-w-md">
-                Анализата на ризик и детекцијата на корупција е достапна за корисници со Pro план или повисок.
+                Анализата на ризик ја правиме ние за нашите клиенти, како дел од подготовката на понуда.
                 {!isLoggedIn && " Најавете се за да продолжите."}
               </p>
             </div>
@@ -600,13 +600,13 @@ export default function RiskAnalysisPage() {
                   <Link href="/auth/login">
                     <Button>Најава</Button>
                   </Link>
-                  <Link href="/auth/register">
-                    <Button variant="outline">Регистрација</Button>
+                  <Link href="/usluga?src=risk">
+                    <Button variant="outline">Бесплатна проценка</Button>
                   </Link>
                 </>
               ) : (
-                <Link href="/settings">
-                  <Button>Надоградете план</Button>
+                <Link href="/usluga?src=risk">
+                  <Button>Побарајте бесплатна проценка</Button>
                 </Link>
               )}
             </div>

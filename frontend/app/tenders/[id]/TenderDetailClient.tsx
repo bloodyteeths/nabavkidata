@@ -50,7 +50,7 @@ import {
 import Link from "next/link";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/Breadcrumb";
-import { UpgradePrompt } from "@/components/billing/UpgradePrompt";
+import WriteMyBidCard, { isTenderOpenForBids } from "@/components/service/WriteMyBidCard";
 import { SignupGate } from "@/components/SignupGate";
 
 // Compute effective status based on closing_date
@@ -553,7 +553,7 @@ export default function TenderDetailClient() {
         errorMessage = "Сесијата истече. Ве молиме најавете се повторно.";
         toast.error("Сесијата истече. Најавете се повторно.");
       } else if (error?.message?.includes("429")) {
-        errorMessage = "Го достигнавте дневниот лимит на прашања. Надградете го планот за повеќе прашања.";
+        errorMessage = "Го достигнавте дневниот лимит на прашања. Ако сакате, ние можеме да ја анализираме документацијата и да ја подготвиме понудата за вас.";
         toast.error("Дневен лимит достигнат");
       } else {
         toast.error("AI одговорот не успеа. Обидете се повторно.");
@@ -1549,19 +1549,28 @@ export default function TenderDetailClient() {
                             <p className="text-sm text-amber-800 dark:text-amber-300">
                               Ги искористивте <strong>{aiProducts.price_views_used ?? aiProducts.price_views_limit}/{aiProducts.price_views_limit}</strong> ценовни прегледи денес.
                               {" "}
-                              <a href="/billing/plans" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
-                                Надградете за повеќе
-                              </a>
+                              {isTenderOpenForBids(tender.status, tender.closing_date) && (
+                                <a href="#ponuda" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+                                  Ние ја пишуваме понудата за вас
+                                </a>
+                              )}
                             </p>
                           </div>
                         ) : (
-                          <UpgradePrompt
-                            feature="price_intelligence"
-                            currentTier="free"
-                            tierRequired="starter"
-                            message="Регистрирајте се за да видите цени на производите од овој тендер."
-                            variant="banner"
-                          />
+                          <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                            <Lock className="h-4 w-4 text-primary shrink-0" />
+                            <p className="text-sm text-muted-foreground">
+                              Цените на производите не се прикажани.
+                              {isTenderOpenForBids(tender.status, tender.closing_date) && (
+                                <>
+                                  {" "}Сакате понуда за овој тендер?{" "}
+                                  <a href="#ponuda" className="underline font-medium text-primary">
+                                    Ние ја пишуваме за вас
+                                  </a>
+                                </>
+                              )}
+                            </p>
+                          </div>
                         )
                       )}
                       {!aiProducts.price_gated && aiProducts.price_views_remaining != null && aiProducts.price_views_limit != null && (
@@ -1596,7 +1605,7 @@ export default function TenderDetailClient() {
                                 <div>
                                   <p className="text-xs text-muted-foreground">Цена</p>
                                   <p className="font-medium text-muted-foreground flex items-center gap-1">
-                                    <Lock className="h-3 w-3" /> Надградете
+                                    <Lock className="h-3 w-3" /> Скриено
                                   </p>
                                 </div>
                               ) : (
@@ -1677,11 +1686,16 @@ export default function TenderDetailClient() {
                 </CardHeader>
                 <CardContent>
                   {summaryGated ? (
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">AI резимето е достапно за платени корисници.</p>
-                      <Link href="/settings">
-                        <Button size="sm" variant="outline">Надградете</Button>
-                      </Link>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        {user ? "AI резимето не е достапно за вашата сметка." : "AI резимето е достапно за нашите клиенти."}
+                        {isTenderOpenForBids(tender.status, tender.closing_date) && " Ние можеме да ја подготвиме целата понуда за овој тендер."}
+                      </p>
+                      {isTenderOpenForBids(tender.status, tender.closing_date) && (
+                        <a href="#ponuda">
+                          <Button size="sm" variant="outline">Побарајте проценка</Button>
+                        </a>
+                      )}
                     </div>
                   ) : aiSummaryLoading ? (
                     <div className="space-y-2">
@@ -1840,6 +1854,13 @@ export default function TenderDetailClient() {
 
         {/* Right Column - Sidebar */}
         <div className="space-y-4">
+          {/* Bid-writing service — anchor #ponuda, hidden when the tender is closed */}
+          <WriteMyBidCard
+            tenderId={tender.tender_id}
+            status={tender.status}
+            closingDate={tender.closing_date}
+          />
+
           {/* Dates */}
           <Card>
             <CardHeader>

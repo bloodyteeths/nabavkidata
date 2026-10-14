@@ -70,7 +70,7 @@ export default function CancelledPage() {
           </div>
 
           <p className="text-sm text-muted-foreground pt-4">
-            Ако имате прашања, слободно контактирајте не.
+            Ако имате прашања, слободно контактирајте нè.
           </p>
         </CardContent>
       </Card>

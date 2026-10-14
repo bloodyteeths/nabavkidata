@@ -24,9 +24,9 @@ export default function Navbar() {
     }, []);
 
     const menuItems = [
-        { href: "#features", label: "Можности" },
-        { href: "#comparison", label: "Предности" },
-        { href: "#pricing", label: "Цени" },
+        { href: "/#how-it-works", label: "Како работи" },
+        { href: "/#pricing", label: "Цени" },
+        { href: "/tenders", label: "Тендери" },
         { href: "/contact", label: "Контакт" },
     ];
 
@@ -50,7 +50,7 @@ export default function Navbar() {
                 </Link>
 
                 {/* Desktop Menu */}
-                <div className="hidden md:flex items-center gap-8">
+                <div className="hidden lg:flex items-center gap-6 xl:gap-8">
                     {menuItems.map((item) => (
                         <Link
                             key={item.href}
@@ -63,17 +63,7 @@ export default function Navbar() {
                 </div>
 
                 {/* Desktop Auth Buttons + Language Switch */}
-                <div className="hidden md:flex items-center gap-4">
-                    {/* Language Switch */}
-                    <Link
-                        href="/sr"
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors"
-                        title="Srpski"
-                        aria-label="Префрли на српски јазик"
-                    >
-                        <Globe className="w-4 h-4" />
-                        <span>SR</span>
-                    </Link>
+                <div className="hidden lg:flex items-center gap-3 xl:gap-4">
                     {/* Country Switch */}
                     <div className="relative" ref={countryRef}>
                         <button
@@ -81,7 +71,7 @@ export default function Navbar() {
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors"
                             aria-label="Промени земја"
                         >
-                            <span>🇲🇰</span>
+                            <Globe className="w-4 h-4" />
                             <span>MK</span>
                             <svg className={`w-3 h-3 transition-transform ${countryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </button>
@@ -91,14 +81,12 @@ export default function Navbar() {
                                     onClick={() => setCountryOpen(false)}
                                     className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground bg-foreground/5 font-medium"
                                 >
-                                    <span>🇲🇰</span>
                                     <span>MK</span>
                                 </button>
                                 <a
                                     href="https://uk.nabavkidata.com"
                                     className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
                                 >
-                                    <span>🇬🇧</span>
                                     <span>UK</span>
                                 </a>
                             </div>
@@ -110,25 +98,25 @@ export default function Navbar() {
                             Најава
                         </Button>
                     </Link>
-                    <Link href="/auth/register">
-                        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(124,58,237,0.5)]" aria-label="Започни бесплатна регистрација">
-                            Започни Бесплатно
+                    <Link href="/usluga">
+                        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(124,58,237,0.5)]">
+                            Бесплатна проценка
                         </Button>
                     </Link>
                 </div>
 
                 {/* Mobile Actions */}
-                <div className="md:hidden flex items-center gap-3">
-                    <Link href="/auth/register">
-                        <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_10px_rgba(124,58,237,0.3)] px-4" aria-label="Започни регистрација">
-                            Започни
+                <div className="lg:hidden flex items-center gap-3">
+                    <Link href="/usluga">
+                        <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_10px_rgba(124,58,237,0.3)] px-4" aria-label="Бесплатна проценка">
+                            Проценка
                         </Button>
                     </Link>
                     <ThemeToggle className="text-muted-foreground hover:text-foreground" />
                     <button
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                         className="p-2 text-foreground hover:bg-foreground/10 rounded-lg transition-colors"
-                        aria-label="Toggle menu"
+                        aria-label={mobileMenuOpen ? "Затвори мени" : "Отвори мени"}
                     >
                         {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                     </button>
@@ -143,7 +131,7 @@ export default function Navbar() {
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed top-[72px] right-0 bottom-0 w-full sm:w-80 bg-background/95 backdrop-blur-xl border-l border-border z-40 md:hidden"
+                        className="fixed top-[72px] right-0 bottom-0 w-full sm:w-80 bg-background/95 backdrop-blur-xl border-l border-border z-40 lg:hidden"
                     >
                         <div className="flex flex-col h-full p-6">
                             {/* Menu Items */}
@@ -164,21 +152,6 @@ export default function Navbar() {
                                         </Link>
                                     </motion.div>
                                 ))}
-                                {/* Mobile Language Switch */}
-                                <motion.div
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.3 }}
-                                >
-                                    <Link
-                                        href="/sr"
-                                        onClick={() => setMobileMenuOpen(false)}
-                                        className="flex items-center gap-2 px-4 py-3 text-lg font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-lg transition-colors"
-                                    >
-                                        <Globe className="w-5 h-5" />
-                                        <span>Srpski (SR)</span>
-                                    </Link>
-                                </motion.div>
                                 {/* Mobile Country Switch */}
                                 <motion.div
                                     initial={{ opacity: 0, x: 20 }}
@@ -189,13 +162,13 @@ export default function Navbar() {
                                         <p className="text-xs uppercase tracking-wider text-muted-foreground/60 mb-2">Земја</p>
                                         <div className="flex gap-2">
                                             <span className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground bg-foreground/5 rounded-lg">
-                                                <span>🇲🇰</span> MK
+                                                MK
                                             </span>
                                             <a
                                                 href="https://uk.nabavkidata.com"
                                                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-lg transition-colors"
                                             >
-                                                <span>🇬🇧</span> UK
+                                                UK
                                             </a>
                                         </div>
                                     </div>
@@ -209,9 +182,9 @@ export default function Navbar() {
                                         Најава
                                     </Button>
                                 </Link>
-                                <Link href="/auth/register" onClick={() => setMobileMenuOpen(false)}>
-                                    <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(124,58,237,0.5)]" aria-label="Започни бесплатна регистрација">
-                                        Започни Бесплатно
+                                <Link href="/usluga" onClick={() => setMobileMenuOpen(false)}>
+                                    <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(124,58,237,0.5)]">
+                                        Бесплатна проценка
                                     </Button>
                                 </Link>
                             </div>

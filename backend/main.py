@@ -16,7 +16,7 @@ from database import init_db, close_db, get_db
 from db_pool import get_asyncpg_pool, close_asyncpg_pool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals, whistleblower, clawd_monitor, chat_sessions, chat_v2, seo
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals, whistleblower, clawd_monitor, chat_sessions, chat_v2, seo, tenders_kg, alerts_kg, bid_service
 try:
     from api import pipeline
 except ImportError:
@@ -160,6 +160,13 @@ app.include_router(chat_v2.router, prefix="/api")  # AI agent chat (SSE streamin
 if pipeline:
     app.include_router(pipeline.router, prefix="/api")  # Bid pipeline tracking
 app.include_router(seo.router, prefix="/api")  # SEO metadata endpoints (public, lightweight)
+app.include_router(bid_service.router, prefix="/api")  # Done-for-you bid-writing service (Oct 2026)
+
+# ============================================================================
+# NabavkiData-KG (Kyrgyzstan) — Phase 2 (Aug 14 2026)
+# ============================================================================
+app.include_router(tenders_kg.router, prefix="/api")  # KG tenders read API (kg.tenders schema)
+app.include_router(alerts_kg.router, prefix="/api")   # KG alerts + latin_to_russian utility
 
 
 # Root endpoints

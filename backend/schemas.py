@@ -360,6 +360,8 @@ class UserResponse(BaseModel):
     full_name: Optional[str]
     role: Optional[str] = "user"
     subscription_tier: str
+    account_type: Optional[str] = "free"  # free | prospect | managed_client
+    company_name: Optional[str] = None
     email_verified: bool
     created_at: datetime
 

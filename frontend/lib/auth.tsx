@@ -13,6 +13,8 @@ export interface User {
   full_name?: string;
   email_verified: boolean;
   subscription_tier: string;
+  account_type?: 'free' | 'prospect' | 'managed_client';
+  company_name?: string | null;
   role?: string;
   created_at: string;
 }

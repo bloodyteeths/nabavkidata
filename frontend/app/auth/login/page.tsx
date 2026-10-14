@@ -18,15 +18,16 @@ const GoogleIcon = () => (
   </svg>
 );
 
+/** Same-origin relative paths only; anything else falls back to the dashboard. */
+function safeRedirect(value: string | null): string {
+  if (value && value.startsWith('/') && !value.startsWith('//')) return value;
+  return '/dashboard';
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
-
-  // Get plan params from URL (from pricing page redirect)
-  const plan = searchParams.get('plan');
-  const interval = searchParams.get('interval');
-  const currency = searchParams.get('currency');
 
   const [formData, setFormData] = useState({
     email: '',
@@ -76,14 +77,8 @@ export default function LoginPage() {
 
     try {
       await login(formData.email, formData.password);
-      // If user selected a plan, redirect to billing checkout
-      if (plan) {
-        router.push(`/billing?checkout=true&plan=${plan}&interval=${interval || 'monthly'}&currency=${currency || 'mkd'}`);
-      } else {
-        // Redirect to the original page or dashboard
-        const redirectUrl = searchParams.get('redirect') || '/chat';
-        router.push(redirectUrl);
-      }
+      // Redirect to the original page or dashboard (no plans/checkout any more)
+      router.push(safeRedirect(searchParams.get('redirect')));
     } catch (error: any) {
       setErrors({ general: error.message || 'Погрешна е-пошта или лозинка' });
     } finally {
@@ -94,15 +89,10 @@ export default function LoginPage() {
   const handleGoogleLogin = () => {
     setGoogleLoading(true);
     setErrors({});
-    // Store the redirect URL or plan params for after OAuth callback
-    if (plan) {
-      // Store plan info for checkout after OAuth
-      localStorage.setItem('auth_redirect', `/billing?checkout=true&plan=${plan}&interval=${interval || 'monthly'}&currency=${currency || 'mkd'}`);
-    } else {
-      const redirectUrl = searchParams.get('redirect');
-      if (redirectUrl) {
-        localStorage.setItem('auth_redirect', redirectUrl);
-      }
+    // Store the redirect URL for after the OAuth callback
+    const redirectUrl = searchParams.get('redirect');
+    if (redirectUrl) {
+      localStorage.setItem('auth_redirect', safeRedirect(redirectUrl));
     }
     // Redirect to backend Google OAuth endpoint
     const apiUrl = window.location.hostname === 'localhost'
@@ -133,10 +123,10 @@ export default function LoginPage() {
                 <div className="mt-2 text-sm">
                   Немате профил?{' '}
                   <Link
-                    href={plan ? `/auth/register?plan=${plan}&interval=${interval || 'monthly'}&currency=${currency || 'mkd'}` : '/auth/register'}
+                    href="/usluga?src=login"
                     className="font-medium underline hover:text-destructive/80"
                   >
-                    Регистрирајте се бесплатно
+                    Побарајте бесплатна проценка
                   </Link>
                 </div>
               </div>
@@ -231,10 +221,10 @@ export default function LoginPage() {
           <p className="text-sm text-muted-foreground">
             Немате профил?{' '}
             <Link
-              href={plan ? `/auth/register?plan=${plan}&interval=${interval || 'monthly'}&currency=${currency || 'mkd'}` : '/auth/register'}
+              href="/usluga?src=login"
               className="text-primary hover:underline font-medium"
             >
-              Регистрирајте се
+              Побарајте бесплатна проценка
             </Link>
           </p>
         </CardFooter>

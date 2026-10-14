@@ -1,27 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Building2, Mail, Phone, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, Phone, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
 export default function ContactPage() {
-  const searchParams = useSearchParams();
-  const plan = searchParams.get('plan');
-  const isEnterprise = plan === 'enterprise';
-
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     company: '',
     phone: '',
-    message: isEnterprise
-      ? 'Заинтересирани сме за Enterprise планот. Ве молиме контактирајте не за повеќе информации.'
-      : ''
+    message: ''
   });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -39,13 +32,13 @@ export default function ContactPage() {
         company: formData.company || null,
         phone: formData.phone || null,
         message: formData.message,
-        plan: isEnterprise ? 'enterprise' : null
+        plan: null
       });
 
       setSubmitted(true);
     } catch (err) {
       console.error('Contact form error:', err);
-      setError('Грешка при испраќање. Ве молиме обидете се повторно или контактирајте не директно на support@nabavkidata.com');
+      setError('Грешка при испраќање. Ве молиме обидете се повторно или контактирајте нè директно на hello@nabavkidata.com');
     } finally {
       setLoading(false);
     }
@@ -73,19 +66,12 @@ export default function ContactPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          {isEnterprise && (
-            <div className="inline-flex items-center gap-2 bg-primary/20 text-primary px-4 py-2 rounded-full mb-6">
-              <Building2 className="w-4 h-4" />
-              <span className="text-sm font-medium">Enterprise Plan</span>
-            </div>
-          )}
           <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            {isEnterprise ? 'Enterprise решение' : 'Контактирајте не'}
+            Контактирајте нè
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            {isEnterprise
-              ? 'Добијте прилагодено решение за вашата организација со неограничен пристап, API интеграција и посветен менаџер.'
-              : 'Имате прашање? Пополнете го формуларот и ќе ви одговориме наскоро.'}
+            Имате прашање? Пополнете го формуларот и ќе ви одговориме наскоро. Ако сакате ние да ја
+            подготвиме вашата понуда, <Link href="/usluga?src=contact" className="text-primary underline underline-offset-4">побарајте бесплатна проценка</Link>.
           </p>
         </div>
 
@@ -95,32 +81,19 @@ export default function ContactPage() {
             <div className="bg-foreground/5 border border-border rounded-xl p-6">
               <Mail className="w-6 h-6 text-primary mb-3" />
               <h3 className="text-foreground font-semibold mb-1">Email</h3>
-              <a href="mailto:support@nabavkidata.com" className="text-muted-foreground hover:text-primary transition-colors">
-                support@nabavkidata.com
+              <a href="mailto:hello@nabavkidata.com" className="text-muted-foreground hover:text-primary transition-colors">
+                hello@nabavkidata.com
               </a>
             </div>
 
             <div className="bg-foreground/5 border border-border rounded-xl p-6">
               <Phone className="w-6 h-6 text-primary mb-3" />
               <h3 className="text-foreground font-semibold mb-1">Телефон</h3>
-              <a href="tel:+38976355089" className="text-muted-foreground hover:text-primary transition-colors">
-                +389 76 355 089
+              <a href="tel:+38970253467" className="text-muted-foreground hover:text-primary transition-colors">
+                +389 70 253 467
               </a>
             </div>
 
-            {isEnterprise && (
-              <div className="bg-primary/10 border border-primary/30 rounded-xl p-6">
-                <h3 className="text-foreground font-semibold mb-3">Enterprise вклучува:</h3>
-                <ul className="space-y-2 text-muted-foreground text-sm">
-                  <li>• 1000 AI прашања дневно</li>
-                  <li>• API пристап</li>
-                  <li>• До 10 членови на тим</li>
-                  <li>• Посветен менаџер</li>
-                  <li>• SLA гаранција</li>
-                  <li>• Приоритетна поддршка</li>
-                </ul>
-              </div>
-            )}
           </div>
 
           {/* Contact Form */}

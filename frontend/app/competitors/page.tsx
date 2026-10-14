@@ -181,7 +181,7 @@ export default function CompetitorsPage() {
     } catch (err: any) {
       console.error("Failed to load competitor analysis:", err);
       if (err.message?.includes("403") || err.message?.includes("Starter")) {
-        setError("Оваа функција бара Starter план или повисок.");
+        setError("Анализата на конкуренти ја правиме ние за нашите клиенти. Побарајте бесплатна проценка.");
       } else {
         setError("Анализата на конкуренти не е достапна.");
       }
@@ -382,9 +382,9 @@ export default function CompetitorsPage() {
               <Lock className="h-8 w-8 text-muted-foreground" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">Премиум функција</h2>
+              <h2 className="text-xl font-semibold">Ова го правиме ние за вас</h2>
               <p className="text-muted-foreground mt-1 max-w-md">
-                Анализата на конкуренти е достапна за корисници со Starter план или повисок.
+                Анализата на конкуренти ја правиме ние за нашите клиенти, како дел од подготовката на понуда.
                 {!isLoggedIn && " Најавете се за да продолжите."}
               </p>
             </div>
@@ -394,13 +394,13 @@ export default function CompetitorsPage() {
                   <Link href="/auth/login">
                     <Button>Најава</Button>
                   </Link>
-                  <Link href="/auth/register">
-                    <Button variant="outline">Регистрација</Button>
+                  <Link href="/usluga?src=competitors">
+                    <Button variant="outline">Бесплатна проценка</Button>
                   </Link>
                 </>
               ) : (
-                <Link href="/settings">
-                  <Button>Надоградете план</Button>
+                <Link href="/usluga?src=competitors">
+                  <Button>Побарајте бесплатна проценка</Button>
                 </Link>
               )}
             </div>

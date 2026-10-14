@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Backgrou
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from jose import JWTError, jwt
@@ -159,8 +159,8 @@ def create_verification_token() -> str:
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
-    """Get user by email"""
-    result = await db.execute(select(User).where(User.email == email))
+    """Get user by email (case-insensitive: /usluga stores lowercased addresses)"""
+    result = await db.execute(select(User).where(func.lower(User.email) == (email or "").strip().lower()).limit(1))
     return result.scalar_one_or_none()
 
 
@@ -564,7 +564,7 @@ async def login(
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This account was created using Google Sign-In. Please use the 'Sign in with Google' button to log in.",
+            detail="Оваа сметка сè уште нема лозинка. Најавете се со Google или поставете лозинка преку „Заборавена лозинка“ (линкот го испративме и на вашата е-пошта).",
         )
 
     if not user or not verify_password(form_data.password, user.password_hash):
@@ -1086,7 +1086,7 @@ async def google_callback(
             )
 
         # Check if user exists
-        result = await db.execute(select(User).where(User.email == email))
+        result = await db.execute(select(User).where(func.lower(User.email) == email.strip().lower()).limit(1))
         user = result.scalar_one_or_none()
         is_new_user = user is None
 
@@ -1106,11 +1106,14 @@ async def google_callback(
             import uuid
             user = User(
                 user_id=uuid.uuid4(),
-                email=email,
+                email=email.strip().lower(),
                 password_hash="",  # No password for OAuth users
                 full_name=full_name,
                 email_verified=True,  # Google emails are verified
                 subscription_tier="free",
+                # Oct 2026 bid-service model: no new self-serve 'free' accounts —
+                # a new identity enters the funnel as a prospect (playbook §4.3).
+                account_type="prospect",
                 role="user",
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
@@ -1121,6 +1124,22 @@ async def google_callback(
 
             # Log audit
             await log_audit(db, str(user.user_id), "google_registration", {"email": email}, None)
+
+            # Capture as a bid-service lead so it shows up in /admin/leads.
+            try:
+                from sqlalchemy import text as _text
+                await db.execute(
+                    _text(
+                        "INSERT INTO bid_service_leads (email, company_name, lead_person, source, user_id) "
+                        "VALUES (:email, :company, :person, 'google', :uid)"
+                    ),
+                    {"email": user.email, "company": full_name or user.email,
+                     "person": full_name, "uid": str(user.user_id)},
+                )
+                await db.commit()
+            except Exception as lead_err:
+                await db.rollback()
+                logger.warning(f"google signup lead capture failed: {lead_err}")
 
         # Create JWT tokens
         jwt_access_token = create_access_token(data={"sub": str(user.user_id)})

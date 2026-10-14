@@ -51,7 +51,7 @@ function MacedonianContent() {
           Добредојдовте на nabavkidata.com ("Платформата", "ние", "нас" или "нашите"). Ние ја цениме вашата приватност и сме посветени на заштитата на вашите лични податоци. Оваа политика за приватност ќе ве информира како собираме, користиме, чуваме и заштитуваме ваши лични податоци кога ја посетувате нашата веб-страница и ги користите нашите услуги.
         </p>
         <p className="text-muted-foreground">
-          nabavkidata.com е платформа за податоци за јавни набавки која автоматски собира и обработува информации од порталот e-nabavki.gov.mk, користи вештачка интелигенција за анализа и резимеа, и нуди услуги на претплата за пристап до напредни функции.
+          nabavkidata.com е платформа за податоци за јавни набавки која автоматски собира и обработува информации од порталот e-nabavki.gov.mk, користи вештачка интелигенција за анализа и резимеа, нуди бесплатно следење на тендери и бесплатна проценка, како и услуга за подготовка на тендерски понуди. Платформата и услугата ги обезбедува Фактурино ДООЕЛ Велес.
         </p>
       </section>
 
@@ -90,10 +90,9 @@ function MacedonianContent() {
 
         <h3 className="text-xl font-semibold mb-3 mt-6">2.4 Финансиски податоци</h3>
         <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
-          <li>Информации за плаќање (обработени од Stripe)</li>
-          <li>Историја на претплати и трансакции</li>
-          <li>Тип на претплата и план</li>
-          <li>Историја на фактурирање</li>
+          <li>Податоци за фактурирање на услугата за подготовка на понуди (назив на фирма, ЕДБ, адреса)</li>
+          <li>Историја на издадени фактури и уплати по банкарски трансфер</li>
+          <li>Не собираме и не чуваме податоци за платежни картички</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">2.5 Колачиња и слични технологии</h3>
@@ -120,16 +119,16 @@ function MacedonianContent() {
 
         <h3 className="text-xl font-semibold mb-3 mt-6">3.2 Ограничување на употреба и контрола</h3>
         <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
-          <li>Следење на вашата употреба на AI услуги за имплементација на лимити на планови</li>
+          <li>Следење на употребата на AI услуги заради технички ограничувања</li>
           <li>Спречување на злоупотреба и прекумерна употреба</li>
-          <li>Управување со пристапни права според вашиот тип на претплата</li>
+          <li>Управување со пристапни права според типот на вашиот профил</li>
         </ul>
 
-        <h3 className="text-xl font-semibold mb-3 mt-6">3.3 Обработка на плаќања</h3>
+        <h3 className="text-xl font-semibold mb-3 mt-6">3.3 Подготовка на понуди и фактурирање</h3>
         <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
-          <li>Обработка на претплати преку Stripe</li>
-          <li>Управување со фактурирање и обновување</li>
-          <li>Справување со спорови и рефундации</li>
+          <li>Подготовка на тендерски понуди врз основа на документите што ни ги доставувате, кои ги користиме само за таа намена</li>
+          <li>Издавање фактури и евиденција на уплати по банкарски трансфер</li>
+          <li>Чување на сметководствена евиденција според закон</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">3.4 Подобрување на услугите</h3>
@@ -145,7 +144,7 @@ function MacedonianContent() {
           <li>Испраќање на известувања за услугите</li>
           <li>Информирање за промени во услови или политики</li>
           <li>Одговарање на вашите барања и поддршка</li>
-          <li>Испраќање на ажурирања за претплата и фактурирање</li>
+          <li>Испраќање на информации за договорени понуди и фактури</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">3.6 Правна усогласеност</h3>
@@ -172,13 +171,6 @@ function MacedonianContent() {
             <li>Политика: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Privacy Policy</a></li>
           </ul>
 
-          <p className="text-muted-foreground mb-2"><strong>Stripe</strong></p>
-          <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4 ml-4">
-            <li>Цел: Обработка на плаќања и управување со претплати</li>
-            <li>Податоци споделени: Е-пошта, информации за плаќање, детали за трансакции</li>
-            <li>Локација: Податоците може да се обработуваат глобално</li>
-            <li>Политика: <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Stripe Privacy Policy</a></li>
-          </ul>
         </div>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">4.2 Јавни извори</h3>
@@ -224,7 +216,7 @@ function MacedonianContent() {
 
         <h3 className="text-xl font-semibold mb-3 mt-6">5.3 Меѓународен трансфер</h3>
         <p className="text-muted-foreground mb-4">
-          Вашите податоци може да се пренесуваат и обработуваат во земји надвор од Република Македонија, вклучувајќи ги Соединетите Американски Држави (за Google Gemini и Stripe услуги). Обезбедуваме соодветни гаранции за заштита на вашите податоци во согласност со применливите закони за заштита на податоци.
+          Вашите податоци може да се пренесуваат и обработуваат во земји надвор од Република Македонија, вклучувајќи ги Соединетите Американски Држави (за Google Gemini услуги). Обезбедуваме соодветни гаранции за заштита на вашите податоци во согласност со применливите закони за заштита на податоци.
         </p>
       </section>
 
@@ -299,7 +291,7 @@ function MacedonianContent() {
         </p>
 
         <p className="text-muted-foreground mt-6">
-          За да ги остварите било кое од овие права, ве молиме контактирајте не на privacy@nabavkidata.com. Ние ќе одговориме на вашето барање во рок од 30 дена.
+          За да ги остварите било кое од овие права, ве молиме контактирајте нè на privacy@nabavkidata.com. Ние ќе одговориме на вашето барање во рок од 30 дена.
         </p>
       </section>
 
@@ -328,13 +320,13 @@ function MacedonianContent() {
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-4">10. Контакт и прашања</h2>
         <p className="text-muted-foreground mb-4">
-          Ако имате прашања, грижи или барања во врска со оваа политика за приватност или како ги обработуваме вашите лични податоци, ве молиме контактирајте не на:
+          Ако имате прашања, грижи или барања во врска со оваа политика за приватност или како ги обработуваме вашите лични податоци, ве молиме контактирајте нè на:
         </p>
         <div className="bg-secondary/50 p-6 rounded-lg mb-4">
           <p className="text-foreground mb-2"><strong>Компанија:</strong></p>
-          <p className="mb-4">Tamsar, Inc.</p>
+          <p className="mb-4">Фактурино ДООЕЛ Велес (ЕДБ 4004026525934, ЕМБС 7922400)</p>
           <p className="text-foreground mb-2"><strong>Адреса:</strong></p>
-          <p className="mb-4">131 Continental Dr Ste 305, New Castle, DE 19713</p>
+          <p className="mb-4">ул. Сараевска 37, 1400 Велес, Република Северна Македонија</p>
           <p className="text-foreground mb-2"><strong>E-пошта:</strong></p>
           <p className="mb-4">
             <a href="mailto:privacy@nabavkidata.com" className="text-primary hover:underline">
@@ -356,7 +348,7 @@ function MacedonianContent() {
       <section className="mb-8">
         <div className="bg-primary/10 border-l-4 border-primary p-6 rounded">
           <p className="text-sm text-muted-foreground">
-            <strong>Последна ажурирање:</strong> Ноември 2025
+            <strong>Последна ажурирање:</strong> 14.10.2026
           </p>
           <p className="text-sm text-muted-foreground mt-2">
             <strong>Верзија:</strong> 1.0
@@ -376,7 +368,7 @@ function EnglishContent() {
           Welcome to nabavkidata.com (the "Platform", "we", "us", or "our"). We value your privacy and are committed to protecting your personal data. This privacy policy will inform you about how we collect, use, store, and protect your personal information when you visit our website and use our services.
         </p>
         <p className="text-muted-foreground">
-          nabavkidata.com is a public procurement data platform that automatically collects and processes information from the e-nabavki.gov.mk portal, uses artificial intelligence for analysis and summaries, and offers subscription-based services for access to advanced features.
+          nabavkidata.com is a public procurement data platform that automatically collects and processes information from the e-nabavki.gov.mk portal, uses artificial intelligence for analysis and summaries, offers free tender monitoring and a free assessment, and provides a tender bid preparation service. The platform and service are provided by Fakturino DOOEL Veles.
         </p>
       </section>
 
@@ -415,10 +407,9 @@ function EnglishContent() {
 
         <h3 className="text-xl font-semibold mb-3 mt-6">2.4 Financial Data</h3>
         <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
-          <li>Payment information (processed by Stripe)</li>
-          <li>Subscription and transaction history</li>
-          <li>Subscription type and plan</li>
-          <li>Billing history</li>
+          <li>Invoicing details for the bid preparation service (company name, tax number, address)</li>
+          <li>History of issued invoices and bank-transfer payments</li>
+          <li>We do not collect or store payment card data</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">2.5 Cookies and Similar Technologies</h3>
@@ -445,16 +436,16 @@ function EnglishContent() {
 
         <h3 className="text-xl font-semibold mb-3 mt-6">3.2 Rate Limiting and Control</h3>
         <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
-          <li>Tracking your usage of AI services to implement plan limits</li>
+          <li>Tracking usage of AI services for technical limits</li>
           <li>Preventing abuse and excessive usage</li>
-          <li>Managing access rights based on your subscription tier</li>
+          <li>Managing access rights based on your account type</li>
         </ul>
 
-        <h3 className="text-xl font-semibold mb-3 mt-6">3.3 Payment Processing</h3>
+        <h3 className="text-xl font-semibold mb-3 mt-6">3.3 Bid Preparation and Invoicing</h3>
         <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
-          <li>Processing subscriptions through Stripe</li>
-          <li>Managing billing and renewals</li>
-          <li>Handling disputes and refunds</li>
+          <li>Preparing tender bids from the documents you supply, used for that purpose only</li>
+          <li>Issuing invoices and recording bank-transfer payments</li>
+          <li>Keeping accounting records as required by law</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">3.4 Service Improvement</h3>
@@ -470,7 +461,7 @@ function EnglishContent() {
           <li>Sending service notifications</li>
           <li>Informing about changes to terms or policies</li>
           <li>Responding to your requests and support inquiries</li>
-          <li>Sending subscription and billing updates</li>
+          <li>Sending information about agreed bids and invoices</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">3.6 Legal Compliance</h3>
@@ -497,13 +488,6 @@ function EnglishContent() {
             <li>Policy: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Privacy Policy</a></li>
           </ul>
 
-          <p className="text-muted-foreground mb-2"><strong>Stripe</strong></p>
-          <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4 ml-4">
-            <li>Purpose: Payment processing and subscription management</li>
-            <li>Data shared: Email, payment information, transaction details</li>
-            <li>Location: Data may be processed globally</li>
-            <li>Policy: <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Stripe Privacy Policy</a></li>
-          </ul>
         </div>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">4.2 Public Sources</h3>
@@ -549,7 +533,7 @@ function EnglishContent() {
 
         <h3 className="text-xl font-semibold mb-3 mt-6">5.3 International Transfer</h3>
         <p className="text-muted-foreground mb-4">
-          Your data may be transferred to and processed in countries outside the Republic of North Macedonia, including the United States (for Google Gemini and Stripe services). We ensure appropriate safeguards are in place to protect your data in accordance with applicable data protection laws.
+          Your data may be transferred to and processed in countries outside the Republic of North Macedonia, including the United States (for Google Gemini services). We ensure appropriate safeguards are in place to protect your data in accordance with applicable data protection laws.
         </p>
       </section>
 
@@ -657,9 +641,9 @@ function EnglishContent() {
         </p>
         <div className="bg-secondary/50 p-6 rounded-lg mb-4">
           <p className="text-foreground mb-2"><strong>Company:</strong></p>
-          <p className="mb-4">Tamsar, Inc.</p>
+          <p className="mb-4">Fakturino DOOEL Veles (EDB 4004026525934, EMBS 7922400)</p>
           <p className="text-foreground mb-2"><strong>Address:</strong></p>
-          <p className="mb-4">131 Continental Dr Ste 305, New Castle, DE 19713</p>
+          <p className="mb-4">ul. Saraevska 37, 1400 Veles, Republic of North Macedonia</p>
           <p className="text-foreground mb-2"><strong>Email:</strong></p>
           <p className="mb-4">
             <a href="mailto:privacy@nabavkidata.com" className="text-primary hover:underline">
@@ -681,7 +665,7 @@ function EnglishContent() {
       <section className="mb-8">
         <div className="bg-primary/10 border-l-4 border-primary p-6 rounded">
           <p className="text-sm text-muted-foreground">
-            <strong>Last Updated:</strong> November 2025
+            <strong>Last Updated:</strong> 14 October 2026
           </p>
           <p className="text-sm text-muted-foreground mt-2">
             <strong>Version:</strong> 1.0

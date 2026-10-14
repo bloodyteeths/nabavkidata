@@ -4,10 +4,7 @@ import NavbarSr from "@/components/landing/sr/NavbarSr";
 import HeroSectionSr from "@/components/landing/sr/HeroSectionSr";
 import HowItWorksSectionSr from "@/components/landing/sr/HowItWorksSectionSr";
 import FeaturesSectionSr from "@/components/landing/sr/FeaturesSectionSr";
-import TrustSectionSr from "@/components/landing/sr/TrustSectionSr";
 import ComparisonSectionSr from "@/components/landing/sr/ComparisonSectionSr";
-import PricingSectionSr from "@/components/landing/sr/PricingSectionSr";
-import SocialProofNotificationsSr from "@/components/landing/sr/SocialProofNotificationsSr";
 
 const SocialProofSection = dynamic(() => import("@/components/landing/SocialProofSection"), {
     loading: () => <div className="min-h-[300px]" />
@@ -33,11 +30,8 @@ export default function LandingPageSr() {
             <SocialProofSection />
             <FeaturesSectionSr />
             <ComparisonSectionSr />
-            <TrustSectionSr />
-            <PricingSectionSr />
             <TestimonialsSection />
             <FAQSection />
-            <SocialProofNotificationsSr />
 
             {/* Footer */}
             <footer className="py-12 border-t border-border bg-background/20">

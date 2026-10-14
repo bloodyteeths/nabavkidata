@@ -201,6 +201,11 @@ def _build_alert_content(tender_id: str, title: str, procuring_entity: str, desc
 
         {esjn_link}
     </div>
+
+    <p style="margin: 14px 0 0 0; color: #374151; font-size: 14px; line-height: 1.6;">
+        Ви одговара, но немате време за документацијата?
+        <a href="{FRONTEND_URL}/tenders/{quote(tender_id or '', safe='')}?ponuda=1#ponuda" style="color: #2563eb; font-weight: 600;">Ние ќе ја напишеме понудата за вас</a>.
+    </p>
     """
 
 

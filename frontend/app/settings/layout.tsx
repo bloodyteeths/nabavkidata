@@ -2,7 +2,7 @@ import { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Поставки",
-  description: "Управувајте со вашите преференци, претплата и профил на Nabavkidata.com.",
+  description: "Управувајте со вашите преференци за следење тендери и со вашиот профил на nabavkidata.com.",
 };
 
 import DashboardLayout from "@/components/layout/DashboardLayout";

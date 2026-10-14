@@ -294,23 +294,23 @@ function ChatPage() {
                   <p className="text-xs md:text-sm font-medium text-orange-400">
                     {isBlocked
                       ? usageStatus?.is_trial_expired
-                        ? "Вашиот пробен период истече. Надоградете за да продолжите."
+                        ? "AI асистентот не е достапен за вашата сметка."
                         : "Вашата сметка е блокирана."
                       : "Го достигнавте дневниот лимит на пребарувања."
                     }
                   </p>
                   <p className="text-[10px] md:text-xs text-muted-foreground">
                     {isBlocked
-                      ? "Одберете платен план за неограничен пристап."
-                      : "Надоградете го вашиот план за повеќе дневни пребарувања."
+                      ? "Ние можеме да ја направиме анализата и да ја подготвиме понудата за вас."
+                      : "Ако сакате, ние ја правиме анализата и ја пишуваме понудата за вас."
                     }
                   </p>
                 </div>
               </div>
-              <Link href="/settings" className="w-full sm:w-auto">
+              <Link href="/usluga?src=chat_limit" className="w-full sm:w-auto">
                 <Button className="gap-2 w-full sm:w-auto h-8 md:h-10 text-xs md:text-sm">
                   <ArrowRight className="h-3 w-3 md:h-4 md:w-4" />
-                  Надогради сега
+                  Побарајте бесплатна проценка
                 </Button>
               </Link>
             </div>
@@ -392,15 +392,15 @@ function ChatPage() {
                 <Card className="max-w-md p-3 md:p-4 bg-primary/5 border-primary/20 w-full">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs md:text-sm font-medium">Тековен план: <span className="capitalize">{usageStatus.tier}</span></p>
+                      <p className="text-xs md:text-sm font-medium">AI асистент</p>
                       <p className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">
                         {usageStatus.daily_queries_limit === -1 ? 'Неограничени' : usageStatus.daily_queries_limit} пребарувања дневно
                       </p>
                     </div>
                     {usageStatus.tier === 'free' && (
-                      <Link href="/settings">
+                      <Link href="/usluga?src=chat">
                         <Button size="sm" variant="outline" className="h-7 md:h-9 text-xs">
-                          Надогради
+                          Бесплатна проценка
                         </Button>
                       </Link>
                     )}
@@ -478,11 +478,11 @@ function ChatPage() {
             disabled={isLoading || isLimitReached || isBlocked || isFreeTier}
             placeholder={
               isBlocked
-                ? "Надоградете го вашиот план за да продолжите..."
+                ? "AI асистентот не е достапен за вашата сметка"
                 : isLimitReached
-                  ? "Дневен лимит достигнат. Надоградете за повеќе..."
+                  ? "Дневниот лимит е достигнат. Обидете се повторно утре..."
                   : isFreeTier
-                    ? "Free план: надоградете за да поставувате AI прашања..."
+                    ? "AI асистентот е достапен за нашите клиенти..."
                     : "Постави прашање за тендерите..."
             }
           />
@@ -491,9 +491,9 @@ function ChatPage() {
           </p>
           {isFreeTier && (
             <div className="mt-2 md:mt-3 rounded-md border border-amber-200 bg-amber-100 p-2 md:p-3 text-xs md:text-sm flex items-center justify-between">
-              <span>Free план: надоградете за да користите AI чат.</span>
-              <Link href="/settings">
-                <Button size="sm" variant="outline" className="h-7 md:h-9 text-xs">Upgrade</Button>
+              <span>AI асистентот е достапен за нашите клиенти. Ние ја правиме анализата и ја пишуваме понудата за вас.</span>
+              <Link href="/usluga?src=chat">
+                <Button size="sm" variant="outline" className="h-7 md:h-9 text-xs">Бесплатна проценка</Button>
               </Link>
             </div>
           )}
