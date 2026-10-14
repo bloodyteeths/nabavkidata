@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { TERMINAL_STATUSES } from '@/lib/bid-service-types';
 import type { BidJobSummary } from '@/lib/bid-service-types';
 import JobCard from '@/components/bid-service/JobCard';
+import SuccessFeeAuthBanner from '@/components/bid-service/SuccessFeeAuthBanner';
 
 export default function PortalBidsPage() {
   const [jobs, setJobs] = useState<BidJobSummary[] | null>(null);
@@ -59,6 +60,8 @@ export default function PortalBidsPage() {
         <h1 className="text-2xl font-bold tracking-tight">Мои понуди</h1>
         <p className="text-sm text-muted-foreground">Сите понуди што ги подготвуваме за вас.</p>
       </div>
+
+      {active.length > 0 && <SuccessFeeAuthBanner />}
 
       {error ? (
         <p className="text-red-600 dark:text-red-400">{error}</p>

@@ -20,7 +20,7 @@ Features:
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
-from middleware.entitlements import require_module
+from middleware.entitlements import require_module, require_client_perks
 from middleware.rbac import require_admin
 from config.plans import ModuleName
 from datetime import datetime
@@ -1314,7 +1314,8 @@ def _build_feature_contributions(
 # ML PREDICTION ENDPOINTS
 # ============================================================================
 
-@router.post("/predict/{tender_id:path}", response_model=MLPredictionResponse)
+@router.post("/predict/{tender_id:path}", response_model=MLPredictionResponse,
+             dependencies=[Depends(require_client_perks)])
 async def predict_tender(
     tender_id: str,
     request: Optional[MLPredictionRequest] = None

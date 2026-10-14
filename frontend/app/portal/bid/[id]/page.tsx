@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Building2, CalendarDays, CheckCheck, Loader2, Send, XCircle } from 'lucide-react';
@@ -18,12 +18,14 @@ import {
 } from '@/components/ui/dialog';
 import { PageContainer } from '@/components/ui/page-container';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { cn, tenderUrl } from '@/lib/utils';
-import { ENABAVKI_SUBMIT_REMINDER, formatMkd } from '@/lib/bid-service-types';
+import { ENABAVKI_SUBMIT_REMINDER, TERMINAL_STATUSES, formatMkd } from '@/lib/bid-service-types';
 import type { BidAgreement, BidJobDetailResponse, BidJobStatus } from '@/lib/bid-service-types';
 import JobStatusBadge from '@/components/bid-service/JobStatusBadge';
 import DeadlineWarning, { formatDmy } from '@/components/bid-service/DeadlineWarning';
 import PaymentBox from '@/components/bid-service/PaymentBox';
+import SuccessFeeAuthBanner from '@/components/bid-service/SuccessFeeAuthBanner';
 import DeliverablesList from '@/components/bid-service/DeliverablesList';
 import MessageThread from '@/components/bid-service/MessageThread';
 import { AgreementTerms } from '@/components/bid-service/StartBidButton';
@@ -31,6 +33,18 @@ import { AgreementTerms } from '@/components/bid-service/StartBidButton';
 const REVIEW_STATUSES: BidJobStatus[] = ['ready', 'changes_requested', 'approved'];
 
 type Action = 'approve_all' | 'submit' | 'cancel' | 'terms';
+
+/** Result of the Stripe Checkout return leg (?paid=… / ?payment=cancelled). */
+type ReturnNotice =
+  | { kind: 'confirming' }
+  | { kind: 'paid' }
+  | { kind: 'cancelled' }
+  | { kind: 'problem'; text: string };
+
+function stripQuery() {
+  if (typeof window === 'undefined') return;
+  window.history.replaceState(window.history.state, '', window.location.pathname);
+}
 
 export default function PortalBidPage() {
   const params = useParams<{ id: string }>();
@@ -46,6 +60,9 @@ export default function PortalBidPage() {
   // Jobs opened by our team for the client still need the client's acceptance of the terms.
   const [agreement, setAgreement] = useState<BidAgreement | null>(null);
   const [termsTicked, setTermsTicked] = useState(false);
+  const { refreshUser } = useAuth();
+  const [notice, setNotice] = useState<ReturnNotice | null>(null);
+  const returnHandled = useRef(false);
 
   const load = useCallback(async () => {
     if (!jobId) return;
@@ -65,6 +82,55 @@ export default function PortalBidPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Return from Stripe Checkout: confirm the session server-side (idempotent;
+  // the webhook may already have recorded it), then reload job and profile.
+  useEffect(() => {
+    if (!jobId || returnHandled.current || typeof window === 'undefined') return;
+    const qs = new URLSearchParams(window.location.search);
+    const sid = qs.get('paid');
+    const cancelled = qs.get('payment') === 'cancelled';
+    if (!sid && !cancelled) return;
+    returnHandled.current = true;
+    if (cancelled) {
+      setNotice({ kind: 'cancelled' });
+      stripQuery();
+      return;
+    }
+    setNotice({ kind: 'confirming' });
+    (async () => {
+      try {
+        const res = await api.completeBidPrepPayment(jobId, sid as string);
+        if (res.paid) {
+          setNotice({ kind: 'paid' });
+        } else if (res.reason === 'amount_mismatch') {
+          setNotice({
+            kind: 'problem',
+            text: 'Уплатата не одговара на надоместот за оваа понуда. Ја проверуваме и ќе ви одговориме во пораките. Ако имате прашање, пишете ни подолу.',
+          });
+        } else {
+          setNotice({
+            kind: 'problem',
+            text: 'Уплатата сè уште не е потврдена. Ако сте платиле, пишете ни во пораките подолу и ќе ја провериме.',
+          });
+        }
+      } catch (e) {
+        const status = (e as { status?: number } | null)?.status;
+        setNotice({
+          kind: 'problem',
+          text:
+            status === 402
+              ? 'Уплатата не е завршена. Обидете се повторно или изберете плаќање со фактура.'
+              : (e instanceof Error && e.message ? e.message + ' ' : '') +
+                'Ако сте платиле, пишете ни во пораките подолу и ќе ја провериме уплатата.',
+        });
+      } finally {
+        stripQuery();
+        await refreshUser().catch(() => null);
+        await load();
+      }
+    })();
+  }, [jobId, load, refreshUser]);
 
   const run = async (action: Action, fn: () => Promise<unknown>) => {
     setBusy(action);
@@ -153,6 +219,28 @@ export default function PortalBidPage() {
         </div>
 
         <DeadlineWarning closingDate={closing} deadlineState={job.deadline_state} daysLeft={job.days_left} />
+
+        {notice && (
+          <p
+            className={cn(
+              'rounded-md border px-3 py-2 text-sm',
+              notice.kind === 'paid'
+                ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200'
+                : notice.kind === 'confirming'
+                ? 'border-border bg-muted text-foreground'
+                : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100'
+            )}
+          >
+            {notice.kind === 'confirming' && <Loader2 className="mr-1.5 inline h-4 w-4 animate-spin" />}
+            {notice.kind === 'confirming'
+              ? 'Ја потврдуваме уплатата…'
+              : notice.kind === 'paid'
+              ? 'Уплатата е евидентирана. Започнуваме со подготовка на понудата.'
+              : notice.kind === 'cancelled'
+              ? 'Плаќањето е откажано.'
+              : notice.text}
+          </p>
+        )}
 
         {actionError && (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
@@ -248,7 +336,15 @@ export default function PortalBidPage() {
             </Card>
           )}
 
-          <PaymentBox payment={payment} status={job.status} jobId={job.id} />
+          <PaymentBox
+            payment={payment}
+            status={job.status}
+            jobId={job.id}
+            onChanged={load}
+            termsAccepted={!agreement || agreement.accepted}
+          />
+
+          {!TERMINAL_STATUSES.includes(job.status) && <SuccessFeeAuthBanner />}
 
           {job.client_note && (
             <Card>

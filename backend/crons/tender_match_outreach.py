@@ -224,6 +224,12 @@ async def get_eligible_leads(conn, limit: int) -> List[dict]:
           AND NOT EXISTS (
               SELECT 1 FROM suppression_list sl WHERE sl.email = LOWER(ol.email)
           )
+          -- Registered users never get these free tender-match emails: alert
+          -- emails are a client perk (14.10.2026), and clients get them from
+          -- crons/instant_alerts.py.
+          AND NOT EXISTS (
+              SELECT 1 FROM users u WHERE LOWER(u.email) = LOWER(ol.email)
+          )
           AND NOT EXISTS (
               SELECT 1 FROM campaign_unsubscribes cu WHERE cu.email = LOWER(ol.email)
           )

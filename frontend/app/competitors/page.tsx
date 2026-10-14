@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { hasClientPerks } from "@/lib/portal";
 import { tenderUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -145,26 +147,31 @@ export default function CompetitorsPage() {
   const [comparisonCompetitors, setComparisonCompetitors] = useState<CompetitorStats[]>([]);
   const [comparisonLoading, setComparisonLoading] = useState(false);
 
+  const { user, isLoading: authLoading } = useAuth();
+
   useEffect(() => {
     setMounted(true);
-    checkAuthAndLoad();
   }, []);
 
-  async function checkAuthAndLoad() {
-    try {
-      const status = await api.getSubscriptionStatus();
-      setTier(status.tier || "free");
-      setIsLoggedIn(true);
+  useEffect(() => {
+    if (authLoading) return;
+    checkAuthAndLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.user_id, user?.account_type, user?.role]);
 
-      // Only load data if user has access
-      if (status.tier !== "free") {
-        load();
-        loadTrackedCompetitors();
-      }
-    } catch (err: any) {
-      // Not logged in
+  function checkAuthAndLoad() {
+    if (!user) {
       setIsLoggedIn(false);
       setTier(null);
+      return;
+    }
+    setIsLoggedIn(true);
+    // Competitor analytics are a perk for bid-service clients and admins, not a plan tier.
+    const access = hasClientPerks(user);
+    setTier(access ? "client" : "free");
+    if (access) {
+      load();
+      loadTrackedCompetitors();
     }
   }
 

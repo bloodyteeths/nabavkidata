@@ -59,6 +59,8 @@ import {
 } from "lucide-react";
 import { formatCurrency, tenderUrl } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { hasClientPerks } from "@/lib/portal";
 import Link from "next/link";
 import { useDebounce } from "@/hooks/use-debounce";
 import { TenderExplanation } from "@/components/explainability/TenderExplanation";
@@ -181,9 +183,11 @@ const PATTERN_LABELS: Record<string, string> = {
 };
 
 export default function RiskAnalysisPage() {
-  const [tier, setTier] = useState<string>("free");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
+  const { user, isLoading: authLoading } = useAuth();
+  const isLoggedIn = !!user;
+  const authChecked = !authLoading;
+  // Risk/collusion analytics are a perk for bid-service clients and admins, not a plan tier.
+  const hasAccess = hasClientPerks(user);
 
   const [mode, setMode] = useState<string>("flagged");
   const [riskyTenders, setRiskyTenders] = useState<RiskyTender[]>([]);
@@ -239,26 +243,9 @@ export default function RiskAnalysisPage() {
     alerts: "Автоматски известувања за нови ризични тендери и сомнителни активности",
   };
 
-  // Check subscription tier
-  useEffect(() => {
-    async function checkAuth() {
-      try {
-        const status = await api.getSubscriptionStatus();
-        setTier(status.tier || "free");
-        setIsLoggedIn(true);
-      } catch {
-        setTier("free");
-        setIsLoggedIn(false);
-      } finally {
-        setAuthChecked(true);
-      }
-    }
-    checkAuth();
-  }, []);
-
   // Load stats separately (cached)
   useEffect(() => {
-    if (!authChecked || !isLoggedIn || !["professional", "enterprise"].includes(tier)) return;
+    if (!authChecked || !isLoggedIn || !hasAccess) return;
     async function loadStats() {
       try {
         const token = localStorage.getItem('auth_token');
@@ -281,14 +268,16 @@ export default function RiskAnalysisPage() {
       }
     }
     loadStats();
-  }, [authChecked, isLoggedIn, tier]);
+  }, [authChecked, isLoggedIn, hasAccess]);
 
   // Load flagged tenders with pagination
   useEffect(() => {
+    // Client perk: non-clients see the gate, so do not fire a request that 403s.
+    if (!hasAccess) return;
     if (mode === "flagged") {
       loadFlaggedTenders();
     }
-  }, [mode, riskFilter, flagFilter, currentPage, debouncedSearch, debouncedWinner]);
+  }, [mode, riskFilter, flagFilter, currentPage, debouncedSearch, debouncedWinner, hasAccess]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -570,7 +559,7 @@ export default function RiskAnalysisPage() {
     );
   }
 
-  if (!isLoggedIn || !["professional", "enterprise"].includes(tier)) {
+  if (!isLoggedIn || !hasAccess) {
     return (
       <div className="p-6 space-y-6">
         <div>

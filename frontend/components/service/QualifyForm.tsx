@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { isPortalUser } from "@/lib/portal";
+import { tenderUrl } from "@/lib/utils";
 
 interface QualifyFormProps {
   /** tenders.tender_id when the request is about one tender */
@@ -22,13 +24,16 @@ interface QualifyFormProps {
 
 /**
  * The one front door of the bid-writing service.
- * Posts to /api/bid-service/qualify. The API never logs anyone in: a brand-new
- * email gets an unverified prospect account plus an emailed set-password link
- * (which verifies the address); an existing email is captured against that
- * account. Either way the visitor sees the confirmation in place.
+ * Posts to /api/bid-service/qualify. A brand-new email gets an unverified
+ * prospect account, is signed in on this device (the API returns tokens only
+ * for a new identity) and is sent to the tender's start dialog or the portal;
+ * the emailed set-password link verifies the address and enables other devices.
+ * An existing email is never signed in: the request is captured against that
+ * account and the visitor sees the confirmation in place.
  */
 export default function QualifyForm({ tenderId, source = "usluga", compact = false }: QualifyFormProps) {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, setTokens } = useAuth();
+  const router = useRouter();
   const [company, setCompany] = useState(user?.company_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [person, setPerson] = useState(user?.full_name || "");
@@ -63,6 +68,16 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
         tender_id: tenderId || null,
         source,
       });
+      if (res.auth) {
+        // Brand-new identity: sign in here and continue straight into the service.
+        await setTokens(res.auth.access_token, res.auth.refresh_token ?? "");
+        if (res.next === "tender" && res.tender_id) {
+          router.push(tenderUrl(res.tender_id) + "?ponuda=1&start=1");
+        } else {
+          router.push("/portal");
+        }
+        return;
+      }
       setDone(res.message);
       if (user) {
         // The API promotes a signed-in free account to prospect; reload the

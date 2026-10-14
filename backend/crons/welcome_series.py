@@ -786,6 +786,10 @@ async def initialize_new_users():
 
 async def main():
     """Main entry point"""
+    if os.getenv("ALLOW_RETIRED_SAAS_CAMPAIGNS") != "1":
+        # Bid service since 14 Oct 2026: these emails sell retired plans/trials.
+        print("retired: self-serve plans no longer sold")
+        return
     # First, initialize any new verified users
     await initialize_new_users()
 

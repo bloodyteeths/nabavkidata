@@ -3,9 +3,16 @@ Bid jobs, client portal and admin console — Phase 2 of the done-for-you bid
 service (Oct 2026). Ported from BidFinder (tenderuk/backend/api/bid_service.py)
 with the Macedonian adaptations:
 
-- payment by invoice (фактура): a job waits at payment_required until an admin
-  marks it paid (or the job/user is free), which promotes the user to
-  managed_client;
+- payment (Phase 2b, 14.10.2026): a client's begin puts the job at
+  payment_required; the client pays the prep fee by card (Stripe Checkout,
+  services/bid_payments.py — the card is saved for the success fee) or asks for
+  an invoice (фактура) that an admin issues and marks paid. Every route goes
+  through bid_payments.mark_job_paid, which promotes the user to managed_client.
+  Free jobs (free_drafting or a zero fee) go straight to preparing;
+- success fee: detected client wins (client_wins, crons/detect_client_wins.py)
+  are confirmed by an admin, which emails a 7-day notice and creates a DRAFT
+  Stripe invoice; publishing a bid requires the success fee to be authorised
+  (card mandate + current terms, or offline/written authorisation);
 - clients never upload tender documents (we scrape them); they upload only
   their own company documents to a reusable library (client_documents);
 - bid preparation is human: admins upload deliverables (bid_job_files) and
@@ -19,6 +26,7 @@ reminders, no prices in emails.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import pathlib
 import re
@@ -39,9 +47,10 @@ from pydantic import BaseModel, Field
 from api.auth import get_current_user
 from db_pool import get_asyncpg_pool
 from middleware.rbac import require_admin
-from services import bid_notifications
+from services import bid_notifications, bid_payments, client_wins
 
 router = APIRouter(prefix="/bid-service", tags=["Bid jobs"])
+logger = logging.getLogger(__name__)
 
 ADMIN_EMAIL = "atillatkulu@gmail.com"
 SITE = "https://nabavkidata.com"
@@ -75,9 +84,9 @@ MAX_BEGINS_PER_DAY_DEFAULT = 20
 MAX_REOPENS = 3
 REOPEN_COOLDOWN_MINUTES = 10
 
-# Version of the service terms (prep fee by invoice + success fee on a win) a
-# client accepts before the first bid. Bump it when /terms changes materially.
-AGREEMENT_VERSION = "2026-10"
+# Version of the service terms (prep fee by card or invoice + success fee on a
+# win) a client accepts before the first bid. Lives in bid_payments (no cycle).
+AGREEMENT_VERSION = bid_payments.AGREEMENT_VERSION
 ERR_TERMS_REQUIRED = "terms_required"
 
 ERR_JOB_NOT_FOUND = "Понудата не е пронајдена."
@@ -91,12 +100,30 @@ ERR_ADMIN_CANCELLED = ("Ова барање го откажавме ние. Пи
 ERR_TOO_MANY_REOPENS = "Барањето е повторно отворено премногу пати. Пишете ни во порталот."
 ERR_REOPEN_COOLDOWN = "Барањето е штотуку откажано. Обидете се повторно за неколку минути."
 ERR_TOO_MANY_BEGINS = "Денес започнавте премногу барања. Обидете се утре или пишете ни."
+ERR_PAYMENT_START = "Плаќањето не може да започне. Обидете се повторно."
+ERR_PAYMENT_INCOMPLETE = "Уплатата не е завршена."
+ERR_SESSION_MISMATCH = "Уплатата не припаѓа на оваа понуда."
+ERR_SUCCESS_FEE_NOT_AUTHORISED = "Надоместот за успех не е овластен."
+ERR_NO_CARD_FOR_INVOICE = "Нема картичка: издадете фактура и означете ја како фактурирана."
+ERR_PCT_MISSING = ("Процентот за надоместот за успех не е поставен. Внесете го надоместот "
+                   "директно.")
+ERR_ESTIMATED_VALUE = ("Вредноста е проценета (не е од понудата или договорот). Внесете ја "
+                       "вистинската вредност за првата година или надоместот.")
+ERR_INVOICE_ISSUED = ("За оваа понуда е издадена фактура. Платете ја по фактурата; плаќање со "
+                      "картичка не е можно.")
+ERR_ALREADY_PAID_CARD = ("Понудата е веќе платена со картичка. Ако пристигна и уплата по "
+                         "фактурата, потребно е враќање на средствата.")
+MSG_NOTICE_SENT = "Известувањето до клиентот е испратено; наплата најрано по седум дена."
+MSG_NOTICE_FAILED = ("Известувањето до клиентот НЕ е испратено. Испратете го повторно; седумте "
+                     "дена течат од испраќањето. Не наплаќајте пред тоа.")
+MSG_NOTICE_NO_JOB = ("Нема поврзана понуда, па известувањето не може да се испрати автоматски. "
+                     "Известете го клиентот писмено пред наплата.")
+MSG_NOTICE_NO_FEE = "Нема надомест за наплата, па известување за наплата не е испратено."
 
 PHASES: dict[str, tuple[str, str]] = {
-    "requested": ("Го примивме барањето. Проверуваме дали тендерот ви одговара и ќе ви издадеме "
-                  "фактура.", "us"),
-    "payment_required": ("Фактурата е издадена. Со подготовката започнуваме штом ја евидентираме "
-                         "уплатата.", "client"),
+    "requested": ("Го примивме барањето. Проверуваме дали тендерот ви одговара.", "us"),
+    "payment_required": ("Платете го надоместот за подготовка со картичка или побарајте фактура. "
+                         "Со подготовката започнуваме штом ја евидентираме уплатата.", "client"),
     "preparing": ("Ја подготвуваме вашата понуда.", "us"),
     "ready": ("Понудата е подготвена. Прегледајте ги документите и одобрете ги или побарајте "
               "измени.", "client"),
@@ -121,7 +148,7 @@ ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     "submitted": frozenset({"won", "lost", "cancelled"}),
     "won": frozenset({"lost", "cancelled"}),
     "lost": frozenset({"won", "cancelled"}),
-    "cancelled": frozenset({"requested", "preparing", "won", "lost"}),
+    "cancelled": frozenset({"requested", "payment_required", "preparing", "won", "lost"}),
 }
 
 ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".zip", ".jpg", ".png", ".p7s",
@@ -402,6 +429,7 @@ def _admin_extra(row: Mapping) -> dict:
         "assigned_to_email": _get(row, "assigned_to_email"),
         "invoice_number": _get(row, "invoice_number"),
         "paid_at": _ser(_get(row, "paid_at")),
+        "paid_via": _get(row, "paid_via"),
         "publish_count": int(_get(row, "publish_count", 0) or 0),
     }
 
@@ -465,7 +493,34 @@ def _message(row: Mapping) -> dict:
     }
 
 
-def _payment(row: Mapping) -> dict:
+def card_window_open(row: Mapping) -> bool:
+    """The client may pay by card / ask for an invoice: fee due, not paid, not free."""
+    return (not bool(_get(row, "free", False)) and _get(row, "paid_at") is None
+            and row["status"] in ("requested", "payment_required")
+            and int(_get(row, "prep_fee_mkd", 0) or 0) > 0)
+
+
+def card_payment_allowed(row: Mapping) -> bool:
+    """Card only while no фактура has been issued for this job (paying both ways
+    would need a refund)."""
+    return card_window_open(row) and not _get(row, "invoice_number")
+
+
+def _success_fee(win: Optional[Mapping]) -> Optional[dict]:
+    if not win:
+        return None
+    fee = _get(win, "success_fee_mkd")
+    fy = _get(win, "first_year_value_mkd")
+    return {
+        "status": win["status"],
+        "fee_mkd": int(fee) if fee is not None else None,
+        "first_year_value_mkd": float(fy) if fy is not None else None,
+        "charge_not_before": _ser(_get(win, "charge_not_before")),
+        "stripe": bool(_get(win, "stripe_invoice_id")),
+    }
+
+
+def _payment(row: Mapping, win: Optional[Mapping] = None) -> dict:
     pct = _get(row, "success_fee_pct")
     fee = _get(row, "prep_fee_mkd")
     free = bool(_get(row, "free", False))
@@ -480,7 +535,17 @@ def _payment(row: Mapping) -> dict:
         "invoice_issued_at": _ser(_get(row, "invoice_issued_at")),
         "paid_at": _ser(paid_at),
         "invoice_file_name": _get(row, "invoice_file_name"),
+        "paid_via": _get(row, "paid_via"),
+        "invoice_requested_at": _ser(_get(row, "invoice_requested_at")),
+        "can_pay_card": bid_payments.card_payments_enabled() and card_payment_allowed(row),
+        "success_fee": _success_fee(win),
     }
+
+
+_WIN_FOR_JOB_SQL = (
+    "SELECT status, success_fee_mkd, first_year_value_mkd, charge_not_before, stripe_invoice_id "
+    "FROM client_wins WHERE job_id = $1 AND status IN ('confirmed','invoiced') "
+    "ORDER BY detected_at DESC LIMIT 1")
 
 
 def _client_document(row: Mapping, today: date) -> dict:
@@ -540,7 +605,50 @@ def _client_info(row: Mapping) -> dict:
         "success_fee_pct": float(pct) if pct is not None else 0.0,
         "terms_agreed_at": _ser(_get(row, "terms_agreed_at")),
         "agreement_version": _get(row, "agreement_version"),
+        "has_card": bool(_get(row, "stripe_mandate_pm_id")),
+        "card_brand": _get(row, "stripe_card_brand"),
+        "card_last4": _get(row, "stripe_card_last4"),
+        "success_fee_authorised_at": _ser(_get(row, "success_fee_authorised_at")),
+        "success_fee_authorised_via": _get(row, "success_fee_authorised_via"),
+        "success_fee_authorised_ref": _get(row, "success_fee_authorised_ref"),
     }
+
+
+def success_fee_missing(info: Optional[Mapping]) -> Optional[list[str]]:
+    """None when publishing is allowed; else the missing pieces (subset of
+    ["terms", "card"]) of an unauthorised success fee. info carries the user's
+    success_fee_authorised_at, terms_agreed_at, agreement_version,
+    stripe_mandate_pm_id and the job's success_fee_pct."""
+    if not info:
+        return None
+    pct = _get(info, "success_fee_pct")
+    if pct is None or Decimal(str(pct)) <= 0:
+        return None
+    if _get(info, "success_fee_authorised_at") is not None:
+        return None
+    missing: list[str] = []
+    if not terms_accepted(_get(info, "terms_agreed_at"), _get(info, "agreement_version")):
+        missing.append("terms")
+    if not _get(info, "stripe_mandate_pm_id"):
+        missing.append("card")
+    return missing
+
+
+def publish_blocked_text(missing: Optional[list[str]]) -> Optional[str]:
+    if missing is None:
+        return None
+    parts = {"terms": "прифаќање на актуелните услови", "card": "зачувана картичка"}
+    what = " и ".join(parts[m] for m in missing if m in parts)
+    base = "Надоместот за успех не е овластен"
+    if what:
+        base += f": недостасува {what}"
+    return base + ". Или евидентирајте писмено овластување."
+
+
+_PUBLISH_GATE_SQL = (
+    "SELECT u.user_id, u.success_fee_authorised_at, u.terms_agreed_at, u.agreement_version, "
+    "u.stripe_mandate_pm_id, j.success_fee_pct FROM bid_jobs j "
+    "JOIN users u ON u.user_id = j.user_id WHERE j.id = $1")
 
 
 def _event(row: Mapping) -> dict:
@@ -648,18 +756,8 @@ async def _transition(conn, job_id: uuid.UUID, from_statuses, to: str, *,
     return row
 
 
-async def _promote_user(conn, user_id) -> bool:
-    res = await conn.execute(
-        "UPDATE users SET account_type='managed_client', updated_at=NOW() "
-        "WHERE user_id=$1 AND account_type IN ('free','prospect')",
-        user_id,
-    )
-    await conn.execute(
-        "UPDATE bid_service_leads SET status='client', updated_at=NOW() "
-        "WHERE user_id=$1 AND status IN ('new','contacted','qualified')",
-        user_id,
-    )
-    return isinstance(res, str) and res.split()[-1] != "0"
+# Moved to services.bid_payments (shared with the Stripe return leg / webhook).
+_promote_user = bid_payments.promote_user
 
 
 async def _fetch_messages(conn, user_id, job_id: Optional[uuid.UUID]) -> list[dict]:
@@ -924,6 +1022,29 @@ class AssignBody(BaseModel):
     assigned_to: Optional[uuid.UUID] = None
 
 
+class SessionBody(BaseModel):
+    session_id: str = Field(..., min_length=10, max_length=255)
+
+
+class AuthoriseBody(BaseModel):
+    reference: str = Field(..., min_length=3, max_length=120)
+
+
+class ConfirmWinBody(BaseModel):
+    first_year_value_mkd: Optional[float] = Field(None, ge=0, le=1e13)
+    success_fee_mkd: Optional[int] = Field(None, ge=0, le=2_000_000_000)
+    notes: Optional[str] = Field(None, max_length=5000)
+    create_stripe_invoice: bool = True
+
+
+class DismissWinBody(BaseModel):
+    notes: Optional[str] = Field(None, max_length=5000)
+
+
+class MarkInvoicedBody(BaseModel):
+    invoice_number: Optional[str] = Field(None, max_length=50)
+
+
 class ClientPatch(BaseModel):
     free_drafting: Optional[bool] = None
     prep_fee_mkd: Optional[int] = Field(None, ge=0, le=10_000_000)
@@ -966,10 +1087,13 @@ async def _create_or_reopen(conn, uid, tender_id: str, note: Optional[str],
                             free_drafting: bool, prefs: Optional[Mapping]):
     """Insert a new job or reopen a cancelled one (caller holds a transaction).
     Returns the job id, or None when a concurrent begin won the race."""
+    # A client's begin waits at the fee gate (card or invoice); an admin-opened
+    # job starts at 'requested' (we confirm the fit and fee first).
+    unpaid_status = "payment_required" if actor_role == "client" else "requested"
     if existing:
         job = await conn.fetchrow(
             "SELECT paid_at, free FROM bid_jobs WHERE id = $1 FOR UPDATE", existing["id"])
-        to = "preparing" if (job["paid_at"] or job["free"] or free_drafting) else "requested"
+        to = "preparing" if (job["paid_at"] or job["free"] or free_drafting) else unpaid_status
         make_free = bool(job["free"] or (free_drafting and job["paid_at"] is None))
         # A client may reopen only what the client cancelled; admins reopen anything.
         guard = "outcome IS NULL" + (" AND cancelled_by = 'client'" if actor_role == "client" else "")
@@ -979,24 +1103,25 @@ async def _create_or_reopen(conn, uid, tender_id: str, note: Optional[str],
             owner_id=uid if actor_role == "client" else None,
             set_sql=("reopen_count = reopen_count + 1, cancelled_at = NULL, "
                      "cancelled_by = NULL, cancel_reason = NULL, approved_at = NULL, "
-                     "free = $4, client_note = COALESCE($5, client_note)"),
-            args=(make_free, note), extra_where=guard,
+                     "free = $4, client_note = COALESCE($5, client_note), "
+                     "paid_via = COALESCE(paid_via, $6)"),
+            args=(make_free, note, "free" if make_free else None), extra_where=guard,
             detail={"action": "reopen"},
         )
         return existing["id"]
-    status = "preparing" if free_drafting else "requested"
+    status = "preparing" if free_drafting else unpaid_status
     job_id = await conn.fetchval(
         """
         INSERT INTO bid_jobs (user_id, tender_id, status, prep_fee_mkd,
-                              success_fee_pct, free, client_note)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)
+                              success_fee_pct, free, client_note, paid_via)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
         ON CONFLICT (user_id, tender_id) DO NOTHING
         RETURNING id
         """,
         uid, tender_id, status,
         prefs["prep_fee_mkd"] if prefs else None,
         prefs["success_fee_pct"] if prefs else None,
-        free_drafting, note,
+        free_drafting, note, "free" if free_drafting else None,
     )
     if job_id is not None:
         await _audit(conn, job_id, status, actor_role, actor_id, {"action": "begin"})
@@ -1038,7 +1163,7 @@ async def begin_job(body: BeginBody, background: BackgroundTasks,
         existing = await _existing_job(conn, uid, tender_id)
         if _is_live(existing):
             row = await _client_job_row(conn, existing["id"], uid)
-            return {"job": job_summary(row, today), "created": False}
+            return _begin_response(row, today, created=False)
         if not tender_open_for_begin(tender["status"], tender["closing_date"], today):
             raise HTTPException(status_code=409, detail="Рокот за поднесување на овој тендер истече.")
         prefs = await conn.fetchrow(
@@ -1050,25 +1175,35 @@ async def begin_job(body: BeginBody, background: BackgroundTasks,
         if not accepted and not body.accept_terms:
             # The frontend catches this code and shows the terms confirmation.
             raise HTTPException(status_code=409, detail=ERR_TERMS_REQUIRED)
-        free_drafting = bool(prefs and prefs["free_drafting"])
+        fee = prefs["prep_fee_mkd"] if prefs else None
+        # Free drafting, or a client whose agreed fee is zero: no fee gate.
+        free_job = bool(prefs and prefs["free_drafting"]) or (fee is not None and int(fee) <= 0)
 
         async with conn.transaction():
             if not accepted:
                 await conn.execute(
                     "UPDATE users SET terms_agreed_at = NOW(), agreement_version = $2, "
                     "updated_at = NOW() WHERE user_id = $1", uid, AGREEMENT_VERSION)
+                await bid_payments.refresh_success_fee_authorisation(conn, uid)
             job_id = await _create_or_reopen(conn, uid, tender_id, note, existing,
                                              actor_role="client", actor_id=uid,
-                                             free_drafting=free_drafting, prefs=prefs)
+                                             free_drafting=free_job, prefs=prefs)
             if job_id is None:  # concurrent begin won the race
                 other = await conn.fetchval(
                     "SELECT id FROM bid_jobs WHERE user_id = $1 AND tender_id = $2",
                     uid, tender_id)
                 row = await _client_job_row(conn, other, uid)
-                return {"job": job_summary(row, today), "created": False}
+                return _begin_response(row, today, created=False)
+            if free_job:
+                await _promote_user(conn, uid)
         row = await _client_job_row(conn, job_id, uid)
     background.add_task(bid_notifications.notify, str(job_id), "job_requested")
-    return {"job": job_summary(row, today), "created": True}
+    return _begin_response(row, today, created=True)
+
+
+def _begin_response(row: Mapping, today: date, *, created: bool) -> dict:
+    return {"job": job_summary(row, today), "created": created,
+            "payment_required": row["status"] == "payment_required"}
 
 
 @router.get("/agreement")
@@ -1103,7 +1238,163 @@ async def accept_agreement(body: AgreementBody, user=Depends(require_portal_user
         await conn.execute(
             "UPDATE users SET terms_agreed_at = NOW(), agreement_version = $2, "
             "updated_at = NOW() WHERE user_id = $1", user.user_id, AGREEMENT_VERSION)
-    return await get_agreement(user)
+        authorised = await bid_payments.refresh_success_fee_authorisation(conn, user.user_id)
+    return {**(await get_agreement(user)), "success_fee_authorised": authorised}
+
+
+# --- Card payment (Stripe Checkout) and invoice choice --------------------
+async def _owned_job(conn, job_id: uuid.UUID, uid) -> Mapping:
+    return await _client_job_row(conn, job_id, uid)
+
+
+async def _payment_response(conn, job_id: uuid.UUID, uid, **extra) -> dict:
+    row = await _client_job_row(conn, job_id, uid)
+    win = await conn.fetchrow(_WIN_FOR_JOB_SQL, job_id)
+    return {**extra, "job": _job_detail(row, today_skopje()), "payment": _payment(row, win)}
+
+
+@router.post("/jobs/{job_id}/pay-prep")
+async def pay_prep_fee(job_id: uuid.UUID, user=Depends(require_portal_user)):
+    """Stripe hosted Checkout for the prep fee. The amount comes from the job."""
+    if not bid_payments.card_payments_enabled():
+        raise HTTPException(status_code=503, detail=bid_payments.ERR_CARD_UNAVAILABLE)
+    uid = user.user_id
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        row = await _owned_job(conn, job_id, uid)
+        if not card_window_open(row):
+            raise _wrong_status()
+        if _get(row, "invoice_number"):
+            raise HTTPException(status_code=409, detail=ERR_INVOICE_ISSUED)
+        prefs = await conn.fetchrow(
+            "SELECT terms_agreed_at, agreement_version FROM users WHERE user_id = $1", uid)
+        if not prefs or not terms_accepted(prefs["terms_agreed_at"], prefs["agreement_version"]):
+            raise HTTPException(status_code=409, detail=ERR_TERMS_REQUIRED)
+    try:
+        # conn=None: no DB connection is held while Stripe answers.
+        url = await bid_payments.create_prep_checkout(None, row, uid)
+    except Exception:
+        logger.exception("prep-fee checkout failed: job=%s", job_id)
+        raise HTTPException(status_code=502, detail=ERR_PAYMENT_START)
+    return {"url": url}
+
+
+@router.post("/jobs/{job_id}/prep-complete")
+async def prep_complete(job_id: uuid.UUID, body: SessionBody, user=Depends(require_portal_user)):
+    """Return leg of the prep-fee Checkout. The session is verified server-side;
+    the webhook does the same, and mark_job_paid makes both idempotent."""
+    uid = user.user_id
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        await _owned_job(conn, job_id, uid)
+    try:
+        session = await bid_payments.retrieve_session(body.session_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail=ERR_SESSION_MISMATCH)
+    md = bid_payments._metadata(session)
+    if md.get("job_id") != str(job_id):
+        raise HTTPException(status_code=400, detail=ERR_SESSION_MISMATCH)
+    try:
+        res = await bid_payments.complete_prep_session(session, expected_user_id=uid)
+    except (bid_payments.PaymentVerificationError, LookupError):
+        raise HTTPException(status_code=400, detail=ERR_SESSION_MISMATCH)
+    if res.get("reason") == "not_paid":
+        raise HTTPException(status_code=402, detail=ERR_PAYMENT_INCOMPLETE)
+    async with pool.acquire() as conn:
+        out = await _payment_response(conn, job_id, uid)
+    return {"paid": bool(res.get("paid")), "reason": res.get("reason"),
+            "account_promoted": bool(res.get("promoted")), **out}
+
+
+@router.post("/jobs/{job_id}/choose-invoice")
+async def choose_invoice(job_id: uuid.UUID, background: BackgroundTasks,
+                         user=Depends(require_portal_user)):
+    """„Платам со фактура“: we issue an invoice and mark the job paid by hand."""
+    uid = user.user_id
+    first = False
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            job = await conn.fetchrow(
+                "SELECT id, status, free, paid_at, prep_fee_mkd, invoice_requested_at "
+                "FROM bid_jobs WHERE id = $1 AND user_id = $2 FOR UPDATE", job_id, uid)
+            if not job:
+                raise _not_found()
+            if job["invoice_requested_at"] is None:
+                if not card_window_open(job):
+                    raise _wrong_status()
+                await conn.execute(
+                    "UPDATE bid_jobs SET invoice_requested_at = COALESCE(invoice_requested_at, NOW()), "
+                    "updated_at = NOW() WHERE id = $1", job_id)
+                await _audit(conn, job_id, "invoice_requested", "client", uid)
+                first = True
+        out = await _payment_response(conn, job_id, uid)
+    if first:
+        background.add_task(bid_notifications.notify, str(job_id), "invoice_requested")
+    return out
+
+
+_BILLING_SQL = (
+    "SELECT stripe_mandate_pm_id, stripe_card_brand, stripe_card_last4, terms_agreed_at, "
+    "agreement_version, success_fee_pct, success_fee_authorised_at, success_fee_authorised_via "
+    "FROM users WHERE user_id = $1")
+
+
+def _billing_status(row: Optional[Mapping]) -> dict:
+    row = row or {}
+    pct = _get(row, "success_fee_pct")
+    return {
+        "has_card": bool(_get(row, "stripe_mandate_pm_id")),
+        "card_brand": _get(row, "stripe_card_brand"),
+        "card_last4": _get(row, "stripe_card_last4"),
+        "terms_accepted": terms_accepted(_get(row, "terms_agreed_at"),
+                                         _get(row, "agreement_version")),
+        "current_version": AGREEMENT_VERSION,
+        "success_fee_pct": float(pct) if pct is not None else None,
+        "success_fee_authorised": _get(row, "success_fee_authorised_at") is not None,
+        "success_fee_authorised_at": _ser(_get(row, "success_fee_authorised_at")),
+        "success_fee_authorised_via": _get(row, "success_fee_authorised_via"),
+        "card_payments_enabled": bid_payments.card_payments_enabled(),
+    }
+
+
+@router.get("/billing/status")
+async def billing_status(user=Depends(require_portal_user)):
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(_BILLING_SQL, user.user_id)
+    return _billing_status(row)
+
+
+@router.post("/billing/setup-checkout")
+async def billing_setup_checkout(user=Depends(require_portal_user)):
+    """Stripe hosted 'setup' Checkout: save (or replace) the card for the success fee."""
+    if not bid_payments.card_payments_enabled():
+        raise HTTPException(status_code=503, detail=bid_payments.ERR_CARD_UNAVAILABLE)
+    try:
+        url = await bid_payments.create_setup_checkout(None, user.user_id)
+    except Exception:
+        logger.exception("setup checkout failed: user=%s", user.user_id)
+        raise HTTPException(status_code=502, detail=ERR_PAYMENT_START)
+    return {"url": url}
+
+
+@router.post("/billing/setup-complete")
+async def billing_setup_complete(body: SessionBody, user=Depends(require_portal_user)):
+    try:
+        session = await bid_payments.retrieve_session(body.session_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail=ERR_SESSION_MISMATCH)
+    try:
+        res = await bid_payments.complete_setup_session(session, expected_user_id=user.user_id)
+    except (bid_payments.PaymentVerificationError, LookupError):
+        raise HTTPException(status_code=400, detail=ERR_SESSION_MISMATCH)
+    if not res.get("saved"):
+        raise HTTPException(status_code=402, detail="Картичката не е зачувана.")
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(_BILLING_SQL, user.user_id)
+    return _billing_status(row)
 
 
 @router.get("/jobs")
@@ -1146,12 +1437,13 @@ async def get_my_job(job_id: uuid.UUID, user=Depends(require_portal_user)):
             "SELECT * FROM bid_job_files WHERE job_id = $1 AND client_visible ORDER BY created_at",
             job_id)
         messages = await _fetch_messages(conn, uid, job_id)
+        win = await conn.fetchrow(_WIN_FOR_JOB_SQL, job_id)
     return {
         "job": _job_detail(row, today),
         "tender": _tender_summary(row),
         "files": [_bid_file(f) for f in files],
         "messages": messages,
-        "payment": _payment(row),
+        "payment": _payment(row, win),
     }
 
 
@@ -1862,7 +2154,9 @@ async def admin_summary():
 async def _client_info_row(conn, user_id) -> Optional[Mapping]:
     return await conn.fetchrow(
         "SELECT user_id, email, full_name, company_name, account_type, free_drafting, "
-        "prep_fee_mkd, success_fee_pct, terms_agreed_at, agreement_version "
+        "prep_fee_mkd, success_fee_pct, terms_agreed_at, agreement_version, "
+        "stripe_mandate_pm_id, stripe_card_brand, stripe_card_last4, "
+        "success_fee_authorised_at, success_fee_authorised_via, success_fee_authorised_ref "
         "FROM users WHERE user_id = $1", user_id)
 
 
@@ -1884,15 +2178,21 @@ async def admin_get_job(job_id: uuid.UUID):
         events = await conn.fetch(
             "SELECT * FROM bid_job_events WHERE job_id = $1 ORDER BY created_at DESC, id DESC "
             "LIMIT 200", job_id)
+        win = await conn.fetchrow(_WIN_FOR_JOB_SQL, job_id)
+        gate = await conn.fetchrow(_PUBLISH_GATE_SQL, job_id)
+    job = _admin_job_detail(row, today)
+    missing = success_fee_missing(gate)
+    # [] = terms + card both present, flag not stamped yet: publish self-heals it.
+    job["publish_blocked_reason"] = publish_blocked_text(missing) if missing else None
     return {
-        "job": _admin_job_detail(row, today),
+        "job": job,
         "tender": _tender_summary(row),
         "files": [_bid_file(f, admin=True) for f in files],
         "messages": messages,
         "client": _client_info(client) if client else None,
         "client_documents": [_client_document(d, today) for d in docs],
         "events": [_event(e) for e in events],
-        "payment": _payment(row),
+        "payment": _payment(row, win),
     }
 
 
@@ -2021,14 +2321,23 @@ async def admin_mark_paid(job_id: uuid.UUID, background: BackgroundTasks,
     pool = await get_asyncpg_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            row = await _transition(conn, job_id, ["payment_required"], "preparing",
-                                    actor_role="admin", actor_id=admin.user_id,
-                                    set_sql="paid_at = COALESCE($4::timestamptz, NOW())",
-                                    args=(paid_at,), event="paid",
-                                    detail={"paid_at": paid.isoformat() if paid else None})
-            promoted = await _promote_user(conn, row["user_id"])
-        resp = await _admin_job_response(conn, job_id, account_promoted=promoted)
-    background.add_task(bid_notifications.notify, str(job_id), "preparing")
+            try:
+                result = await bid_payments.mark_job_paid(
+                    conn, job_id, "invoice", paid_at=paid_at, actor_role="admin",
+                    actor_id=admin.user_id)
+            except LookupError:
+                raise _not_found()
+            duplicate = result.get("reason") == "duplicate"
+            if (not result["changed"] and not duplicate
+                    and result.get("reason") != "already_paid"):
+                raise _wrong_status()
+        if duplicate:
+            # Committed: the duplicate_payment audit row stays. Background tasks do
+            # not run on an error response, so the admin alert is sent here.
+            await bid_payments.notify_paid(str(job_id), result, "invoice")
+            raise HTTPException(status_code=409, detail=ERR_ALREADY_PAID_CARD)
+        resp = await _admin_job_response(conn, job_id, account_promoted=result["promoted"])
+    background.add_task(bid_payments.notify_paid, str(job_id), result, "invoice")
     return resp
 
 
@@ -2040,7 +2349,7 @@ async def admin_mark_free(job_id: uuid.UUID, background: BackgroundTasks,
         async with conn.transaction():
             row = await _transition(conn, job_id, ["requested", "payment_required"], "preparing",
                                     actor_role="admin", actor_id=admin.user_id,
-                                    set_sql="free = TRUE", event="marked_free")
+                                    set_sql="free = TRUE, paid_via = 'free'", event="marked_free")
             promoted = await _promote_user(conn, row["user_id"])
         resp = await _admin_job_response(conn, job_id, account_promoted=promoted)
     background.add_task(bid_notifications.notify, str(job_id), "preparing")
@@ -2121,6 +2430,18 @@ async def admin_publish(job_id: uuid.UUID, background: BackgroundTasks,
                 raise _not_found()
             if status not in PUBLISHABLE:
                 raise _wrong_status()
+            gate = await conn.fetchrow(_PUBLISH_GATE_SQL, job_id)
+            missing = success_fee_missing(gate)
+            if missing is not None and gate:
+                # Terms + card may both be present without the flag set yet.
+                if await bid_payments.refresh_success_fee_authorisation(conn, gate["user_id"]):
+                    missing = None
+            if missing is not None:
+                raise HTTPException(status_code=409, detail={
+                    "code": "success_fee_not_authorised",
+                    "message": ERR_SUCCESS_FEE_NOT_AUTHORISED,
+                    "missing": missing,
+                })
             n = await conn.fetchval("SELECT COUNT(*) FROM bid_job_files WHERE job_id = $1", job_id)
             if not n:
                 raise HTTPException(status_code=400, detail="Нема прикачени документи.")
@@ -2170,9 +2491,32 @@ async def admin_set_outcome(job_id: uuid.UUID, body: OutcomeBody, background: Ba
                               set_sql=set_sql, args=(outcome,),
                               extra_where="(status <> 'cancelled' OR outcome IS NOT NULL)",
                               detail={"action": "outcome", "outcome": outcome})
+            if outcome == "won":
+                await _record_admin_win(conn, job_id)
         resp = await _admin_job_response(conn, job_id)
     background.add_task(bid_notifications.notify, str(job_id), kind)
     return resp
+
+
+_WIN_SOURCE_SQL = """
+    SELECT j.*, u.company_name, u.success_fee_pct AS u_pct, t.title, t.procuring_entity,
+           t.actual_value_mkd, t.estimated_value_mkd, t.contract_duration
+    FROM bid_jobs j JOIN users u ON u.user_id = j.user_id
+    LEFT JOIN tenders t ON t.tender_id = j.tender_id
+    WHERE j.id = $1
+"""
+
+
+async def _record_admin_win(conn, job_id: uuid.UUID) -> None:
+    """outcome=won by an admin: a 'suspected' client_wins row for /admin/wins
+    (the admin then confirms the value and fee). Never duplicates."""
+    src = await conn.fetchrow(_WIN_SOURCE_SQL, job_id)
+    if not src:
+        return
+    company = _get(src, "company_name") or ""
+    row = client_wins.build_win_row(src, {"success_fee_pct": _get(src, "u_pct")}, src,
+                                    company or None, 1, None)
+    await conn.fetchval(client_wins.INSERT_WIN_SQL, *client_wins.win_insert_args(row))
 
 
 @router.post("/admin/jobs/{job_id}/assign")
@@ -2330,6 +2674,283 @@ async def admin_update_client(user_id: uuid.UUID, body: ClientPatch):
                 promoted = await _promote_user(conn, user_id)
         client = await _client_info_row(conn, user_id)
     return {"client": _client_info(client), "account_promoted": promoted}
+
+
+@router.post("/admin/clients/{user_id}/authorise-success-fee")
+async def admin_authorise_success_fee(user_id: uuid.UUID, body: AuthoriseBody,
+                                      admin=Depends(require_admin)):
+    """Written/offline authorisation (invoice clients without a card)."""
+    ref = body.reference.strip()
+    if len(ref) < 3:
+        raise HTTPException(status_code=400, detail="Внесете референца (број на договор).")
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        done = await conn.fetchval(
+            "UPDATE users SET success_fee_authorised_at = COALESCE(success_fee_authorised_at, NOW()), "
+            "success_fee_authorised_via = COALESCE(success_fee_authorised_via, 'offline'), "
+            "success_fee_authorised_ref = COALESCE(success_fee_authorised_ref, $2), "
+            "updated_at = NOW() WHERE user_id = $1 RETURNING user_id", user_id, ref)
+        if done is None:
+            raise _not_found(ERR_CLIENT_NOT_FOUND)
+        client = await _client_info_row(conn, user_id)
+    return {"client": _client_info(client)}
+
+
+# --- Client wins (success-fee pipeline) ------------------------------------
+WIN_STATUSES = ("suspected", "confirmed", "invoiced", "dismissed")
+_WIN_SQL = """
+    SELECT w.*, u.email, u.company_name, (u.stripe_mandate_pm_id IS NOT NULL) AS has_card
+    FROM client_wins w JOIN users u ON u.user_id = w.user_id
+"""
+
+
+def _num(v: Any) -> Optional[float]:
+    return float(v) if v is not None else None
+
+
+def _win(row: Mapping) -> dict:
+    fee = _get(row, "success_fee_mkd")
+    months = _get(row, "contract_months")
+    return {
+        "id": _ser(row["id"]),
+        "job_id": _ser(_get(row, "job_id")),
+        "user_id": _ser(row["user_id"]),
+        "email": _get(row, "email"),
+        "company_name": _get(row, "company_name"),
+        "tender_id": row["tender_id"],
+        "tender_title": _get(row, "tender_title"),
+        "procuring_entity": _get(row, "procuring_entity"),
+        "matched_name": _get(row, "matched_name"),
+        "match_score": _num(_get(row, "match_score")),
+        "contract_value_mkd": _num(_get(row, "contract_value_mkd")),
+        "value_source": _get(row, "value_source"),
+        "contract_months": int(months) if months is not None else None,
+        "first_year_value_mkd": _num(_get(row, "first_year_value_mkd")),
+        "success_fee_pct": _num(_get(row, "success_fee_pct")),
+        "prep_fee_credit_mkd": int(_get(row, "prep_fee_credit_mkd", 0) or 0),
+        "success_fee_mkd": int(fee) if fee is not None else None,
+        "status": row["status"],
+        "detected_at": _ser(_get(row, "detected_at")),
+        "confirmed_at": _ser(_get(row, "confirmed_at")),
+        "notice_sent_at": _ser(_get(row, "notice_sent_at")),
+        "charge_not_before": _ser(_get(row, "charge_not_before")),
+        "stripe_invoice_id": _get(row, "stripe_invoice_id"),
+        "invoice_number": _get(row, "invoice_number"),
+        "invoiced_at": _ser(_get(row, "invoiced_at")),
+        "notes": _get(row, "notes"),
+        "has_card": bool(_get(row, "has_card", False)),
+    }
+
+
+async def _win_row(conn, win_id: uuid.UUID) -> Mapping:
+    row = await conn.fetchrow(_WIN_SQL + " WHERE w.id = $1", win_id)
+    if not row:
+        raise _not_found("Победата не е пронајдена.")
+    return row
+
+
+@router.get("/admin/wins", dependencies=[Depends(require_admin)])
+async def admin_list_wins(status: Optional[str] = Query(None)):
+    if status and status not in WIN_STATUSES:
+        raise HTTPException(status_code=400, detail="Невалиден филтер за статус.")
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        if status:
+            rows = await conn.fetch(_WIN_SQL + " WHERE w.status = $1 ORDER BY w.detected_at DESC "
+                                    "LIMIT 500", status)
+        else:
+            rows = await conn.fetch(_WIN_SQL + " ORDER BY w.detected_at DESC LIMIT 500")
+        summ = await conn.fetchrow(
+            "SELECT COUNT(*) FILTER (WHERE status = 'suspected') AS suspected, "
+            "COUNT(*) FILTER (WHERE status = 'confirmed') AS confirmed, "
+            "COUNT(*) FILTER (WHERE status = 'invoiced') AS invoiced, "
+            "COUNT(*) FILTER (WHERE status = 'dismissed') AS dismissed, "
+            "COALESCE(SUM(success_fee_mkd) FILTER (WHERE status = 'suspected'), 0) "
+            "  AS pipeline_fee_mkd, "
+            "COALESCE(SUM(success_fee_mkd) FILTER (WHERE status IN ('confirmed','invoiced')), 0) "
+            "  AS confirmed_fee_mkd "
+            "FROM client_wins")
+    summ = summ or {}
+    summary = {k: int(_get(summ, k, 0) or 0) for k in
+               ("suspected", "confirmed", "invoiced", "dismissed", "pipeline_fee_mkd",
+                "confirmed_fee_mkd")}
+    return {"wins": [_win(r) for r in rows], "summary": summary}
+
+
+@router.post("/admin/wins/{win_id}/confirm")
+async def admin_confirm_win(win_id: uuid.UUID, body: ConfirmWinBody, background: BackgroundTasks,
+                            admin=Depends(require_admin)):
+    """Confirm a win: 7-day notice to the client and, with a card on file, a DRAFT
+    Stripe invoice. Nothing is finalised or charged from code."""
+    fields = body.model_fields_set
+    notes = (body.notes or "").strip() or None if "notes" in fields else None
+    job_won = False
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            win = await conn.fetchrow(
+                "SELECT w.*, u.stripe_customer_id, u.stripe_mandate_pm_id FROM client_wins w "
+                "JOIN users u ON u.user_id = w.user_id WHERE w.id = $1 FOR UPDATE OF w", win_id)
+            if not win:
+                raise _not_found("Победата не е пронајдена.")
+            if win["status"] != "suspected":
+                raise _wrong_status()
+            fy = body.first_year_value_mkd if "first_year_value_mkd" in fields else None
+            if body.success_fee_mkd is not None:
+                fee = int(body.success_fee_mkd)
+            elif win["success_fee_pct"] is None:
+                # compute_success_fee would silently treat a missing pct as 0 %.
+                raise HTTPException(status_code=400, detail=ERR_PCT_MISSING)
+            elif fy is not None:
+                fee = client_wins.compute_success_fee(fy, win["success_fee_pct"],
+                                                      win["prep_fee_credit_mkd"])
+            elif win["value_source"] == "estimated":
+                # No cap: never bill on the buyer's estimate without a human check.
+                raise HTTPException(status_code=400, detail=ERR_ESTIMATED_VALUE)
+            else:
+                fee = win["success_fee_mkd"]
+            if fee is None:
+                raise HTTPException(status_code=400,
+                                    detail="Внесете вредност за првата година или надомест.")
+            row = await conn.fetchrow(
+                "UPDATE client_wins SET status = 'confirmed', "
+                "first_year_value_mkd = COALESCE($2, first_year_value_mkd), "
+                "value_source = CASE WHEN $2::numeric IS NULL THEN value_source ELSE 'admin' END, "
+                "success_fee_mkd = $3, notes = COALESCE($4, notes), confirmed_at = NOW(), "
+                "confirmed_by = $5, notice_sent_at = NULL, charge_not_before = NULL, "
+                "updated_at = NOW() "
+                "WHERE id = $1 AND status = 'suspected' RETURNING *",
+                win_id, Decimal(str(fy)) if fy is not None else None, fee, notes, admin.user_id)
+            if not row:
+                raise _wrong_status()
+            job_id = win["job_id"]
+            if job_id is not None:
+                jstatus = await conn.fetchval(
+                    "SELECT status FROM bid_jobs WHERE id = $1 FOR UPDATE", job_id)
+                if jstatus in ("submitted", "lost"):
+                    await _transition(
+                        conn, job_id, [jstatus], "won", actor_role="admin", actor_id=admin.user_id,
+                        set_sql=("outcome = $4, outcome_at = NOW(), cancelled_at = NULL, "
+                                 "cancelled_by = NULL, cancel_reason = NULL"),
+                        args=("won",), detail={"action": "win_confirmed", "win_id": str(win_id)})
+                    job_won = True
+                await _audit(conn, job_id, "win_confirmed", "admin", admin.user_id,
+                             {"win_id": str(win_id), "success_fee_mkd": fee})
+
+    invoice = {"created": False, "stripe_invoice_id": None, "message": ""}
+    cust, pm = win["stripe_customer_id"], win["stripe_mandate_pm_id"]
+    if not body.create_stripe_invoice:
+        invoice["message"] = "Stripe фактура не е побарана."
+    elif fee <= 0:
+        invoice["message"] = "Нема надомест за наплата."
+    elif not (cust and pm):
+        invoice["message"] = ERR_NO_CARD_FOR_INVOICE
+    else:
+        try:
+            inv_id = await bid_payments.create_success_fee_invoice(
+                customer=cust, payment_method=pm, fee_mkd=fee, pct=row["success_fee_pct"],
+                tender_title=row["tender_title"], win_id=win_id, job_id=job_id)
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE client_wins SET stripe_invoice_id = $2, updated_at = NOW() "
+                    "WHERE id = $1", win_id, inv_id)
+            invoice.update(created=True, stripe_invoice_id=inv_id,
+                           message=("Нацрт-фактура е креирана во Stripe. Испратете ја од Stripe "
+                                    "по истекот на седумте дена."))
+        except Exception as e:
+            logger.exception("success-fee invoice failed: win=%s", win_id)
+            invoice["message"] = f"Stripe фактурата не е креирана: {e}"[:500]
+    if job_id is not None and job_won:
+        background.add_task(bid_notifications.notify, str(job_id), "won")
+    notice = await _send_success_fee_notice(pool, win_id, job_id, fee)
+    async with pool.acquire() as conn:
+        out = await _win_row(conn, win_id)
+    return {"win": _win(out), "invoice": invoice, "notice": notice}
+
+
+async def _send_success_fee_notice(pool, win_id: uuid.UUID, job_id, fee) -> dict:
+    """The 7-day notice runs from the email actually going out: notice_sent_at
+    and charge_not_before are stamped only after notify() returns True. A failed
+    send releases its dedupe claim, so the admin can resend."""
+    if fee is None or int(fee) <= 0:
+        return {"sent": False, "message": MSG_NOTICE_NO_FEE}
+    if job_id is None:
+        return {"sent": False, "message": MSG_NOTICE_NO_JOB}
+    sent = await bid_notifications.notify(str(job_id), "success_fee_notice", extra=str(win_id))
+    if not sent:
+        return {"sent": False, "message": MSG_NOTICE_FAILED}
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE client_wins SET notice_sent_at = NOW(), "
+            "charge_not_before = NOW() + INTERVAL '7 days', updated_at = NOW() "
+            "WHERE id = $1 AND notice_sent_at IS NULL", win_id)
+        await _audit(conn, job_id, "success_fee_notice", "system", None,
+                     {"win_id": str(win_id), "success_fee_mkd": int(fee)})
+    return {"sent": True, "message": MSG_NOTICE_SENT}
+
+
+@router.post("/admin/wins/{win_id}/send-notice")
+async def admin_send_win_notice(win_id: uuid.UUID, admin=Depends(require_admin)):
+    """Resend the success-fee notice of a confirmed win whose first send failed."""
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        win = await _win_row(conn, win_id)
+    if win["status"] != "confirmed" or win["notice_sent_at"] is not None:
+        raise _wrong_status()
+    notice = await _send_success_fee_notice(pool, win_id, win["job_id"], win["success_fee_mkd"])
+    async with pool.acquire() as conn:
+        out = await _win_row(conn, win_id)
+    return {"win": _win(out), "notice": notice}
+
+
+@router.post("/admin/wins/{win_id}/dismiss")
+async def admin_dismiss_win(win_id: uuid.UUID, body: Optional[DismissWinBody] = None,
+                            admin=Depends(require_admin)):
+    notes = ((body.notes if body else None) or "").strip() or None
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            inv_id = await conn.fetchval(
+                "SELECT COALESCE(stripe_invoice_id, '') FROM client_wins "
+                "WHERE id = $1 AND status IN ('suspected','confirmed') FOR UPDATE", win_id)
+            done = None
+            if inv_id is not None:
+                done = await conn.fetchval(
+                    "UPDATE client_wins SET status = 'dismissed', dismissed_at = NOW(), "
+                    "notes = COALESCE($2, notes), updated_at = NOW() "
+                    "WHERE id = $1 AND status IN ('suspected','confirmed') RETURNING id",
+                    win_id, notes)
+        if done is None:
+            await _win_row(conn, win_id)  # 404 when missing
+            raise _wrong_status()
+    message = None
+    if inv_id:
+        # A leftover draft could be sent from the Dashboard by mistake: delete it.
+        if await bid_payments.delete_success_fee_invoice(inv_id):
+            message = f"Нацрт-фактурата {inv_id} е избришана во Stripe."
+        else:
+            message = (f"Нацрт-фактурата {inv_id} не можеше да се избрише автоматски. "
+                       "Избришете ја во Stripe.")
+    async with pool.acquire() as conn:
+        out = await _win_row(conn, win_id)
+    return {"win": _win(out), "message": message}
+
+
+@router.post("/admin/wins/{win_id}/mark-invoiced")
+async def admin_mark_win_invoiced(win_id: uuid.UUID, body: Optional[MarkInvoicedBody] = None,
+                                  admin=Depends(require_admin)):
+    number = ((body.invoice_number if body else None) or "").strip() or None
+    pool = await get_asyncpg_pool()
+    async with pool.acquire() as conn:
+        done = await conn.fetchval(
+            "UPDATE client_wins SET status = 'invoiced', invoiced_at = NOW(), "
+            "invoice_number = COALESCE($2, invoice_number), updated_at = NOW() "
+            "WHERE id = $1 AND status = 'confirmed' RETURNING id", win_id, number)
+        if done is None:
+            await _win_row(conn, win_id)
+            raise _wrong_status()
+        out = await _win_row(conn, win_id)
+    return {"win": _win(out)}
 
 
 @router.get("/admin/clients/{user_id}/documents", dependencies=[Depends(require_admin)])

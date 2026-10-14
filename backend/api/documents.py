@@ -25,6 +25,7 @@ from schemas import DocumentResponse, DocumentListResponse, DocumentCreate, Mess
 from middleware.rbac import get_current_user, require_admin
 from middleware.entitlements import require_module
 from config.plans import ModuleName
+from services.entitlements_service import has_client_perks
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -452,7 +453,7 @@ async def delete_document(
     return MessageResponse(message="Document deleted successfully")
 
 
-@router.get("/{doc_id}/content", response_model=DocumentContentResponse, dependencies=[Depends(require_module(ModuleName.DOCUMENT_EXTRACTION))])
+@router.get("/{doc_id}/content", response_model=DocumentContentResponse)
 async def get_document_content(
     doc_id: UUID,
     generate_ai_summary: bool = Query(True, description="Generate AI summary if not cached"),
@@ -475,7 +476,14 @@ async def get_document_content(
 
     Query Parameters:
     - generate_ai_summary: If True (default), generates AI summary if not cached
+
+    Reading a tender document is part of tender detail basics: every signed-in
+    user gets the extracted text. The AI summary / requirements / items are a
+    client perk (14.10.2026) and are neither generated nor returned otherwise.
     """
+    perks = has_client_perks(current_user)
+    if not perks:
+        generate_ai_summary = False
     query = select(Document).where(Document.doc_id == doc_id)
     result = await db.execute(query)
     document = result.scalar_one_or_none()
@@ -614,6 +622,9 @@ async def get_document_content(
         except Exception as e:
             print(f"Failed to generate AI summary: {e}")
             # Continue without AI summary (graceful degradation)
+
+    if not perks:
+        ai_summary, key_requirements, items_mentioned = None, [], []
 
     return DocumentContentResponse(
         doc_id=document.doc_id,

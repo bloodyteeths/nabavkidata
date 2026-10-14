@@ -22,6 +22,8 @@ from database import get_db
 from models import User, Subscription, UsageTracking, AuditLog
 from api.auth import get_current_user, get_current_active_user
 from services.billing_service import billing_service, PLAN_LIMITS, PRICE_IDS
+from services import bid_payments
+from services.entitlements_service import effective_tier, has_client_perks
 from sqlalchemy import text as sa_text
 
 # ============================================================================
@@ -633,38 +635,13 @@ async def get_billing_status(
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     today_usage = await get_usage_stats(db, str(current_user.user_id), today_start)
 
-    # Check trial status from users table (new trial system)
-    tier = (current_user.subscription_tier or "free").lower()
+    # Perks follow the bid-service account (managed_client / admin), not the
+    # stored subscription_tier; self-serve trials are retired (Oct 2026).
+    tier = effective_tier(current_user)
     in_trial = False
     trial_days_remaining = 0
     trial_ends_at = None
     trial_credits = {}
-
-    # Check if user is in active trial (from users table)
-    if hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
-        now = datetime.utcnow()
-        if current_user.trial_ends_at > now:
-            in_trial = True
-            trial_days_remaining = (current_user.trial_ends_at - now).days
-            trial_ends_at = current_user.trial_ends_at.isoformat()
-            tier = "trial"  # Override tier if in trial
-
-            # Get trial credits
-            from sqlalchemy import text
-            credits_result = await db.execute(
-                text("""
-                    SELECT credit_type, total_credits, used_credits
-                    FROM trial_credits
-                    WHERE user_id = :user_id AND expires_at > NOW()
-                """),
-                {"user_id": str(current_user.user_id)}
-            )
-            for row in credits_result:
-                trial_credits[row[0]] = {
-                    "total": row[1],
-                    "used": row[2],
-                    "remaining": row[1] - row[2]
-                }
 
     # Get plan details
     plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS.get("free", {}))
@@ -1402,6 +1379,17 @@ async def handle_stripe_webhook(
 
     logger.info(f"Received Stripe webhook: {event.type}")
 
+    # Done-for-you bid service (prep fee / card setup). Shared Stripe account:
+    # only sessions tagged product=nabavkidata + our kind are handled here, and
+    # they never reach handle_checkout_completed (which would grant a tier).
+    if event.type == "checkout.session.completed" and bid_payments.is_bid_service_session(event.data.object):
+        try:
+            await bid_payments.handle_checkout_session_completed(event.data.object)
+        except Exception:
+            logger.exception("bid-service checkout webhook failed")
+            raise HTTPException(status_code=500, detail="bid-service webhook retry")  # Stripe retries; handler idempotent
+        return {"status": "success", "event_type": event.type, "handled_by": "bid_service"}
+
     try:
         # Handle different event types
         if event.type == "checkout.session.completed":
@@ -1973,14 +1961,17 @@ async def use_trial_credit(
     from sqlalchemy import text
 
     user_id = str(current_user.user_id)
-    tier = current_user.subscription_tier or "free"
     credit_type = request_data.credit_type
-
-    # Check if user is in trial
+    # Paid perks belong to bid-service clients only (14.10.2026); trials are retired.
+    if not has_client_perks(current_user):
+        return {
+            "allowed": False,
+            "remaining": 0,
+            "upgrade_required": True,
+            "message": "Оваа можност е вклучена за клиентите за кои подготвуваме понуди.",
+        }
+    tier = effective_tier(current_user)
     in_trial = False
-    if hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
-        if current_user.trial_ends_at > datetime.utcnow():
-            in_trial = True
 
     if in_trial:
         # Check and consume trial credit
@@ -2115,14 +2106,8 @@ async def check_feature_access(
         - tier_required: Minimum tier needed
         - upgrade_url: URL to upgrade page
     """
-    tier = current_user.subscription_tier or "free"
-
-    # Check trial
-    in_trial = False
-    if hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
-        if current_user.trial_ends_at > datetime.utcnow():
-            in_trial = True
-            tier = "trial"
+    # Perks follow the bid-service account, not subscription_tier; no trials.
+    tier = effective_tier(current_user)
 
     plan = SUBSCRIPTION_PLANS.get(tier, SUBSCRIPTION_PLANS.get("free", {}))
     limits = plan.get("limits", {})

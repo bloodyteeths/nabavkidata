@@ -15,6 +15,8 @@ from database import get_db
 from models import User
 from models_user_personalization import UserPreferences, UserBehavior
 from api.auth import get_current_user
+from middleware.entitlements import require_client_perks
+from services.entitlements_service import has_client_perks
 from schemas_user_personalization import (
     PreferencesCreate,
     PreferencesUpdate,
@@ -305,7 +307,10 @@ async def get_personalized_dashboard(
 ):
     """Get personalized dashboard with caching for performance"""
     user_id = str(current_user.user_id)
-    cache_key = f"{user_id}:{limit}"
+    # Competitor activity + insights are client perks. The perks flag is part of
+    # the cache key so a stale entry from before/after promotion is never served.
+    perks = has_client_perks(current_user)
+    cache_key = f"{user_id}:{limit}:{int(perks)}"
 
     # Return cached response if available and not forcing refresh
     if not refresh and cache_key in _dashboard_cache:
@@ -341,10 +346,13 @@ async def get_personalized_dashboard(
     competitor_tracker = CompetitorTracker(db)
     insight_generator = InsightGenerator(db)
 
-    competitor_activity, insights = await asyncio.gather(
-        competitor_tracker.get_competitor_activity(user_id, limit=10, prefs=user_prefs),
-        insight_generator.generate_insights(user_id, prefs=user_prefs),
-    )
+    if perks:
+        competitor_activity, insights = await asyncio.gather(
+            competitor_tracker.get_competitor_activity(user_id, limit=10, prefs=user_prefs),
+            insight_generator.generate_insights(user_id, prefs=user_prefs),
+        )
+    else:
+        competitor_activity, insights = [], []
 
     # Stats
     stats = {
@@ -366,7 +374,7 @@ async def get_personalized_dashboard(
     return response
 
 
-@router.get("/insights")
+@router.get("/insights", dependencies=[Depends(require_client_perks)])
 async def get_insights(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -424,7 +432,7 @@ async def refresh_interest_vector(
 # EMAIL DIGESTS
 # ============================================================================
 
-@router.get("/digests")
+@router.get("/digests", dependencies=[Depends(require_client_perks)])
 async def get_user_digests(
     limit: int = 50,
     offset: int = 0,
@@ -484,7 +492,7 @@ async def get_user_digests(
     }
 
 
-@router.get("/digests/{digest_id}")
+@router.get("/digests/{digest_id}", dependencies=[Depends(require_client_perks)])
 async def get_digest_detail(
     digest_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -671,7 +679,7 @@ class TrackedCompetitorRemove(BaseModel):
     company_name: str
 
 
-@router.get("/tracked-competitors")
+@router.get("/tracked-competitors", dependencies=[Depends(require_client_perks)])
 async def get_tracked_competitors(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -692,7 +700,7 @@ async def get_tracked_competitors(
     }
 
 
-@router.post("/tracked-competitors")
+@router.post("/tracked-competitors", dependencies=[Depends(require_client_perks)])
 async def add_tracked_competitor(
     data: TrackedCompetitorAdd,
     db: AsyncSession = Depends(get_db),
@@ -734,7 +742,7 @@ async def add_tracked_competitor(
     }
 
 
-@router.delete("/tracked-competitors")
+@router.delete("/tracked-competitors", dependencies=[Depends(require_client_perks)])
 async def remove_tracked_competitor(
     data: TrackedCompetitorRemove,
     db: AsyncSession = Depends(get_db),
@@ -765,7 +773,7 @@ async def remove_tracked_competitor(
     }
 
 
-@router.get("/tracked-competitors/activity")
+@router.get("/tracked-competitors/activity", dependencies=[Depends(require_client_perks)])
 async def get_tracked_competitor_activity(
     limit: int = 20,
     db: AsyncSession = Depends(get_db),

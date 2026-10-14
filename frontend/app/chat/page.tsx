@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Sparkles, AlertCircle, ArrowRight, Zap, Bell, Plus, Clock, TrendingUp, Trophy, BarChart3, Search } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { hasClientPerks } from "@/lib/portal";
 import Link from "next/link";
 
 interface Message {
@@ -63,6 +65,7 @@ export default function ChatPageWrapper() {
 
 function ChatPage() {
   const searchParams = useSearchParams();
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
@@ -214,8 +217,8 @@ function ChatPage() {
   const isLimitReached = usageStatus && usageStatus.daily_queries_limit !== -1 && usageStatus.daily_queries_used >= usageStatus.daily_queries_limit;
   const isBlocked = usageStatus?.is_blocked || usageStatus?.is_trial_expired;
   const remainingQueries = usageStatus ? Math.max(0, usageStatus.daily_queries_limit - usageStatus.daily_queries_used) : 0;
-  const currentTier = usageStatus?.tier?.toLowerCase() || "free";
-  const isFreeTier = currentTier === "free";
+  // AI is a perk for bid-service clients (managed_client) and admins, not a tier.
+  const isFreeTier = !hasClientPerks(user);
 
   // Show loading until hydrated
   if (!isHydrated) {
@@ -397,7 +400,7 @@ function ChatPage() {
                         {usageStatus.daily_queries_limit === -1 ? 'Неограничени' : usageStatus.daily_queries_limit} пребарувања дневно
                       </p>
                     </div>
-                    {usageStatus.tier === 'free' && (
+                    {isFreeTier && (
                       <Link href="/usluga?src=chat">
                         <Button size="sm" variant="outline" className="h-7 md:h-9 text-xs">
                           Бесплатна проценка

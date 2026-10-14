@@ -102,6 +102,9 @@ export interface AdminBidJobDetail extends BidJobDetail {
   publish_count: number;
   admin_notes: string | null;
   reopen_count: number;
+  paid_via: PaidVia | null;
+  /** Why publishing is blocked (success fee not authorised), or null. */
+  publish_blocked_reason: string | null;
 }
 
 export interface BidFile {
@@ -143,6 +146,115 @@ export interface PaymentInfo {
   paid_at: string | null;
   /** Original name of the invoice PDF the admin attached, or null. */
   invoice_file_name: string | null;
+  /** How the prep fee was settled (Phase 2b). */
+  paid_via: PaidVia | null;
+  /** Set once the client chose „Платам со фактура“. */
+  invoice_requested_at: string | null;
+  /** True while the client can pay the prep fee by card (Stripe Checkout). */
+  can_pay_card: boolean;
+  /** Success fee for this bid once a win is confirmed; null before that. */
+  success_fee: SuccessFeeInfo | null;
+}
+
+export type PaidVia = 'stripe' | 'invoice' | 'free';
+
+export interface SuccessFeeInfo {
+  status: 'confirmed' | 'invoiced';
+  fee_mkd: number | null;
+  first_year_value_mkd: number | null;
+  charge_not_before: string | null;
+  /** True when a Stripe draft invoice exists (charged to the saved card). */
+  stripe: boolean;
+}
+
+/** GET /api/bid-service/billing/status and POST /billing/setup-complete. */
+export interface BillingStatus {
+  has_card: boolean;
+  card_brand: string | null;
+  card_last4: string | null;
+  terms_accepted: boolean;
+  current_version: string;
+  success_fee_pct: number | null;
+  success_fee_authorised: boolean;
+  success_fee_authorised_at: string | null;
+  success_fee_authorised_via: 'card' | 'offline' | null;
+  card_payments_enabled: boolean;
+}
+
+export interface PrepPaymentCompleteResponse {
+  paid: boolean;
+  reason: string | null;
+  account_promoted: boolean;
+  job: BidJobDetail;
+  payment: PaymentInfo;
+}
+
+export interface ChooseInvoiceResponse {
+  job: BidJobDetail;
+  payment: PaymentInfo;
+}
+
+export type ClientWinStatus = 'suspected' | 'confirmed' | 'dismissed' | 'invoiced';
+
+export interface ClientWin {
+  id: string;
+  job_id: string | null;
+  user_id: string;
+  email: string;
+  company_name: string | null;
+  tender_id: string;
+  tender_title: string | null;
+  procuring_entity: string | null;
+  matched_name: string | null;
+  match_score: number | null;
+  contract_value_mkd: number | null;
+  value_source: 'bid' | 'actual' | 'estimated' | 'admin' | null;
+  contract_months: number | null;
+  first_year_value_mkd: number | null;
+  success_fee_pct: number | null;
+  prep_fee_credit_mkd: number;
+  success_fee_mkd: number | null;
+  status: ClientWinStatus;
+  detected_at: string;
+  confirmed_at: string | null;
+  notice_sent_at: string | null;
+  charge_not_before: string | null;
+  stripe_invoice_id: string | null;
+  invoice_number: string | null;
+  invoiced_at: string | null;
+  notes: string | null;
+  has_card: boolean;
+}
+
+export interface AdminWinsResponse {
+  wins: ClientWin[];
+  summary: {
+    suspected: number;
+    confirmed: number;
+    invoiced: number;
+    dismissed: number;
+    pipeline_fee_mkd: number;
+    confirmed_fee_mkd: number;
+  };
+}
+
+export interface ConfirmWinBody {
+  first_year_value_mkd?: number;
+  success_fee_mkd?: number;
+  notes?: string;
+  create_stripe_invoice?: boolean;
+}
+
+/** The 7-day notice: charge_not_before is set only once the email went out. */
+export interface WinNoticeResult {
+  sent: boolean;
+  message: string;
+}
+
+export interface ConfirmWinResponse {
+  win: ClientWin;
+  invoice: { created: boolean; stripe_invoice_id: string | null; message: string };
+  notice: WinNoticeResult;
 }
 
 export interface ClientDocument {
@@ -218,6 +330,12 @@ export interface AdminClientInfo {
   success_fee_pct: number;
   terms_agreed_at: string | null;
   agreement_version: string | null;
+  has_card: boolean;
+  card_brand: string | null;
+  card_last4: string | null;
+  success_fee_authorised_at: string | null;
+  success_fee_authorised_via: 'card' | 'offline' | null;
+  success_fee_authorised_ref: string | null;
 }
 
 /** The client's own fees and whether the current service terms are accepted. */
@@ -276,6 +394,8 @@ export interface AdminTeamMember {
 export interface BeginBidJobResponse {
   job: BidJobSummary;
   created: boolean;
+  /** True when the job waits at the fee gate (status payment_required). */
+  payment_required: boolean;
 }
 
 export interface BidJobDetailResponse {
@@ -439,6 +559,15 @@ export const BID_FILE_MAX_BYTES = 25 * 1024 * 1024;
 /** Detail code the API returns (409) when the client has not accepted the current terms. */
 export const TERMS_REQUIRED = 'terms_required';
 
+/** Detail code of the 409 the publish gate returns when the success fee is not authorised. */
+export const SUCCESS_FEE_NOT_AUTHORISED = 'success_fee_not_authorised';
+
+export const PAID_VIA_LABELS: Record<PaidVia, string> = {
+  stripe: 'Картичка',
+  invoice: 'Фактура',
+  free: 'Бесплатно',
+};
+
 /**
  * Payee details shown with an issued invoice. The bank account comes from the
  * environment so it is never hardcoded wrongly; when it is not configured the
@@ -456,7 +585,7 @@ export const PAYMENT_NEXT_STEP =
   'Штом уплатата ќе пристигне на сметката, ја евидентираме (обично во рок од еден работен ден) и веднаш започнуваме со подготовка. Ќе добиете известување по е-пошта.';
 
 export const PAYMENT_INSTRUCTIONS =
-  'Уплатата се врши по фактура, на трансакциската сметка на Фактурино ДООЕЛ наведена во фактурата. Во целта на дознаката наведете го бројот на фактурата. Износите се без ДДВ: Фактурино ДООЕЛ не е ДДВ обврзник.';
+  'Надоместот за подготовка го плаќате со картичка (преку Stripe) или по фактура. За плаќање по фактура уплатата се врши на трансакциската сметка на Фактурино ДООЕЛ наведена во фактурата, а во целта на дознаката го наведувате бројот на фактурата. Износите се без ДДВ: Фактурино ДООЕЛ не е ДДВ обврзник.';
 
 export const ENABAVKI_SUBMIT_REMINDER =
   'Понудата ја потпишувате со вашиот дигитален сертификат и ја поднесувате сами на e-nabavki.gov.mk пред рокот. Откако ќе ја поднесете, кликнете „Поднесено“.';

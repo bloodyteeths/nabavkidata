@@ -30,6 +30,7 @@ from database import AsyncSessionLocal
 from models import User, Tender
 from models_user_personalization import UserPreferences, EmailDigest
 from services.postmark import postmark_service
+from services.entitlements_service import client_perks_clause
 from services.personalization_engine import (
     HybridSearchEngine,
     InsightGenerator,
@@ -120,17 +121,19 @@ def generate_pro_upgrade_section(user_tier: str, alert_matches_count: int, tende
 
     Name kept so callers don't change. No pricing here: outreach rule is never price in emails.
     """
-    service_url = f"{FRONTEND_URL}/usluga?src=digest"
+    # The digest goes only to clients (has_client_perks), who already have a
+    # portal: point them there to start the next bid, not to a new assessment.
+    service_url = f"{FRONTEND_URL}/portal/tenders?src=digest"
     return f"""
     <div style="margin: 30px 0; padding: 22px; background-color: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px;">
         <h3 style="margin: 0 0 10px 0; color: #0f172a; font-size: 17px;">Ние ја пишуваме понудата наместо вас</h3>
         <p style="margin: 0 0 14px 0; font-size: 14px; color: #475569; line-height: 1.6;">
-            Ако некој од овие тендери ви одговара, нашиот тим ја подготвува целата понуда:
-            тендерската документација, условите за способност, техничката и финансиската понуда.
-            Вие ја прегледувате и ја поднесувате.
+            Ако некој од овие тендери ви одговара, започнете понуда од порталот и нашиот тим ја
+            подготвува целата понуда: тендерската документација, условите за способност,
+            техничката и финансиската понуда. Вие ја прегледувате и ја поднесувате.
         </p>
         <p style="margin: 0; text-align: center;">
-            <a href="{service_url}" style="background-color: #2563eb; color: #ffffff; padding: 12px 26px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 14px; font-weight: 600;">Побарајте бесплатна проценка</a>
+            <a href="{service_url}" style="background-color: #2563eb; color: #ffffff; padding: 12px 26px; border-radius: 6px; text-decoration: none; display: inline-block; font-size: 14px; font-weight: 600;">Отвори го порталот</a>
         </p>
     </div>
     """
@@ -516,6 +519,8 @@ async def generate_all_digests(frequency: str = "daily"):
             ).where(
                 and_(
                     User.email_verified == True,
+                    # Digests are a client perk (managed clients and admins only)
+                    client_perks_clause(User),
                     # Include users who have matching frequency OR no preferences yet (default to daily)
                     or_(
                         UserPreferences.notification_frequency == frequency,

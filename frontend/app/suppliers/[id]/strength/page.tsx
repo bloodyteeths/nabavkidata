@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { hasClientPerks } from "@/lib/portal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -149,23 +151,23 @@ export default function SupplierStrengthPage() {
   const [tier, setTier] = useState<string>("unknown");
   const [gated, setGated] = useState(false);
 
+  const { user, isLoading: authLoading } = useAuth();
+
   useEffect(() => {
+    if (authLoading) return;
     loadTier();
-  }, [supplierId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierId, authLoading, user?.account_type, user?.role]);
 
   useEffect(() => {
     if (!gated) load();
   }, [gated, supplierId]);
 
-  async function loadTier() {
-    try {
-      const status = await api.getSubscriptionStatus();
-      setTier(status.tier || "free");
-      setGated(status.tier === "free");
-    } catch {
-      setTier("free");
-      setGated(true);
-    }
+  function loadTier() {
+    // Supplier strength analytics are a perk for bid-service clients and admins.
+    const access = hasClientPerks(user);
+    setTier(access ? "client" : "free");
+    setGated(!access);
   }
 
   async function load() {

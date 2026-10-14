@@ -212,7 +212,7 @@ class TestQualifyValidation:
 
 
 class TestQualifyNewEmail:
-    def test_provisions_unverified_prospect_without_tokens(self, make_client, mail):
+    def test_provisions_unverified_prospect_and_auto_logs_in(self, make_client, mail):
         client, conn = make_client()
         r = client.post("/api/bid-service/qualify", json=_payload())
         assert r.status_code == 200, r.text
@@ -233,9 +233,23 @@ class TestQualifyNewEmail:
         assert "FALSE,$4,$5" in sql and "TRUE" not in sql
         assert "ON CONFLICT (email) DO NOTHING" in sql
 
-        # Pre-account-takeover guard: no session, no tokens, ever
-        assert conn.find("INSERT INTO user_sessions") == []
-        assert data["auth"] is None
+        # Auto-login for the brand-new identity only (BidFinder §4.2):
+        # tokens for OUR inserted user id + exactly one session row.
+        from jose import jwt as _jwt
+        from api.auth import SECRET_KEY, ALGORITHM, hash_token
+        auth = data["auth"]
+        assert auth and auth["token_type"] == "bearer"
+        access = _jwt.decode(auth["access_token"], SECRET_KEY, algorithms=[ALGORITHM])
+        assert access["sub"] == str(conn.user_id) and access["type"] == "access"
+        # Never a long-lived refresh token: the typist may not own the mailbox.
+        assert auth["refresh_token"] is None
+        sessions = conn.find("INSERT INTO user_sessions")
+        assert len(sessions) == 1
+        assert sessions[0][2][0] == conn.user_id
+        assert sessions[0][2][1] == hash_token(auth["access_token"])
+        assert sessions[0][2][2].endswith("|qualify")
+        # No tender given -> portal
+        assert data["next"] == "portal" and data["tender_id"] is None
 
         # Keyword alert from wants_to_win
         alerts = conn.find("INSERT INTO tender_alerts")
@@ -248,7 +262,8 @@ class TestQualifyNewEmail:
         assert len(admin) == 1 and admin[0]["to"] == bid_service.ADMIN_EMAIL
         assert len(confirm) == 1 and confirm[0]["to"] == "lead@example.mk"
         assert "reset-password?token=" in confirm[0]["html"]
-        assert "активирање" in data["message"]
+        assert "Веќе сте најавени на овој уред" in confirm[0]["html"]
+        assert "лозинка" in data["message"]
 
     def test_confirmation_email_contains_no_pricing(self, make_client, mail):
         client, _ = make_client()
@@ -262,7 +277,7 @@ class TestQualifyNewEmail:
         r = client.post("/api/bid-service/qualify", json=_payload(wants_to_win=""))
         assert r.status_code == 200
         assert conn.find("INSERT INTO tender_alerts") == []
-        assert r.json()["auth"] is None
+        assert r.json()["auth"] is not None  # new identity: still auto-logged-in
 
     def test_free_text_is_split_into_keywords(self, make_client):
         client, conn = make_client()
@@ -285,6 +300,8 @@ class TestQualifyNewEmail:
         r = client.post("/api/bid-service/qualify", json=_payload())
         assert r.status_code == 200, r.text
         assert r.json()["auth"] is None
+        assert r.json()["next"] is None
+        assert conn.find("INSERT INTO user_sessions") == []
         assert conn.find("INSERT INTO bid_service_leads")[0][2][7] == uid
         assert conn.find("INSERT INTO tender_alerts") == []
         assert "reset-password" not in mail.by_tag("qualify-confirm")[0]["html"]
@@ -314,6 +331,7 @@ class TestQualifyExistingEmail:
         data = r.json()
 
         assert data["auth"] is None  # account-takeover guard
+        assert data["next"] is None
         assert conn.find("INSERT INTO users") == []
         assert conn.find("INSERT INTO user_sessions") == []
         assert conn.find("UPDATE users") == []
@@ -368,8 +386,9 @@ class TestQualifyTenderAndHistory:
             "tender_id": "17400/2026",
             "title": "Одржување на софтвер за субвенции",
             "procuring_entity": "МЕРМС",
-            "closing_date": date(2026, 10, 22),
+            "closing_date": date(2099, 10, 22),
             "estimated_value_mkd": 400000,
+            "status": "open",
         }
         client, conn = make_client(FakeConn(tender=tender))
         r = client.post("/api/bid-service/qualify",
@@ -384,15 +403,40 @@ class TestQualifyTenderAndHistory:
         assert lead_args[6] == "tender-card"
 
         admin_html = mail.by_tag("bid-service-lead")[0]["html"]
-        assert "17400/2026" in admin_html and "2026-10-22" in admin_html
+        assert "17400/2026" in admin_html and "2099-10-22" in admin_html
         confirm_html = mail.by_tag("qualify-confirm")[0]["html"]
         assert "Одржување на софтвер за субвенции" in confirm_html
+        assert r.json()["next"] == "tender"
+        assert r.json()["tender_id"] == "17400/2026"
+
+    def test_closed_tender_routes_new_identity_to_portal(self, make_client):
+        tender = {"tender_id": "1/2020", "title": "Стар", "procuring_entity": "X",
+                  "closing_date": date(2020, 1, 1), "estimated_value_mkd": None,
+                  "status": "open"}
+        client, _ = make_client(FakeConn(tender=tender))
+        r = client.post("/api/bid-service/qualify", json=_payload(tender_id="1/2020"))
+        assert r.status_code == 200
+        assert r.json()["auth"] is not None
+        assert r.json()["next"] == "portal"
+
+    def test_existing_email_with_open_tender_gets_no_tokens(self, make_client):
+        tender = {"tender_id": "17400/2026", "title": "T", "procuring_entity": "X",
+                  "closing_date": date(2099, 1, 1), "estimated_value_mkd": None,
+                  "status": "open"}
+        conn = FakeConn(tender=tender,
+                        existing_user={"user_id": uuid.uuid4(), "account_type": "prospect"})
+        client, conn = make_client(conn)
+        r = client.post("/api/bid-service/qualify", json=_payload(tender_id="17400/2026"))
+        assert r.status_code == 200
+        assert r.json()["auth"] is None and r.json()["next"] is None
+        assert conn.find("INSERT INTO user_sessions") == []
 
     def test_unknown_tender_id_stores_null(self, make_client):
         client, conn = make_client(FakeConn(tender=None))
         r = client.post("/api/bid-service/qualify", json=_payload(tender_id="99999/2026"))
         assert r.status_code == 200
         assert conn.find("INSERT INTO bid_service_leads")[0][2][5] is None
+        assert r.json()["next"] == "portal" and r.json()["tender_id"] is None
 
     def test_like_wildcards_are_escaped(self, make_client):
         client, conn = make_client(FakeConn(history_row={"bids": 0}))

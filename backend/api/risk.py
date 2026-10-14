@@ -33,6 +33,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../ai'))
 from database import get_db
 from models import User
 from api.auth import get_current_user
+from middleware.entitlements import require_client_perks
+from services.entitlements_service import effective_tier
 
 # Import CorruptionResearchOrchestrator
 try:
@@ -307,7 +309,8 @@ def determine_sources_checked(evidence_summary: Dict[str, Any]) -> SourceCheck:
 # ENDPOINTS
 # ============================================================================
 
-@router.post("/investigate", response_model=InvestigateResponse)
+@router.post("/investigate", response_model=InvestigateResponse,
+             dependencies=[Depends(require_client_perks)])
 async def investigate_entity(
     request: InvestigateRequest,
     db: AsyncSession = Depends(get_db),
@@ -346,7 +349,7 @@ async def investigate_entity(
         )
 
     # Check rate limit
-    subscription_tier = getattr(current_user, "subscription_tier", "free")
+    subscription_tier = effective_tier(current_user)
     is_allowed, error_msg, remaining = investigation_rate_limiter.check_rate_limit(
         str(current_user.user_id),
         subscription_tier
@@ -496,7 +499,7 @@ async def get_investigation_limits(
     - Remaining requests
     - Reset time
     """
-    subscription_tier = getattr(current_user, "subscription_tier", "free")
+    subscription_tier = effective_tier(current_user)
 
     tier_limits = {
         "free": 10,

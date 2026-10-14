@@ -24,6 +24,7 @@ except ImportError:
 # Note: report_campaigns commented out - missing weasyprint on server
 # from api import report_campaigns
 from middleware.fraud import FraudPreventionMiddleware
+from middleware.entitlements import require_client_perks
 from middleware.rate_limit import RateLimitMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -145,8 +146,8 @@ app.include_router(briefings.router, prefix="/api")  # Daily briefings (Phase 6.
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])  # Push notifications (Phase 6.5)
 app.include_router(corruption.router)  # Corruption detection & risk analysis
 app.include_router(risk.router)  # Risk investigation (corruption research orchestrator)
-app.include_router(explainability.router)  # ML explainability (SHAP/LIME)
-app.include_router(collusion.router)  # Collusion detection & network analysis
+app.include_router(explainability.router, dependencies=[Depends(require_client_perks)])  # client perk; ML explainability (SHAP/LIME)
+app.include_router(collusion.router, dependencies=[Depends(require_client_perks)])  # client perk; Collusion detection & network analysis
 app.include_router(api_keys.router, prefix="/api")  # API key management (Enterprise tier)
 # app.include_router(report_campaigns.router)  # Report-first outreach campaigns (disabled - missing weasyprint)
 app.include_router(contact.router, prefix="/api")  # Contact form submissions
@@ -155,8 +156,8 @@ app.include_router(referrals.router, prefix="/api")  # Referral program (user en
 app.include_router(referrals.admin_router, prefix="/api")  # Referral program (admin payout management)
 app.include_router(whistleblower.router)  # Anonymous whistleblower portal (Phase 4.5)
 app.include_router(clawd_monitor.router, prefix="/api")  # Clawd VA monitoring endpoint
-app.include_router(chat_sessions.router, prefix="/api")  # Persistent chat sessions with memory
-app.include_router(chat_v2.router, prefix="/api")  # AI agent chat (SSE streaming)
+app.include_router(chat_sessions.router, prefix="/api", dependencies=[Depends(require_client_perks)])  # client perk; Persistent chat sessions with memory
+app.include_router(chat_v2.router, prefix="/api", dependencies=[Depends(require_client_perks)])  # client perk; AI agent chat (SSE streaming)
 if pipeline:
     app.include_router(pipeline.router, prefix="/api")  # Bid pipeline tracking
 app.include_router(seo.router, prefix="/api")  # SEO metadata endpoints (public, lightweight)

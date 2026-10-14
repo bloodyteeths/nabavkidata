@@ -17,6 +17,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
+import { hasClientPerks } from "@/lib/portal";
 
 export interface DocumentViewerProps {
   docId: string;
@@ -56,6 +58,9 @@ export function DocumentViewer({
   );
   const [copied, setCopied] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const { user } = useAuth();
+  // The AI summary is a client perk; everyone else gets the document text only.
+  const perks = hasClientPerks(user);
 
   // Load full document content with AI summary
   const loadDocumentContent = async (forAi = false) => {
@@ -79,7 +84,7 @@ export function DocumentViewer({
       }
     } catch (error: any) {
       console.error("Failed to load document content:", error);
-      if (!error?.message?.includes("404")) {
+      if (!error?.message?.includes("404") && error?.status !== 403) {
         toast.error("Не успеавме да ја вчитаме содржината");
       }
       if (!documentContent?.content_text) {
@@ -94,7 +99,7 @@ export function DocumentViewer({
   // Auto-fetch AI summary on mount
   useEffect(() => {
     if (!documentContent?.ai_summary) {
-      loadDocumentContent(true);
+      loadDocumentContent(perks);
     }
   }, [docId]);
 

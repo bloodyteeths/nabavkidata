@@ -112,47 +112,44 @@ class PlanDefinition:
 # PLAN DEFINITIONS
 # ==============================================================================
 
+# Since 14 Oct 2026 NabavkiData is a done-for-you bid service. Every paid perk
+# (AI, price intelligence, analytics, exports, alert emails) is reserved for
+# clients we write bids for: services.entitlements_service.effective_tier maps
+# managed_client/admin -> "enterprise" and everyone else -> "free". The free
+# tier is therefore public browsing/search plus in-app alert matches only.
 FREE_PLAN = PlanDefinition(
     tier=PlanTier.FREE,
     name="Free",
     name_mk="Бесплатен",
-    description="Basic access to tender listing",
-    description_mk="Основен преглед на тендери",
+    description="Tender browsing and search",
+    description_mk="Преглед и пребарување на тендери",
     pricing=PlanPricing(mkd_monthly=0, eur_monthly=0),
     modules={
         ModuleName.BASIC_SEARCH: AccessLevel.FULL,
-        ModuleName.ADVANCED_FILTERS: AccessLevel.LIMITED,
-        ModuleName.RAG_SEARCH: AccessLevel.LIMITED,
+        ModuleName.ADVANCED_FILTERS: AccessLevel.FULL,
+        ModuleName.RAG_SEARCH: AccessLevel.NONE,
         ModuleName.DOCUMENT_EXTRACTION: AccessLevel.NONE,
         ModuleName.EXPORT_CSV: AccessLevel.NONE,
         ModuleName.EXPORT_PDF: AccessLevel.NONE,
         ModuleName.ANALYTICS: AccessLevel.NONE,
         ModuleName.RISK_ANALYSIS: AccessLevel.NONE,
         ModuleName.COMPETITOR_TRACKING: AccessLevel.NONE,
-        ModuleName.ALERTS: AccessLevel.LIMITED,
+        ModuleName.ALERTS: AccessLevel.LIMITED,  # in-app matches only; no emails
         ModuleName.API_ACCESS: AccessLevel.NONE,
-        ModuleName.PRICE_INTELLIGENCE: AccessLevel.LIMITED,
+        ModuleName.PRICE_INTELLIGENCE: AccessLevel.NONE,
     },
     limits={
-        "rag_queries": UsageLimit(daily=5, monthly=None),
+        "rag_queries": UsageLimit(daily=0, monthly=0),
         "alerts": UsageLimit(daily=None, monthly=3),
         "exports": UsageLimit(daily=0, monthly=0),
-        "document_views": UsageLimit(daily=5, monthly=None),
-        "price_views": UsageLimit(daily=5, monthly=None),
+        "document_views": UsageLimit(daily=0, monthly=0),
+        "price_views": UsageLimit(daily=0, monthly=0),
     },
     features=[
-        "Basic tender listing",
-        "5 AI queries per day",
-        "5 price views / day",
-        "3 saved search alerts",
-        "No exports",
+        "Tender browsing and search",
     ],
     features_mk=[
-        "Преглед на листа тендери",
-        "5 AI прашања дневно",
-        "5 ценовни прегледи дневно",
-        "3 зачувани пребарувања",
-        "Без извоз",
+        "Преглед и пребарување на тендери",
     ],
 )
 

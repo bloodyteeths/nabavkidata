@@ -747,8 +747,9 @@ class EPazarAwardedItemResponse(BaseModel):
     supplier_tax_id: Optional[str] = None
     contract_item_number: Optional[str] = None
     contracted_quantity: Decimal
-    contracted_unit_price_mkd: Decimal
-    contracted_total_mkd: Decimal
+    # Optional: masked (null) for non-clients — prices are a client perk.
+    contracted_unit_price_mkd: Optional[Decimal] = None
+    contracted_total_mkd: Optional[Decimal] = None
     contracted_unit_price_eur: Optional[Decimal] = None
     contracted_total_eur: Optional[Decimal] = None
     planned_delivery_date: Optional[date] = None

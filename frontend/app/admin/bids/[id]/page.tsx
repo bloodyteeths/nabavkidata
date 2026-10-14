@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,9 @@ import {
   CLIENT_DOCUMENT_CATEGORY_LABELS,
   FILE_APPROVAL_LABELS,
   PRE_SUBMITTED_STATUSES,
+  SUCCESS_FEE_NOT_AUTHORISED,
   formatMkd,
+  type AdminClientInfo,
   type AdminBidJobDetailResponse,
   type AdminTeamMember,
   type BidFileKind,
@@ -56,6 +58,44 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   managed_client: 'Клиент на услугата',
 };
 
+const PAID_VIA_LABELS: Record<string, string> = {
+  stripe: 'со картичка',
+  invoice: 'по фактура',
+  free: 'без надомест',
+};
+
+const MISSING_LABELS: Record<string, string> = {
+  terms: 'прифатени тековни услови',
+  card: 'зачувана картичка или писмено овластување',
+};
+
+/** What the publish gate still needs, derived from the client row (fallback when the 409 detail is not exposed). */
+function missingAuthorisation(client: AdminClientInfo, currentVersion: string | null): string[] {
+  const missing: string[] = [];
+  const termsOk =
+    !!client.terms_agreed_at && (!currentVersion || client.agreement_version === currentVersion);
+  if (!termsOk) missing.push('terms');
+  if (!client.has_card) missing.push('card');
+  return missing;
+}
+
+/** The 409 detail object when lib/api.ts exposes it on the error; null otherwise. */
+function successFeeBlock(err: unknown): { missing: string[]; message: string | null } | null {
+  const e = err as { status?: number; detail?: unknown; message?: string } | null;
+  if (!e) return null;
+  const d = e.detail as { code?: string; missing?: unknown; message?: string } | undefined;
+  if (d && typeof d === 'object' && d.code === SUCCESS_FEE_NOT_AUTHORISED) {
+    return {
+      missing: Array.isArray(d.missing) ? d.missing.map(String) : [],
+      message: d.message ?? null,
+    };
+  }
+  if (e.status === 409 && (e.message === '[object Object]' || e.message?.includes(SUCCESS_FEE_NOT_AUTHORISED))) {
+    return { missing: [], message: null };
+  }
+  return null;
+}
+
 const ACTOR_LABELS: Record<string, string> = {
   client: 'клиент',
   admin: 'админ',
@@ -68,6 +108,11 @@ const EVENT_LABELS: Record<string, string> = {
   invoice_issued: 'Издадена фактура',
   invoice_file_uploaded: 'Прикачена фактура (PDF)',
   paid: 'Евидентирана уплата',
+  invoice_requested: 'Клиентот побара фактура',
+  duplicate_payment: 'Двојна уплата (потребен поврат)',
+  paid_while_cancelled: 'Уплата по откажување',
+  payment_amount_mismatch: 'Износот на уплатата не се совпаѓа',
+  success_fee_authorised: 'Овластување за надомест за успех',
   marked_free: 'Без надомест',
   preparing: 'Подготовка',
   published: 'Објавено на клиентот',
@@ -168,6 +213,8 @@ export default function AdminBidJobPage() {
   const [clientPct, setClientPct] = useState('');
   const [clientCompany, setClientCompany] = useState('');
   const [newTenderId, setNewTenderId] = useState('');
+  const [authRef, setAuthRef] = useState('');
+  const [publishMissing, setPublishMissing] = useState<string[] | null>(null);
 
   const load = useCallback(
     async (initial = false) => {
@@ -251,10 +298,13 @@ export default function AdminBidJobPage() {
   const { job, tender, files, messages, client, client_documents, events, payment } = data;
   const isBusy = busy !== null;
   const canInvoice = job.status === 'requested' || job.status === 'payment_required';
-  const canMarkPaid = job.status === 'payment_required';
+  // Backend mark_job_paid accepts requested or payment_required (card window or invoice).
+  const canMarkPaid = canInvoice && !job.free && !job.paid_at;
   const canMarkFree = canInvoice;
   const canUpload = !TERMINAL.includes(job.status);
-  const canPublish = files.length > 0 && PUBLISHABLE.includes(job.status);
+  const publishBlocked = !!job.publish_blocked_reason;
+  const canPublish = files.length > 0 && PUBLISHABLE.includes(job.status) && !publishBlocked;
+  const sfAuthorised = !!client.success_fee_authorised_at;
   const canAdminSubmit = SUBMITTABLE.includes(job.status) && !!job.published_at;
   const canSetOutcome =
     job.status === 'submitted' ||
@@ -438,9 +488,29 @@ export default function AdminBidJobPage() {
                 Фактура: {payment.invoice_number || '—'}
                 {payment.invoice_issued_at ? `, издадена ${formatDateTime(payment.invoice_issued_at)}` : ''}
               </p>
-              <p>Уплатено: {payment.paid_at ? formatDateTime(payment.paid_at) : '—'}</p>
+              <p>
+                Уплатено: {payment.paid_at ? formatDateTime(payment.paid_at) : '—'}
+                {payment.paid_at && job.paid_via ? ` (${PAID_VIA_LABELS[job.paid_via] ?? job.paid_via})` : ''}
+              </p>
+              {payment.invoice_requested_at && !payment.paid_at && (
+                <p className="font-medium text-sky-700 dark:text-sky-400">
+                  Клиентот побара фактура на {formatDateTime(payment.invoice_requested_at)}.
+                </p>
+              )}
               {payment.required && (
-                <p className="font-medium text-amber-700 dark:text-amber-400">Чекаме уплата.</p>
+                <p className="font-medium text-amber-700 dark:text-amber-400">
+                  Чекаме уплата{payment.can_pay_card ? ' (клиентот може да плати и со картичка)' : ''}.
+                </p>
+              )}
+              {payment.success_fee && (
+                <p>
+                  Надомест за успех:{' '}
+                  <strong>{formatMkd(payment.success_fee.fee_mkd)}</strong>
+                  {payment.success_fee.charge_not_before
+                    ? `, наплата најрано ${formatDay(payment.success_fee.charge_not_before)}`
+                    : ''}
+                  {payment.success_fee.stripe ? ' (Stripe нацрт-фактура)' : ''}
+                </p>
               )}
             </div>
 
@@ -547,7 +617,7 @@ export default function AdminBidJobPage() {
                 size="sm"
                 disabled={!canMarkPaid || isBusy}
                 onClick={() => {
-                  if (!confirm('Означи ја фактурата како платена? Подготовката започнува и клиентот добива известување.')) return;
+                  if (!confirm('Означи ја понудата како платена (по фактура)? Подготовката започнува и клиентот добива известување.')) return;
                   run(
                     'paid',
                     async () => {
@@ -753,15 +823,57 @@ export default function AdminBidJobPage() {
           <Button
             size="sm"
             disabled={!canPublish || isBusy}
-            onClick={() => {
+            title={job.publish_blocked_reason ?? undefined}
+            onClick={async () => {
               if (!confirm('Објави ги сите документи на клиентот? Клиентот добива известување.')) return;
-              run('publish', () => api.publishBidJob(job.id), 'Документите се објавени на клиентот.');
+              setBusy('publish');
+              setActionError(null);
+              setPublishMissing(null);
+              try {
+                await api.publishBidJob(job.id);
+                toast.success('Документите се објавени на клиентот.');
+              } catch (err) {
+                const block = successFeeBlock(err);
+                if (block) {
+                  const missing = block.missing.length
+                    ? block.missing
+                    : missingAuthorisation(client, null);
+                  setPublishMissing(missing);
+                  const msg = block.message || 'Надоместот за успех не е овластен.';
+                  setActionError(msg);
+                  toast.error(msg);
+                } else {
+                  const msg = errorMessage(err, 'Акцијата не успеа.');
+                  setActionError(msg);
+                  toast.error(msg);
+                }
+              } finally {
+                setBusy(null);
+                await load();
+              }
             }}
           >
             {busy === 'publish' ? 'Се објавува…' : 'Објави на клиентот'}
           </Button>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
+          {(publishBlocked || publishMissing) && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="space-y-1">
+                <p className="font-medium">
+                  {job.publish_blocked_reason || 'Надоместот за успех не е овластен.'}
+                </p>
+                {publishMissing && publishMissing.length > 0 && (
+                  <p>Недостасува: {publishMissing.map((m) => MISSING_LABELS[m] ?? m).join(', ')}.</p>
+                )}
+                <p className="text-xs">
+                  Клиентот ги прифаќа условите и зачувува картичка во порталот (Плаќање), или евидентирајте
+                  писмено овластување во делот Клиент подолу.
+                </p>
+              </div>
+            </div>
+          )}
           <form onSubmit={handleUpload} className="grid gap-2 rounded-md border p-3 md:grid-cols-[1fr_200px_1fr_auto] md:items-end">
             <div>
               <Label htmlFor="bid-file" className="text-xs">
@@ -915,6 +1027,76 @@ export default function AdminBidJobPage() {
                   ? `Услови прифатени ${formatDay(client.terms_agreed_at)} (верзија ${client.agreement_version ?? '—'})`
                   : 'Условите сè уште не се прифатени: клиентот ги прифаќа во порталот.'}
               </p>
+            </div>
+
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="font-medium">Картичка и надомест за успех</p>
+              <p className={client.has_card ? '' : 'text-muted-foreground'}>
+                {client.has_card
+                  ? `Зачувана картичка: ${client.card_brand ? client.card_brand.toUpperCase() : 'картичка'}${
+                      client.card_last4 ? ` •••• ${client.card_last4}` : ''
+                    }`
+                  : 'Нема зачувана картичка.'}
+              </p>
+              <p
+                className={
+                  sfAuthorised
+                    ? 'text-green-700 dark:text-green-400'
+                    : 'text-amber-700 dark:text-amber-400'
+                }
+              >
+                {sfAuthorised
+                  ? `Надоместот за успех е овластен ${formatDay(client.success_fee_authorised_at)} (${
+                      client.success_fee_authorised_via === 'offline' ? 'писмен договор' : 'картичка'
+                    })${client.success_fee_authorised_ref ? `, реф. ${client.success_fee_authorised_ref}` : ''}`
+                  : 'Надоместот за успех сè уште не е овластен.'}
+              </p>
+              {!sfAuthorised && (
+                <form
+                  className="space-y-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const ref = authRef.trim();
+                    if (ref.length < 3 || ref.length > 120) {
+                      setActionError('Референцата мора да има од 3 до 120 знаци.');
+                      return;
+                    }
+                    if (!confirm('Евидентирај писмено овластување за надоместот за успех за овој клиент?')) return;
+                    run(
+                      'authorise',
+                      async () => {
+                        await api.adminAuthoriseSuccessFee(client.user_id, ref);
+                        setAuthRef('');
+                        setPublishMissing(null);
+                      },
+                      'Овластувањето е евидентирано.'
+                    );
+                  }}
+                >
+                  <Label htmlFor="auth-ref" className="text-xs">
+                    Референца (број на договор или архивски број)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="auth-ref"
+                      value={authRef}
+                      minLength={3}
+                      maxLength={120}
+                      placeholder="на пр. Договор бр. 12/2026"
+                      onChange={(e) => setAuthRef(e.target.value)}
+                      disabled={isBusy}
+                    />
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant="outline"
+                      disabled={isBusy || authRef.trim().length < 3}
+                    >
+                      {busy === 'authorise' ? 'Се зачувува…' : 'Евидентирај писмено овластување'}
+                    </Button>
+                  </div>
+                </form>
+              )}
             </div>
 
             <form

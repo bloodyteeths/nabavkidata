@@ -14,6 +14,7 @@ from database import get_db
 from models import Tender, User
 from middleware.rbac import get_optional_user
 from middleware.entitlements import check_price_view_quota
+from services.entitlements_service import has_client_perks
 from utils.timezone import get_ai_date_context
 
 router = APIRouter(prefix="/tenders", tags=["tender-details"])
@@ -587,6 +588,17 @@ async def extract_products_with_ai(
         }
 
     # ── Step 2: Fall back to real-time Gemini extraction ──
+    # Real-time AI extraction is a client perk (and costs Gemini quota).
+    if not has_client_perks(current_user):
+        return AIProductsResponse(
+            tender_id=tender_id,
+            extraction_status="no_documents",
+            products=[],
+            summary=("AI извлекувањето на производи е вклучено за клиентите за кои "
+                     "подготвуваме понуди."),
+            source_documents=0
+        )
+
     from google import genai as _genai_mod
     from google.genai import types as genai_types
 

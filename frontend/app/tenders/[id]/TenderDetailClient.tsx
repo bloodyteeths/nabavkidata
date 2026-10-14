@@ -11,6 +11,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
 import { formatCurrency, formatDate, tenderIdFromParam } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { hasClientPerks } from "@/lib/portal";
 import { DocumentViewer } from "@/components/tenders/DocumentViewer";
 import { DocumentSearch } from "@/components/documents/DocumentSearch";
 import { QuickActions } from "@/components/ai/QuickActions";
@@ -291,7 +292,8 @@ export default function TenderDetailClient() {
 
   useEffect(() => {
     loadTier();
-  }, [tenderId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenderId, user?.account_type, user?.role]);
 
   async function loadTender() {
     if (!tenderId) return;
@@ -347,14 +349,17 @@ export default function TenderDetailClient() {
   }
 
   async function loadTier() {
+    // AI summary and other perks are included only for bid-service clients (and admins).
+    setSummaryGated(!hasClientPerks(user));
+    if (!user) {
+      setTier("free");
+      return;
+    }
     try {
       const status = await api.getSubscriptionStatus();
       setTier(status.tier || "free");
-      const gated = status.tier === "free";
-      setSummaryGated(gated);
     } catch {
       setTier("free");
-      setSummaryGated(true);
     }
   }
 
@@ -1756,6 +1761,9 @@ export default function TenderDetailClient() {
                 </CardContent>
               </Card>
 
+              {/* Bid advice, quick actions and the AI chat are client perks:
+                  non-clients see only the gated summary card above. */}
+              {!summaryGated && (<>
               {/* Bid Recommendation — click to load */}
               <Card>
                 <CardHeader>
@@ -1848,6 +1856,7 @@ export default function TenderDetailClient() {
                   </div>
                 </CardContent>
               </Card>
+              </>)}
             </TabsContent>
           </Tabs>
         </div>

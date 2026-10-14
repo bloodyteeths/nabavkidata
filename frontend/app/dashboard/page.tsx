@@ -122,7 +122,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold">Ние ја пишуваме вашата понуда</p>
-                <p className="text-xs text-muted-foreground">Следењето на тендери и проценката се бесплатни. Вие ја прегледувате и ја поднесувате понудата.</p>
+                <p className="text-xs text-muted-foreground">Следењето на тендери и известувањата се вклучени за клиентите. Проценката е бесплатна. Вие ја прегледувате и ја поднесувате понудата.</p>
               </div>
             </div>
             <Link href="/usluga?src=dashboard">

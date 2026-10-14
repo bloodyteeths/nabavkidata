@@ -8,8 +8,17 @@ import type {
   AdminInboxResponse,
   AdminJobActionResponse,
   AdminTeamMember,
+  AdminWinsResponse,
   BeginBidJobResponse,
   BidAgreement,
+  BillingStatus,
+  ChooseInvoiceResponse,
+  ClientWin,
+  ClientWinStatus,
+  ConfirmWinBody,
+  ConfirmWinResponse,
+  WinNoticeResult,
+  PrepPaymentCompleteResponse,
   BidFileKind,
   BidJobDetailResponse,
   BidJobSummary,
@@ -577,7 +586,9 @@ class APIClient {
       // Extract structured info (detail may be string or object)
       const detail = typeof errorData.detail === 'object' ? errorData.detail : errorData;
 
-      if (isUpgrade || response.status === 402) {
+      // The bid service uses 402 for „payment not completed“ — not a paywall.
+      const bidService = endpoint.startsWith('/api/bid-service/');
+      if (isUpgrade || (response.status === 402 && !bidService)) {
         // Dispatch global event for PaywallModal
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('paywall-required', {
@@ -595,14 +606,30 @@ class APIClient {
         (error as any).upgradeRequired = true;
         throw error;
       }
+
+      // Not an upgrade: the body is already consumed, so build the error here.
+      const raw = errorData.detail;
+      const message = Array.isArray(raw)
+        ? raw.map((e: any) => e.msg).join(', ')
+        : (typeof raw === 'string' && raw) || (raw && typeof raw === 'object' && raw.message) || `API Error: ${response.statusText}`;
+      const error = new Error(message);
+      (error as any).status = response.status;
+      (error as any).detail = raw;
+      throw error;
     }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: response.statusText }));
       const detail = errorData.detail;
-      const message = Array.isArray(detail) ? detail.map((e: any) => e.msg).join(', ') : detail || `API Error: ${response.statusText}`;
+      // Structured details ({code, message, ...}) keep their message and stay readable on error.detail.
+      const message = Array.isArray(detail)
+        ? detail.map((e: any) => e.msg).join(', ')
+        : (typeof detail === 'string' && detail) ||
+          (detail && typeof detail === 'object' && (detail.message || detail.code)) ||
+          `API Error: ${response.statusText}`;
       const error = new Error(message);
       (error as any).status = response.status;
+      (error as any).detail = detail;
       throw error;
     }
 
@@ -2617,7 +2644,13 @@ class APIClient {
     return this.request<{
       lead_id: string;
       message: string;
-      auth: { access_token: string; refresh_token: string } | null;
+      /** Set only for a brand-new email: the visitor is signed in on this device. */
+      // No refresh token for auto-login (security): the session lasts until the
+      // access token expires or the address owner sets a password and logs in.
+      auth: { access_token: string; refresh_token: string | null; token_type?: string } | null;
+      /** Where to send a newly signed-in visitor; null for an existing email. */
+      next: 'tender' | 'portal' | null;
+      tender_id: string | null;
     }>('/api/bid-service/qualify', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -2978,6 +3011,88 @@ class APIClient {
       method: 'POST',
       body: JSON.stringify({ version }),
     });
+  }
+
+  // --- Phase 2b: Stripe self-serve payment, card mandate, client wins ---
+
+  /** Stripe Checkout for the prep fee (amount comes from the job on the server). Redirect to `url`. */
+  async payBidPrepFee(jobId: string): Promise<{ url: string }> {
+    return this.request<{ url: string }>(`/api/bid-service/jobs/${encodeURIComponent(jobId)}/pay-prep`, {
+      method: 'POST',
+    });
+  }
+
+  /** Return leg of Checkout: verifies the session server-side and marks the job paid (idempotent). */
+  async completeBidPrepPayment(jobId: string, sessionId: string): Promise<PrepPaymentCompleteResponse> {
+    return this.request<PrepPaymentCompleteResponse>(
+      `/api/bid-service/jobs/${encodeURIComponent(jobId)}/prep-complete`,
+      { method: 'POST', body: JSON.stringify({ session_id: sessionId }) }
+    );
+  }
+
+  /** „Платам со фактура“: asks our team to issue an invoice for the prep fee. */
+  async chooseBidInvoice(jobId: string): Promise<ChooseInvoiceResponse> {
+    return this.request<ChooseInvoiceResponse>(
+      `/api/bid-service/jobs/${encodeURIComponent(jobId)}/choose-invoice`,
+      { method: 'POST' }
+    );
+  }
+
+  async getServiceBillingStatus(): Promise<BillingStatus> {
+    return this.request<BillingStatus>('/api/bid-service/billing/status');
+  }
+
+  /** Stripe Checkout in setup mode: saves a card for the success fee. Redirect to `url`. */
+  async startCardSetup(): Promise<{ url: string }> {
+    return this.request<{ url: string }>('/api/bid-service/billing/setup-checkout', { method: 'POST' });
+  }
+
+  async completeCardSetup(sessionId: string): Promise<BillingStatus> {
+    return this.request<BillingStatus>('/api/bid-service/billing/setup-complete', {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+  }
+
+  async adminAuthoriseSuccessFee(userId: string, reference: string): Promise<{ client: AdminClientInfo }> {
+    return this.request<{ client: AdminClientInfo }>(
+      `/api/bid-service/admin/clients/${encodeURIComponent(userId)}/authorise-success-fee`,
+      { method: 'POST', body: JSON.stringify({ reference }) }
+    );
+  }
+
+  async adminListWins(status?: ClientWinStatus): Promise<AdminWinsResponse> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<AdminWinsResponse>(`/api/bid-service/admin/wins${qs}`);
+  }
+
+  async adminConfirmWin(id: string, body: ConfirmWinBody): Promise<ConfirmWinResponse> {
+    return this.request<ConfirmWinResponse>(`/api/bid-service/admin/wins/${encodeURIComponent(id)}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async adminDismissWin(id: string, notes?: string): Promise<{ win: ClientWin; message: string | null }> {
+    return this.request<{ win: ClientWin; message: string | null }>(
+      `/api/bid-service/admin/wins/${encodeURIComponent(id)}/dismiss`,
+      { method: 'POST', body: JSON.stringify(notes ? { notes } : {}) }
+    );
+  }
+
+  /** Resend the success-fee notice of a confirmed win whose first send failed. */
+  async adminSendWinNotice(id: string): Promise<{ win: ClientWin; notice: WinNoticeResult }> {
+    return this.request<{ win: ClientWin; notice: WinNoticeResult }>(
+      `/api/bid-service/admin/wins/${encodeURIComponent(id)}/send-notice`,
+      { method: 'POST' }
+    );
+  }
+
+  async adminMarkWinInvoiced(id: string, invoiceNumber?: string): Promise<{ win: ClientWin }> {
+    return this.request<{ win: ClientWin }>(
+      `/api/bid-service/admin/wins/${encodeURIComponent(id)}/mark-invoiced`,
+      { method: 'POST', body: JSON.stringify(invoiceNumber ? { invoice_number: invoiceNumber } : {}) }
+    );
   }
 
   async downloadBidInvoice(jobId: string, filename: string): Promise<void> {
@@ -3626,6 +3741,8 @@ export interface EPazarItemAggregation {
 
 export interface EPazarItemsAggregationsResponse {
   aggregations: EPazarItemAggregation[];
+  /** True for non-clients: market prices are a client perk. */
+  price_gated?: boolean;
 }
 
 // Head-to-Head Comparison Types

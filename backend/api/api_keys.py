@@ -15,6 +15,7 @@ import uuid
 from database import get_db
 from models import User, APIKey
 from api.auth import get_current_user, get_current_active_user
+from services.entitlements_service import has_client_perks
 
 router = APIRouter(prefix="/api-keys", tags=["API Keys"])
 
@@ -91,9 +92,8 @@ def hash_api_key(api_key: str) -> str:
 
 
 async def verify_enterprise_tier(user: User) -> bool:
-    """Check if user has Enterprise tier"""
-    tier = getattr(user, 'subscription_tier', 'free').lower()
-    return tier == 'enterprise'
+    """API keys are a client perk (managed clients and admins)."""
+    return has_client_perks(user)
 
 
 # ============================================================================

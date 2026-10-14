@@ -45,6 +45,7 @@ from database import get_db
 from models import Tender, TenderBidder, Supplier, User
 from api.auth import get_current_user
 from middleware.entitlements import require_module
+from services.entitlements_service import effective_tier
 from config.plans import ModuleName
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -615,13 +616,10 @@ async def rag_chat(
     from sqlalchemy import text
 
     user_id = str(current_user.user_id) if current_user else None
-    tier = current_user.subscription_tier if current_user else "free"
+    tier = effective_tier(current_user)
 
-    # Check if user is in trial
+    # Self-serve trials are retired: perks follow account_type.
     in_trial = False
-    if current_user and hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
-        if current_user.trial_ends_at > datetime.utcnow():
-            in_trial = True
 
     if in_trial:
         # Check trial credits

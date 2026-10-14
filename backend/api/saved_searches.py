@@ -19,6 +19,7 @@ from models import User, Alert
 from api.auth import get_current_user
 from middleware.entitlements import require_module
 from config.plans import ModuleName
+from services.entitlements_service import effective_tier
 
 # Note: Using "/queries" instead of "/search" to avoid ad-blocker keyword filters
 router = APIRouter(prefix="/queries", tags=["saved-queries"],
@@ -166,11 +167,8 @@ class SavedSearchListResponse(BaseModel):
 # ============================================================================
 
 def get_user_tier(user: User) -> str:
-    """Get user subscription tier"""
-    tier = getattr(user, 'subscription_tier', 'free')
-    if tier is None:
-        tier = 'free'
-    return tier.lower()
+    """Effective plan tier: perks follow account_type (managed client/admin)."""
+    return effective_tier(user)
 
 
 async def count_user_saved_searches(db: AsyncSession, user_id: UUID) -> int:

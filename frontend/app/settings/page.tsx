@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { api, UserPreferences } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { isPortalUser } from "@/lib/portal";
+import { hasClientPerks, isPortalUser } from "@/lib/portal";
 import PortalSettingsPanel from "@/components/bid-service/PortalSettingsPanel";
 import { billing, BillingPlan, UserSubscriptionStatus, TrialCredits, ReferralStats, ReferralEarning, ConnectStatus } from "@/lib/billing";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,9 @@ import { toast } from "sonner";
 import { Invoice } from "@/lib/api";
 
 // Expanded sectors based on common procurement categories in Macedonia
+/** Subscription plans are no longer sold; the controls stay hidden for everyone. */
+const SELF_SERVE_PLANS_ENABLED = false;
+
 const AVAILABLE_SECTORS = [
   { id: "it", label: "ИТ и Софтвер", description: "Информатичка технологија, софтвер, хардвер" },
   { id: "construction", label: "Градежништво", description: "Градежни работи, инфраструктура" },
@@ -1148,7 +1151,8 @@ export default function SettingsPage() {
 
       try {
         const status = await billing.getSubscriptionStatus();
-        setCurrentTier(status.tier);
+        // Status follows the service relationship (account_type), not a plan tier.
+        setCurrentTier(hasClientPerks(user) ? 'client' : 'free');
         setDailyUsage({ used: status.daily_queries_used, limit: status.daily_queries_limit });
         setHasStripeCustomer(!!(status as any).stripe_customer_id);
         setCancelAtPeriodEnd(!!(status as any).cancel_at_period_end);
@@ -1239,7 +1243,8 @@ export default function SettingsPage() {
   }, []);
 
   const handleUpgrade = async (tier: string) => {
-    if (tier === 'free') return;
+    // Self-serve plans are retired: perks come with the bid-writing service.
+    if (tier === 'free' || !SELF_SERVE_PLANS_ENABLED) return;
     try {
       setUpgrading(tier);
       const session = await api.createCheckoutSession(tier, interval, currency);
@@ -1279,7 +1284,7 @@ export default function SettingsPage() {
   };
 
   const handleChangePlan = async (tier: string) => {
-    if (tier === 'free' || tier === 'trial') return;
+    if (tier === 'free' || tier === 'trial' || !SELF_SERVE_PLANS_ENABLED) return;
 
     // If user has no active subscription, go through checkout
     if (currentTier === 'free' || !hasStripeCustomer) {
@@ -1419,14 +1424,14 @@ export default function SettingsPage() {
                 ? 'Вие сте наш клиент. За секоја нова понуда, јавете ни се или побарајте проценка.'
                 : user?.account_type === 'prospect'
                   ? 'Го примивме вашето барање. Ќе ви одговориме во рок од еден работен ден.'
-                  : 'Следењето на тендери е бесплатно. Ако сакате, ние ја подготвуваме понудата за вас.'}
+                  : 'Следењето на тендери и известувањата се вклучени за клиентите. Проценката е бесплатна.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 md:p-6 pt-0 space-y-4">
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                <span>Следење на тендери и бесплатна проценка дали вреди да се понуди.</span>
+                <span>Бесплатна проценка дали вреди да се понуди. Следењето на тендери, известувањата и AI алатките се вклучени за клиентите.</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
@@ -1438,7 +1443,7 @@ export default function SettingsPage() {
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                <span>Плаќање со фактура од Фактурино ДООЕЛ, по банкарска трансакција. Без претплата и без картичка.</span>
+                <span>Плаќање со картичка преку Stripe или со фактура од Фактурино ДООЕЛ. Без претплата.</span>
               </li>
             </ul>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -1871,6 +1876,11 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="p-4 md:p-6 pt-0">
             <div className="space-y-4">
+              {!hasClientPerks(user) && (
+                <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                  Известувањата по е-пошта се вклучени за клиентите за кои подготвуваме понуди.
+                </p>
+              )}
               <div>
                 <label className="text-sm font-medium mb-2 block">Фреквенција на email известувања</label>
                 <Select value={preferences.notification_frequency} onValueChange={(value) => setPreferences((prev) => ({ ...prev, notification_frequency: value }))}>

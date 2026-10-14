@@ -31,6 +31,7 @@ from models_user_personalization import UserPreferences, TenderAlert
 from services.postmark import postmark_service
 from api.alerts import check_alert_against_tender
 from api.notifications import create_notification
+from services.entitlements_service import client_perks_sql, client_perks_clause
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -383,13 +384,18 @@ async def process_tender_alert_matches(db: AsyncSession, tenders: List[dict], so
     if not tenders:
         return 0, 0
 
-    # Get all active tender_alerts with user info
-    result = await db.execute(text("""
+    # Active tender_alerts of prospects, clients and admins. Prospects keep
+    # matches + in-app notifications (the portal "Тендери за мене" hook);
+    # alert EMAILS are a client perk and also need a verified address.
+    result = await db.execute(text(f"""
         SELECT ta.alert_id, ta.user_id, ta.name, ta.criteria, ta.notification_channels,
-               u.email, u.full_name, u.email_verified
+               u.email, u.full_name, u.email_verified,
+               {client_perks_sql('u')} AS perks
         FROM tender_alerts ta
         JOIN users u ON u.user_id = ta.user_id::uuid
-        WHERE ta.is_active = true AND u.email_verified = true
+        WHERE ta.is_active = true
+          AND (u.account_type IN ('prospect', 'managed_client')
+               OR LOWER(COALESCE(u.role, '')) = 'admin')
     """))
     alerts_with_users = result.fetchall()
 
@@ -403,7 +409,7 @@ async def process_tender_alert_matches(db: AsyncSession, tenders: List[dict], so
     for tender in tenders:
         for row in alerts_with_users:
             alert_id, user_id, alert_name, criteria_raw, channels_raw, \
-                user_email, user_name, _ = row
+                user_email, user_name, email_verified, perks = row
 
             # Parse JSONB criteria
             criteria = criteria_raw if isinstance(criteria_raw, dict) else json.loads(criteria_raw) if criteria_raw else {}
@@ -452,7 +458,8 @@ async def process_tender_alert_matches(db: AsyncSession, tenders: List[dict], so
                     logger.warning(f"Notification create failed (rolled back): {e}")
 
             # Email notification (capped, dedup per user+tender across all alerts/sources)
-            if 'email' in channels and emails_sent < MAX_EMAILS_PER_RUN:
+            if ('email' in channels and perks and email_verified
+                    and emails_sent < MAX_EMAILS_PER_RUN):
                 if already_emailed and (user_email, tender['tender_id']) in already_emailed:
                     print(f"  ~ Skipped email to {user_email} for {tender['tender_id'][:20]}... (already emailed via prefs)")
                     # Mark as notified since user got the email via preference system
@@ -504,12 +511,14 @@ async def check_tender_changes(db: AsyncSession, last_check: datetime) -> int:
         tid, title, status, winner, entity = tender_row
 
         # Find users watching this tender (have it in alert_matches)
-        watchers = await db.execute(text("""
+        # Tender-change watching is a client perk.
+        watchers = await db.execute(text(f"""
             SELECT DISTINCT ta.user_id, u.email, u.full_name
             FROM alert_matches am
             JOIN tender_alerts ta ON ta.alert_id = am.alert_id
             JOIN users u ON u.user_id = ta.user_id::uuid
             WHERE am.tender_id = :tid AND ta.is_active = true
+              AND u.email_verified = true AND {client_perks_sql('u')}
         """), {'tid': tid})
 
         for watcher in watchers.fetchall():
@@ -617,7 +626,8 @@ async def process_instant_alerts():
                 and_(
                     User.email_verified == True,
                     UserPreferences.notification_frequency == "instant",
-                    UserPreferences.email_enabled == True
+                    UserPreferences.email_enabled == True,
+                    client_perks_clause(User),  # alert emails are a client perk
                 )
             )
 

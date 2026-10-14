@@ -190,6 +190,10 @@ async def send_trial_email(client: httpx.AsyncClient, email: str, user_name: str
 
 async def main():
     """Main outreach process."""
+    if os.getenv("ALLOW_RETIRED_SAAS_CAMPAIGNS") != "1":
+        # Bid service since 14 Oct 2026: these emails sell retired plans/trials.
+        print("retired: self-serve plans no longer sold")
+        return
     logger.info("=" * 60)
     logger.info("TRIAL OUTREACH - Personal offers to engaged free users")
     logger.info(f"Time: {datetime.utcnow().isoformat()}")

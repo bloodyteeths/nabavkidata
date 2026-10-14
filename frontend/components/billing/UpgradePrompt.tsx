@@ -7,6 +7,8 @@ import { ArrowRight, FileText, HeartHandshake, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/lib/auth';
+import { canAccessPortal } from '@/lib/portal';
 
 /**
  * Service prompt (formerly a plan-upgrade prompt).
@@ -45,7 +47,8 @@ const FEATURE_LABELS: Record<string, string> = {
 export const SERVICE_HEADLINE = 'Ова го правиме ние за вас';
 export const SERVICE_BODY =
   'Ние ја правиме анализата и ја пишуваме понудата за вас. Вие ја прегледувате, ја потпишувате со ваш сертификат и ја поднесувате на е-набавки.';
-const SERVICE_PRICE_NOTE = 'Бесплатна проценка. Подготовка од 30.000 МКД по понуда.';
+const SERVICE_PRICE_NOTE =
+  'AI алатките, ценовните анализи и известувањата се вклучени за клиентите за кои подготвуваме понуди. Проценката е бесплатна.';
 
 /**
  * Messages coming from the backend or older call sites may still talk about
@@ -74,7 +77,12 @@ export function UpgradePrompt({
 }: UpgradePromptProps) {
   const featureLabel = FEATURE_LABELS[feature];
   const context = serviceContextMessage(message);
-  const href = serviceHref(feature);
+  // Prospects already went through the assessment and have a portal: their
+  // next step is starting a bid there, not a second assessment request.
+  const { user } = useAuth();
+  const inPortal = canAccessPortal(user);
+  const href = inPortal ? '/portal/tenders' : serviceHref(feature);
+  const ctaLabel = inPortal ? 'Започнете понуда' : 'Побарајте бесплатна проценка';
 
   // Close the modal with Escape.
   useEffect(() => {
@@ -102,7 +110,7 @@ export function UpgradePrompt({
         </div>
         <Button asChild className="shrink-0">
           <Link href={href}>
-            Побарајте бесплатна проценка
+            {ctaLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
@@ -153,7 +161,7 @@ export function UpgradePrompt({
               <p className="text-muted-foreground">{SERVICE_BODY}</p>
 
               <ul className="bg-muted/60 rounded-lg p-4 text-left text-sm space-y-1.5 text-foreground">
-                <li>Следење и избор на тендери за вас, бесплатно</li>
+                <li>Следење и избор на тендери за вас, вклучено за клиентите</li>
                 <li>Анализа на условите и цените на конкуренцијата</li>
                 <li>Целосна понуда, подготвена за поднесување</li>
               </ul>
@@ -167,7 +175,7 @@ export function UpgradePrompt({
                 )}
                 <Button asChild className="flex-1">
                   <Link href={href} onClick={onClose}>
-                    Дознајте повеќе
+                    {inPortal ? ctaLabel : 'Дознајте повеќе'}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
@@ -190,7 +198,7 @@ export function UpgradePrompt({
       <p className="text-sm text-muted-foreground mb-4 max-w-lg mx-auto">{SERVICE_BODY}</p>
       <Button asChild size="sm">
         <Link href={href}>
-          Побарајте бесплатна проценка
+          {ctaLabel}
           <ArrowRight className="ml-2 h-4 w-4" />
         </Link>
       </Button>

@@ -16,6 +16,14 @@ export function canAccessPortal(user: U): boolean {
   return isPortalUser(user) || user?.role?.toLowerCase() === 'admin';
 }
 
+/**
+ * Paid perks (alerts, AI, analytics, exports, price data) are included only for
+ * clients we write bids for, plus admins. Mirrors backend services/entitlements_service.has_client_perks.
+ */
+export function hasClientPerks(user: U): boolean {
+  return user?.account_type === 'managed_client' || user?.role?.toLowerCase() === 'admin';
+}
+
 /** Where to land after login, honouring a same-origin `redirect` when it is allowed. */
 export function postLoginPath(user: U, requested: string | null | undefined): string {
   const safe = requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : null;

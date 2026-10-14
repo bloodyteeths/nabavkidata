@@ -86,6 +86,7 @@ class FakeDB:
         self.messages: dict = {}
         self.events: list = []
         self.alerts: list = []
+        self.wins: dict = {}
         self.calls: list = []
         self.transactions = 0
 
@@ -96,7 +97,11 @@ class FakeDB:
                  company_name="Тест ДООЕЛ", account_type="prospect", role="user",
                  free_drafting=False, prep_fee_mkd=30000, success_fee_pct=5.0,
                  calendar_token=None, terms_agreed_at=datetime.now(timezone.utc),
-                 agreement_version=bid_jobs.AGREEMENT_VERSION)
+                 agreement_version=bid_jobs.AGREEMENT_VERSION, stripe_customer_id=None,
+                 stripe_mandate_pm_id=None, stripe_card_brand=None, stripe_card_last4=None,
+                 # Fixture clients have authorised the success fee (publish gate).
+                 success_fee_authorised_at=datetime.now(timezone.utc),
+                 success_fee_authorised_via="offline", success_fee_authorised_ref="Договор 1")
         u.update(kw)
         self.users[uid] = u
         return u
@@ -118,10 +123,43 @@ class FakeDB:
                  published_at=None, publish_count=0, reopen_count=0, approved_at=None,
                  submitted_at=None, outcome=None, outcome_at=None, cancelled_at=None,
                  cancelled_by=None, cancel_reason=None, created_at=now, updated_at=now,
-                 invoice_file_path=None, invoice_file_name=None)
+                 invoice_file_path=None, invoice_file_name=None, paid_via=None,
+                 stripe_checkout_session_id=None, stripe_payment_intent_id=None,
+                 invoice_requested_at=None)
         j.update(kw)
         self.jobs[jid] = j
         return j
+
+    def add_win(self, user_id, job_id=None, tender_id="17400/2026", status="suspected", **kw):
+        wid = uuid.uuid4()
+        w = dict(id=wid, user_id=user_id, job_id=job_id, tender_id=tender_id,
+                 tender_title="Одржување на софтвер", procuring_entity="Министерство",
+                 matched_name="Тест ДООЕЛ", match_score=0.9, contract_value_mkd=1200000,
+                 value_source="actual", contract_months=24, first_year_value_mkd=600000,
+                 success_fee_pct=5.0, prep_fee_credit_mkd=0, success_fee_mkd=30000,
+                 status=status, detected_at=datetime.now(timezone.utc), admin_notified_at=None,
+                 confirmed_at=None, confirmed_by=None, notice_sent_at=None,
+                 charge_not_before=None, stripe_invoice_id=None, invoice_number=None,
+                 invoiced_at=None, dismissed_at=None, notes=None,
+                 updated_at=datetime.now(timezone.utc))
+        w.update(kw)
+        self.wins[wid] = w
+        return w
+
+    def _win_full(self, w):
+        u = self.users.get(w["user_id"], {})
+        return dict(w, email=u.get("email"), company_name=u.get("company_name"),
+                    has_card=bool(u.get("stripe_mandate_pm_id")),
+                    stripe_customer_id=u.get("stripe_customer_id"),
+                    stripe_mandate_pm_id=u.get("stripe_mandate_pm_id"))
+
+    def _authorise(self, uid):
+        u = self.users.get(uid)
+        if (u and u["success_fee_authorised_at"] is None and u["terms_agreed_at"] is not None
+                and u["agreement_version"] == bid_jobs.AGREEMENT_VERSION
+                and u["stripe_mandate_pm_id"]):
+            u.update(success_fee_authorised_at=datetime.now(timezone.utc),
+                     success_fee_authorised_via="card")
 
     def add_file(self, job_id, client_visible=True, approval_status="pending", **kw):
         fid = uuid.uuid4()
@@ -223,7 +261,7 @@ class FakeDB:
                 ca = ca.astimezone()
             recent = ca is not None and ca > datetime.now(timezone.utc) - timedelta(minutes=a[2])
             return dict(j, recently_cancelled=recent)
-        if "SELECT j.*" in s and "FROM bid_jobs j" in s:
+        if "SELECT j.*" in s and "FROM bid_jobs j" in s and "AS u_pct" not in s:
             admin = "u.email AS user_email" in s
             if s.endswith("WHERE j.id = $1 AND j.user_id = $2"):
                 j = self.jobs.get(a[0])
@@ -311,6 +349,84 @@ class FakeDB:
             return dict(total=0, general=0)
         if s.startswith("SELECT account_type, company_name FROM users"):
             return self.users.get(a[0])
+        # --- Phase 2b (payments / wins) ---------------------------------
+        if s.startswith("SELECT * FROM bid_jobs WHERE id = $1 FOR UPDATE"):
+            j = self.jobs.get(a[0])
+            return dict(j) if j else None
+        if s.startswith("UPDATE bid_jobs SET status = 'preparing', paid_at"):
+            j = self.jobs.get(a[0])
+            if not j or j["status"] not in ("requested", "payment_required") or j["paid_at"]:
+                return None
+            j.update(status="preparing", paid_at=a[1] or datetime.now(timezone.utc),
+                     paid_via=a[2], stripe_checkout_session_id=a[3],
+                     stripe_payment_intent_id=a[4], updated_at=datetime.now())
+            return dict(id=j["id"])
+        if s.startswith("SELECT id, user_id, prep_fee_mkd, paid_at, stripe_checkout_session_id"):
+            j = self.jobs.get(a[0])
+            return dict(j) if j else None
+        if s.startswith("SELECT id, status, free, paid_at, prep_fee_mkd, invoice_requested_at"):
+            j = self.jobs.get(a[0])
+            return dict(j) if j and j["user_id"] == a[1] else None
+        if s.startswith("SELECT status, success_fee_mkd, first_year_value_mkd, charge_not_before"):
+            ws = [w for w in self.wins.values()
+                  if w["job_id"] == a[0] and w["status"] in ("confirmed", "invoiced")]
+            return dict(ws[-1]) if ws else None
+        if s.startswith("SELECT u.user_id, u.success_fee_authorised_at"):
+            j = self.jobs.get(a[0])
+            if not j:
+                return None
+            u = self.users[j["user_id"]]
+            return dict(user_id=u["user_id"],
+                        success_fee_authorised_at=u["success_fee_authorised_at"],
+                        terms_agreed_at=u["terms_agreed_at"],
+                        agreement_version=u["agreement_version"],
+                        stripe_mandate_pm_id=u["stripe_mandate_pm_id"],
+                        success_fee_pct=j["success_fee_pct"])
+        if s.startswith("SELECT j.*, u.company_name, u.success_fee_pct AS u_pct"):
+            j = self.jobs.get(a[0])
+            if not j:
+                return None
+            t = self.tenders.get(j["tender_id"], {})
+            u = self.users[j["user_id"]]
+            return dict(j, company_name=u["company_name"], u_pct=u["success_fee_pct"],
+                        title=t.get("title"), procuring_entity=t.get("procuring_entity"),
+                        actual_value_mkd=t.get("actual_value_mkd"),
+                        estimated_value_mkd=t.get("estimated_value_mkd"),
+                        contract_duration=t.get("contract_duration"))
+        if s.startswith("SELECT stripe_mandate_pm_id, stripe_card_brand"):
+            return self.users.get(a[0])
+        if s.startswith("SELECT terms_agreed_at, agreement_version FROM users"):
+            return self.users.get(a[0])
+        if s.startswith("SELECT email, company_name, stripe_customer_id FROM users"):
+            return self.users.get(a[0])
+        if s.startswith("SELECT stripe_mandate_pm_id, stripe_customer_id FROM users"):
+            return self.users.get(a[0])
+        if "FROM client_wins w JOIN users u" in s and s.endswith("WHERE w.id = $1"):
+            w = self.wins.get(a[0])
+            return self._win_full(w) if w else None
+        if s.startswith("SELECT w.*, u.stripe_customer_id, u.stripe_mandate_pm_id FROM client_wins"):
+            w = self.wins.get(a[0])
+            return self._win_full(w) if w else None
+        if s.startswith("UPDATE client_wins SET status = 'confirmed'"):
+            w = self.wins.get(a[0])
+            if not w or w["status"] != "suspected":
+                return None
+            now = datetime.now(timezone.utc)
+            if a[1] is not None:
+                w.update(first_year_value_mkd=a[1], value_source="admin")
+            w.update(status="confirmed", success_fee_mkd=a[2], notes=a[3] or w["notes"],
+                     confirmed_at=now, confirmed_by=a[4], notice_sent_at=None,
+                     charge_not_before=None)
+            return dict(w)
+        if s.startswith("SELECT COUNT(*) FILTER (WHERE status = 'suspected') AS suspected"):
+            ws = list(self.wins.values())
+            c = lambda st: len([w for w in ws if w["status"] == st])  # noqa: E731
+            return dict(suspected=c("suspected"), confirmed=c("confirmed"),
+                        invoiced=c("invoiced"), dismissed=c("dismissed"),
+                        pipeline_fee_mkd=sum(w["success_fee_mkd"] or 0 for w in ws
+                                             if w["status"] == "suspected"),
+                        confirmed_fee_mkd=sum(w["success_fee_mkd"] or 0 for w in ws
+                                              if w["status"] in ("confirmed", "invoiced")))
         # bid_notifications.load_context
         if s.startswith("SELECT j.id AS job_id, j.status"):
             j = self.jobs.get(a[0])
@@ -366,7 +482,7 @@ class FakeDB:
             if self._find_job(a[0], a[1]):
                 return None
             j = self.add_job(a[0], a[1], a[2], prep_fee_mkd=a[3], success_fee_pct=a[4], free=a[5],
-                             client_note=a[6])
+                             client_note=a[6], paid_via=a[7])
             return j["id"]
         if s.startswith("SELECT EXISTS (SELECT 1 FROM bid_job_files"):
             return any(f["job_id"] == a[0] and f["client_visible"]
@@ -399,6 +515,54 @@ class FakeDB:
         if s.startswith("SELECT COUNT(*) FROM bid_messages WHERE user_id = $1 AND sender_role = 'client'"):
             return len([m for m in self.messages.values()
                         if m["user_id"] == a[0] and m["sender_role"] == "client"])
+        if s.startswith("SELECT success_fee_authorised_at IS NOT NULL FROM users"):
+            u = self.users.get(a[0])
+            return bool(u and u["success_fee_authorised_at"] is not None)
+        if s.startswith("INSERT INTO client_wins"):
+            if any(w["user_id"] == a[0] and w["tender_id"] == a[2] for w in self.wins.values()):
+                return None
+            cols = ("user_id", "job_id", "tender_id", "tender_title", "procuring_entity",
+                    "matched_name", "match_score", "contract_value_mkd", "value_source",
+                    "contract_months", "first_year_value_mkd", "success_fee_pct",
+                    "prep_fee_credit_mkd", "success_fee_mkd")
+            w = self.add_win(**dict(zip(cols, a)))
+            return w["id"]
+        if s.startswith("UPDATE users SET success_fee_authorised_at = COALESCE"):
+            u = self.users.get(a[0])
+            if not u:
+                return None
+            if u["success_fee_authorised_at"] is None:
+                u["success_fee_authorised_at"] = datetime.now(timezone.utc)
+            u["success_fee_authorised_via"] = u["success_fee_authorised_via"] or "offline"
+            u["success_fee_authorised_ref"] = u["success_fee_authorised_ref"] or a[1]
+            return u["user_id"]
+        if s.startswith("SELECT COALESCE(stripe_invoice_id, '') FROM client_wins"):
+            w = self.wins.get(a[0])
+            if not w or w["status"] not in ("suspected", "confirmed"):
+                return None
+            return w.get("stripe_invoice_id") or ""
+        if s.startswith("UPDATE users SET stripe_customer_id = $2"):
+            u = self.users[a[0]]
+            if u.get("stripe_customer_id") != a[2]:
+                return None
+            u["stripe_customer_id"] = a[1]
+            return a[1]
+        if s.startswith("SELECT stripe_customer_id FROM users WHERE user_id = $1"):
+            return self.users[a[0]].get("stripe_customer_id")
+        if s.startswith("UPDATE client_wins SET status = 'dismissed'"):
+            w = self.wins.get(a[0])
+            if not w or w["status"] not in ("suspected", "confirmed"):
+                return None
+            w.update(status="dismissed", dismissed_at=datetime.now(timezone.utc),
+                     notes=a[1] or w["notes"])
+            return w["id"]
+        if s.startswith("UPDATE client_wins SET status = 'invoiced'"):
+            w = self.wins.get(a[0])
+            if not w or w["status"] != "confirmed":
+                return None
+            w.update(status="invoiced", invoiced_at=datetime.now(timezone.utc),
+                     invoice_number=a[1] or w["invoice_number"])
+            return w["id"]
         # bid_notifications.claim_notification
         if s.startswith("INSERT INTO bid_job_events (job_id, kind, event, actor_role) VALUES ($1,'notify'"):
             if any(e["kind"] == "notify" and e["job_id"] == a[0] and e["event"] == a[1]
@@ -440,6 +604,9 @@ class FakeDB:
             return [dict(status=k, n=v) for k, v in counts.items()]
         if "FROM client_documents" in s or "FROM bid_job_events" in s:
             return []
+        if "FROM client_wins w JOIN users u" in s:
+            ws = [w for w in self.wins.values() if not a or w["status"] == a[0]]
+            return [self._win_full(w) for w in ws]
         raise AssertionError(f"FakeDB.fetch: unhandled SQL: {s[:160]}")
 
     async def execute(self, sql, *a):
@@ -510,6 +677,45 @@ class FakeDB:
             return "UPDATE"
         if s.startswith("UPDATE bid_messages m SET"):
             return "UPDATE 0"
+        if s.startswith("UPDATE bid_jobs SET paid_at = COALESCE($2::timestamptz, NOW())"):
+            j = self.jobs.get(a[0])
+            if j and j["paid_at"] is None:
+                j.update(paid_at=a[1] or datetime.now(timezone.utc), paid_via=a[2],
+                         stripe_checkout_session_id=a[3], stripe_payment_intent_id=a[4])
+                return "UPDATE 1"
+            return "UPDATE 0"
+        if s.startswith("UPDATE bid_jobs SET invoice_requested_at"):
+            j = self.jobs[a[0]]
+            j["invoice_requested_at"] = j["invoice_requested_at"] or datetime.now(timezone.utc)
+            return "UPDATE 1"
+        if s.startswith("UPDATE users SET success_fee_authorised_at = NOW()"):
+            self._authorise(a[0])
+            return "UPDATE 1"
+        if s.startswith("UPDATE users SET stripe_customer_id = $2"):
+            self.users[a[0]]["stripe_customer_id"] = a[1]
+            return "UPDATE 1"
+        if s.startswith("UPDATE users SET stripe_mandate_pm_id = $2"):
+            u = self.users[a[0]]
+            if s.endswith("AND stripe_mandate_pm_id IS NULL") and u["stripe_mandate_pm_id"]:
+                return "UPDATE 0"
+            u.update(stripe_mandate_pm_id=a[1], stripe_card_brand=a[2], stripe_card_last4=a[3])
+            if a[4] is not None:
+                u["stripe_customer_id"] = a[4]
+            return "UPDATE 1"
+        if s.startswith("UPDATE client_wins SET notice_sent_at = NOW()"):
+            w = self.wins[a[0]]
+            if w["notice_sent_at"] is None:
+                now = datetime.now(timezone.utc)
+                w.update(notice_sent_at=now, charge_not_before=now + timedelta(days=7))
+            return "UPDATE 1"
+        if s.startswith("DELETE FROM bid_job_events WHERE job_id = $1 AND kind = 'notify'"):
+            self.events = [e for e in self.events
+                           if not (e["kind"] == "notify" and e["job_id"] == a[0]
+                                   and e["event"] == a[1])]
+            return "DELETE 1"
+        if s.startswith("UPDATE client_wins SET stripe_invoice_id = $2"):
+            self.wins[a[0]]["stripe_invoice_id"] = a[1]
+            return "UPDATE 1"
         if s.startswith("UPDATE users SET calendar_token = $2"):
             self.users[a[0]]["calendar_token"] = a[1]
             return "UPDATE 1"
@@ -855,11 +1061,13 @@ class TestBegin:
         r = make_client(u).post(API + "/jobs", json={"tender_id": "17400/2026"})
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["created"] is True
-        assert body["job"]["status"] == "requested" and body["job"]["whose_move"] == "us"
+        assert body["created"] is True and body["payment_required"] is True
+        # Phase 2b: a client's begin waits at the fee gate (card or invoice).
+        assert body["job"]["status"] == "payment_required"
+        assert body["job"]["whose_move"] == "client"
         job = next(iter(db.jobs.values()))
         assert job["prep_fee_mkd"] == 45000 and job["success_fee_pct"] == 4.5
-        assert job["free"] is False
+        assert job["free"] is False and job["paid_via"] is None
         sent = mail.by_tag("bid-job-job_requested")
         assert len(sent) == 1 and sent[0]["to"] == bid_notifications.ADMIN_EMAIL
 
@@ -942,8 +1150,6 @@ class TestTransitions:
         admin = make_client(admin_user, admin=True)
         client = make_client(client_user)
 
-        # cannot mark paid before invoice
-        assert admin.post(f"{API}/admin/jobs/{jid}/mark-paid", json={}).status_code == 409
         # cannot publish while requested
         assert admin.post(f"{API}/admin/jobs/{jid}/publish").status_code == 409
 
@@ -959,6 +1165,7 @@ class TestTransitions:
         assert client_user["account_type"] == "managed_client"
         assert job["status"] == "preparing"
         assert job["paid_at"] == datetime(2026, 10, 10, 12, 0, tzinfo=ZoneInfo("Europe/Skopje"))
+        assert job["paid_via"] == "invoice"
         assert db.find("UPDATE bid_service_leads SET status='client'")
 
         # fee locked after payment
@@ -1287,6 +1494,9 @@ class TestNotifications:
     def test_render_email_has_no_prices_or_emojis(self, kind):
         subject, html_body = bid_notifications.render_email(kind, _ctx())
         text = subject + " " + html_body
+        if kind == "success_fee_notice":
+            # Names the fee (that is the notice) but never states an amount.
+            text = re.sub(r"(?i)надоместот за успех|износот и деталите", "", text)
         assert not PRICE_RE.search(text), (kind, PRICE_RE.search(text))
         assert not EMOJI_RE.search(text), kind
         assert "nabavkidata.com" in html_body

@@ -42,6 +42,24 @@ KINDS: dict[str, str] = {  # kind -> recipient 'client' | 'admin'
     "tender_cancelled": "client",
     "cancelled_by_client": "admin",
     "cancelled_by_admin": "client",
+    # Phase 2b (card payments, success fee)
+    "invoice_requested": "admin",
+    "paid_online": "admin",
+    "win_detected": "admin",
+    "success_fee_notice": "client",
+    # A payment that needs a human (duplicate, cancelled/free job, amount
+    # mismatch). Keyed by the caller's discriminator, so each case mails once.
+    "payment_alert": "admin",
+}
+
+PAYMENT_ALERT_TEXT = {
+    "duplicate": "Втора уплата со картичка за веќе платена понуда. Потребно е враќање на средствата.",
+    "paid_while_cancelled": ("Уплата со картичка за откажано барање. Повторно отворете го "
+                             "барањето или вратете ги средствата."),
+    "free": "Уплата со картичка за понуда што е означена како бесплатна. Потребно е враќање на средствата.",
+    "wrong_status": "Уплата со картичка во статус кога плаќање не се очекува. Проверете ја понудата.",
+    "amount_mismatch": ("Платената сума не одговара на договорената за оваа понуда. Уплатата "
+                        "не е евидентирана; проверете ја во Stripe."),
 }
 
 _WRAP_OPEN = ('<div style="font-family:sans-serif;font-size:15px;line-height:1.6;'
@@ -71,7 +89,28 @@ def notification_extra(kind: str, ctx: dict) -> Optional[str]:
         return f"a{int(ctx.get('approved_cycles') or 0)}"
     if kind == "invoice_issued":
         return str(ctx.get("invoice_number") or "")[:50] or None
+    if kind == "payment_alert":
+        return str(ctx.get("extra") or "alert")[:80]
+    if kind == "success_fee_notice":
+        # One notice per win (the caller passes the win id).
+        return str(ctx.get("extra") or "")[:80] or None
     return None
+
+
+# Kinds whose dedupe claim is released when the send fails, so the caller can
+# retry (the success-fee notice starts the 7-day clock; it must really go out).
+RETRYABLE_KINDS = {"success_fee_notice"}
+
+
+async def release_notification(job_id: str, key: str) -> None:
+    try:
+        pool = await get_asyncpg_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM bid_job_events WHERE job_id = $1 AND kind = 'notify' AND event = $2",
+                _as_uuid(job_id), key)
+    except Exception:
+        logger.exception("could not release notify claim: job=%s key=%s", job_id, key)
 
 
 def _e(v: Any) -> str:
@@ -278,6 +317,29 @@ def render_email(kind: str, ctx: dict) -> tuple[str, str]:
     if kind == "cancelled_by_client":
         return (f"Клиентот го откажа барањето: {company} — {tender_id}",
                 _admin_html(admin_rows(), admin_url))
+    if kind == "invoice_requested":
+        return (f"Клиентот бара фактура: {company} — {tender_id}",
+                _admin_html(admin_rows(), admin_url))
+    if kind == "paid_online":
+        return (f"Платено со картичка: {company} — {tender_id}",
+                _admin_html(admin_rows(), admin_url))
+    if kind == "win_detected":
+        extra = _link(f"{SITE}/admin/wins", "Прегледај ги победите")
+        return (f"Можна победа на клиент: {company} — {tender_id}",
+                _admin_html(admin_rows(), admin_url, extra))
+    if kind == "success_fee_notice":
+        # States no amount: the amount and details are in the portal.
+        return ("Известување за надоместот за успех",
+                _client_html([
+                    f"Ви честитаме за доделената набавка „{t}“. Согласно условите, надоместот "
+                    f"за успех ќе биде наплатен најрано седум дена од оваа порака. Износот и "
+                    f"деталите се во порталот. Ако имате забелешка, одговорете ни во тој рок."
+                ], client_url))
+    if kind == "payment_alert":
+        reason = str(ctx.get("extra") or "").split(":", 1)[0]
+        text = PAYMENT_ALERT_TEXT.get(reason, "Уплата со картичка што бара проверка.")
+        return (f"Проверка на уплата: {company} — {tender_id}",
+                _admin_html(admin_rows(), admin_url, f"<p>{_e(text)}</p>"))
     if kind == "cancelled_by_admin":
         return ("Барањето за понуда е откажано",
                 _client_html([
@@ -330,22 +392,30 @@ async def _record_failure(job_id: str, key: str) -> None:
         logger.exception("could not record notify failure: job=%s key=%s", job_id, key)
 
 
-async def notify(job_id: str, kind: str) -> bool:
+async def notify(job_id: str, kind: str, extra: Optional[str] = None) -> bool:
+    """extra: caller discriminator (payment_alert: part of the dedupe key and the
+    email text; success_fee_notice: the win id, part of the dedupe key)."""
     if kind not in KINDS:
         return False
+    claimed = None
     try:
         pool = await get_asyncpg_pool()
         async with pool.acquire() as conn:
             ctx = await load_context(conn, str(job_id))
             if ctx is None:
                 return False
+            if extra is not None:
+                ctx["extra"] = extra
             key = notification_key(kind, ctx.get("reopen_count") or 0,
                                    ctx.get("publish_count") or 0, notification_extra(kind, ctx))
             if not await claim_notification(conn, str(job_id), key):
                 return False
+            claimed = key
         subject, html_body = render_email(kind, ctx)
         to = ADMIN_EMAIL if KINDS[kind] == "admin" else ctx.get("client_email")
         if not to:
+            if kind in RETRYABLE_KINDS:
+                await release_notification(str(job_id), key)
             return False
         ok = await postmark_service.send_email(
             to=to, subject=subject, html_content=html_body,
@@ -356,10 +426,14 @@ async def notify(job_id: str, kind: str) -> bool:
             # the admin event log shows it and someone can follow up by hand.
             logger.warning("bid-job email not sent: job=%s kind=%s key=%s", job_id, kind, key)
             await _record_failure(str(job_id), key)
+            if kind in RETRYABLE_KINDS:
+                await release_notification(str(job_id), key)
             return False
         return True
     except Exception:
         logger.exception("bid-job notify failed: job=%s kind=%s", job_id, kind)
+        if claimed is not None and kind in RETRYABLE_KINDS:
+            await release_notification(str(job_id), claimed)
         return False
 
 

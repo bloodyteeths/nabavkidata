@@ -33,6 +33,9 @@ from schemas import (
     ChatFeedbackResponse
 )
 from api.auth import get_current_user
+from middleware.entitlements import require_client_perks
+from middleware.rbac import require_admin
+from services.entitlements_service import effective_tier
 
 # Import chat memory service
 try:
@@ -74,7 +77,8 @@ router = APIRouter(prefix="/rag", tags=["rag"])
 # RAG QUERY ENDPOINTS
 # ============================================================================
 
-@router.post("/query", response_model=RAGQueryResponse)
+@router.post("/query", response_model=RAGQueryResponse,
+             dependencies=[Depends(require_client_perks)])
 async def query_rag(
     request: RAGQueryRequest,
     db: AsyncSession = Depends(get_db),
@@ -107,13 +111,10 @@ async def query_rag(
     from sqlalchemy import text as sql_text
 
     user_id = str(current_user.user_id)
-    tier = current_user.subscription_tier if current_user else "free"
+    tier = effective_tier(current_user)
 
-    # Check if user is in trial
+    # Self-serve trials are retired: perks follow account_type (require_client_perks).
     in_trial = False
-    if current_user and hasattr(current_user, 'trial_ends_at') and current_user.trial_ends_at:
-        if current_user.trial_ends_at > dt.utcnow():
-            in_trial = True
 
     if in_trial:
         # Check trial credits
@@ -612,7 +613,7 @@ Question: {request.question}"""
         )
 
 
-@router.post("/query/stream")
+@router.post("/query/stream", dependencies=[Depends(require_client_perks)])
 async def query_rag_stream(
     request: RAGQueryRequest,
     db: AsyncSession = Depends(get_db),
@@ -643,7 +644,7 @@ async def query_rag_stream(
     if FRAUD_PREVENTION_AVAILABLE:
         is_allowed, reason, info = await check_rate_limit(db, current_user.user_id, current_user)
         if not is_allowed:
-            tier = getattr(current_user, 'subscription_tier', 'free').lower()
+            tier = effective_tier(current_user)
             tier_config = TIER_LIMITS.get(tier, TIER_LIMITS['free'])
             raise HTTPException(
                 status_code=429,
@@ -798,7 +799,8 @@ async def query_rag_stream(
     )
 
 
-@router.post("/search", response_model=SemanticSearchResponse)
+@router.post("/search", response_model=SemanticSearchResponse,
+             dependencies=[Depends(require_client_perks)])
 async def semantic_search(
     request: SemanticSearchRequest,
     db: AsyncSession = Depends(get_db),
@@ -874,7 +876,10 @@ async def semantic_search(
 # EMBEDDING ENDPOINTS
 # ============================================================================
 
-@router.post("/embed/document", response_model=EmbeddingResponse)
+# Writing into the shared embeddings store (read by every client's RAG answer)
+# and spending Gemini quota: admins only.
+@router.post("/embed/document", response_model=EmbeddingResponse,
+             dependencies=[Depends(require_admin)])
 async def embed_document(
     tender_id: str,
     doc_id: str,
@@ -928,7 +933,8 @@ async def embed_document(
         )
 
 
-@router.post("/embed/batch", response_model=BatchEmbeddingResponse)
+@router.post("/embed/batch", response_model=BatchEmbeddingResponse,
+             dependencies=[Depends(require_admin)])
 async def embed_documents_batch(
     documents: list,
     db: AsyncSession = Depends(get_db),

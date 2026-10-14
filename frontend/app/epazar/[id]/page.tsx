@@ -29,6 +29,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
+import { hasClientPerks } from '@/lib/portal';
 import { TenderChatWidget } from '@/components/ai/TenderChatWidget';
 
 // ============================================================================
@@ -423,11 +425,20 @@ export default function EPazarDetailPage() {
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
+  // Evaluation prices and price hints are client perks: for everyone else they
+  // 403 and would pop the paywall on every visit, so they are not requested.
+  const { user, isLoading: authLoading } = useAuth();
+  const perks = hasClientPerks(user);
+
   useEffect(() => {
     loadTender();
+  }, [tenderId]);
+
+  useEffect(() => {
+    if (authLoading || !perks) return;
     loadEvaluation();
     loadPriceHints();
-  }, [tenderId]);
+  }, [tenderId, perks, authLoading]);
 
   async function loadTender() {
     setLoading(true);

@@ -78,6 +78,15 @@ async def search_products(
 
     offset = (page - 1) * page_size
 
+    # Price access is a client perk. Without it, price filters and price sorting
+    # are ignored too (otherwise bisecting min/max would reveal masked prices).
+    quota = await _check_prices(current_user, db)
+    has_prices = quota["has_quota"]
+    if not has_prices:
+        min_price = max_price = None
+        if sort_by in ("price_asc", "price_desc"):
+            sort_by = "relevance"
+
     # Build dynamic WHERE clause
     where_clauses = []
     params = {"limit": page_size, "offset": offset}
@@ -158,10 +167,6 @@ async def search_products(
     """)
 
     try:
-        # Check price view quota (rate-limited per tier)
-        quota = await _check_prices(current_user, db)
-        has_prices = quota["has_quota"]
-
         result = await db.execute(search_query, params)
         rows = result.fetchall()
 

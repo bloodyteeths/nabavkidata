@@ -1,4 +1,4 @@
-import { LayoutDashboard, Search, MessageSquare, Settings, ShoppingCart, Building2, LineChart, Users, Bell, ShieldAlert, Swords, Bookmark, Home, FileText, FolderOpen, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Search, MessageSquare, Settings, ShoppingCart, Building2, LineChart, Users, Bell, ShieldAlert, Swords, Bookmark, Home, FileText, FolderOpen, CalendarDays, CreditCard } from 'lucide-react';
 
 export interface NavItem {
   name: string;
@@ -47,10 +47,22 @@ export const portalNavigationGroups: NavGroup[] = [
       { name: 'Документи', href: '/portal/documents', icon: FolderOpen, description: 'Документи на компанијата' },
       { name: 'Пораки', href: '/portal/messages', icon: MessageSquare, description: 'Пишете ни' },
       { name: 'Календар', href: '/portal/calendar', icon: CalendarDays, description: 'Рокови за поднесување' },
+      { name: 'Плаќање', href: '/portal/billing', icon: CreditCard, description: 'Картичка и надомест за успех' },
       { name: 'Поставки', href: '/settings', icon: Settings, description: 'Профил и поставки' },
     ],
   },
 ];
+
+/** Extra tools shown to portal users who are clients (managed_client): perks included with the service. */
+export const portalToolsGroup: NavGroup = {
+  label: 'Алатки',
+  items: [
+    { name: 'Тендери', href: '/tenders', icon: Search, description: 'Пребарувајте јавни набавки' },
+    { name: 'AI асистент', href: '/chat', icon: MessageSquare, description: 'Прашајте за тендери' },
+    { name: 'Конкуренти', href: '/competitors', icon: Swords, description: 'Анализирајте ги конкурентите' },
+    { name: 'Цени', href: '/products', icon: ShoppingCart, description: 'Цени на производи и услуги' },
+  ],
+};
 
 // Flat list for backward compatibility
 export const navigation = navigationGroups.flatMap(g => g.items).concat([

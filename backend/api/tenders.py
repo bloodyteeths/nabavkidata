@@ -21,7 +21,8 @@ from api.auth import get_current_user, oauth2_scheme
 from utils.timezone import get_ai_date_context
 from utils.transliteration import get_search_variants
 from utils.product_quality import product_quality_filter
-from middleware.entitlements import require_module
+from middleware.entitlements import require_module, require_client_perks
+from services.entitlements_service import has_client_perks, perks_required_detail
 from config.plans import ModuleName
 from schemas import (
     TenderCreate,
@@ -725,7 +726,7 @@ async def export_tenders(
     """
     Export tender search results to CSV or JSON format.
 
-    Requires Starter tier or higher.
+    Client perk: managed clients and admins only.
     Maximum 1000 results per export.
 
     Args:
@@ -739,16 +740,9 @@ async def export_tenders(
     import csv
     import io
 
-    # Check tier - must be starter or higher
-    user_tier = getattr(current_user, 'subscription_tier', 'free').lower()
-    if user_tier == 'free':
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "message": "Export feature requires Starter tier or higher",
-                "upgrade_url": "/pricing"
-            }
-        )
+    # Exports are a client perk (managed clients and admins only)
+    if not has_client_perks(current_user):
+        raise HTTPException(status_code=403, detail=perks_required_detail("exports"))
 
     # Build query (same as search)
     query = select(Tender)
@@ -1327,7 +1321,8 @@ CPV код: {tender.cpv_code or 'Н/А'}
 # TENDER AI CHAT
 # ============================================================================
 
-@router.post("/{number}/{year:int}/chat", response_model=TenderChatResponse)
+@router.post("/{number}/{year:int}/chat", response_model=TenderChatResponse,
+             dependencies=[Depends(require_client_perks)])
 async def chat_with_tender(
     number: str,
     year: int,

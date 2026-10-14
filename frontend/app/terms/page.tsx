@@ -4,6 +4,8 @@ import { useState, type ReactNode } from 'react';
 
 const LAST_UPDATED_MK = '14.10.2026';
 const LAST_UPDATED_EN = '14 October 2026';
+// Must match AGREEMENT_VERSION in backend/services/bid_payments.py.
+const TERMS_VERSION = '2026-10-14';
 
 export default function TermsPage() {
   const [language, setLanguage] = useState<'mk' | 'en'>('mk');
@@ -121,7 +123,9 @@ function MacedonianTerms() {
   return (
     <div className="prose prose-invert max-w-none space-y-8">
       <section>
-        <p className="text-sm text-muted-foreground mb-6">Последно ажурирање: {LAST_UPDATED_MK}</p>
+        <p className="text-sm text-muted-foreground mb-6">
+          Последно ажурирање: {LAST_UPDATED_MK} · Верзија {TERMS_VERSION}
+        </p>
         <p className="text-muted-foreground mb-6">
           Ве молиме внимателно прочитајте ги овие Услови за користење („Услови“) пред да ја користите веб-страницата
           nabavkidata.com („Платформата“) или пред да ни доверите подготовка на тендерска понуда („Услугата за
@@ -150,8 +154,8 @@ function MacedonianTerms() {
         <UL
           items={[
             'Бесплатен пристап до база на податоци за тендери и јавни набавки',
-            'Бесплатно следење и известувања за тендери релевантни за вашата дејност',
-            'Анализи на тендерска документација, договорни органи и конкуренција',
+            'Следење и известувања за тендери релевантни за вашата дејност, вклучени за клиентите за кои подготвуваме понуди',
+            'Анализи на тендерска документација, договорни органи и конкуренција, вклучени за клиентите',
             'Бесплатна проценка дали и под кои услови вреди да се поднесе понуда на конкретен тендер',
             'Подготовка на тендерска понуда за вас, според условите во член 4',
           ]}
@@ -191,19 +195,21 @@ function MacedonianTerms() {
         <P>Услугата за подготовка на понуди ја обезбедува:</P>
         <CompanyCard lang="mk" />
 
-        <H3>4.2 Бесплатно следење и бесплатна проценка</H3>
+        <H3>4.2 Бесплатна проценка; следење вклучено за клиенти</H3>
         <P>
-          Следењето на тендери, известувањата и проценката („бесплатна проценка“) дали одреден тендер е соодветен за
-          вас се бесплатни и не ве обврзуваат на ништо. Обврска за плаќање настанува дури откако писмено ќе се
-          договориме за подготовка на конкретна понуда.
+          Проценката („бесплатна проценка“) дали одреден тендер е соодветен за вас е бесплатна и не ве обврзува на
+          ништо. Пребарувањето и прегледот на тендери на Платформата се слободни. Следењето на тендери, известувањата
+          по е-пошта, AI алатките, ценовните анализи и анализите на конкуренција се вклучени за клиентите за кои
+          подготвуваме понуди. Обврска за плаќање настанува дури откако ќе се договориме за подготовка на конкретна
+          понуда.
         </P>
 
         <H3>4.3 Надомест за подготовка на понуда</H3>
         <UL
           items={[
             'Надоместот за подготовка изнесува од 30.000 МКД по понуда, во зависност од обемот и сложеноста на тендерот.',
-            'Точниот износ се договара писмено (по е-пошта или со договор) пред да започнеме со работа. Без ваша писмена потврда не започнуваме со работа и не наплатуваме ништо.',
-            'Надоместот се фактурира (фактура) и се плаќа пред да започнеме со подготовка на понудата.',
+            'Точниот износ се договара пред да започнеме со работа и е прикажан во вашиот портал. Без ваша потврда (прифаќање на овие услови во порталот, по е-пошта или со договор) не започнуваме со работа и не наплатуваме ништо.',
+            'Надоместот се плаќа пред да започнеме со подготовка на понудата: со платежна картичка преку Stripe, или на ваше барање со фактура од Фактурино ДООЕЛ.',
           ]}
         />
 
@@ -213,7 +219,8 @@ function MacedonianTerms() {
             'Надоместот за успех изнесува 5% од вредноста на договорот за првата година, за договор доделен врз основа на понуда што ја подготвивме ние. Ако договорот трае пократко од една година, основа е вкупната вредност на договорот.',
             'Се плаќа само ако победите. Ако не бидете избрани, надомест за успех не се плаќа.',
             'Основа е вредноста на договорот без ДДВ. Кај рамковна спогодба, основа е фактички реализираниот износ во првата година, а надоместот се фактурира по истекот на таа година.',
-            'Се фактурира по склучување на договорот со договорниот орган. Ако одлуката за избор биде поништена и договор не се склучи, надомест за успех не се плаќа.',
+            'Надоместот за подготовка платен за таа понуда се одбива од надоместот за успех.',
+            'Се наплатува откако ќе ве известиме писмено за доделувањето, според член 4.5. Ако одлуката за избор биде поништена и договор не се склучи, надомест за успех не се плаќа.',
             'Надоместот за успех нема горна граница.',
           ]}
         />
@@ -221,8 +228,11 @@ function MacedonianTerms() {
         <H3>4.5 Начин на плаќање и данок</H3>
         <UL
           items={[
-            'Сите плаќања се вршат исклучиво по фактура, со банкарски трансфер на трансакциската сметка на Фактурино ДООЕЛ Велес.',
-            'Не прифаќаме плаќање со платежни картички и не нудиме претплати, пакети или автоматско обновување.',
+            'Плаќање со картичка: надоместот за подготовка се плаќа со платежна картичка преку Stripe. Картичката се зачувува кај Stripe (ние ги чуваме само марката и последните четири цифри, никогаш целиот број) и, со прифаќање на овие услови, нè овластувате да ја користиме за надоместот за успех.',
+            'Надоместот за успех се наплатува од зачуваната картичка најрано седум дена откако ќе ве известиме писмено по е-пошта за доделувањето; износот е прикажан во порталот.',
+            'Ако во тие седум дена ни доставите писмена забелешка, наплатата се запира додека не ја разгледаме забелешката заедно со вас.',
+            'Плаќање со фактура: на ваше барање ги издаваме фактурите за надоместот за подготовка и за надоместот за успех, со банкарски трансфер на трансакциската сметка на Фактурино ДООЕЛ Велес. Во тој случај надоместот за успех го овластувате писмено (договор или потврда по е-пошта).',
+            'Не нудиме претплати, пакети или автоматско обновување.',
             'Фактурино ДООЕЛ не е обврзник за ДДВ. Сите наведени износи се без ДДВ и на нив не се пресметува ДДВ.',
           ]}
         />
@@ -435,7 +445,9 @@ function EnglishTerms() {
   return (
     <div className="prose prose-invert max-w-none space-y-8">
       <section>
-        <p className="text-sm text-muted-foreground mb-6">Last updated: {LAST_UPDATED_EN}</p>
+        <p className="text-sm text-muted-foreground mb-6">
+          Last updated: {LAST_UPDATED_EN} · Version {TERMS_VERSION}
+        </p>
         <p className="text-muted-foreground mb-6">
           Please read these Terms of Service (&quot;Terms&quot;) carefully before using nabavkidata.com (the
           &quot;Platform&quot;) or asking us to prepare a tender bid for you (the &quot;Bid Preparation Service&quot;). The
@@ -459,8 +471,8 @@ function EnglishTerms() {
         <UL
           items={[
             'Free access to a database of tenders and public procurement data',
-            'Free tender monitoring and alerts relevant to your business',
-            'Analysis of tender documentation, contracting authorities and competition',
+            'Tender monitoring and alerts relevant to your business, included for clients we prepare bids for',
+            'Analysis of tender documentation, contracting authorities and competition, included for clients',
             'A free assessment of whether, and on what terms, a tender is worth bidding for',
             'Preparation of your tender bid, under the terms in Section 4',
           ]}
@@ -483,18 +495,20 @@ function EnglishTerms() {
         <H3>4.1 Provider</H3>
         <CompanyCard lang="en" />
 
-        <H3>4.2 Free monitoring and free assessment</H3>
+        <H3>4.2 Free assessment; monitoring included for clients</H3>
         <P>
-          Tender monitoring, alerts and the assessment of whether a tender suits you are free and create no
-          obligation. A payment obligation arises only once we agree in writing to prepare a specific bid.
+          The assessment of whether a tender suits you is free and creates no obligation. Searching and viewing
+          tenders on the Platform is open to everyone. Tender monitoring, email alerts, AI tools, price analytics and
+          competitor analytics are included for clients we prepare bids for. A payment obligation arises only once we
+          agree to prepare a specific bid.
         </P>
 
         <H3>4.3 Preparation fee</H3>
         <UL
           items={[
             'The preparation fee starts from MKD 30,000 per bid, depending on the scope and complexity of the tender.',
-            'The exact amount is agreed in writing (by email or contract) before any work starts. Without your written confirmation we do not start work and do not charge anything.',
-            'The fee is invoiced and payable before we start preparing the bid.',
+            'The exact amount is agreed before any work starts and is shown in your portal. Without your confirmation (accepting these Terms in the portal, by email or by contract) we do not start work and do not charge anything.',
+            'The fee is payable before we start preparing the bid: by payment card through Stripe or, on request, by invoice from Fakturino DOOEL.',
           ]}
         />
 
@@ -504,7 +518,8 @@ function EnglishTerms() {
             'The success fee is 5% of the first-year value of a contract awarded on a bid we prepared. If the contract runs for less than one year, the basis is the total contract value.',
             'It is payable only if you win. If you are not selected, no success fee is due.',
             'The basis is the contract value excluding VAT. For a framework agreement, the basis is the amount actually realised in the first year, invoiced once that year has ended.',
-            'It is invoiced after the contract is signed with the contracting authority. If the selection decision is annulled and no contract is signed, no success fee is due.',
+            'The preparation fee paid for that bid is deducted from the success fee.',
+            'It is charged after we notify you in writing of the award, as set out in Section 4.5. If the selection decision is annulled and no contract is signed, no success fee is due.',
             'The success fee has no cap.',
           ]}
         />
@@ -512,8 +527,11 @@ function EnglishTerms() {
         <H3>4.5 Payment and tax</H3>
         <UL
           items={[
-            'All payments are made by invoice, via bank transfer to the account of Fakturino DOOEL Veles.',
-            'We do not accept card payments and offer no subscriptions, plans or automatic renewals.',
+            'Card payment: the preparation fee is paid by payment card through Stripe. The card is saved with Stripe (we keep only the card brand and last four digits, never the full number) and, by accepting these Terms, you authorise us to use it for the success fee.',
+            'The success fee is charged to the saved card no earlier than seven days after we notify you in writing by email of the award; the amount is shown in the portal.',
+            'If you send us a written objection within those seven days, the charge is stopped until we have resolved the objection with you.',
+            'Invoice payment: on request we issue invoices for the preparation fee and the success fee, paid by bank transfer to the account of Fakturino DOOEL Veles. In that case you authorise the success fee in writing (contract or email confirmation).',
+            'We offer no subscriptions, plans or automatic renewals.',
             'Fakturino DOOEL is not registered for VAT. All amounts are stated without VAT and no VAT is charged.',
           ]}
         />

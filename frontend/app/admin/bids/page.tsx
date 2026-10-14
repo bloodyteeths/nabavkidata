@@ -27,6 +27,7 @@ import {
   type AdminInboxThread,
   type BidJobStatus,
   type BidMessage,
+  type PaidVia,
 } from '@/lib/bid-service-types';
 
 type StatusFilter = NonNullable<AdminBidJobFilters['status']>;
@@ -63,6 +64,37 @@ function formatDateTime(value: string | null | undefined): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+const PAID_VIA_LABELS: Record<PaidVia, string> = {
+  stripe: 'Картичка',
+  invoice: 'Фактура',
+  free: 'Бесплатно',
+};
+
+const PAID_VIA_CLASSES: Record<PaidVia, string> = {
+  stripe: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
+  invoice: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
+  free: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
+};
+
+/** paid_via comes from the shared admin serializer; older rows fall back to free/paid_at. */
+function paidVia(job: AdminBidJobSummary): PaidVia | null {
+  const v = (job as AdminBidJobSummary & { paid_via?: PaidVia | null }).paid_via;
+  if (v) return v;
+  if (job.free) return 'free';
+  return job.paid_at ? 'invoice' : null;
+}
+
+function PaidViaBadge({ via }: { via: PaidVia | null }) {
+  if (!via) return null;
+  return (
+    <span
+      className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${PAID_VIA_CLASSES[via]}`}
+    >
+      {PAID_VIA_LABELS[via]}
+    </span>
+  );
 }
 
 function SummaryTile({
@@ -377,6 +409,11 @@ export default function AdminBidsPage() {
                             {job.paid_at && (
                               <span className="block text-xs text-green-700 dark:text-green-400">
                                 платено
+                              </span>
+                            )}
+                            {(job.paid_at || job.free) && (
+                              <span className="block">
+                                <PaidViaBadge via={paidVia(job)} />
                               </span>
                             )}
                             {!job.paid_at && job.invoice_number && (

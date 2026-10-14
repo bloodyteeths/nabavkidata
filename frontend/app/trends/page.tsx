@@ -24,13 +24,17 @@ import {
   SeasonalPatterns,
 } from "@/components/insights";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { hasClientPerks } from "@/lib/portal";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Link from "next/link";
 
 export default function InsightsPage() {
-  const [tier, setTier] = useState<string>("free");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
+  const { user, isLoading: authLoading } = useAuth();
+  const isLoggedIn = !!user;
+  const authChecked = !authLoading;
+  // Trends/insights are a perk for bid-service clients and admins, not a plan tier.
+  const hasAccess = hasClientPerks(user);
   const [cpvFilter, setCpvFilter] = useState("");
   const [appliedCpv, setAppliedCpv] = useState<string | undefined>(undefined);
 
@@ -38,23 +42,6 @@ export default function InsightsPage() {
   const [cpvOptions, setCpvOptions] = useState<Array<{ code: string; name: string; name_mk: string }>>([]);
   const [cpvLoading, setCpvLoading] = useState(false);
   const [showCpvDropdown, setShowCpvDropdown] = useState(false);
-
-  // Check subscription tier
-  useEffect(() => {
-    async function checkAuth() {
-      try {
-        const status = await api.getSubscriptionStatus();
-        setTier(status.tier || "free");
-        setIsLoggedIn(true);
-      } catch {
-        setTier("free");
-        setIsLoggedIn(false);
-      } finally {
-        setAuthChecked(true);
-      }
-    }
-    checkAuth();
-  }, []);
 
   // CPV search with debounce
   const searchCPV = useCallback(async (search: string) => {
@@ -102,7 +89,7 @@ export default function InsightsPage() {
     );
   }
 
-  if (!isLoggedIn || !["professional", "enterprise"].includes(tier)) {
+  if (!isLoggedIn || !hasAccess) {
     return (
       <div className="p-6 space-y-6">
         <div>

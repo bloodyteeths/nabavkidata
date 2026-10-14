@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { navigationGroups, portalNavigationGroups } from "@/config/navigation";
+import { navigationGroups, portalNavigationGroups, portalToolsGroup } from "@/config/navigation";
 import { useAuth } from "@/lib/auth";
-import { isPortalUser } from "@/lib/portal";
+import { isPortalUser, hasClientPerks } from "@/lib/portal";
 import { api } from "@/lib/api";
 import type { PortalUnread } from "@/lib/bid-service-types";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 function accountLabel(user: { account_type?: string | null; company_name?: string | null } | null | undefined): string {
     if (user?.account_type === 'managed_client') return 'Клиент';
     if (user?.account_type === 'prospect') return 'Проценка во тек';
-    return user?.company_name || 'Бесплатно следење';
+    return user?.company_name || 'Преглед на тендери';
 }
 
 export default function DashboardLayout({
@@ -90,7 +90,9 @@ export default function DashboardLayout({
     }, []);
 
     const portalNav = isPortalUser(user);
-    const filteredGroups = portalNav ? portalNavigationGroups : navigationGroups;
+    const filteredGroups = portalNav
+        ? (hasClientPerks(user) ? [...portalNavigationGroups, portalToolsGroup] : portalNavigationGroups)
+        : navigationGroups;
 
     // Portal unread counters for the nav badges: fetched on navigation only (no polling).
     const [portalUnread, setPortalUnread] = useState<PortalUnread | null>(null);
@@ -386,9 +388,8 @@ export default function DashboardLayout({
                     {children}
                 </main>
 
-                {/* Global AI Chat Widget: legacy SaaS feature with tier limits (402 ->
-                    paywall), so service clients in the portal do not get it. */}
-                {!portalNav && <GlobalChatWidget />}
+                {/* Global AI Chat Widget: AI is a client perk (managed_client or admin). */}
+                {hasClientPerks(user) && <GlobalChatWidget />}
             </div>
         </ProtectedRoute>
     );

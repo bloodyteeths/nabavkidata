@@ -33,6 +33,7 @@ from models import User
 from api.auth import get_current_user
 from middleware.entitlements import require_module
 from config.plans import ModuleName
+from services.entitlements_service import effective_tier, has_client_perks, perks_required_detail
 
 router = APIRouter(prefix="/analytics", tags=["market-analytics"],
                    dependencies=[Depends(require_module(ModuleName.ANALYTICS))])
@@ -43,19 +44,16 @@ router = APIRouter(prefix="/analytics", tags=["market-analytics"],
 # ============================================================================
 
 TIER_ACCESS = {
-    "market-overview": ["free", "starter", "professional", "enterprise"],
+    "market-overview": ["starter", "professional", "enterprise"],
     "competitor-analysis": ["starter", "professional", "enterprise"],
-    "category-trends": ["free", "starter", "professional", "enterprise"],
+    "category-trends": ["starter", "professional", "enterprise"],
     "supplier-strength": ["starter", "professional", "enterprise"]
 }
 
 
 def check_tier_access(endpoint: str, user: User) -> bool:
     """Check if user's tier has access to the endpoint"""
-    tier = getattr(user, 'subscription_tier', 'free')
-    if tier is None:
-        tier = 'free'
-    tier = tier.lower()
+    tier = effective_tier(user)
     allowed_tiers = TIER_ACCESS.get(endpoint, [])
     return tier in allowed_tiers
 
@@ -317,7 +315,7 @@ async def get_competitor_analysis(
             status_code=403,
             detail={
                 "message": "Competitor analysis requires Starter tier or higher",
-                "current_tier": getattr(current_user, 'subscription_tier', 'free'),
+                "current_tier": effective_tier(current_user),
                 "upgrade_url": "/pricing"
             }
         )
@@ -465,7 +463,7 @@ async def get_top_competitors(
             status_code=403,
             detail={
                 "message": "Competitor analysis requires Starter tier or higher",
-                "current_tier": getattr(current_user, 'subscription_tier', 'free'),
+                "current_tier": effective_tier(current_user),
                 "upgrade_url": "/pricing"
             }
         )
@@ -657,7 +655,10 @@ async def get_competitor_stats(
     """
     Get stats for a single competitor by company name.
     Used for comparison view when company is not in top competitors list.
+    Competitor analytics are a client perk.
     """
+    if not has_client_perks(current_user):
+        raise HTTPException(status_code=403, detail=perks_required_detail("competitor-analysis"))
     company_name = request.company_name.strip()
     if not company_name or len(company_name) < 2:
         raise HTTPException(status_code=400, detail="Company name must be at least 2 characters")
@@ -901,7 +902,7 @@ async def get_supplier_strength(
             status_code=403,
             detail={
                 "message": "Supplier strength analysis requires Starter tier or higher",
-                "current_tier": getattr(current_user, 'subscription_tier', 'free'),
+                "current_tier": effective_tier(current_user),
                 "upgrade_url": "/pricing"
             }
         )

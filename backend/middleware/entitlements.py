@@ -38,6 +38,11 @@ from config.plans import (
     is_unlimited,
     TRIAL_DAYS,
 )
+from services.entitlements_service import (
+    effective_tier,
+    has_client_perks,
+    perks_required_detail,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,87 +115,12 @@ class EntitlementChecker:
         return current_user
 
     async def _get_effective_tier(self, user: User, db: AsyncSession) -> str:
-        """Get user's effective tier (considering trial status)"""
-        # Check if user is in trial
-        if hasattr(user, 'trial_ends_at') and user.trial_ends_at:
-            if user.trial_ends_at > datetime.utcnow():
-                return PlanTier.TRIAL.value
-
-        # Get from subscription or user tier
-        tier = user.subscription_tier or "free"
-        return tier.lower()
+        """Perks belong to managed clients and admins only (no trial override)."""
+        return effective_tier(user)
 
     def _get_upgrade_message(self, current_tier: str, module: ModuleName) -> dict:
-        """Generate structured upgrade suggestion for frontend PaywallModal with preview"""
-        module_to_tier = {
-            ModuleName.ANALYTICS: "starter",
-            ModuleName.RISK_ANALYSIS: "professional",
-            ModuleName.COMPETITOR_TRACKING: "starter",
-            ModuleName.EXPORT_PDF: "professional",
-            ModuleName.API_ACCESS: "enterprise",
-            ModuleName.TEAM_MANAGEMENT: "enterprise",
-            ModuleName.DOCUMENT_EXTRACTION: "starter",
-            ModuleName.ALERTS: "starter",
-            ModuleName.RAG_SEARCH: "starter",
-            ModuleName.PRICE_INTELLIGENCE: "starter",
-        }
-        # Friendly feature names and value descriptions in Macedonian
-        module_descriptions = {
-            ModuleName.ANALYTICS: {
-                "title": "Аналитика на тендери",
-                "preview": "Откријте трендови, сезонски обрасци и победници во вашата индустрија.",
-                "value": "Компаниите кои користат аналитика имаат 3x поголема стапка на победа."
-            },
-            ModuleName.RISK_ANALYSIS: {
-                "title": "Анализа на ризик и корупција",
-                "preview": "AI детекција на сомнителни тендери, ризик скорови и предупредувања.",
-                "value": "Заштитете се од ризични тендери и донесете информирани одлуки."
-            },
-            ModuleName.COMPETITOR_TRACKING: {
-                "title": "Следење на конкуренти",
-                "preview": "Дознајте кои тендери ги добиваат вашите конкуренти и по кои цени.",
-                "value": "Бидете чекор пред конкуренцијата со реално-временски увиди."
-            },
-            ModuleName.EXPORT_PDF: {
-                "title": "PDF извоз",
-                "preview": "Извезете детални извештаи за тендери во PDF формат.",
-                "value": "Споделете анализи со вашиот тим или менаџмент."
-            },
-            ModuleName.DOCUMENT_EXTRACTION: {
-                "title": "Содржина на документи",
-                "preview": "Прегледајте ја целосната содржина на тендерска документација.",
-                "value": "Заштедете време со AI-извлечени клучни информации."
-            },
-            ModuleName.EXPORT_CSV: {
-                "title": "CSV извоз",
-                "preview": "Извезете тендери во табеларен формат за анализа.",
-                "value": "Интегрирајте ги податоците во вашите бизнис процеси."
-            },
-        }
-        suggested_tier = module_to_tier.get(module, "starter")
-        desc = module_descriptions.get(module, {})
-
-        # Pricing hints
-        tier_prices = {
-            "starter": "1,990 МКД/месец",
-            "professional": "5,990 МКД/месец",
-            "enterprise": "12,990 МКД/месец",
-        }
-
-        return {
-            "error": "upgrade_required",
-            "message": f"Оваа функција бара {suggested_tier.upper()} план. Надградете за пристап.",
-            "feature": module.value,
-            "feature_title": desc.get("title", module.value),
-            "feature_preview": desc.get("preview", ""),
-            "feature_value": desc.get("value", ""),
-            "tier_required": suggested_tier,
-            "tier_price": tier_prices.get(suggested_tier, ""),
-            "current_tier": current_tier,
-            "upgrade_url": "/settings#plans",
-            "trial_available": current_tier == "free",
-            "trial_url": "/settings#plans"
-        }
+        """403 detail for the PaywallModal, which now sells the bid service."""
+        return perks_required_detail(module.value)
 
 
 def require_module(
@@ -282,10 +212,16 @@ async def check_usage_limit(
     Raises:
         HTTPException: If limit exceeded
     """
-    tier = user.subscription_tier or "free"
+    tier = effective_tier(user)
 
     # Check daily limit first
     daily_limit = get_daily_limit(tier, counter_type)
+    if daily_limit == 0:
+        # Zero means the counter is a client perk, not an exhausted quota.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=perks_required_detail(counter_type),
+        )
     if daily_limit is not None:
         daily_count = await get_usage_count(db, str(user.user_id), counter_type, "daily")
         if daily_count >= daily_limit:
@@ -303,12 +239,12 @@ async def check_usage_limit(
                 detail={
                     "error": "Дневниот лимит е достигнат",
                     "message": f"Ги искористивте сите {daily_limit} {friendly_name} за денес.",
-                    "hint": "Надградете го вашиот план за повеќе дневни прашања и неограничен пристап.",
+                    "hint": "Оваа можност е вклучена за клиентите за кои подготвуваме понуди.",
                     "limit": daily_limit,
                     "used": daily_count,
                     "reset": "утре",
                     "upgrade_url": "/settings#plans",
-                    "trial_available": tier == "free",
+                    "trial_available": False,
                 }
             )
 
@@ -424,7 +360,7 @@ async def get_remaining_quota(
     Returns:
         Dict with remaining quota info
     """
-    tier = user.subscription_tier or "free"
+    tier = effective_tier(user)
 
     daily_limit = get_daily_limit(tier, counter_type)
     monthly_limit = get_monthly_limit(tier, counter_type)
@@ -475,65 +411,9 @@ async def check_trial_credit(
     Raises:
         HTTPException: If no credits available
     """
-    # Check if user is in trial
-    if not hasattr(user, 'trial_ends_at') or not user.trial_ends_at:
-        return {"in_trial": False, "credits": None}
-
-    if user.trial_ends_at < datetime.utcnow():
-        return {"in_trial": False, "trial_expired": True, "credits": None}
-
-    # Get trial credits
-    result = await db.execute(
-        text("""
-            SELECT total_credits, used_credits, expires_at
-            FROM trial_credits
-            WHERE user_id = :user_id
-              AND credit_type = :credit_type
-              AND expires_at > NOW()
-        """),
-        {"user_id": str(user.user_id), "credit_type": credit_type}
-    )
-    row = result.fetchone()
-
-    if not row:
-        return {"in_trial": True, "credits": None}
-
-    total, used, expires = row
-    remaining = total - used
-
-    if remaining <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "error": "Кредитите за пробниот период се потрошени",
-                "message": f"Ги искористивте сите {total} кредити за {credit_type}",
-                "upgrade_url": "/plans",
-            }
-        )
-
-    # Use credit if requested
-    if use_credit:
-        await db.execute(
-            text("""
-                UPDATE trial_credits
-                SET used_credits = used_credits + 1, updated_at = NOW()
-                WHERE user_id = :user_id AND credit_type = :credit_type
-            """),
-            {"user_id": str(user.user_id), "credit_type": credit_type}
-        )
-        await db.commit()
-        remaining -= 1
-
-    return {
-        "in_trial": True,
-        "credits": {
-            "type": credit_type,
-            "total": total,
-            "used": used + (1 if use_credit else 0),
-            "remaining": remaining,
-            "expires_at": expires.isoformat() if expires else None,
-        }
-    }
+    # Self-serve trials are retired (bid service, 14 Oct 2026): perks follow
+    # account_type, never trial credits.
+    return {"in_trial": False, "credits": None}
 
 
 # ============================================================================
@@ -575,7 +455,7 @@ async def check_price_view_quota(
     if not user:
         return {"has_quota": False, "remaining": 0, "limit": 0, "used": 0}
 
-    tier = (user.subscription_tier or "free").lower()
+    tier = effective_tier(user)
     daily_limit = get_daily_limit(tier, "price_views")
 
     # None means unlimited
@@ -613,15 +493,26 @@ async def require_paid_plan(
     current_user: User = Depends(get_current_active_user)
 ) -> User:
     """
-    Require user to have any paid plan (not free)
+    Require client perks (managed client or admin).
 
     Raises:
-        HTTPException: If user is on free plan
+        HTTPException: If the user is not a client we write bids for
     """
-    tier = (current_user.subscription_tier or "free").lower()
-    if tier in ("free", "trial"):
+    if not has_client_perks(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Оваа функција бара платен план. Надградете за пристап."
+            detail=perks_required_detail(),
+        )
+    return current_user
+
+
+async def require_client_perks(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Dependency for routes that are a client perk (AI chat, RAG, exports...)."""
+    if not has_client_perks(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=perks_required_detail(),
         )
     return current_user

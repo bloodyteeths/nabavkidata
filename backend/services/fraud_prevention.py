@@ -14,6 +14,7 @@ from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import User
+from services.entitlements_service import effective_tier, has_client_perks
 from models_fraud import (
     FraudDetection, RateLimit, SuspiciousActivity, BlockedEmail,
     BlockedIP, DuplicateAccountDetection, PaymentFingerprint
@@ -29,12 +30,14 @@ logger = logging.getLogger(__name__)
 
 # Subscription tier limits
 TIER_LIMITS = {
+    # Bid service (14 Oct 2026): AI queries are a client perk. Non-clients map
+    # to "free" via entitlements_service.effective_tier and get zero queries.
     "free": {
-        "daily_queries": 3,
-        "monthly_queries": 90,
+        "daily_queries": 0,
+        "monthly_queries": 0,
         "trial_days": 14,
         "allow_vpn": False,
-        "max_trial_queries": 3  # 3 queries per day for 14 days
+        "max_trial_queries": 0
     },
     "starter": {
         "daily_queries": 10,
@@ -661,8 +664,16 @@ async def check_rate_limit(
         rate_limit = await initialize_rate_limit(
             db=db,
             user_id=user_id,
-            subscription_tier=user.subscription_tier
+            subscription_tier=effective_tier(user)
         )
+
+    # A client promoted after the old free-trial block must not stay blocked.
+    if (rate_limit.is_blocked and has_client_perks(user)
+            and (rate_limit.block_reason or "").startswith("Free trial expired")):
+        rate_limit.is_blocked = False
+        rate_limit.block_reason = None
+        rate_limit.blocked_until = None
+        await db.commit()
 
     # Check if user is blocked
     if rate_limit.is_blocked:
@@ -678,11 +689,11 @@ async def check_rate_limit(
             await db.commit()
 
     # Update subscription tier if changed
-    if rate_limit.subscription_tier != user.subscription_tier:
-        rate_limit.subscription_tier = user.subscription_tier
+    tier = effective_tier(user)
+    if rate_limit.subscription_tier != tier:
+        rate_limit.subscription_tier = tier
         await db.commit()
 
-    tier = user.subscription_tier.lower()
     tier_config = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
 
     # Check trial expiration for free tier
@@ -714,6 +725,14 @@ async def check_rate_limit(
     # Check limits (enterprise has unlimited)
     if tier != "enterprise":
         daily_limit = tier_config["daily_queries"]
+
+        if daily_limit == 0:
+            return False, "Оваа можност е вклучена за клиентите за кои подготвуваме понуди.", {
+                "daily_limit": 0,
+                "daily_used": rate_limit.daily_query_count,
+                "reset_at": rate_limit.daily_reset_at.isoformat(),
+                "redirect_to": "/usluga",
+            }
 
         if rate_limit.daily_query_count >= daily_limit:
             return False, f"Daily query limit reached ({daily_limit} queries per day). Upgrade your plan for more queries.", {
@@ -1019,7 +1038,7 @@ async def perform_fraud_check(
     )
 
     # 4. Check VPN/Proxy for free tier
-    if user.subscription_tier == "free":
+    if effective_tier(user) == "free":
         tier_config = TIER_LIMITS["free"]
         if not tier_config["allow_vpn"]:
             if fraud_detection.is_vpn or fraud_detection.is_proxy or fraud_detection.is_tor:

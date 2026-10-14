@@ -14,8 +14,10 @@ from database import get_db
 from api.auth import get_current_user
 from models import User
 from utils.transliteration import get_search_variants
-from middleware.entitlements import require_module
+from middleware.entitlements import require_module, require_client_perks
+from middleware.rbac import get_optional_user
 from config.plans import ModuleName
+from services.entitlements_service import has_client_perks
 from schemas import (
     EPazarTenderResponse,
     EPazarTenderListResponse,
@@ -29,6 +31,24 @@ from schemas import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/epazar", tags=["e-Pazar"])
+
+
+def _is_price_field(key: str) -> bool:
+    k = key.lower()
+    return "price" in k or k.endswith("_mkd") or k.endswith("_eur")
+
+
+def _mask_prices(rows, allowed: bool) -> list:
+    """Item-level prices are a client perk (owner rule 2, 14.10.2026): for
+    everyone else the price columns are returned as null."""
+    out = [dict(r) for r in rows]
+    if allowed:
+        return out
+    for r in out:
+        for k in list(r.keys()):
+            if _is_price_field(k):
+                r[k] = None
+    return out
 
 
 # ============================================================================
@@ -449,10 +469,15 @@ async def search_epazar_items(
     sort_by: str = Query("item_name", description="Sort field"),
     sort_order: str = Query("asc", description="Sort order: asc or desc"),
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     Search and browse all e-Pazar items across all tenders with filtering and pagination.
+    Prices (and price filters/sorting) only for clients.
     """
+    prices_allowed = has_client_perks(current_user)
+    if not prices_allowed:
+        min_price = max_price = None
     try:
         conditions = []
         params = {}
@@ -497,6 +522,8 @@ async def search_epazar_items(
 
         # Validate sort field (prefix with i. for table alias)
         valid_sort_fields = ['item_name', 'estimated_unit_price_mkd', 'quantity', 'estimated_total_price_mkd', 'cpv_code']
+        if not prices_allowed and _is_price_field(sort_by):
+            sort_by = 'item_name'
         if sort_by not in valid_sort_fields:
             sort_by = 'item_name'
         sort_field = f"i.{sort_by}"
@@ -536,7 +563,8 @@ async def search_epazar_items(
             'total': total,
             'page': page,
             'page_size': page_size,
-            'items': [dict(row._mapping) for row in items]
+            'items': _mask_prices((row._mapping for row in items), prices_allowed),
+            'price_gated': not prices_allowed,
         }
 
     except Exception as e:
@@ -548,10 +576,15 @@ async def search_epazar_items(
 async def get_epazar_items_aggregations(
     search: Optional[str] = Query(None, description="Search term to aggregate"),
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     Get price aggregations for e-Pazar items (min, max, avg prices by item name).
+    Client perk: everyone else gets an empty list and price_gated=true (no 403,
+    so pages that load it in the background do not pop the paywall).
     """
+    if not has_client_perks(current_user):
+        return {'aggregations': [], 'price_gated': True}
     try:
         conditions = []
         params = {}
@@ -596,12 +629,16 @@ async def get_epazar_items_aggregations(
 async def get_epazar_items_aggregations_batch(
     body: dict = Body(...),
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
-    Get price aggregations for multiple item names in one query.
+    Get price aggregations for multiple item names in one query (client perk;
+    others get {} and price_gated=true).
     Body: { "items": ["Тонер", "Хартија А4", ...], "tender_id": "EPAZAR-1180" }
     Returns: { "aggregations": { "Тонер": { min, max, avg, count }, ... } }
     """
+    if not has_client_perks(current_user):
+        return {"aggregations": {}, "price_gated": True}
     try:
         item_names = body.get("items", [])
         tender_id = body.get("tender_id")
@@ -695,6 +732,7 @@ async def get_epazar_items_aggregations_batch(
 async def get_epazar_items(
     tender_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     Get BOQ items for a tender.
@@ -710,7 +748,7 @@ async def get_epazar_items(
         )
         items = result.fetchall()
 
-        return [dict(row._mapping) for row in items]
+        return _mask_prices((row._mapping for row in items), has_client_perks(current_user))
 
     except Exception as e:
         logger.error(f"Error fetching items for tender {tender_id}: {e}")
@@ -753,6 +791,7 @@ async def get_epazar_offers(
 async def get_offer_items(
     offer_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     Get item-level pricing for an offer.
@@ -769,7 +808,7 @@ async def get_offer_items(
         )
         items = result.fetchall()
 
-        return [dict(row._mapping) for row in items]
+        return _mask_prices((row._mapping for row in items), has_client_perks(current_user))
 
     except Exception as e:
         logger.error(f"Error fetching offer items for offer {offer_id}: {e}")
@@ -784,6 +823,7 @@ async def get_offer_items(
 async def get_epazar_awarded_items(
     tender_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     Get awarded contract items for a tender.
@@ -800,7 +840,7 @@ async def get_epazar_awarded_items(
         )
         items = result.fetchall()
 
-        return [dict(row._mapping) for row in items]
+        return _mask_prices((row._mapping for row in items), has_client_perks(current_user))
 
     except Exception as e:
         logger.error(f"Error fetching awarded items for tender {tender_id}: {e}")
@@ -1820,7 +1860,7 @@ async def get_epazar_buyer_profile(
 # ITEM PRICE HISTORY
 # ============================================================================
 
-@router.get("/items/{item_id}/price-history")
+@router.get("/items/{item_id}/price-history", dependencies=[Depends(require_client_perks)])
 async def get_epazar_item_price_history(
     item_id: str,
     db: AsyncSession = Depends(get_db),

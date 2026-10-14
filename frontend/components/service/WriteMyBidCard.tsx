@@ -56,6 +56,8 @@ export default function WriteMyBidCard({ tenderId, status, closingDate, classNam
   const [highlight, setHighlight] = useState(false);
   const open = isTenderOpenForBids(status, closingDate);
   const focus = searchParams?.get("ponuda") === "1";
+  // ?start=1 (after auto-login from the qualify form) opens the start dialog directly.
+  const autoStart = searchParams?.get("start") === "1";
   const portal = !authLoading && canAccessPortal(user);
 
   // Portal users: existing job for this tender (undefined = still loading), and
@@ -162,7 +164,7 @@ export default function WriteMyBidCard({ tenderId, status, closingDate, classNam
             ) : (
               <p>
                 <span className="font-medium text-foreground">{formatMkd(agreement.prep_fee_mkd)}</span> (без ДДВ)
-                за подготовка, по фактура
+                за подготовка, со картичка или по фактура
                 {agreement.success_fee_pct !== null
                   ? `, и ${agreement.success_fee_pct}% од вредноста на договорот за првата година само ако победите.`
                   : "."}
@@ -187,7 +189,12 @@ export default function WriteMyBidCard({ tenderId, status, closingDate, classNam
               </Button>
             </div>
           ) : (
-            <StartBidButton tenderId={tenderId} className="w-full" disabled={job === undefined} />
+            <StartBidButton
+              tenderId={tenderId}
+              className="w-full"
+              disabled={job === undefined}
+              autoOpen={autoStart}
+            />
           )
         ) : (
           <QualifyForm compact tenderId={tenderId} source="tender_card" />

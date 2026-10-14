@@ -51,7 +51,7 @@ function MacedonianContent() {
           Добредојдовте на nabavkidata.com ("Платформата", "ние", "нас" или "нашите"). Ние ја цениме вашата приватност и сме посветени на заштитата на вашите лични податоци. Оваа политика за приватност ќе ве информира како собираме, користиме, чуваме и заштитуваме ваши лични податоци кога ја посетувате нашата веб-страница и ги користите нашите услуги.
         </p>
         <p className="text-muted-foreground">
-          nabavkidata.com е платформа за податоци за јавни набавки која автоматски собира и обработува информации од порталот e-nabavki.gov.mk, користи вештачка интелигенција за анализа и резимеа, нуди бесплатно следење на тендери и бесплатна проценка, како и услуга за подготовка на тендерски понуди. Платформата и услугата ги обезбедува Фактурино ДООЕЛ Велес.
+          nabavkidata.com е платформа за податоци за јавни набавки која автоматски собира и обработува информации од порталот e-nabavki.gov.mk, користи вештачка интелигенција за анализа и резимеа, нуди бесплатна проценка и услуга за подготовка на тендерски понуди; следењето на тендери и известувањата се вклучени за клиентите на услугата. Платформата и услугата ги обезбедува Фактурино ДООЕЛ Велес.
         </p>
       </section>
 
@@ -92,7 +92,8 @@ function MacedonianContent() {
         <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
           <li>Податоци за фактурирање на услугата за подготовка на понуди (назив на фирма, ЕДБ, адреса)</li>
           <li>Историја на издадени фактури и уплати по банкарски трансфер</li>
-          <li>Не собираме и не чуваме податоци за платежни картички</li>
+          <li>Плаќањата со картичка се обработуваат преку Stripe (обработувач на плаќања). Ние чуваме само идентификатор на клиентот и на начинот на плаќање кај Stripe, марката на картичката и последните четири цифри. Целиот број на картичката и CVC-кодот никогаш не ги примаме ниту чуваме.</li>
+          <li>Плаќањето со фактура и банкарски трансфер останува достапно на барање</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">2.5 Колачиња и слични технологии</h3>
@@ -169,6 +170,14 @@ function MacedonianContent() {
             <li>Податоци споделени: Текст од тендери, корисничко прашања, контекст на разговор</li>
             <li>Локација: Може да се обработуваат надвор од Македонија</li>
             <li>Политика: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Privacy Policy</a></li>
+          </ul>
+
+          <p className="text-muted-foreground mb-2"><strong>Stripe (плаќања со картичка)</strong></p>
+          <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4 ml-4">
+            <li>Цел: Наплата на надоместот за подготовка и, по писмена најава, на надоместот за успех со зачуваната картичка</li>
+            <li>Податоци споделени: Е-пошта, назив на фирмата, износ и опис на плаќањето; податоците за картичката ги внесувате директно кај Stripe</li>
+            <li>Локација: Може да се обработуваат надвор од Македонија</li>
+            <li>Политика: <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Stripe Privacy Policy</a></li>
           </ul>
 
         </div>
@@ -368,7 +377,7 @@ function EnglishContent() {
           Welcome to nabavkidata.com (the "Platform", "we", "us", or "our"). We value your privacy and are committed to protecting your personal data. This privacy policy will inform you about how we collect, use, store, and protect your personal information when you visit our website and use our services.
         </p>
         <p className="text-muted-foreground">
-          nabavkidata.com is a public procurement data platform that automatically collects and processes information from the e-nabavki.gov.mk portal, uses artificial intelligence for analysis and summaries, offers free tender monitoring and a free assessment, and provides a tender bid preparation service. The platform and service are provided by Fakturino DOOEL Veles.
+          nabavkidata.com is a public procurement data platform that automatically collects and processes information from the e-nabavki.gov.mk portal, uses artificial intelligence for analysis and summaries, offers a free assessment and a tender bid preparation service; tender monitoring and alerts are included for clients of the service. The platform and service are provided by Fakturino DOOEL Veles.
         </p>
       </section>
 
@@ -409,7 +418,8 @@ function EnglishContent() {
         <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4">
           <li>Invoicing details for the bid preparation service (company name, tax number, address)</li>
           <li>History of issued invoices and bank-transfer payments</li>
-          <li>We do not collect or store payment card data</li>
+          <li>Card payments are processed by Stripe (payment processor). We keep only the Stripe customer and payment-method identifiers, the card brand and the last four digits. We never receive or store the full card number or the CVC.</li>
+          <li>Payment by invoice and bank transfer remains available on request</li>
         </ul>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">2.5 Cookies and Similar Technologies</h3>
@@ -486,6 +496,14 @@ function EnglishContent() {
             <li>Data shared: Tender text, user queries, conversation context</li>
             <li>Location: May be processed outside of North Macedonia</li>
             <li>Policy: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Privacy Policy</a></li>
+          </ul>
+
+          <p className="text-muted-foreground mb-2"><strong>Stripe (card payments)</strong></p>
+          <ul className="list-disc list-inside text-muted-foreground space-y-2 mb-4 ml-4">
+            <li>Purpose: Collecting the preparation fee and, after written notice, the success fee from the saved card</li>
+            <li>Data shared: Email, company name, payment amount and description; you enter card details directly with Stripe</li>
+            <li>Location: May be processed outside of North Macedonia</li>
+            <li>Policy: <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Stripe Privacy Policy</a></li>
           </ul>
 
         </div>

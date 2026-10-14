@@ -14,6 +14,7 @@ export function PriceCheck() {
   const [results, setResults] = useState<EPazarItemAggregation[]>([]);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gated, setGated] = useState(false);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -25,6 +26,7 @@ export function PriceCheck() {
 
     try {
       const data = await api.getEPazarItemsAggregations(search);
+      setGated(Boolean(data.price_gated));
       setResults(data.aggregations || []);
     } catch (err) {
       console.error('Price check failed:', err);
@@ -67,7 +69,13 @@ export function PriceCheck() {
           <p className="text-red-600 text-sm">{error}</p>
         )}
 
-        {searched && !loading && results.length === 0 && !error && (
+        {searched && !loading && gated && !error && (
+          <p className="text-muted-foreground text-center py-4">
+            Пазарните цени се вклучени за клиентите за кои подготвуваме понуди.
+          </p>
+        )}
+
+        {searched && !loading && results.length === 0 && !error && !gated && (
           <p className="text-muted-foreground text-center py-4">
             Нема резултати за "{search}"
           </p>

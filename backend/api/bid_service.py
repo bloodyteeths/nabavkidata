@@ -7,7 +7,8 @@ paid by invoice). Ported from BidFinder (tenderuk/backend/api/bid_service.py),
 see tenderuk/docs/PLATFORM_REPURPOSE_PLAYBOOK.md for the model.
 
 - Public POST /bid-service/qualify            — the one front door (/usluga form,
-                                                 tender-page card, paywall CTA)
+                                                 tender-page card, paywall CTA);
+                                                 auto-logs-in a brand-new identity
 - Admin  GET  /bid-service/admin/leads        — triage list
 - Admin  PATCH /bid-service/admin/leads/{id}  — status / notes
 """
@@ -30,7 +31,13 @@ from pydantic import BaseModel, Field
 
 from db_pool import get_asyncpg_pool
 from middleware.rbac import require_admin
-from api.auth import SECRET_KEY, ALGORITHM
+from api.auth import (
+    SECRET_KEY,
+    ALGORITHM,
+    create_access_token,
+    hash_token,
+)
+from api.bid_jobs import tender_open_for_begin, today_skopje
 from services.postmark import postmark_service
 
 logger = logging.getLogger(__name__)
@@ -222,11 +229,11 @@ async def _send_confirmation(email: str, first_name: str, tender_title: Optional
     """Instant confirmation to the lead: a person is on it. No pricing (outreach rule)."""
     about = (f"<p>Го добивме вашето барање за тендерот <strong>{_esc(tender_title)}</strong>.</p>"
              if tender_title else "<p>Го добивме вашето барање.</p>")
-    pw = (f"<p>Ви отворивме профил на НабавкиДата. "
-          f"<a href='{_esc(set_password_url)}'>Поставете лозинка</a> за да го активирате профилот "
-          f"и да почнете да ги добивате тендерите што ви одговараат. Линкот важи една недела.</p>"
+    pw = (f"<p>Ви отворивме профил на НабавкиДата. Веќе сте најавени на овој уред. "
+          f"За најава од други уреди <a href='{_esc(set_password_url)}'>поставете лозинка</a>. "
+          f"Линкот важи една недела.</p>"
           f"<p style='color:#6b7280;font-size:13px'>Ако не сте го испратиле ова барање, "
-          f"слободно игнорирајте ја пораката: профилот нема да биде активиран.</p>"
+          f"слободно игнорирајте ја пораката.</p>"
           if set_password_url else "")
     greeting = f"Почитуван/а {_esc(first_name)}," if first_name else "Почитувани,"
     html_body = f"""
@@ -254,11 +261,15 @@ async def _send_confirmation(email: str, first_name: str, tender_title: Optional
 async def qualify(body: QualifyRequest, request: Request, background: BackgroundTasks):
     """The single front door. Public, no auth.
 
-    Security model: this endpoint NEVER returns tokens and never marks an email
-    verified. A brand-new address gets an unverified prospect account whose
-    set-password link (sent to that mailbox) is the only way in; using it
-    verifies the address (services.auth_service.reset_password), and only
-    verified users receive alerts/digests.
+    Security model (BidFinder §4.2): tokens + a user_sessions row are returned
+    ONLY when this request created a brand-new account (case-insensitive email
+    pre-check plus INSERT ... ON CONFLICT DO NOTHING RETURNING). An existing
+    email never gets tokens (auth=None), so the form cannot be used to take
+    over an account. The new account stays email_verified=FALSE until the
+    emailed set-password link is used (services.auth_service.reset_password);
+    it is a prospect, so it has no paid perks until a prep fee is paid, and
+    alert emails go only to verified clients. token.sub is the id returned by
+    our own INSERT, never anything from the request.
     """
     ip = _client_ip(request)
     if not _rate_limit_ok(ip):
@@ -286,8 +297,8 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
         tender = None
         if body.tender_id:
             tender = await conn.fetchrow(
-                "SELECT tender_id, title, procuring_entity, closing_date, estimated_value_mkd "
-                "FROM tenders WHERE tender_id = $1",
+                "SELECT tender_id, title, procuring_entity, closing_date, estimated_value_mkd, "
+                "status FROM tenders WHERE tender_id = $1",
                 body.tender_id,
             )
 
@@ -299,6 +310,7 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
 
         set_password_url = None
         created = False
+        auth = None
         async with conn.transaction():
             existing = await conn.fetchrow(
                 "SELECT user_id, account_type FROM users WHERE LOWER(email) = $1", email
@@ -327,9 +339,30 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
                 else:
                     created = True
                     set_password_url = f"{SITE}/auth/reset-password?token={reset_token}"
+                    # Auto-login for the brand-new identity only (BidFinder §4.2).
+                    # Access token ONLY, never a refresh token: whoever typed the
+                    # address may not own the mailbox, and /auth/refresh rebinds the
+                    # active session without any session check, so a 30-day refresh
+                    # token would let them take over the account after the real
+                    # owner sets a password and logs in. The access token is tied
+                    # to this session row and dies when the owner logs in
+                    # (single-session enforcement) or after 7 days at the latest.
+                    access = create_access_token({"sub": str(uid)})
+                    ua = request.headers.get("user-agent", "") or ""
+                    fp = request.headers.get("x-device-fingerprint", "") or ""
+                    await conn.execute(
+                        "INSERT INTO user_sessions (session_id, user_id, token_hash, device_info, "
+                        "ip_address, is_active, created_at, last_activity) "
+                        "VALUES (gen_random_uuid(), $1, $2, $3, $4::inet, TRUE, NOW(), NOW())",
+                        uid, hash_token(access), f"{ua[:200]}|fp:{fp[:100]}|qualify",
+                        _valid_ip(ip),
+                    )
+                    auth = {"access_token": access, "refresh_token": None,
+                            "token_type": "bearer"}
                     keywords = _extract_keywords(wants)
                     if keywords:
-                        # Fires only once the address is verified (crons filter on it).
+                        # Prospects get in-app matches (portal hook); alert
+                        # EMAILS need client perks + a verified address.
                         await conn.execute(
                             """INSERT INTO tender_alerts (user_id, name, alert_type, criteria)
                                VALUES ($1, $2, 'keyword', $3::jsonb)""",
@@ -372,7 +405,7 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
             ("Што сака да добие", wants or "-"),
             ("Историја (наши податоци)", hist_line),
             ("Извор", body.source),
-            ("Постоечки корисник", "не (нов профил, неверификуван)" if created else "да"),
+            ("Постоечки корисник", "не (нов профил, автоматски најавен, неверификуван)" if created else "да"),
         ],
     )
     background.add_task(
@@ -384,12 +417,20 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
     )
 
     message = "Го добивме вашето барање. Ќе ви одговориме во рок од еден работен ден."
+    nxt = None
     if created:
-        message += " Ви испративме е-пошта со линк за активирање на профилот."
+        message += " Ви испративме е-пошта со линк за поставување лозинка."
+        nxt = ("tender"
+               if tender and tender_open_for_begin(tender["status"], tender["closing_date"],
+                                                   today_skopje())
+               else "portal")
     return {
         "lead_id": str(lead_id),
         "message": message,
-        "auth": None,  # never: tokens only after the mailbox owner uses the emailed link
+        # Tokens only for a brand-new identity created by this request.
+        "auth": auth if created else None,
+        "next": nxt,
+        "tender_id": tender["tender_id"] if tender else None,
     }
 
 
