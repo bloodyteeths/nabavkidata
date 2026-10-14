@@ -126,7 +126,9 @@ async def get_current_user(
         payload = decode_token(token)
         user_id: str = payload.get("sub")
 
-        if user_id is None:
+        # Refresh tokens share SECRET_KEY and carry "sub"; they must never be
+        # accepted as access credentials (same rule as api.auth.get_current_user).
+        if user_id is None or payload.get("type") == "refresh":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload",

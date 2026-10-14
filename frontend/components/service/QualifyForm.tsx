@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { isPortalUser } from "@/lib/portal";
 
 interface QualifyFormProps {
   /** tenders.tender_id when the request is about one tender */
@@ -26,7 +28,7 @@ interface QualifyFormProps {
  * account. Either way the visitor sees the confirmation in place.
  */
 export default function QualifyForm({ tenderId, source = "usluga", compact = false }: QualifyFormProps) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [company, setCompany] = useState(user?.company_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [person, setPerson] = useState(user?.full_name || "");
@@ -35,6 +37,8 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // Signed-in submitter whose account the server just moved into the portal.
+  const [portalNow, setPortalNow] = useState(false);
 
   // AuthProvider loads the profile after mount: fill any still-empty fields
   // so a signed-in user's request is linked to their own account.
@@ -60,6 +64,12 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
         source,
       });
       setDone(res.message);
+      if (user) {
+        // The API promotes a signed-in free account to prospect; reload the
+        // profile so navigation switches to the portal without a page reload.
+        const fresh = await refreshUser().catch(() => null);
+        if (isPortalUser(fresh)) setPortalNow(true);
+      }
     } catch (err: any) {
       setError(err?.message || "Барањето не успеа. Обидете се повторно.");
     } finally {
@@ -74,6 +84,14 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
         <div className="text-sm">
           <p className="font-medium text-foreground">Барањето е примено</p>
           <p className="text-muted-foreground mt-1">{done}</p>
+          {/* On a tender card the parent switches to „Започни понуда“ by itself. */}
+          {portalNow && (
+            <p className="mt-2">
+              <Link href="/portal" className="font-medium text-primary underline underline-offset-4">
+                Отвори го порталот
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     );

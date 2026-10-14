@@ -1,3 +1,31 @@
+import type {
+  AdminBidFile,
+  AdminBidJobDetailResponse,
+  AdminBidJobFilters,
+  AdminBidJobsResponse,
+  AdminBidSummary,
+  AdminClientInfo,
+  AdminInboxResponse,
+  AdminJobActionResponse,
+  AdminTeamMember,
+  BeginBidJobResponse,
+  BidAgreement,
+  BidFileKind,
+  BidJobDetailResponse,
+  BidJobSummary,
+  BidMessage,
+  BidOutcome,
+  CalendarTokenResponse,
+  ClientDocument,
+  ClientDocumentCategory,
+  DeadlineItem,
+  FileActionResponse,
+  JobActionResponse,
+  MatchedTender,
+  PortalSummary,
+  PortalUnread,
+} from './bid-service-types';
+
 const API_URL = (typeof window !== 'undefined')
   ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://api.nabavkidata.com')
   : 'https://api.nabavkidata.com';
@@ -579,6 +607,66 @@ class APIClient {
     }
 
     return response.json();
+  }
+
+  /** Headers shared by the multipart and download helpers (no Content-Type). */
+  private buildRawHeaders(method: string): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const token = this.getAuthToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const fp = this.getDeviceFingerprint();
+    if (fp) headers['x-device-fingerprint'] = fp;
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+      const csrfToken = this.getCSRFToken();
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+    }
+    return headers;
+  }
+
+  private async throwResponseError(response: Response): Promise<never> {
+    const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+    const detail = errorData.detail;
+    const message = Array.isArray(detail)
+      ? detail.map((e: any) => e.msg).join(', ')
+      : (typeof detail === 'string' && detail) || `API Error: ${response.statusText}`;
+    const error = new Error(message);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  /** Multipart request. The browser sets the Content-Type boundary itself. */
+  private async requestForm<T>(endpoint: string, form: FormData, method: 'POST' | 'PATCH' = 'POST'): Promise<T> {
+    const response = await fetch(`${this.baseURL}${endpoint}`, {
+      method,
+      body: form,
+      headers: this.buildRawHeaders(method),
+      credentials: 'include',
+    });
+    if (!response.ok) await this.throwResponseError(response);
+    return response.json();
+  }
+
+  /**
+   * Download an authenticated file and save it in the browser. CORS does not
+   * expose Content-Disposition, so the caller always supplies the filename.
+   */
+  private async downloadFile(endpoint: string, filename: string): Promise<void> {
+    const response = await fetch(`${this.baseURL}${endpoint}`, {
+      method: 'GET',
+      headers: this.buildRawHeaders('GET'),
+      credentials: 'include',
+    });
+    if (!response.ok) await this.throwResponseError(response);
+    const blob = await response.blob();
+    if (typeof window === 'undefined') return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // Tenders
@@ -2861,6 +2949,391 @@ class APIClient {
         body: JSON.stringify(data),
       }
     );
+  }
+  // ==========================================
+  // BID SERVICE — jobs + client portal (Phase 2, Oct 2026)
+  // ==========================================
+
+  /**
+   * Start (or reopen) a bid. Rejects with status 409 and message `terms_required`
+   * (TERMS_REQUIRED) until the client accepts the current terms; pass
+   * acceptTerms=true from the confirmation dialog to accept them in the same call.
+   */
+  async beginBidJob(tenderId: string, clientNote?: string, acceptTerms?: boolean): Promise<BeginBidJobResponse> {
+    const body: { tender_id: string; client_note?: string; accept_terms?: boolean } = { tender_id: tenderId };
+    if (clientNote) body.client_note = clientNote;
+    if (acceptTerms) body.accept_terms = true;
+    return this.request<BeginBidJobResponse>('/api/bid-service/jobs', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getBidAgreement(): Promise<BidAgreement> {
+    return this.request<BidAgreement>('/api/bid-service/agreement');
+  }
+
+  async acceptBidAgreement(version: string): Promise<BidAgreement> {
+    return this.request<BidAgreement>('/api/bid-service/agreement/accept', {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    });
+  }
+
+  async downloadBidInvoice(jobId: string, filename: string): Promise<void> {
+    return this.downloadFile(`/api/bid-service/jobs/${encodeURIComponent(jobId)}/invoice`, filename);
+  }
+
+  async getPortalUnread(): Promise<PortalUnread> {
+    return this.request<PortalUnread>('/api/bid-service/portal/unread');
+  }
+
+  async getPortalKeywords(): Promise<{ keywords: string[] }> {
+    return this.request<{ keywords: string[] }>('/api/bid-service/portal/keywords');
+  }
+
+  async setPortalKeywords(keywords: string[]): Promise<{ keywords: string[] }> {
+    return this.request<{ keywords: string[] }>('/api/bid-service/portal/keywords', {
+      method: 'PUT',
+      body: JSON.stringify({ keywords }),
+    });
+  }
+
+  async getMyBidJobs(): Promise<{ jobs: BidJobSummary[] }> {
+    return this.request<{ jobs: BidJobSummary[] }>('/api/bid-service/jobs');
+  }
+
+  async getBidJobForTender(tenderId: string): Promise<{ job: BidJobSummary | null }> {
+    return this.request<{ job: BidJobSummary | null }>(
+      `/api/bid-service/jobs/by-tender?tender_id=${encodeURIComponent(tenderId)}`
+    );
+  }
+
+  async getBidJob(jobId: string): Promise<BidJobDetailResponse> {
+    return this.request<BidJobDetailResponse>(`/api/bid-service/jobs/${encodeURIComponent(jobId)}`);
+  }
+
+  async downloadBidJobFile(jobId: string, fileId: string, filename: string): Promise<void> {
+    return this.downloadFile(
+      `/api/bid-service/jobs/${encodeURIComponent(jobId)}/files/${encodeURIComponent(fileId)}/download`,
+      filename
+    );
+  }
+
+  async approveBidFile(jobId: string, fileId: string): Promise<FileActionResponse> {
+    return this.request<FileActionResponse>(
+      `/api/bid-service/jobs/${encodeURIComponent(jobId)}/files/${encodeURIComponent(fileId)}/approve`,
+      { method: 'POST' }
+    );
+  }
+
+  async requestBidFileChanges(jobId: string, fileId: string, comment: string): Promise<FileActionResponse> {
+    return this.request<FileActionResponse>(
+      `/api/bid-service/jobs/${encodeURIComponent(jobId)}/files/${encodeURIComponent(fileId)}/request-changes`,
+      { method: 'POST', body: JSON.stringify({ comment }) }
+    );
+  }
+
+  async approveAllBidFiles(jobId: string): Promise<JobActionResponse> {
+    return this.request<JobActionResponse>(
+      `/api/bid-service/jobs/${encodeURIComponent(jobId)}/approve-all`,
+      { method: 'POST' }
+    );
+  }
+
+  async markBidJobSubmitted(jobId: string): Promise<JobActionResponse> {
+    return this.request<JobActionResponse>(
+      `/api/bid-service/jobs/${encodeURIComponent(jobId)}/mark-submitted`,
+      { method: 'POST' }
+    );
+  }
+
+  async cancelBidJob(jobId: string, reason?: string): Promise<JobActionResponse> {
+    return this.request<JobActionResponse>(`/api/bid-service/jobs/${encodeURIComponent(jobId)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(reason ? { reason } : {}),
+    });
+  }
+
+  async getBidJobMessages(jobId: string): Promise<{ messages: BidMessage[] }> {
+    return this.request<{ messages: BidMessage[] }>(
+      `/api/bid-service/jobs/${encodeURIComponent(jobId)}/messages`
+    );
+  }
+
+  async sendBidJobMessage(jobId: string, body: string): Promise<{ message: BidMessage }> {
+    return this.request<{ message: BidMessage }>(`/api/bid-service/jobs/${encodeURIComponent(jobId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    });
+  }
+
+  async getGeneralMessages(): Promise<{ messages: BidMessage[] }> {
+    return this.request<{ messages: BidMessage[] }>('/api/bid-service/messages');
+  }
+
+  async sendGeneralMessage(body: string): Promise<{ message: BidMessage }> {
+    return this.request<{ message: BidMessage }>('/api/bid-service/messages', {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    });
+  }
+
+  async getClientDocuments(): Promise<{ documents: ClientDocument[] }> {
+    return this.request<{ documents: ClientDocument[] }>('/api/bid-service/documents');
+  }
+
+  async uploadClientDocument(
+    file: File,
+    category: ClientDocumentCategory,
+    title?: string,
+    expiresOn?: string | null
+  ): Promise<{ document: ClientDocument }> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('category', category);
+    if (title) form.append('title', title);
+    if (expiresOn) form.append('expires_on', expiresOn);
+    return this.requestForm<{ document: ClientDocument }>('/api/bid-service/documents', form);
+  }
+
+  async updateClientDocument(
+    docId: string,
+    data: { title?: string; category?: ClientDocumentCategory; expires_on?: string | null }
+  ): Promise<{ document: ClientDocument }> {
+    return this.request<{ document: ClientDocument }>(`/api/bid-service/documents/${encodeURIComponent(docId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async downloadClientDocument(docId: string, filename: string): Promise<void> {
+    return this.downloadFile(`/api/bid-service/documents/${encodeURIComponent(docId)}/download`, filename);
+  }
+
+  async deleteClientDocument(docId: string): Promise<{ deleted: boolean }> {
+    return this.request<{ deleted: boolean }>(`/api/bid-service/documents/${encodeURIComponent(docId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getPortalSummary(): Promise<PortalSummary> {
+    return this.request<PortalSummary>('/api/bid-service/portal/summary');
+  }
+
+  async getPortalMatchedTenders(limit: number = 50): Promise<{ tenders: MatchedTender[] }> {
+    return this.request<{ tenders: MatchedTender[] }>(`/api/bid-service/portal/matched?limit=${limit}`);
+  }
+
+  async getBidDeadlines(): Promise<{ deadlines: DeadlineItem[] }> {
+    return this.request<{ deadlines: DeadlineItem[] }>('/api/bid-service/deadlines');
+  }
+
+  async getCalendarToken(): Promise<CalendarTokenResponse> {
+    return this.request<CalendarTokenResponse>('/api/bid-service/calendar-token');
+  }
+
+  async rotateCalendarToken(): Promise<CalendarTokenResponse> {
+    return this.request<CalendarTokenResponse>('/api/bid-service/calendar-token/rotate', { method: 'POST' });
+  }
+
+  // ---- admin ----
+
+  async getAdminBidJobs(filters?: AdminBidJobFilters): Promise<AdminBidJobsResponse> {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.assigned_to) params.append('assigned_to', filters.assigned_to);
+    if (filters?.user_id) params.append('user_id', filters.user_id);
+    if (filters?.q) params.append('q', filters.q);
+    if (filters?.limit !== undefined) params.append('limit', String(filters.limit));
+    const qs = params.toString();
+    return this.request<AdminBidJobsResponse>(`/api/bid-service/admin/jobs${qs ? `?${qs}` : ''}`);
+  }
+
+  async getAdminBidSummary(): Promise<AdminBidSummary> {
+    return this.request<AdminBidSummary>('/api/bid-service/admin/summary');
+  }
+
+  async getAdminBidJob(jobId: string): Promise<AdminBidJobDetailResponse> {
+    return this.request<AdminBidJobDetailResponse>(`/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}`);
+  }
+
+  async updateAdminBidJob(
+    jobId: string,
+    data: { admin_notes?: string; prep_fee_mkd?: number }
+  ): Promise<AdminJobActionResponse> {
+    return this.request<AdminJobActionResponse>(`/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async issueBidInvoice(
+    jobId: string,
+    data: { prep_fee_mkd: number; invoice_number: string }
+  ): Promise<AdminJobActionResponse> {
+    return this.request<AdminJobActionResponse>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/invoice`,
+      { method: 'POST', body: JSON.stringify(data) }
+    );
+  }
+
+  async adminCreateBidJob(userId: string, tenderId: string, clientNote?: string): Promise<AdminJobActionResponse> {
+    const body: { user_id: string; tender_id: string; client_note?: string } = {
+      user_id: userId,
+      tender_id: tenderId,
+    };
+    if (clientNote) body.client_note = clientNote;
+    return this.request<AdminJobActionResponse>('/api/bid-service/admin/jobs', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async uploadBidInvoiceFile(jobId: string, file: File): Promise<AdminJobActionResponse> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.requestForm<AdminJobActionResponse>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/invoice-file`,
+      form
+    );
+  }
+
+  async adminDownloadBidInvoice(jobId: string, filename: string): Promise<void> {
+    return this.downloadFile(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/invoice-file`,
+      filename
+    );
+  }
+
+  async markBidJobPaid(jobId: string, paidAt?: string): Promise<AdminJobActionResponse> {
+    return this.request<AdminJobActionResponse>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/mark-paid`,
+      { method: 'POST', body: JSON.stringify(paidAt ? { paid_at: paidAt } : {}) }
+    );
+  }
+
+  async markBidJobFree(jobId: string): Promise<AdminJobActionResponse> {
+    return this.request<AdminJobActionResponse>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/mark-free`,
+      { method: 'POST' }
+    );
+  }
+
+  async uploadBidJobFile(
+    jobId: string,
+    file: File,
+    kind: BidFileKind,
+    title?: string
+  ): Promise<{ file: AdminBidFile }> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('kind', kind);
+    if (title) form.append('title', title);
+    return this.requestForm<{ file: AdminBidFile }>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/files`,
+      form
+    );
+  }
+
+  async adminDownloadBidJobFile(jobId: string, fileId: string, filename: string): Promise<void> {
+    return this.downloadFile(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/files/${encodeURIComponent(fileId)}/download`,
+      filename
+    );
+  }
+
+  async deleteBidJobFile(jobId: string, fileId: string): Promise<{ deleted: boolean }> {
+    return this.request<{ deleted: boolean }>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/files/${encodeURIComponent(fileId)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async publishBidJob(jobId: string): Promise<AdminJobActionResponse> {
+    return this.request<AdminJobActionResponse>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/publish`,
+      { method: 'POST' }
+    );
+  }
+
+  async adminMarkBidJobSubmitted(jobId: string): Promise<AdminJobActionResponse> {
+    return this.request<AdminJobActionResponse>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/mark-submitted`,
+      { method: 'POST' }
+    );
+  }
+
+  async setBidJobOutcome(jobId: string, outcome: BidOutcome): Promise<AdminJobActionResponse> {
+    return this.request<AdminJobActionResponse>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/outcome`,
+      { method: 'POST', body: JSON.stringify({ outcome }) }
+    );
+  }
+
+  async assignBidJob(jobId: string, assignedTo: string | null): Promise<AdminJobActionResponse> {
+    return this.request<AdminJobActionResponse>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/assign`,
+      { method: 'POST', body: JSON.stringify({ assigned_to: assignedTo }) }
+    );
+  }
+
+  async adminCancelBidJob(jobId: string, reason?: string): Promise<AdminJobActionResponse> {
+    return this.request<AdminJobActionResponse>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/cancel`,
+      { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) }
+    );
+  }
+
+  async sendAdminBidJobMessage(jobId: string, body: string): Promise<{ message: BidMessage }> {
+    return this.request<{ message: BidMessage }>(
+      `/api/bid-service/admin/jobs/${encodeURIComponent(jobId)}/messages`,
+      { method: 'POST', body: JSON.stringify({ body }) }
+    );
+  }
+
+  async getAdminClientMessages(userId: string): Promise<{ messages: BidMessage[] }> {
+    return this.request<{ messages: BidMessage[] }>(
+      `/api/bid-service/admin/clients/${encodeURIComponent(userId)}/messages`
+    );
+  }
+
+  async sendAdminClientMessage(userId: string, body: string): Promise<{ message: BidMessage }> {
+    return this.request<{ message: BidMessage }>(
+      `/api/bid-service/admin/clients/${encodeURIComponent(userId)}/messages`,
+      { method: 'POST', body: JSON.stringify({ body }) }
+    );
+  }
+
+  async getAdminBidInbox(): Promise<AdminInboxResponse> {
+    return this.request<AdminInboxResponse>('/api/bid-service/admin/inbox');
+  }
+
+  async updateBidClient(
+    userId: string,
+    data: { free_drafting?: boolean; prep_fee_mkd?: number; success_fee_pct?: number; company_name?: string }
+  ): Promise<{ client: AdminClientInfo; account_promoted: boolean }> {
+    return this.request<{ client: AdminClientInfo; account_promoted: boolean }>(
+      `/api/bid-service/admin/clients/${encodeURIComponent(userId)}`,
+      { method: 'PATCH', body: JSON.stringify(data) }
+    );
+  }
+
+  async getAdminClientDocuments(userId: string): Promise<{ documents: ClientDocument[] }> {
+    return this.request<{ documents: ClientDocument[] }>(
+      `/api/bid-service/admin/clients/${encodeURIComponent(userId)}/documents`
+    );
+  }
+
+  async adminDownloadClientDocument(userId: string, docId: string, filename: string): Promise<void> {
+    return this.downloadFile(
+      `/api/bid-service/admin/clients/${encodeURIComponent(userId)}/documents/${encodeURIComponent(docId)}/download`,
+      filename
+    );
+  }
+
+  async getAdminBidTeam(): Promise<{ admins: AdminTeamMember[] }> {
+    return this.request<{ admins: AdminTeamMember[] }>('/api/bid-service/admin/team');
   }
 }
 

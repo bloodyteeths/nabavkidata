@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { navigationGroups } from "@/config/navigation";
+import { navigationGroups, portalNavigationGroups } from "@/config/navigation";
 import { useAuth } from "@/lib/auth";
+import { isPortalUser } from "@/lib/portal";
+import { api } from "@/lib/api";
+import type { PortalUnread } from "@/lib/bid-service-types";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -86,22 +89,43 @@ export default function DashboardLayout({
         };
     }, []);
 
-    const filteredGroups = navigationGroups;
+    const portalNav = isPortalUser(user);
+    const filteredGroups = portalNav ? portalNavigationGroups : navigationGroups;
+
+    // Portal unread counters for the nav badges: fetched on navigation only (no polling).
+    const [portalUnread, setPortalUnread] = useState<PortalUnread | null>(null);
+    useEffect(() => {
+        if (!portalNav) return;
+        let cancelled = false;
+        api.getPortalUnread()
+            .then((res) => { if (!cancelled) setPortalUnread(res); })
+            .catch(() => { /* badge is optional */ });
+        return () => { cancelled = true; };
+    }, [portalNav, pathname]);
+    const navBadge = (href: string): number => {
+        if (!portalNav || !portalUnread) return 0;
+        if (href === '/portal/messages') return portalUnread.unread_general;
+        if (href === '/portal/bids') return portalUnread.unread_jobs;
+        return 0;
+    };
+    const homeHref = portalNav ? '/portal' : '/tenders';
+    // The portal group already lists Поставки; avoid a duplicate footer link.
+    const showSettingsFooter = !filteredGroups.some(g => g.items.some(i => i.href === '/settings'));
 
     const toggleGroup = (label: string) => {
         setCollapsedGroups(prev => ({ ...prev, [label]: !prev[label] }));
     };
 
-    const isGroupActive = (items: typeof filteredGroups[0]['items']) => {
-        return items.some(item => pathname === item.href || pathname.startsWith(item.href + '/'));
-    };
+    // "/portal" (Почетна) is active on its exact path only, not on every portal page.
+    const isItemActive = (href: string) =>
+        href === '/portal' ? pathname === href : pathname === href || pathname.startsWith(href + '/');
 
-    const isItemActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+    const isGroupActive = (items: typeof filteredGroups[0]['items']) => items.some(item => isItemActive(item.href));
 
     const CollapsedSidebarContent = () => (
         <>
             <div className="flex items-center justify-center py-5">
-                <Link href="/tenders" className="hover:opacity-80 transition-opacity">
+                <Link href={homeHref} className="hover:opacity-80 transition-opacity">
                     <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                         <span className="text-white font-bold text-xl">N</span>
                     </div>
@@ -130,13 +154,16 @@ export default function DashboardLayout({
                                             <Link
                                                 key={item.name}
                                                 href={item.href}
-                                                title={item.name}
-                                                className={`flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all duration-200 ${active
+                                                title={navBadge(item.href) > 0 ? `${item.name} (${navBadge(item.href)} нови)` : item.name}
+                                                className={`relative flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all duration-200 ${active
                                                     ? "bg-primary text-white shadow-[0_0_20px_rgba(124,58,237,0.3)]"
                                                     : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
                                                 }`}
                                             >
                                                 <Icon className="h-5 w-5" />
+                                                {navBadge(item.href) > 0 && (
+                                                    <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+                                                )}
                                             </Link>
                                         );
                                     })}
@@ -145,7 +172,7 @@ export default function DashboardLayout({
                         </div>
                     );
                 })}
-                <div className="pt-2 border-t border-border/40">
+                {showSettingsFooter && <div className="pt-2 border-t border-border/40">
                     <Link
                         href="/settings"
                         title="Поставки"
@@ -156,7 +183,7 @@ export default function DashboardLayout({
                     >
                         <Settings className="h-5 w-5" />
                     </Link>
-                </div>
+                </div>}
             </nav>
 
             <div className="p-2 border-t border-border">
@@ -193,7 +220,7 @@ export default function DashboardLayout({
     const ExpandedSidebarContent = ({ onItemClick }: { onItemClick?: () => void }) => (
         <>
             <div className="p-6">
-                <Link href="/tenders" className="flex items-center gap-2 mb-1 hover:opacity-80 transition-opacity" onClick={onItemClick}>
+                <Link href={homeHref} className="flex items-center gap-2 mb-1 hover:opacity-80 transition-opacity" onClick={onItemClick}>
                     <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                         <span className="text-white font-bold text-xl">N</span>
                     </div>
@@ -241,6 +268,11 @@ export default function DashboardLayout({
                                             >
                                                 <Icon className="h-5 w-5" />
                                                 {item.name}
+                                                {navBadge(item.href) > 0 && (
+                                                    <span className="ml-auto min-w-[1.25rem] rounded-full bg-red-500 px-1.5 text-center text-xs font-semibold text-white" aria-label={`${navBadge(item.href)} нови пораки`}>
+                                                        {navBadge(item.href)}
+                                                    </span>
+                                                )}
                                             </Link>
                                         );
                                     })}
@@ -249,7 +281,7 @@ export default function DashboardLayout({
                         </div>
                     );
                 })}
-                <div className="pt-2 border-t border-border/40">
+                {showSettingsFooter && <div className="pt-2 border-t border-border/40">
                     <Link
                         href="/settings"
                         onClick={onItemClick}
@@ -261,7 +293,7 @@ export default function DashboardLayout({
                         <Settings className="h-5 w-5" />
                         Поставки
                     </Link>
-                </div>
+                </div>}
             </nav>
 
             <div className="p-4 border-t border-border bg-muted/20">
@@ -303,7 +335,7 @@ export default function DashboardLayout({
             <div className="flex h-screen bg-background">
                 {/* Mobile Header */}
                 <div className="md:hidden fixed top-0 left-0 right-0 h-16 border-b border-border bg-background/80 backdrop-blur-md z-30 flex items-center justify-between px-4">
-                    <Link href="/tenders" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                    <Link href={homeHref} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                             <span className="text-white font-bold text-xl">N</span>
                         </div>
@@ -354,8 +386,9 @@ export default function DashboardLayout({
                     {children}
                 </main>
 
-                {/* Global AI Chat Widget */}
-                <GlobalChatWidget />
+                {/* Global AI Chat Widget: legacy SaaS feature with tier limits (402 ->
+                    paywall), so service clients in the portal do not get it. */}
+                {!portalNav && <GlobalChatWidget />}
             </div>
         </ProtectedRoute>
     );

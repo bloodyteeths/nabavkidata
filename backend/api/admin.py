@@ -605,6 +605,17 @@ async def delete_user(
             detail="User not found"
         )
 
+    # Bid-service clients: bid_jobs carry success-fee receivables and an audit
+    # trail (FK is ON DELETE RESTRICT) — refuse instead of failing with a 500.
+    has_bid_jobs = (await db.execute(
+        text("SELECT 1 FROM bid_jobs WHERE user_id = :user_id LIMIT 1"), {"user_id": user_id}
+    )).first()
+    if has_bid_jobs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Корисникот има понуди во услугата и не може да се избрише."
+        )
+
     # Log before deletion
     await log_admin_action(
         db, current_user.user_id, "delete_user",
@@ -634,6 +645,10 @@ async def delete_user(
     # Delete user
     await db.execute(delete(User).where(User.user_id == user_id))
     await db.commit()
+
+    # client_documents rows cascade with the user; erase the uploaded files too.
+    from api.bid_jobs import remove_user_company_files
+    remove_user_company_files(user_id)
 
     return MessageResponse(
         message="User deleted successfully",

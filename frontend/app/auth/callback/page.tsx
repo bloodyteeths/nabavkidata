@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/lib/auth';
+import { useAuth, type User } from '@/lib/auth';
+import { postLoginPath } from '@/lib/portal';
 
 declare global {
   interface Window {
@@ -46,8 +47,9 @@ export default function AuthCallbackPage() {
 
         try {
           // Use setTokens which handles localStorage and fetches user
+          let u: User | null = null;
           if (setTokens) {
-            await setTokens(accessToken, refreshToken);
+            u = await setTokens(accessToken, refreshToken);
           } else {
             // Fallback: store tokens directly
             localStorage.setItem('auth_token', accessToken);
@@ -59,8 +61,7 @@ export default function AuthCallbackPage() {
           // Get the stored redirect URL or default to dashboard
           const storedRedirect = localStorage.getItem('auth_redirect');
           localStorage.removeItem('auth_redirect'); // Clean up
-          const redirectUrl = storedRedirect && storedRedirect.startsWith('/') && !storedRedirect.startsWith('//') ? storedRedirect : '/dashboard';
-          router.push(redirectUrl);
+          router.push(postLoginPath(u, storedRedirect));
         } catch (err) {
           console.error('Failed to process OAuth callback:', err);
           setError('Грешка при автентикација. Обидете се повторно.');

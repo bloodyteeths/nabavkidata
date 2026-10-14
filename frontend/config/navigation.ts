@@ -1,4 +1,4 @@
-import { LayoutDashboard, Search, MessageSquare, Settings, ShoppingCart, Building2, LineChart, Users, Bell, ShieldAlert, Swords, Bookmark } from 'lucide-react';
+import { LayoutDashboard, Search, MessageSquare, Settings, ShoppingCart, Building2, LineChart, Users, Bell, ShieldAlert, Swords, Bookmark, Home, FileText, FolderOpen, CalendarDays } from 'lucide-react';
 
 export interface NavItem {
   name: string;
@@ -32,6 +32,22 @@ export const navigationGroups: NavGroup[] = [
       { name: 'e-Пазар', href: '/epazar', icon: ShoppingCart, description: 'Цени на производи и услуги' },
       { name: 'Трендови', href: '/trends', icon: LineChart, description: 'Пазарни трендови и анализи' },
       { name: 'Анализа на Ризик', href: '/risk-analysis', icon: ShieldAlert, description: 'Ризик и транспарентност' },
+    ],
+  },
+];
+
+/** Sidebar for bid-service clients (prospect / managed_client). */
+export const portalNavigationGroups: NavGroup[] = [
+  {
+    label: 'Портал',
+    items: [
+      { name: 'Почетна', href: '/portal', icon: Home, description: 'Преглед на вашите понуди' },
+      { name: 'Мои понуди', href: '/portal/bids', icon: FileText, description: 'Сите понуди што ги подготвуваме' },
+      { name: 'Тендери за мене', href: '/portal/tenders', icon: Search, description: 'Тендери што одговараат на вашиот профил' },
+      { name: 'Документи', href: '/portal/documents', icon: FolderOpen, description: 'Документи на компанијата' },
+      { name: 'Пораки', href: '/portal/messages', icon: MessageSquare, description: 'Пишете ни' },
+      { name: 'Календар', href: '/portal/calendar', icon: CalendarDays, description: 'Рокови за поднесување' },
+      { name: 'Поставки', href: '/settings', icon: Settings, description: 'Профил и поставки' },
     ],
   },
 ];

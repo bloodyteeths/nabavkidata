@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { api, UserPreferences } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { isPortalUser } from "@/lib/portal";
+import PortalSettingsPanel from "@/components/bid-service/PortalSettingsPanel";
 import { billing, BillingPlan, UserSubscriptionStatus, TrialCredits, ReferralStats, ReferralEarning, ConnectStatus } from "@/lib/billing";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -940,6 +942,8 @@ export default function SettingsPage() {
 
   const { user } = useAuth();
   const userId = user?.user_id;
+  // Bid-service clients get the portal settings, not the legacy SaaS ones.
+  const portalUser = isPortalUser(user);
 
   // Track hydration
   useEffect(() => {
@@ -959,6 +963,11 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const init = async () => {
+      if (portalUser) {
+        // No plans, referrals or legacy preferences for portal users.
+        setLoading(false);
+        return;
+      }
       if (userId) {
         await loadPreferences();
         loadReferralData();
@@ -968,7 +977,7 @@ export default function SettingsPage() {
       await loadPlans();
     };
     init();
-  }, [userId]);
+  }, [userId, portalUser]);
 
   const loadReferralData = async () => {
     try {
@@ -1374,6 +1383,10 @@ export default function SettingsPage() {
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('mk-MK').format(num);
   };
+
+  if (portalUser) {
+    return <PortalSettingsPanel />;
+  }
 
   // Show loading state until hydrated and data loaded
   if (!isHydrated || loading) {

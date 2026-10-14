@@ -95,7 +95,7 @@ export default function ResetPasswordPage() {
       await resetPassword(token, formData.password);
       setSuccess(true);
       setTimeout(() => {
-        router.push('/auth/login');
+        router.push('/auth/login?redirect=%2Fportal');
       }, 3000);
     } catch (error) {
       setErrors({ general: 'Токенот е невалиден или истечен. Ве молиме побарајте ново ресетирање.' });

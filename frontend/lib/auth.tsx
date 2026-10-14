@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { postLoginPath } from '@/lib/portal';
 
 const API_URL = (typeof window !== 'undefined')
   ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://api.nabavkidata.com')
@@ -29,7 +30,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (email: string, password: string, fullName?: string, referralCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
@@ -39,7 +40,9 @@ interface AuthContextType {
   resetPassword: (token: string, newPassword: string) => Promise<void>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
-  setTokens: (accessToken: string, refreshToken: string) => Promise<void>;
+  setTokens: (accessToken: string, refreshToken: string) => Promise<User | null>;
+  /** Re-read /auth/me (e.g. after the server changed account_type). */
+  refreshUser: () => Promise<User | null>;
   error: string | null;
   clearError: () => void;
 }
@@ -161,12 +164,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Fetch current user data
-  const fetchUser = async () => {
+  const fetchUser = async (): Promise<User | null> => {
     try {
       const { accessToken } = getTokens();
       if (!accessToken) {
         setIsLoading(false);
-        return;
+        return null;
       }
 
       const response = await fetch(`${API_URL}/api/auth/me`, {
@@ -176,9 +179,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.ok) {
-        const userData = await response.json();
+        const userData: User = await response.json();
         setUser(userData);
         scheduleTokenRefresh();
+        return userData;
       } else if (response.status === 401) {
         // Check if session was kicked (logged in from another device)
         const sessionKicked = response.headers.get('X-Session-Kicked');
@@ -203,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
+    return null;
   };
 
   // Hydration guard - wait for client before accessing localStorage
@@ -223,7 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [isHydrated]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -260,10 +265,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token_type: data.token_type
       });
       // Set user from response instead of fetching again
-      setUser(data.user);
+      const loggedInUser: User = data.user;
+      setUser(loggedInUser);
       scheduleTokenRefresh();
-      const redirect = new URLSearchParams(window.location.search).get('redirect') || '/chat';
-      router.push(redirect);
+      const redirect = new URLSearchParams(window.location.search).get('redirect');
+      router.push(postLoginPath(loggedInUser, redirect));
+      return loggedInUser;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
       setError(message);
@@ -462,7 +469,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(errorData.detail || 'Password reset failed');
       }
 
-      router.push('/auth/login');
+      router.push('/auth/login?redirect=%2Fportal');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Password reset failed';
       setError(message);
@@ -544,8 +551,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Set tokens from OAuth callback
-  const setTokensFromOAuth = async (accessToken: string, refreshTokenStr: string) => {
-    if (typeof window === 'undefined') return;
+  const setTokensFromOAuth = async (accessToken: string, refreshTokenStr: string): Promise<User | null> => {
+    if (typeof window === 'undefined') return null;
 
     localStorage.setItem(TOKEN_KEY, accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, refreshTokenStr);
@@ -559,7 +566,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.cookie = `auth_token=${accessToken}; path=/; expires=${expires}; SameSite=Lax`;
 
     // Fetch user profile
-    await fetchUser();
+    return fetchUser();
   };
 
   const value: AuthContextType = {
@@ -577,6 +584,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     changePassword,
     updateProfile,
     setTokens: setTokensFromOAuth,
+    refreshUser: fetchUser,
     error,
     clearError,
   };

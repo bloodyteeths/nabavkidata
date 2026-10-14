@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { postLoginPath } from '@/lib/portal';
 
 // Google OAuth icon
 const GoogleIcon = () => (
@@ -76,9 +77,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(formData.email, formData.password);
-      // Redirect to the original page or dashboard (no plans/checkout any more)
-      router.push(safeRedirect(searchParams.get('redirect')));
+      const u = await login(formData.email, formData.password);
+      // Service clients land on /portal; others on the requested page or the dashboard
+      router.push(postLoginPath(u, searchParams.get('redirect')));
     } catch (error: any) {
       setErrors({ general: error.message || 'Погрешна е-пошта или лозинка' });
     } finally {

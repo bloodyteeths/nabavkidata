@@ -9,6 +9,7 @@ import { api, type DashboardData } from "@/lib/api";
 import { formatCurrency, formatDate, tenderUrl } from "@/lib/utils";
 import { TrendingUp, AlertCircle, Target, Sparkles, ArrowRight, Bell, Search, Clock, DollarSign, Users, RefreshCw, FileText, CheckCircle2, PenLine } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { isPortalUser } from "@/lib/portal";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { WelcomeWizard } from "@/components/onboarding/WelcomeWizard";
@@ -35,9 +36,15 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [showWizard, setShowWizard] = useState(false);
+  const portalUser = isPortalUser(user);
+
+  // Service clients live in the portal; bounce them there.
+  useEffect(() => {
+    if (portalUser) router.replace('/portal');
+  }, [portalUser, router]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isPortalUser(user)) return;
     loadDashboard();
     // Service prospects/clients get the status card above, not the SaaS tour.
     const serviceAccount = user.account_type === 'prospect' || user.account_type === 'managed_client';
@@ -75,6 +82,14 @@ export default function DashboardPage() {
   const isProspect = user?.account_type === 'prospect';
   const isClient = user?.account_type === 'managed_client';
   const hasPersonalData = (data?.stats.recommended_count || 0) > 0;
+
+  if (portalUser) {
+    return (
+      <PageContainer>
+        <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">Се вчитува…</div>
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer>

@@ -151,6 +151,20 @@ export default function AdminLeadsPage() {
     }
   };
 
+  /** Open a bid job for the lead's tender (Phase 2): invoice and preparation start from there. */
+  const handleCreateJob = async (lead: BidLead) => {
+    if (!lead.user_id || !lead.tender_id) return;
+    setSaving((s) => ({ ...s, [lead.id]: true }));
+    try {
+      const res = await api.adminCreateBidJob(lead.user_id, lead.tender_id);
+      toast.success(res.created ? 'Понудата е креирана.' : 'Клиентот веќе има понуда за овој тендер.');
+      window.location.href = `/admin/bids/${res.job.id}`;
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : 'Понудата не беше креирана');
+      setSaving((s) => ({ ...s, [lead.id]: false }));
+    }
+  };
+
   const handleNotesBlur = async (lead: BidLead) => {
     const value = notes[lead.id] ?? '';
     if (value === (lead.admin_notes || '')) return;
@@ -308,6 +322,17 @@ export default function AdminLeadsPage() {
                                 </span>
                               )}
                             </p>
+                            {lead.user_id && (days === null || days >= 0) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="mt-2"
+                                disabled={!!saving[lead.id]}
+                                onClick={() => handleCreateJob(lead)}
+                              >
+                                Креирај понуда
+                              </Button>
+                            )}
                           </div>
                         ) : (
                           <p className="text-muted-foreground">Без конкретен тендер</p>
