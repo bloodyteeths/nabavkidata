@@ -385,6 +385,84 @@ def build_bilingual_search_condition(field: str, search_term: str, param_num: in
     return condition, params
 
 
+def latin_to_russian(text: str) -> str:
+    """
+    Convert Latin transliteration to Russian/Kyrgyz Cyrillic.
+    Used for searching Cyrillic names with Latin input in KG procurement data.
+
+    Follows GOST 7.79-2000 (System B, unambiguous) with Kyrgyz extensions:
+    - Kyrgyz uses Russian Cyrillic plus three extra letters: ң (ng), ө (o umlaut), ү (u umlaut)
+    """
+    # Multi-character mappings must be processed first
+    latin_to_russian_multi = {
+        'shch': 'щ', 'Shch': 'Щ', 'SHCH': 'Щ',
+        'yo': 'ё', 'Yo': 'Ё', 'YO': 'Ё',
+        'zh': 'ж', 'Zh': 'Ж', 'ZH': 'Ж',
+        'kh': 'х', 'Kh': 'Х', 'KH': 'Х',
+        'ts': 'ц', 'Ts': 'Ц', 'TS': 'Ц',
+        'ch': 'ч', 'Ch': 'Ч', 'CH': 'Ч',
+        'sh': 'ш', 'Sh': 'Ш', 'SH': 'Ш',
+        'yu': 'ю', 'Yu': 'Ю', 'YU': 'Ю',
+        'ya': 'я', 'Ya': 'Я', 'YA': 'Я',
+        # Kyrgyz-specific digraphs
+        'ng': 'ң', 'Ng': 'Ң', 'NG': 'Ң',
+    }
+
+    # Single character mappings
+    single_char = {
+        'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е',
+        'z': 'з', 'i': 'и', 'y': 'й', 'k': 'к', 'l': 'л', 'm': 'м',
+        'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р', 's': 'с', 't': 'т',
+        'u': 'у', 'f': 'ф', 'h': 'х', 'c': 'ц',
+        'A': 'А', 'B': 'Б', 'V': 'В', 'G': 'Г', 'D': 'Д', 'E': 'Е',
+        'Z': 'З', 'I': 'И', 'Y': 'Й', 'K': 'К', 'L': 'Л', 'M': 'М',
+        'N': 'Н', 'O': 'О', 'P': 'П', 'R': 'Р', 'S': 'С', 'T': 'Т',
+        'U': 'У', 'F': 'Ф', 'H': 'Х', 'C': 'Ц',
+    }
+
+    # Process multi-character combinations first (longest to shortest)
+    result = text
+    for latin, cyrillic in sorted(latin_to_russian_multi.items(), key=lambda x: -len(x[0])):
+        result = result.replace(latin, cyrillic)
+
+    # Then process single characters
+    output = ''
+    for char in result:
+        output += single_char.get(char, char)
+
+    return output
+
+
+def build_bilingual_search_condition_ru(field: str, search_term: str, param_num: int) -> tuple[str, list]:
+    """
+    Build SQL condition that searches both Cyrillic and Latin versions for Russian/Kyrgyz text.
+
+    Supports bidirectional search:
+    - "Бишкек" finds records with "Бишкек" (exact Cyrillic match)
+    - "Bishkek" finds records with "Бишкек" (Latin -> Cyrillic conversion)
+    - Kyrgyz extensions: ң, ө, ү handled via digraph mappings
+
+    Args:
+        field: Database field name (e.g., 'title')
+        search_term: User's search input
+        param_num: Current parameter number for SQL query
+
+    Returns:
+        Tuple of (SQL condition string, list of parameters)
+    """
+    has_cyrillic = any('Ѐ' <= c <= 'ӿ' for c in search_term)
+
+    if has_cyrillic:
+        condition = f"{field} ILIKE '%' || ${param_num} || '%'"
+        params = [search_term]
+    else:
+        cyrillic_version = latin_to_russian(search_term)
+        condition = f"({field} ILIKE '%' || ${param_num} || '%' OR {field} ILIKE '%' || ${param_num + 1} || '%')"
+        params = [search_term, cyrillic_version]
+
+    return condition, params
+
+
 # ============================================================================
 # FLAGGED TENDERS ENDPOINTS
 # ============================================================================
