@@ -45,6 +45,7 @@ from database import get_db
 from models import Tender, TenderBidder, Supplier, User
 from api.auth import get_current_user
 from middleware.entitlements import require_module
+from middleware.rbac import require_admin
 from services.entitlements_service import effective_tier
 from config.plans import ModuleName
 
@@ -425,7 +426,7 @@ Return maximum 20 most important requirements.
 # ============================================================================
 
 @router.post("/competitor-summary", response_model=CompetitorSummaryResponse,
-             dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
+             dependencies=[Depends(require_admin)])  # admin-only (Oct 2026)
 async def get_competitor_summary(
     request: CompetitorSummaryRequest,
     db: AsyncSession = Depends(get_db),
@@ -586,7 +587,7 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse,
-             dependencies=[Depends(require_module(ModuleName.RAG_SEARCH))])
+             dependencies=[Depends(require_admin)])  # admin-only (Oct 2026)
 async def rag_chat(
     request: ChatRequest,
     db: AsyncSession = Depends(get_db),

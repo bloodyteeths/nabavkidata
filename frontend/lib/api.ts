@@ -248,6 +248,44 @@ export interface UserPreferences {
   email_enabled: boolean;
 }
 
+// Tender Q&A concierge (POST /api/concierge/ask, GET /api/concierge/status)
+export interface ConciergeFooter {
+  messages_url: string | null;
+  email: string;
+  order_url: string | null;
+}
+
+export type ConciergeSource =
+  | { type: 'tender'; tender_id: string; title: string | null; url: string }
+  | { type: 'document'; tender_id: string; doc_id: string; file_name: string | null };
+
+export type ConciergeReason =
+  | 'drafting'
+  | 'pricing'
+  | 'competitor'
+  | 'legal'
+  | 'off_topic'
+  | 'daily_limit'
+  | 'unavailable';
+
+export interface ConciergeAskResponse {
+  answer: string;
+  refused: boolean;
+  reason: ConciergeReason | null;
+  footer: ConciergeFooter;
+  remaining_today: number | null;
+  daily_limit: number | null;
+  sources: ConciergeSource[];
+  lang: 'mk' | 'en' | 'sq';
+}
+
+export interface ConciergeStatus {
+  daily_limit: number | null;
+  used_today: number;
+  remaining_today: number | null;
+  footer: ConciergeFooter;
+}
+
 export interface RAGQueryResponse {
   question: string;
   answer: string;
@@ -1046,7 +1084,6 @@ class APIClient {
         suggested_cpv_codes: string[];
         deadline_urgency: string;
         days_remaining: number | null;
-        competition_level: string;
       };
       generated_at: string;
       model: string;
@@ -1333,27 +1370,21 @@ class APIClient {
     });
   }
 
-  async sendTenderChat(
-    tenderNumber: string,
-    tenderYear: string,
-    question: string,
-    conversationHistory?: Array<{ role: string; content: string }>
-  ) {
-    return this.request<{
-      answer: string;
-      sources: Array<{
-        doc_id: string;
-        file_name: string;
-        excerpt: string;
-      }>;
-      confidence: number;
-    }>(`/api/tenders/by-id/${tenderNumber}/${tenderYear}/chat`, {
+  // Tender Q&A concierge (Oct 2026): basic facts only, routes users to us.
+  async askConcierge(body: {
+    question: string;
+    tender_id?: string;
+    history?: { role: 'user' | 'assistant'; content: string }[];
+    page?: 'chat' | 'tender';
+  }) {
+    return this.request<ConciergeAskResponse>('/api/concierge/ask', {
       method: 'POST',
-      body: JSON.stringify({
-        question,
-        conversation_history: conversationHistory || [],
-      }),
+      body: JSON.stringify(body),
     });
+  }
+
+  async getConciergeStatus() {
+    return this.request<ConciergeStatus>('/api/concierge/status');
   }
 
   async semanticSearch(query: string, topK: number = 10) {
@@ -2015,8 +2046,6 @@ class APIClient {
     const query = new URLSearchParams(params || {}).toString();
     return this.request<{
       product_name: string;
-      recommended_bid_min_mkd?: number;
-      recommended_bid_max_mkd?: number;
       market_min_mkd?: number;
       market_max_mkd?: number;
       market_avg_mkd?: number;
@@ -2109,8 +2138,6 @@ class APIClient {
       insights?: {
         avg_winning_discount: number;
         avg_num_bidders: number;
-        recommended_bid_range: [number, number];
-        win_probability_estimate: string;
         similar_tenders_count: number;
         same_buyer_count: number;
       };

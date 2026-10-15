@@ -14,7 +14,6 @@ import { LogOut, Settings, User, Menu, X, ChevronDown, ChevronRight } from "luci
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
-import { GlobalChatWidget } from "@/components/ai/GlobalChatWidget";
 import { useState, useEffect, useRef, useCallback } from "react";
 
 /** Service status shown under the user's name (no plan language). */
@@ -388,8 +387,6 @@ export default function DashboardLayout({
                     {children}
                 </main>
 
-                {/* Global AI Chat Widget: AI is a client perk (managed_client or admin). */}
-                {hasClientPerks(user) && <GlobalChatWidget />}
             </div>
         </ProtectedRoute>
     );

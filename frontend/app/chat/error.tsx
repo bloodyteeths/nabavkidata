@@ -25,9 +25,9 @@ export default function ChatError({
             <AlertTriangle className="h-8 w-8 text-destructive" />
           </div>
 
-          <h1 className="text-xl font-bold mb-2">AI Асистентот е недостапен</h1>
+          <h1 className="text-xl font-bold mb-2">Прашањата за тендери се недостапни</h1>
           <p className="text-muted-foreground mb-6 text-sm">
-            Моментално има проблем со AI асистентот. Обидете се повторно подоцна.
+            Асистентот моментално не е достапен. Обидете се повторно подоцна или пишете ни на hello@nabavkidata.com.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">

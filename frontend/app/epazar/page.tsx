@@ -59,8 +59,6 @@ export default function EPazarPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [priceIntelligence, setPriceIntelligence] = useState<{
     product_name: string;
-    recommended_bid_min_mkd?: number;
-    recommended_bid_max_mkd?: number;
     market_min_mkd?: number;
     market_max_mkd?: number;
     market_avg_mkd?: number;
@@ -469,7 +467,7 @@ export default function EPazarPage() {
                     <div className="bg-muted/50 rounded-lg p-4 text-center border">
                       <p className="text-xs text-muted-foreground uppercase font-medium">Ниска цена</p>
                       <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(priceIntelligence.actual_prices?.p25 || priceIntelligence.recommended_bid_min_mkd || 0)}
+                        {formatCurrency(priceIntelligence.actual_prices?.p25 || priceIntelligence.market_min_mkd || 0)}
                       </p>
                     </div>
                     <div className="bg-primary/10 rounded-lg p-4 text-center border border-primary/20">
@@ -481,7 +479,7 @@ export default function EPazarPage() {
                     <div className="bg-muted/50 rounded-lg p-4 text-center border">
                       <p className="text-xs text-muted-foreground uppercase font-medium">Висока цена</p>
                       <p className="text-xl font-bold text-foreground">
-                        {formatCurrency(priceIntelligence.actual_prices?.p75 || priceIntelligence.recommended_bid_max_mkd || 0)}
+                        {formatCurrency(priceIntelligence.actual_prices?.p75 || priceIntelligence.market_max_mkd || 0)}
                       </p>
                     </div>
                   </div>

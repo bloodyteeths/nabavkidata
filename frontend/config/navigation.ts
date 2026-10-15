@@ -1,4 +1,4 @@
-import { LayoutDashboard, Search, MessageSquare, Settings, ShoppingCart, Building2, LineChart, Users, Bell, ShieldAlert, Swords, Bookmark, Home, FileText, FolderOpen, CalendarDays, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Search, MessageSquare, HelpCircle, Settings, ShoppingCart, Building2, LineChart, Users, Bell, ShieldAlert, Swords, Bookmark, Home, FileText, FolderOpen, CalendarDays, CreditCard } from 'lucide-react';
 
 export interface NavItem {
   name: string;
@@ -21,7 +21,7 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Тендери', href: '/tenders', icon: Search, description: 'Пребарувајте јавни набавки' },
       { name: 'Pipeline', href: '/pipeline', icon: Bookmark, description: 'Следете ги вашите понуди' },
       { name: 'Алерти', href: '/alerts', icon: Bell, description: 'Известувања за нови тендери' },
-      { name: 'AI Асистент', href: '/chat', icon: MessageSquare, description: 'Прашајте за тендери, добијте совети' },
+      { name: 'Прашања за тендери', href: '/chat', icon: HelpCircle, description: 'Основни одговори од нашата база' },
     ],
   },
   {
@@ -46,6 +46,7 @@ export const portalNavigationGroups: NavGroup[] = [
       { name: 'Тендери за мене', href: '/portal/tenders', icon: Search, description: 'Тендери што одговараат на вашиот профил' },
       { name: 'Документи', href: '/portal/documents', icon: FolderOpen, description: 'Документи на компанијата' },
       { name: 'Пораки', href: '/portal/messages', icon: MessageSquare, description: 'Пишете ни' },
+      { name: 'Прашања за тендери', href: '/chat', icon: HelpCircle, description: 'Основни одговори од нашата база' },
       { name: 'Календар', href: '/portal/calendar', icon: CalendarDays, description: 'Рокови за поднесување' },
       { name: 'Плаќање', href: '/portal/billing', icon: CreditCard, description: 'Картичка и надомест за успех' },
       { name: 'Поставки', href: '/settings', icon: Settings, description: 'Профил и поставки' },
@@ -58,7 +59,6 @@ export const portalToolsGroup: NavGroup = {
   label: 'Алатки',
   items: [
     { name: 'Тендери', href: '/tenders', icon: Search, description: 'Пребарувајте јавни набавки' },
-    { name: 'AI асистент', href: '/chat', icon: MessageSquare, description: 'Прашајте за тендери' },
     { name: 'Конкуренти', href: '/competitors', icon: Swords, description: 'Анализирајте ги конкурентите' },
     { name: 'Цени', href: '/products', icon: ShoppingCart, description: 'Цени на производи и услуги' },
   ],

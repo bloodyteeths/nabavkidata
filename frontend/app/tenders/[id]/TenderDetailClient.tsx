@@ -6,16 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChatMessage } from "@/components/chat/ChatMessage";
-import { ChatInput } from "@/components/chat/ChatInput";
-import { api, type Tender, type TenderDocument, type RAGQueryResponse, type TenderBidder, type TenderLot } from "@/lib/api";
+import { api, type Tender, type TenderDocument, type TenderBidder, type TenderLot } from "@/lib/api";
 import { formatCurrency, formatDate, tenderIdFromParam } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { hasClientPerks } from "@/lib/portal";
+import { hasClientPerks, isAdmin } from "@/lib/portal";
 import { DocumentViewer } from "@/components/tenders/DocumentViewer";
 import { DocumentSearch } from "@/components/documents/DocumentSearch";
-import { QuickActions } from "@/components/ai/QuickActions";
-import { TenderChatWidget } from "@/components/ai/TenderChatWidget";
+import { ConciergeChat } from "@/components/concierge/ConciergeChat";
 import { BidRecommendation } from "@/components/pricing/BidRecommendation";
 import { RelatedTenders } from "@/components/RelatedTenders";
 import {
@@ -24,7 +21,6 @@ import {
   Calendar,
   Tag,
   FileText,
-  MessageSquare,
   Bookmark,
   ExternalLink,
   Sparkles,
@@ -151,12 +147,6 @@ function extractDocumentName(doc: { file_name?: string; file_url?: string }): st
   return doc.file_name || "Документ";
 }
 
-interface ChatMsg {
-  role: "user" | "assistant";
-  content: string;
-  sources?: RAGQueryResponse["sources"];
-}
-
 export default function TenderDetailClient() {
   const params = useParams();
   const rawId = params?.id;
@@ -168,8 +158,6 @@ export default function TenderDetailClient() {
 
   const [tender, setTender] = useState<Tender | null>(null);
   const [loading, setLoading] = useState(true);
-  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [documents, setDocuments] = useState<TenderDocument[]>([]);
@@ -208,7 +196,6 @@ export default function TenderDetailClient() {
     complexity_factors: string[];
     deadline_urgency: string;
     days_remaining: number | null;
-    competition_level: string;
   } | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
@@ -514,68 +501,6 @@ export default function TenderDetailClient() {
     return <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />;
   }
 
-  async function handleChatSend(message: string) {
-    // Check if user is authenticated
-    if (!user) {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "user", content: message },
-        {
-          role: "assistant",
-          content: "За да го користите AI асистентот, потребно е да се најавите. Кликнете на 'Најава' за да продолжите.",
-        },
-      ]);
-      toast.error("Најавете се за да го користите AI асистентот");
-      return;
-    }
-
-    setChatMessages((prev) => [...prev, { role: "user", content: message }]);
-    setChatLoading(true);
-
-    try {
-      // Build conversation history for context
-      const conversationHistory = chatMessages.slice(-10).map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
-
-      const result = await api.queryRAG(message, tenderId!, conversationHistory);
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: result.answer,
-          sources: result.sources,
-        },
-      ]);
-    } catch (error: any) {
-      console.error("Failed to get AI response:", error);
-
-      // Check for specific error types
-      let errorMessage = "Грешка при добивање одговор. Ве молиме обидете се повторно.";
-
-      if (error?.message?.includes("401") || error?.message?.includes("credentials") || error?.message?.includes("authenticated")) {
-        errorMessage = "Сесијата истече. Ве молиме најавете се повторно.";
-        toast.error("Сесијата истече. Најавете се повторно.");
-      } else if (error?.message?.includes("429")) {
-        errorMessage = "Го достигнавте дневниот лимит на прашања. Ако сакате, ние можеме да ја анализираме документацијата и да ја подготвиме понудата за вас.";
-        toast.error("Дневен лимит достигнат");
-      } else {
-        toast.error("AI одговорот не успеа. Обидете се повторно.");
-      }
-
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: errorMessage,
-        },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  }
-
   const logBehavior = async (action: string) => {
     // Only log behavior for authenticated users
     if (!user?.user_id || !tenderId) return;
@@ -623,12 +548,6 @@ export default function TenderDetailClient() {
       toast.error("Не може да се зачува поставката за известувања.");
     }
   };
-
-  const quickPrompts = [
-    "Кои се главните услови и документи?",
-    "Какви се критериумите за евалуација?",
-    "Постојат ли гаранции или депозити?",
-  ];
 
   const handleOpenSource = () => {
     if (!tender?.source_url) return;
@@ -909,13 +828,13 @@ export default function TenderDetailClient() {
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            Регистрирајте се за целосна документација, AI анализа, ценовна интелигенција и советник за понуда.
+            Регистрирајте се за целосна документација и прашања за тендерот.
           </p>
         </CardContent>
       </Card>
 
       {/* Main Content */}
-      <SignupGate message="Регистрирајте се за документи, AI анализа и ценовна интелигенција">
+      <SignupGate message="Регистрирајте се за документи и прашања за тендерот">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Details */}
         <div className="lg:col-span-2 space-y-6">
@@ -946,7 +865,7 @@ export default function TenderDetailClient() {
                 </TabsTrigger>
                 <TabsTrigger value="ai-analysis">
                   <Sparkles className="h-4 w-4 mr-2" />
-                  AI Анализа
+                  Прашања и резиме
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -1267,8 +1186,8 @@ export default function TenderDetailClient() {
                                   size="sm"
                                   onClick={() => setSelectedDocument(doc)}
                                 >
-                                  <Sparkles className="h-4 w-4 mr-1" />
-                                  AI Анализа
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  Прегледај
                                 </Button>
                               ) : doc.extraction_status === 'pending' ? (
                                 <Button
@@ -1721,17 +1640,11 @@ export default function TenderDetailClient() {
                           </ul>
                         </div>
                       )}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
                         <div className="text-center p-2 rounded-md bg-background/50">
                           <p className="text-xs text-muted-foreground">Комплексност</p>
                           <Badge variant={aiSummaryData.estimated_complexity === 'high' ? 'destructive' : aiSummaryData.estimated_complexity === 'medium' ? 'default' : 'secondary'} className="mt-1">
                             {aiSummaryData.estimated_complexity === 'high' ? 'Висока' : aiSummaryData.estimated_complexity === 'medium' ? 'Средна' : 'Ниска'}
-                          </Badge>
-                        </div>
-                        <div className="text-center p-2 rounded-md bg-background/50">
-                          <p className="text-xs text-muted-foreground">Конкуренција</p>
-                          <Badge variant={aiSummaryData.competition_level === 'high' ? 'destructive' : aiSummaryData.competition_level === 'medium' ? 'default' : 'outline'} className="mt-1">
-                            {aiSummaryData.competition_level === 'high' ? 'Висока' : aiSummaryData.competition_level === 'medium' ? 'Средна' : aiSummaryData.competition_level === 'low' ? 'Ниска' : 'Нема податоци'}
                           </Badge>
                         </div>
                         <div className="text-center p-2 rounded-md bg-background/50">
@@ -1761,15 +1674,13 @@ export default function TenderDetailClient() {
                 </CardContent>
               </Card>
 
-              {/* Bid advice, quick actions and the AI chat are client perks:
-                  non-clients see only the gated summary card above. */}
-              {!summaryGated && (<>
-              {/* Bid Recommendation — click to load */}
+              {/* Bid advice is internal (admins only): we price bids ourselves. */}
+              {isAdmin(user) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Briefcase className="h-4 w-4" />
-                    Препорака за понуда
+                    Препорака за понуда (интерно, само админ)
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1801,62 +1712,10 @@ export default function TenderDetailClient() {
                   )}
                 </CardContent>
               </Card>
+              )}
 
-              {/* Quick Actions */}
-              <Card>
-                <CardContent className="pt-6">
-                  <QuickActions tenderId={tenderId} />
-                </CardContent>
-              </Card>
-
-              {/* Chat */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    AI Асистент
-                  </CardTitle>
-                  <CardDescription>
-                    Постави прашања за овој тендер
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {chatMessages.length === 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {quickPrompts.map((prompt) => (
-                        <Button
-                          key={prompt}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleChatSend(prompt)}
-                          disabled={chatLoading}
-                          className="text-left h-auto py-2"
-                        >
-                          {prompt}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                  {chatMessages.length > 0 && (
-                    <div className="space-y-4 max-h-[400px] overflow-y-auto border rounded-lg p-3 bg-muted/20">
-                      {chatMessages.map((msg, idx) => (
-                        <ChatMessage key={idx} role={msg.role} content={msg.content} sources={msg.sources} />
-                      ))}
-                      {chatLoading && (
-                        <div className="text-sm text-muted-foreground animate-pulse">AI пишува...</div>
-                      )}
-                    </div>
-                  )}
-                  <div className="pt-2 border-t">
-                    <ChatInput
-                      onSend={handleChatSend}
-                      disabled={chatLoading}
-                      placeholder="Прашај нешто за овој тендер..."
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-              </>)}
+              {/* Tender Q&A concierge: basic facts only, routes users to us. */}
+              <ConciergeChat variant="panel" tenderId={tenderId ?? undefined} tenderTitle={tender?.title} />
             </TabsContent>
           </Tabs>
         </div>
@@ -1948,7 +1807,6 @@ export default function TenderDetailClient() {
       </div>
       </SignupGate>
 
-      {/* AI Chat Widget is now global — see GlobalChatWidget */}
     </div>
   );
 }

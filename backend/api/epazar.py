@@ -15,6 +15,7 @@ from api.auth import get_current_user
 from models import User
 from utils.transliteration import get_search_variants
 from middleware.entitlements import require_module, require_client_perks
+from middleware.rbac import require_admin
 from middleware.rbac import get_optional_user
 from config.plans import ModuleName
 from services.entitlements_service import has_client_perks
@@ -1422,7 +1423,7 @@ async def summarize_tender(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/suppliers/{supplier_id}/analyze", dependencies=[Depends(require_module(ModuleName.COMPETITOR_TRACKING))])
+@router.post("/suppliers/{supplier_id}/analyze", dependencies=[Depends(require_admin)])  # admin-only (Oct 2026)
 async def analyze_supplier(
     supplier_id: str,
     db: AsyncSession = Depends(get_db),
@@ -2121,35 +2122,13 @@ async def get_similar_epazar_tenders(
         avg_discount = sum(discounts) / len(discounts) if discounts else 0
         avg_bidders = sum(num_bidders) / len(num_bidders) if num_bidders else 0
 
-        # Estimate bid range based on current tender value and average discount
-        estimated_value = float(current_tender.estimated_value_mkd) if current_tender.estimated_value_mkd else None
-        recommended_min = None
-        recommended_max = None
+        # recommended_bid_range removed (Oct 2026): bid pricing is our paid work, not a data perk.
 
-        if estimated_value and avg_discount:
-            # Apply average discount range
-            recommended_max = estimated_value * (1 - (avg_discount - 5) / 100)
-            recommended_min = estimated_value * (1 - (avg_discount + 5) / 100)
-        elif awarded_values:
-            # Use historical values if available
-            recommended_min = min(awarded_values)
-            recommended_max = max(awarded_values)
-
-        # Determine win probability based on market competition
-        win_probability = "low"
-        if avg_bidders < 3:
-            win_probability = "high"
-        elif avg_bidders < 5:
-            win_probability = "medium"
+        # win_probability_estimate removed (Oct 2026): no win-chance output outside our bid work.
 
         insights = {
             "avg_winning_discount": round(avg_discount, 2) if discounts else None,
             "avg_num_bidders": round(avg_bidders, 1) if num_bidders else None,
-            "recommended_bid_range": [
-                round(recommended_min, 2) if recommended_min else None,
-                round(recommended_max, 2) if recommended_max else None
-            ] if recommended_min and recommended_max else None,
-            "win_probability_estimate": win_probability,
             "similar_tenders_count": len(similar_tenders),
             "same_buyer_count": sum(1 for t in similar_tenders if "Same buyer" in t["similarity_reason"])
         }
@@ -2632,11 +2611,6 @@ async def get_price_intelligence(
             p25_price = min_price
             p75_price = max_price
 
-        # Calculate recommended bid (apply typical discount to estimated price)
-        discount_factor = 1 - (typical_discount_percent / 100) if typical_discount_percent > 0 else 0.92
-        recommended_bid_low = round(avg_price * (discount_factor - 0.05), 2)
-        recommended_bid_high = round(avg_price * discount_factor, 2)
-
         # Get sample item name from actual data (reuse main search condition with table alias)
         sample_query = text(f"""
             SELECT i.item_name
@@ -2653,8 +2627,6 @@ async def get_price_intelligence(
         return {
             # Frontend expected fields (flat structure)
             "product_name": item_name,
-            "recommended_bid_min_mkd": round(p25_price, 2) if has_actual_prices else recommended_bid_low,
-            "recommended_bid_max_mkd": round(p75_price, 2) if has_actual_prices else recommended_bid_high,
             "market_min_mkd": round(min_price, 2),
             "market_max_mkd": round(max_price, 2),
             "market_avg_mkd": round(avg_price, 2),
@@ -2680,11 +2652,10 @@ async def get_price_intelligence(
             },
             # NEW: Winning brands from evaluation data
             "winning_brands": winning_brands,
-            # NEW: AI recommendation message
-            "ai_recommendation": f"Препорачана цена: {round(p25_price, 0):.0f}-{round(p75_price, 0):.0f} МКД. " +
-                (f"Најчест победнички бренд: {winning_brands[0]['brand']}. " if winning_brands else "") +
-                f"Базирано на {eval_stats.evaluation_count if eval_stats else 0} победнички понуди." if has_actual_prices else
-                f"Препорачана цена: {recommended_bid_low:.0f}-{recommended_bid_high:.0f} МКД (базирано на проценки).",
+            # Factual price range only (no recommended bid, Oct 2026)
+            "ai_recommendation": (f"Опсег на цени (25-75 перцентил): {round(p25_price, 0):.0f}-{round(p75_price, 0):.0f} МКД, "
+                f"од {eval_stats.evaluation_count if eval_stats else 0} евалуирани понуди.") if has_actual_prices else
+                f"Опсег на проценети цени: {min_price:.0f}-{max_price:.0f} МКД.",
             "data_points": {
                 "items_analyzed": item_stats.total_items,
                 "tenders_with_offers": comp_stats.tenders_with_offers or 0,
@@ -2865,18 +2836,12 @@ async def _price_intelligence_fallback(
     p25_price = float(stats.p25_price) if stats.p25_price else min_price
     p75_price = float(stats.p75_price) if stats.p75_price else max_price
 
-    # Recommended bid: 5-10% below average
-    recommended_bid_low = round(avg_price * 0.87, 2)
-    recommended_bid_high = round(avg_price * 0.92, 2)
-
     relaxed_note = ""
     if is_relaxed and original_query:
         relaxed_note = f" (нема точен резултат за '{original_query}', покажуваме за '{search}')"
 
     return {
         "product_name": item_name,
-        "recommended_bid_min_mkd": round(p25_price, 2),
-        "recommended_bid_max_mkd": round(p75_price, 2),
         "market_min_mkd": round(min_price, 2),
         "market_max_mkd": round(max_price, 2),
         "market_avg_mkd": round(avg_price, 2),
@@ -2895,7 +2860,7 @@ async def _price_intelligence_fallback(
             "min": None, "avg": None, "max": None, "p25": None, "p75": None,
         },
         "winning_brands": winning_brands,
-        "ai_recommendation": f"Препорачана цена: {p25_price:.0f}-{p75_price:.0f} МКД (базирано на {stats.total_items} ставки од тендерска документација).{relaxed_note}",
+        "ai_recommendation": f"Опсег на цени (25-75 перцентил): {p25_price:.0f}-{p75_price:.0f} МКД (од {stats.total_items} ставки од тендерска документација).{relaxed_note}",
         "data_source": "product_items",
         "relaxed_search": is_relaxed,
         "original_query": original_query if is_relaxed else None,

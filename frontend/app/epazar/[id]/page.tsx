@@ -31,7 +31,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { hasClientPerks } from '@/lib/portal';
-import { TenderChatWidget } from '@/components/ai/TenderChatWidget';
 
 // ============================================================================
 // STATUS HELPERS
@@ -489,15 +488,7 @@ export default function EPazarDetailPage() {
         setSummary(parts.join(' ') || 'Нема доволно информации за резиме.');
       }
     } catch {
-      try {
-        const ragResult = await api.queryRAG(
-          "Дај краток резиме на овој тендер во 3-4 реченици.",
-          tenderId
-        );
-        setSummary(ragResult.answer);
-      } catch {
-        setSummary('Не може да се генерира резиме во моментов.');
-      }
+      setSummary('Не може да се генерира резиме во моментов.');
     } finally {
       setSummaryLoading(false);
     }
@@ -764,7 +755,6 @@ export default function EPazarDetailPage() {
           </Tabs>
         </Card>
 
-        {/* AI Chat Widget is now global — see GlobalChatWidget */}
       </div>
     </DashboardLayout>
   );

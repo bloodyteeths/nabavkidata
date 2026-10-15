@@ -78,7 +78,7 @@ router = APIRouter(prefix="/rag", tags=["rag"])
 # ============================================================================
 
 @router.post("/query", response_model=RAGQueryResponse,
-             dependencies=[Depends(require_client_perks)])
+             dependencies=[Depends(require_admin)])  # admin-only (Oct 2026)
 async def query_rag(
     request: RAGQueryRequest,
     db: AsyncSession = Depends(get_db),
@@ -613,7 +613,7 @@ Question: {request.question}"""
         )
 
 
-@router.post("/query/stream", dependencies=[Depends(require_client_perks)])
+@router.post("/query/stream", dependencies=[Depends(require_admin)])  # admin-only (Oct 2026)
 async def query_rag_stream(
     request: RAGQueryRequest,
     db: AsyncSession = Depends(get_db),

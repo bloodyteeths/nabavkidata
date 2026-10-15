@@ -354,19 +354,14 @@ def _gate_app(user):
 
 
 PERK_REQUESTS = [
-    ("post", "/api/rag/query", {"question": "Кој победува?"}),
-    ("post", "/api/rag/query/stream", {"question": "Кој победува?"}),
     ("post", "/api/rag/search", {"query": "софтвер"}),
     ("post", "/api/tenders/export", {}),
-    ("post", "/api/tenders/123/2026/chat", {"question": "Што бараат?"}),
     ("get", "/api/tenders/123/2026/ai_summary", None),
     ("get", "/api/tenders/by-id/123/2026/ai_summary", None),
-    ("get", "/api/tenders/by-id/123/2026/bid-advice", None),
     ("get", "/api/tenders/by-id/123/2026/price_history", None),
     ("get", "/api/tenders/price_history", None),
     ("get", "/api/tenders/compare", None),
     ("get", "/api/ai/price-history/72000000", None),
-    ("get", "/api/ai/bid-advisor/123/2026", None),
     ("get", "/api/products/aggregate", None),
     ("get", "/api/analytics/market-overview", None),
     ("get", "/api/analytics/competitor-analysis", None),
@@ -380,6 +375,49 @@ PERK_REQUESTS = [
     ("get", "/api/personalization/tracked-competitors", None),
     ("post", "/api/risk/investigate", {"company_name": "Тест"}),
 ]
+
+# AI features that do our paid work (bid advice, RAG/tender chat): admins only
+# since 15 Oct 2026. Clients use the concierge (/api/concierge) instead.
+ADMIN_ONLY_REQUESTS = [
+    ("post", "/api/rag/query", {"question": "Кој победува?"}),
+    ("post", "/api/rag/query/stream", {"question": "Кој победува?"}),
+    ("post", "/api/tenders/123/2026/chat", {"question": "Што бараат?"}),
+    ("get", "/api/tenders/by-id/123/2026/bid-advice", None),
+    ("get", "/api/ai/bid-advisor/123/2026", None),
+]
+
+
+def _route_for(client, method, path):
+    from fastapi.routing import APIRoute
+    return next(r for r in client.app.routes if isinstance(r, APIRoute)
+                and r.matches({"type": "http", "path": path,
+                               "method": method.upper()})[0].name == "FULL")
+
+
+class TestAdminOnlyAI:
+    @pytest.mark.parametrize("account_type", ["free", "prospect", "managed_client"])
+    @pytest.mark.parametrize("method,path,body", ADMIN_ONLY_REQUESTS,
+                             ids=[f"{m} {p}" for m, p, _ in ADMIN_ONLY_REQUESTS])
+    def test_non_admins_get_403(self, account_type, method, path, body):
+        user = orm_user(account_type, "user")
+        user.subscription_tier = "enterprise"
+        client = _gate_app(user)
+        kw = {"json": body} if body is not None else {}
+        r = getattr(client, method)(path, **kw)
+        assert r.status_code == 403, (path, r.status_code, r.text[:200])
+
+    @pytest.mark.parametrize("method,path,body", ADMIN_ONLY_REQUESTS,
+                             ids=[f"{m} {p}" for m, p, _ in ADMIN_ONLY_REQUESTS])
+    def test_admin_passes_require_admin(self, method, path, body):
+        from middleware.rbac import require_admin
+        user = orm_user("free", "admin")
+        client = _gate_app(user)
+        route = _route_for(client, method, path)
+        calls = _dep_calls(route)
+        assert require_admin in calls, path
+        assert run(require_admin(current_user=user)) is user
+        for name in ("require_client_perks",):
+            assert name not in {getattr(c, "__name__", "") for c in calls}, path
 
 
 class TestHttpGates:
@@ -443,14 +481,20 @@ class TestHttpGates:
         assert seen == open_paths
 
     def test_main_mounts_chat_and_collusion_behind_perks(self):
-        """main.py needs a live DB to import; check the four mounts by source."""
+        """main.py needs a live DB to import; check the mounts by source."""
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         src = open(os.path.join(root, "main.py"), encoding="utf-8").read()
-        for router in ("collusion.router", "explainability.router",
-                       "chat_sessions.router", "chat_v2.router"):
-            line = next(l for l in src.splitlines()
+
+        def mount(router):
+            return next(l for l in src.splitlines()
                         if f"app.include_router({router}" in l and not l.lstrip().startswith("#"))
-            assert "dependencies=[Depends(require_client_perks)]" in line, line
+
+        for router in ("collusion.router", "explainability.router"):
+            assert "dependencies=[Depends(require_client_perks)]" in mount(router)
+        for router in ("chat_sessions.router", "chat_v2.router"):
+            assert "dependencies=[Depends(require_admin)]" in mount(router)
+        assert 'app.include_router(concierge.router, prefix="/api")' in mount("concierge.router")
+        assert "from middleware.rbac import require_admin" in src
 
 
 # ---------------------------------------------------------------------------

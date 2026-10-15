@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "AI Асистент",
-  description: "Поставете прашања за тендерите и добијте AI-базирани одговори и анализа.",
+  title: "Прашања за тендери",
+  description: "Основни одговори за тендерите од нашата база. Понудите ги подготвува нашиот тим.",
 };
 
 import DashboardLayout from "@/components/layout/DashboardLayout";

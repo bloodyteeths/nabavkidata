@@ -22,6 +22,7 @@ from api.auth import get_current_user
 from utils.timezone import get_ai_date_context
 from utils.product_quality import product_quality_filter
 from middleware.entitlements import require_module
+from middleware.rbac import require_admin
 from config.plans import ModuleName
 
 router = APIRouter(prefix="/ai", tags=["pricing"])
@@ -384,7 +385,7 @@ async def _get_cpv_description(db: AsyncSession, cpv_code: str) -> Optional[str]
 # ============================================================================
 
 @router.get("/bid-advisor/{number}/{year}", response_model=BidAdvisorResponse,
-            dependencies=[Depends(require_module(ModuleName.RISK_ANALYSIS))])
+            dependencies=[Depends(require_admin)])  # admin-only (Oct 2026)
 async def get_bid_advisor(
     number: str,
     year: str,

@@ -35,3 +35,8 @@ export function postLoginPath(user: U, requested: string | null | undefined): st
   }
   return safe;
 }
+
+/** Admins only (internal tools such as bid advice). */
+export function isAdmin(user: U): boolean {
+  return user?.role?.toLowerCase() === 'admin';
+}
