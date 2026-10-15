@@ -104,7 +104,7 @@ def get_template_a(step: int, company: str, unsub_url: str) -> Dict:
     """Templates for Segment A — Tender-Active Companies."""
     templates = {
         1: {
-            "subject": f"{company}: тендерски извештај (бесплатен)",
+            "subject": f"{company}: тендерски извештај",
             "html": f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0; padding:20px; font-family:Arial, sans-serif; font-size:16px; line-height:1.6; color:#000; background:#fff;">
@@ -113,7 +113,7 @@ def get_template_a(step: int, company: str, unsub_url: str) -> Dict:
 
         <p>Забележавме дека <strong>{company}</strong> учествува на јавни набавки во Македонија.</p>
 
-        <p>Генериравме <strong>бесплатен тендерски извештај</strong> за вашата компанија — вклучува:</p>
+        <p>Подготвивме <strong>тендерски извештај</strong> за Вашата компанија — вклучува:</p>
 
         <ul>
             <li>Број на учества и победи во последните 12 месеци</li>
@@ -122,9 +122,9 @@ def get_template_a(step: int, company: str, unsub_url: str) -> Dict:
             <li>Пропуштени тендери во последните 90 дена</li>
         </ul>
 
-        <p><a href="{FRONTEND_URL}/signup?ref=cold-a1" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Преземи бесплатен извештај</a></p>
+        <p><a href="{FRONTEND_URL}/signup?ref=cold-a1" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Погледнете го извештајот</a></p>
 
-        <p>Извештајот е генериран од јавно достапни податоци — целосно бесплатно, без обврска.</p>
+        <p>Извештајот е генериран од јавно достапни податоци од е-набавки. За тендерите што Ве интересираат, ние можеме да ја подготвиме целата понуда.</p>
 
         <p>Поздрав,<br>Тамара<br>NabavkiData</p>
         {EMAIL_FOOTER.format(unsub_url=unsub_url)}
@@ -134,13 +134,13 @@ def get_template_a(step: int, company: str, unsub_url: str) -> Dict:
 
 Забележавме дека {company} учествува на јавни набавки во Македонија.
 
-Генериравме бесплатен тендерски извештај за вашата компанија — вклучува:
+Подготвивме тендерски извештај за Вашата компанија — вклучува:
 - Број на учества и победи во последните 12 месеци
 - Вашите топ категории
 - Конкуренти кои побеждуваат во истите тендери
 - Пропуштени тендери во последните 90 дена
 
-Преземи бесплатен извештај: {FRONTEND_URL}/signup?ref=cold-a1
+Погледнете го извештајот: {FRONTEND_URL}/signup?ref=cold-a1
 
 Поздрав,
 Тамара, NabavkiData
@@ -201,7 +201,7 @@ def get_template_a(step: int, company: str, unsub_url: str) -> Dict:
         </ul>
 
         <p style="background:#f0f9ff; padding:15px; border-radius:8px; border-left:4px solid #2563eb;">
-            <strong>Бесплатен пробен период</strong> — целосен пристап до конкурентски анализи 7 дена, без обврска.
+            <strong>За нашите клиенти</strong> — конкурентските анализи и историјата на победнички цени се вклучени во услугата за подготовка на понуди.
         </p>
 
         <p><a href="{FRONTEND_URL}/signup?ref=cold-a3" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Погледни ја конкуренцијата</a></p>
@@ -219,7 +219,7 @@ NabavkiData анализира 15,000+ тендери и може да ви по
 - Колку често добиваат и со какви цени
 - Во кои институции имаат предност
 
-Бесплатен пробен период — целосен пристап 7 дена, без обврска.
+За нашите клиенти — конкурентските анализи и историјата на победнички цени се вклучени во услугата за подготовка на понуди.
 
 Погледни ја конкуренцијата: {FRONTEND_URL}/signup?ref=cold-a3
 
@@ -283,7 +283,7 @@ NabavkiData анализира 15,000+ тендери и може да ви по
 
         <p>Ви испратив информации за тоа како NabavkiData може да ви помогне со тендерски известувања, конкурентски анализи и AI пребарување.</p>
 
-        <p>Ако имате интерес — одговорете <strong>ДА</strong> и ќе ви отворам бесплатна пробна сметка.</p>
+        <p>Ако имате интерес — одговорете <strong>ДА</strong> и ќе Ви испратам како ја подготвуваме целата понуда наместо Вас.</p>
 
         <p>Ако не — нема проблем, нема да ви пишувам повеќе.</p>
 
@@ -299,7 +299,7 @@ NabavkiData анализира 15,000+ тендери и може да ви по
 
 Ви испратив информации за тоа како NabavkiData може да ви помогне со тендерски известувања, конкурентски анализи и AI пребарување.
 
-Ако имате интерес — одговорете ДА и ќе ви отворам бесплатна пробна сметка.
+Ако имате интерес — одговорете ДА и ќе Ви испратам како ја подготвуваме целата понуда наместо Вас.
 
 Ако не — нема проблем, нема да ви пишувам повеќе.
 
@@ -337,7 +337,7 @@ def get_template_b(step: int, company: str, city: str, industry: str, unsub_url:
 
         <p><a href="{FRONTEND_URL}/tenders?ref=cold-b1" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Погледни активни тендери</a></p>
 
-        <p>Регистрацијата е бесплатна. Пробајте — можеби има тендер токму за вас.</p>
+        <p>Можеби има тендер токму за Вас — а понудата можеме да ја подготвиме ние, од документацијата на е-набавки.</p>
 
         <p>Поздрав,<br>Тамара<br>NabavkiData</p>
         {EMAIL_FOOTER.format(unsub_url=unsub_url)}
@@ -353,7 +353,7 @@ NabavkiData ги следи сите тендери на е-набавки и в
 
 Погледни активни тендери: {FRONTEND_URL}/tenders?ref=cold-b1
 
-Регистрацијата е бесплатна.
+Можеби има тендер токму за Вас — а понудата можеме да ја подготвиме ние.
 
 Поздрав,
 Тамара, NabavkiData
@@ -381,7 +381,7 @@ NabavkiData ги следи сите тендери на е-набавки и в
             <strong>Дали знаевте?</strong> Повеќето тендери бараат минимум 1 понуда. Многу компании не учествуваат само затоа што не знаат за нив.
         </p>
 
-        <p><a href="{FRONTEND_URL}/signup?ref=cold-b2" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Регистрирај се бесплатно</a></p>
+        <p><a href="{FRONTEND_URL}/usluga?ref=cold-b2" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Нарачајте понуда</a></p>
 
         <p>Поздрав,<br>Тамара</p>
         {EMAIL_FOOTER.format(unsub_url=unsub_url)}
@@ -398,7 +398,7 @@ NabavkiData ги следи сите тендери на е-набавки и в
 
 Дали знаевте? Многу компании не учествуваат само затоа што не знаат за тендерите.
 
-Регистрирај се бесплатно: {FRONTEND_URL}/signup?ref=cold-b2
+Нарачајте понуда: {FRONTEND_URL}/usluga?ref=cold-b2
 
 Поздрав,
 Тамара
@@ -426,7 +426,7 @@ NabavkiData ги следи сите тендери на е-набавки и в
             NabavkiData ви испраќа <strong>дневни известувања</strong> за тендери во вашата дејност. Не пропуштајте повеќе можности.
         </p>
 
-        <p><a href="{FRONTEND_URL}/signup?ref=cold-b3" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Пробај бесплатно</a></p>
+        <p><a href="{FRONTEND_URL}/usluga?ref=cold-b3" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Нарачајте понуда</a></p>
 
         <p>Поздрав,<br>Тамара</p>
         {EMAIL_FOOTER.format(unsub_url=unsub_url)}
@@ -443,7 +443,7 @@ NabavkiData ги следи сите тендери на е-набавки и в
 
 NabavkiData ви испраќа дневни известувања за тендери во вашата дејност.
 
-Пробај бесплатно: {FRONTEND_URL}/signup?ref=cold-b3
+Нарачајте понуда: {FRONTEND_URL}/usluga?ref=cold-b3
 
 Поздрав,
 Тамара
@@ -473,7 +473,7 @@ NabavkiData ви испраќа дневни известувања за тен�
             <strong>NabavkiData го поедноставува чекор 1 и 2</strong> — наместо рачно пребарување и читање PDF-ови, добивате AI-обработени известувања.
         </p>
 
-        <p><a href="{FRONTEND_URL}/signup?ref=cold-b4" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Започни бесплатно</a></p>
+        <p><a href="{FRONTEND_URL}/usluga?ref=cold-b4" style="display:inline-block; background:#1e3a5f; color:white; padding:12px 24px; border-radius:5px; text-decoration:none;">Нарачајте понуда</a></p>
 
         <p>Поздрав,<br>Тамара</p>
         {EMAIL_FOOTER.format(unsub_url=unsub_url)}
@@ -492,7 +492,7 @@ NabavkiData ви испраќа дневни известувања за тен�
 
 NabavkiData го поедноставува чекор 1 и 2.
 
-Започни бесплатно: {FRONTEND_URL}/signup?ref=cold-b4
+Нарачајте понуда: {FRONTEND_URL}/usluga?ref=cold-b4
 
 Поздрав,
 Тамара
@@ -972,6 +972,11 @@ async def main():
     parser.add_argument('--limit', type=int, default=100, help='Max emails per run')
     parser.add_argument('--segment', choices=['A', 'B'], help='Only process specific segment')
     args = parser.parse_args()
+
+    if not args.dry_run and os.getenv("ALLOW_RETIRED_SAAS_CAMPAIGNS") != "1":
+        # Bid service since 14 Oct 2026: this campaign sold self-serve sign-ups.
+        print("retired: self-serve plans no longer sold (use --dry-run to preview)")
+        return
 
     await process_drip(args)
 

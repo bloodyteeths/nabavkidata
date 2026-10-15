@@ -69,7 +69,7 @@ function formatDateTime(value: string | null | undefined): string {
 const PAID_VIA_LABELS: Record<PaidVia, string> = {
   stripe: 'Картичка',
   invoice: 'Фактура',
-  free: 'Бесплатно',
+  free: 'Без надомест (одобрено од админ)',
 };
 
 const PAID_VIA_CLASSES: Record<PaidVia, string> = {

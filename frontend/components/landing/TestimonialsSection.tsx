@@ -207,10 +207,10 @@ export default function TestimonialsSection() {
             Подготвени да станете дел од успешната приказна?
           </p>
           <a
-            href="/auth/register"
+            href="/usluga"
             className="inline-flex items-center justify-center px-8 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all duration-300 shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)]"
           >
-            Започни бесплатно денес
+            Нарачајте понуда
           </a>
         </motion.div>
       </div>

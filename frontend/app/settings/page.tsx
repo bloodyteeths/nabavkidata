@@ -1421,17 +1421,17 @@ export default function SettingsPage() {
             </CardTitle>
             <CardDescription className="text-xs md:text-sm">
               {user?.account_type === 'managed_client'
-                ? 'Вие сте наш клиент. За секоја нова понуда, јавете ни се или побарајте проценка.'
+                ? 'Вие сте наш клиент. За секоја нова понуда, јавете ни се или нарачајте ја преку формуларот.'
                 : user?.account_type === 'prospect'
                   ? 'Го примивме вашето барање. Ќе ви одговориме во рок од еден работен ден.'
-                  : 'Следењето на тендери и известувањата се вклучени за клиентите. Проценката е бесплатна.'}
+                  : 'Ние ја подготвуваме вашата понуда за е-набавки. Следењето на тендери и известувањата се вклучени за клиентите.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 md:p-6 pt-0 space-y-4">
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                <span>Бесплатна проценка дали вреди да се понуди. Следењето на тендери, известувањата и AI алатките се вклучени за клиентите.</span>
+                <span>Ја подготвуваме целата понуда од документацијата на е-набавки: услови за способност (§5.3), техничка и финансиска понуда, изјави. Вие ја прегледувате, ја потпишувате со ваш сертификат и ја поднесувате. Следењето на тендери, известувањата и AI алатките се вклучени за клиентите.</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
@@ -1448,10 +1448,10 @@ export default function SettingsPage() {
             </ul>
             <div className="flex flex-col sm:flex-row gap-2">
               <Button asChild>
-                <a href="/usluga?src=settings">Побарајте бесплатна проценка</a>
+                <a href="/usluga?src=settings">Нарачајте понуда</a>
               </Button>
               <Button asChild variant="outline">
-                <a href="/terms">Услови за користење</a>
+                <a href="/pricing">Цени и услови</a>
               </Button>
             </div>
           </CardContent>

@@ -148,10 +148,10 @@ def build_award_email(
         </ul>
 
         <p style="text-align:center; margin:25px 0;">
-            <a href="{FRONTEND_URL}/auth/register?ref=award-outreach" style="display:inline-block; background:#1e3a5f; color:white; padding:14px 28px; border-radius:5px; text-decoration:none; font-weight:bold;">Регистрирајте се бесплатно</a>
+            <a href="{FRONTEND_URL}/usluga?ref=award-outreach" style="display:inline-block; background:#1e3a5f; color:white; padding:14px 28px; border-radius:5px; text-decoration:none; font-weight:bold;">Нарачајте понуда</a>
         </p>
 
-        <p>Регистрацијата е бесплатна. Нема обврска.</p>
+        <p>Ние ја подготвуваме целата понуда од документацијата на е-набавки: услови за способност, техничка и финансиска понуда, изјави. Вие ја прегледувате, ја потпишувате со Вашиот сертификат и ја поднесувате.</p>
 
         <p>Поздрав,<br>Тамара<br>NabavkiData</p>
 
@@ -182,9 +182,9 @@ def build_award_email(
 - Анализа на конкуренти — кој колку често победува
 - Историски цени — знаете колку да понудите
 
-Регистрирајте се бесплатно: {FRONTEND_URL}/auth/register?ref=award-outreach
+Нарачајте понуда: {FRONTEND_URL}/usluga?ref=award-outreach
 
-Регистрацијата е бесплатна. Нема обврска.
+Ние ја подготвуваме целата понуда од документацијата на е-набавки: услови за способност, техничка и финансиска понуда, изјави. Вие ја прегледувате, ја потпишувате со Вашиот сертификат и ја поднесувате.
 
 Поздрав,
 Тамара, NabavkiData
@@ -565,6 +565,11 @@ async def main():
     parser.add_argument('--dry-run', action='store_true', help='Preview without sending')
     parser.add_argument('--limit', type=int, default=MAX_EMAILS_PER_RUN, help='Max emails per run (default: 30)')
     args = parser.parse_args()
+
+    if not args.dry_run and os.getenv("ALLOW_RETIRED_SAAS_CAMPAIGNS") != "1":
+        # Bid service since 14 Oct 2026: this campaign sold self-serve sign-ups.
+        print("retired: self-serve plans no longer sold (use --dry-run to preview)")
+        return
 
     await process_award_outreach(args)
 

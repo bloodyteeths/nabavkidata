@@ -78,6 +78,12 @@ const nextConfig = {
         destination: '/tenders/:num-:year',
         permanent: true,
       },
+      // Renamed blog post (old slug advertised free access)
+      {
+        source: '/blog/besplaten-pristap-nabavkidata',
+        destination: '/blog/usluga-podgotovka-ponudi-nabavkidata',
+        permanent: true,
+      },
     ]
   },
   async rewrites() {

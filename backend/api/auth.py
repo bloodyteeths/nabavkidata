@@ -437,7 +437,7 @@ async def register(
             if dup_check.scalar() > 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Веќе имате бесплатна сметка на овој уред. Најавете се или надградете."
+                    detail="Веќе имате сметка на овој уред. Најавете се."
                 )
         except Exception as e:
             # Don't block registration if fraud check fails (table might not exist yet)

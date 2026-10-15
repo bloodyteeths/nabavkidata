@@ -239,8 +239,9 @@ export default function CategoryClient() {
                   Следете ги тендерите за {categoryName.toLowerCase()}
                 </h2>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Поставете аларм и добивајте известување на e-mail кога ќе се објави нов тендер во оваа категорија.
-                  Бесплатно — без кредитна картичка.
+                  Ние ја подготвуваме целата понуда од документацијата на е-набавки — Вие ја прегледувате,
+                  ја потпишувате со Вашиот сертификат и ја поднесувате. Алармите за нови тендери во оваа
+                  категорија, ценовната историја и анализата на конкуренти се вклучени за клиентите.
                 </p>
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
@@ -255,15 +256,15 @@ export default function CategoryClient() {
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-                <Link href={`/auth/register?redirect=/categories/${cpvCode}`}>
+                <Link href={`/usluga?src=category_${cpvCode}`}>
                   <Button size="lg" className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
-                    Регистрирајте се бесплатно
+                    Нарачајте понуда
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>
-                <Link href={`/auth/login?redirect=/categories/${cpvCode}`}>
+                <Link href="/pricing">
                   <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                    Најавете се
+                    Цени и услови
                   </Button>
                 </Link>
               </div>

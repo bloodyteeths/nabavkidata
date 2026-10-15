@@ -433,9 +433,9 @@ export default function EPazarPage() {
                 <div className="text-center py-6 space-y-3">
                   <Lock className="h-8 w-8 text-muted-foreground mx-auto" />
                   <p className="font-medium">Цените не се прикажани</p>
-                  <p className="text-sm text-muted-foreground">Ние ја правиме ценовната анализа и ја пишуваме понудата за вас. Проценката е бесплатна.</p>
+                  <p className="text-sm text-muted-foreground">Ние ја правиме ценовната анализа и ја пишуваме понудата за вас. Цените се вклучени за клиентите.</p>
                   <Link href="/usluga?src=epazar">
-                    <Button size="sm" className="mt-2">Побарајте бесплатна проценка</Button>
+                    <Button size="sm" className="mt-2">Нарачајте понуда</Button>
                   </Link>
                 </div>
               )}

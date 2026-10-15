@@ -165,18 +165,26 @@ export default function SectorClient({
       <Card className="mt-8 bg-primary/5 border-primary/20">
         <CardContent className="py-6 text-center">
           <h3 className="font-semibold text-lg mb-2">
-            Добивајте известувања за нови тендери
+            Ние ја пишуваме понудата за Вас
           </h3>
           <p className="text-muted-foreground text-sm mb-4">
-            Поставете алерт за секторот {sectorName.toLowerCase()} и добивајте
-            мејл штом излезе нов тендер.
+            Ја подготвуваме целата понуда од документацијата на е-набавки, а Вие ја
+            потпишувате и поднесувате. Известувањата за нови тендери во секторот{" "}
+            {sectorName.toLowerCase()} се вклучени за клиентите.
           </p>
-          <Link href="/auth/register">
-            <Button>
-              Регистрирајте се бесплатно
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/usluga?src=sector">
+              <Button className="w-full sm:w-auto">
+                Нарачајте понуда
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/pricing">
+              <Button variant="outline" className="w-full sm:w-auto">
+                Цени и услови
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -105,7 +105,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold">Го примивме вашето барање</p>
-                <p className="text-xs text-muted-foreground">Ќе ви одговориме во рок од еден работен ден со бесплатна проценка.</p>
+                <p className="text-xs text-muted-foreground">Ќе ви одговориме во рок од еден работен ден со услови и рок за подготовка.</p>
               </div>
             </div>
             <Link href="/usluga?src=dashboard">
@@ -122,12 +122,12 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold">Ние ја пишуваме вашата понуда</p>
-                <p className="text-xs text-muted-foreground">Следењето на тендери и известувањата се вклучени за клиентите. Проценката е бесплатна. Вие ја прегледувате и ја поднесувате понудата.</p>
+                <p className="text-xs text-muted-foreground">Ја подготвуваме целата понуда од документацијата на е-набавки: услови за способност, техничка и финансиска понуда, изјави. Вие ја прегледувате, ја потпишувате со ваш сертификат и ја поднесувате. Следењето на тендери и известувањата се вклучени за клиентите.</p>
               </div>
             </div>
             <Link href="/usluga?src=dashboard">
               <Button size="sm" className="shadow-[0_0_20px_rgba(124,58,237,0.2)]">
-                Побарајте бесплатна проценка <ArrowRight className="ml-2 h-4 w-4" />
+                Нарачајте понуда <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>

@@ -48,7 +48,7 @@ export const SERVICE_HEADLINE = 'Ова го правиме ние за вас';
 export const SERVICE_BODY =
   'Ние ја правиме анализата и ја пишуваме понудата за вас. Вие ја прегледувате, ја потпишувате со ваш сертификат и ја поднесувате на е-набавки.';
 const SERVICE_PRICE_NOTE =
-  'AI алатките, ценовните анализи и известувањата се вклучени за клиентите за кои подготвуваме понуди. Проценката е бесплатна.';
+  'AI алатките, ценовните анализи и известувањата се вклучени за клиентите за кои подготвуваме понуди. Подготовката на понуда е платена услуга, со договорен надомест пред да почне работата.';
 
 /**
  * Messages coming from the backend or older call sites may still talk about
@@ -82,7 +82,7 @@ export function UpgradePrompt({
   const { user } = useAuth();
   const inPortal = canAccessPortal(user);
   const href = inPortal ? '/portal/tenders' : serviceHref(feature);
-  const ctaLabel = inPortal ? 'Започнете понуда' : 'Побарајте бесплатна проценка';
+  const ctaLabel = inPortal ? 'Започнете понуда' : 'Нарачајте понуда';
 
   // Close the modal with Escape.
   useEffect(() => {
@@ -175,7 +175,7 @@ export function UpgradePrompt({
                 )}
                 <Button asChild className="flex-1">
                   <Link href={href} onClick={onClose}>
-                    {inPortal ? ctaLabel : 'Дознајте повеќе'}
+                    {ctaLabel}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>

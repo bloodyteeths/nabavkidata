@@ -75,7 +75,7 @@ export default function ServiceHero() {
                                 size="lg"
                                 className="h-14 px-10 text-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300"
                             >
-                                Бесплатна проценка <ArrowRight className="ml-2 h-5 w-5" />
+                                Нарачајте понуда <ArrowRight className="ml-2 h-5 w-5" />
                             </Button>
                         </Link>
                         <Link href="/tenders">
@@ -89,7 +89,7 @@ export default function ServiceHero() {
                         </Link>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                        Проценката е бесплатна. Следењето на тендери и известувањата се вклучени за клиентите. Надомест за успех плаќате само ако победите.
+                        Од 30.000 МКД по понуда без ДДВ. Следењето на тендери и анализите се вклучени за клиентите. Надомест за успех од 5% од вредноста за првата година плаќате само ако победите.
                     </p>
 
                     {/* Search hook */}

@@ -48,7 +48,7 @@ export function SignupGate({ children, teaser, message, feature }: SignupGatePro
           <ul className="text-sm text-gray-500 dark:text-gray-400 mb-6 text-left space-y-1.5">
             <li className="flex items-center gap-2">
               <span className="text-green-500 font-bold">&#10003;</span>
-              Бесплатна регистрација
+              Подготовка на понуди за е-набавки од нашиот тим
             </li>
             <li className="flex items-center gap-2">
               <span className="text-green-500 font-bold">&#10003;</span>
@@ -62,7 +62,7 @@ export function SignupGate({ children, teaser, message, feature }: SignupGatePro
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href={`/auth/register?redirect=${encodeURIComponent(redirectPath)}`}>
               <Button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
-                Регистрирајте се бесплатно
+                Регистрирајте се
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>

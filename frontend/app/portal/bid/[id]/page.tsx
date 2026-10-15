@@ -60,7 +60,7 @@ export default function PortalBidPage() {
   // Jobs opened by our team for the client still need the client's acceptance of the terms.
   const [agreement, setAgreement] = useState<BidAgreement | null>(null);
   const [termsTicked, setTermsTicked] = useState(false);
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [notice, setNotice] = useState<ReturnNotice | null>(null);
   const returnHandled = useRef(false);
 
@@ -342,6 +342,8 @@ export default function PortalBidPage() {
             jobId={job.id}
             onChanged={load}
             termsAccepted={!agreement || agreement.accepted}
+            tenderId={job.tender_id}
+            payerName={user?.company_name ?? null}
           />
 
           {!TERMINAL_STATUSES.includes(job.status) && <SuccessFeeAuthBanner />}

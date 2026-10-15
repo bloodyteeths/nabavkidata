@@ -162,10 +162,10 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" className="w-full" disabled={submitting}>
-        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : tenderId ? "Напишете ја оваа понуда за мене" : "Побарајте бесплатна проценка"}
+        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : tenderId ? "Напишете ја оваа понуда за мене" : "Испратете барање за понуда"}
       </Button>
       <p className="text-xs text-muted-foreground text-center">
-        Одговараме во рок од еден работен ден. Проценката е бесплатна.
+        Одговараме во рок од еден работен ден со предлог и цена за подготовка.
       </p>
     </form>
   );

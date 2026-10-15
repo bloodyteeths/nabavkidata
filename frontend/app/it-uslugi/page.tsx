@@ -174,18 +174,20 @@ export default function ITUslugiPage() {
         {/* CTA */}
         <div className="text-center py-12 px-6 rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/20 dark:to-violet-950/20 border">
           <h2 className="text-2xl md:text-3xl font-bold mb-4 text-foreground">
-            Не пропуштајте ИТ тендери
+            Ние ја пишуваме понудата за Вас
           </h2>
           <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-            Регистрацијата е бесплатна. Поставете аларми за софтвер, хардвер
-            или ИТ консалтинг и добивајте известувања за секој нов тендер.
+            Ние ја подготвуваме целата понуда за софтвер, одржување и ИТ услуги од документацијата на е-набавки:
+            условите за способност, техничката и финансиската понуда и изјавите. Вие ја
+            прегледувате, ја потпишувате со Вашиот сертификат и ја поднесувате. Следењето
+            и известувањата за нови тендери се вклучени за клиентите.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/auth/register"
+              href="/usluga?src=it-uslugi"
               className="inline-flex items-center justify-center px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
             >
-              Регистрирајте се бесплатно
+              Нарачајте понуда
               <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
               </svg>
@@ -195,6 +197,12 @@ export default function ITUslugiPage() {
               className="inline-flex items-center justify-center px-6 py-3 rounded-lg border font-medium hover:bg-muted transition-colors text-foreground"
             >
               Прегледај ИТ тендери
+            </Link>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center justify-center px-6 py-3 rounded-lg border font-medium hover:bg-muted transition-colors text-foreground"
+            >
+              Цени и услови
             </Link>
           </div>
         </div>

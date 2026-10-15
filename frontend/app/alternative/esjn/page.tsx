@@ -30,6 +30,7 @@ const FEATURES = [
   { name: "Историски податоци (2008+)", nabavki: true, esjn: true, icon: FileText },
   { name: "Билингвално пребарување (латиница/кирилица)", nabavki: true, esjn: false, icon: Search },
   { name: "API пристап", nabavki: true, esjn: false, icon: Zap },
+  { name: "Подготовка на понуда за вас", nabavki: true, esjn: false, icon: FileText },
 ];
 
 export default function EsjnAlternativePage() {
@@ -149,17 +150,17 @@ export default function EsjnAlternativePage() {
 
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Ние ја пишуваме понудата за вас</h2>
-          <p className="text-muted-foreground mb-6">Следењето на тендери и известувањата се вклучени за клиентите. Проценката е бесплатна. Подготовката на понуда се договара однапред. Плаќање со картичка преку Stripe или, на барање, со фактура.</p>
+          <p className="text-muted-foreground mb-6">Ја подготвуваме целата понуда од документацијата на е-набавки: условите за способност, техничката и финансиската понуда и изјавите. Вие ја прегледувате, ја потпишувате со Вашиот сертификат и ја поднесувате. Следењето на тендери и известувањата се вклучени за клиентите. Плаќање со картичка преку Stripe или со фактура.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/usluga?src=alternative_esjn">
               <Button size="lg" className="w-full sm:w-auto">
-                Побарајте бесплатна проценка
+                Нарачајте понуда
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
-            <Link href="/tenders">
+            <Link href="/pricing">
               <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                Прегледај тендери
+                Цени и услови
               </Button>
             </Link>
           </div>

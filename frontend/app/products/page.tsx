@@ -696,7 +696,7 @@ function ProductsPageContent() {
                   {" "}
                   Ние ја правиме ценовната анализа и ја пишуваме понудата за вас.{" "}
                   <Link href="/usluga?src=products" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
-                    Побарајте бесплатна проценка
+                    Нарачајте понуда
                   </Link>
                 </p>
               </div>

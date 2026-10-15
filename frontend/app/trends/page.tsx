@@ -120,12 +120,12 @@ export default function InsightsPage() {
                     <Button>Најава</Button>
                   </Link>
                   <Link href="/usluga?src=trends">
-                    <Button variant="outline">Бесплатна проценка</Button>
+                    <Button variant="outline">Нарачајте понуда</Button>
                   </Link>
                 </>
               ) : (
                 <Link href="/usluga?src=trends">
-                  <Button>Побарајте бесплатна проценка</Button>
+                  <Button>Нарачајте понуда</Button>
                 </Link>
               )}
             </div>

@@ -21,15 +21,15 @@ export default function ServiceCTA() {
                         <span className="text-gradient">Ние ќе ја напишеме понудата.</span>
                     </h2>
                     <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-8">
-                        Пополнете ја кратката проценка. Ќе ви кажеме дали ги исполнувате условите и
-                        колку би чинела подготовката, пред да договориме било каква работа.
+                        Испратете барање за понуда. Ќе ви кажеме дали ги исполнувате условите и
+                        колку чини подготовката, пред да договориме работа.
                     </p>
                     <Link href="/usluga">
                         <Button
                             size="lg"
                             className="h-14 px-10 text-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_30px_rgba(124,58,237,0.5)] hover:shadow-[0_0_50px_rgba(124,58,237,0.7)] transition-all duration-300"
                         >
-                            Бесплатна проценка <ArrowRight className="ml-2 h-5 w-5" />
+                            Нарачајте понуда <ArrowRight className="ml-2 h-5 w-5" />
                         </Button>
                     </Link>
                     <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm text-muted-foreground">

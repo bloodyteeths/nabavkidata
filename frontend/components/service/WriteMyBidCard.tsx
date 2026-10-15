@@ -127,7 +127,7 @@ export default function WriteMyBidCard({ tenderId, status, closingDate, classNam
           <p className="text-muted-foreground">
             Рокот за овој тендер истече.{" "}
             <Link href="/usluga?src=tender_closed" className="font-medium text-primary underline underline-offset-4">
-              Побарајте проценка за слични тендери
+              Нарачајте понуда за слични тендери
             </Link>
             .
           </p>
@@ -160,7 +160,7 @@ export default function WriteMyBidCard({ tenderId, status, closingDate, classNam
           </p>
           {portal && agreement ? (
             agreement.free_drafting ? (
-              <p>Подготовката на понудите за вашата компанија е без надомест.</p>
+              <p>Подготовката на понудите за вашата компанија е без надомест, според договореното со вас.</p>
             ) : (
               <p>
                 <span className="font-medium text-foreground">{formatMkd(agreement.prep_fee_mkd)}</span> (без ДДВ)

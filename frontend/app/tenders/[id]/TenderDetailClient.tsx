@@ -1698,7 +1698,7 @@ export default function TenderDetailClient() {
                       </p>
                       {isTenderOpenForBids(tender.status, tender.closing_date) && (
                         <a href="#ponuda">
-                          <Button size="sm" variant="outline">Побарајте проценка</Button>
+                          <Button size="sm" variant="outline">Нарачајте понуда</Button>
                         </a>
                       )}
                     </div>

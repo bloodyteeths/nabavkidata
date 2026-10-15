@@ -186,7 +186,7 @@ export default function EntityDetailClient() {
                 {user ? (
                   <p className="text-xl font-bold">{formatCurrency(entity.total_value_mkd)}</p>
                 ) : (
-                  <p className="text-sm font-medium text-blue-600">Бесплатна регистрација</p>
+                  <p className="text-sm font-medium text-blue-600">Најавете се за да видите</p>
                 )}
               </div>
             </div>

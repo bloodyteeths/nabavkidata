@@ -188,7 +188,7 @@ export default function CompetitorsPage() {
     } catch (err: any) {
       console.error("Failed to load competitor analysis:", err);
       if (err.message?.includes("403") || err.message?.includes("Starter")) {
-        setError("Анализата на конкуренти ја правиме ние за нашите клиенти. Побарајте бесплатна проценка.");
+        setError("Анализата на конкуренти ја правиме ние за нашите клиенти како дел од подготовката на понуда. Нарачајте понуда.");
       } else {
         setError("Анализата на конкуренти не е достапна.");
       }
@@ -402,12 +402,12 @@ export default function CompetitorsPage() {
                     <Button>Најава</Button>
                   </Link>
                   <Link href="/usluga?src=competitors">
-                    <Button variant="outline">Бесплатна проценка</Button>
+                    <Button variant="outline">Нарачајте понуда</Button>
                   </Link>
                 </>
               ) : (
                 <Link href="/usluga?src=competitors">
-                  <Button>Побарајте бесплатна проценка</Button>
+                  <Button>Нарачајте понуда</Button>
                 </Link>
               )}
             </div>

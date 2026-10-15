@@ -53,7 +53,7 @@ const SUBMITTABLE: BidJobStatus[] = ['ready', 'changes_requested', 'approved'];
 const TERMINAL: BidJobStatus[] = ['won', 'lost', 'cancelled'];
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  free: 'Бесплатна сметка',
+  free: 'Регистрирана сметка',
   prospect: 'Потенцијален клиент',
   managed_client: 'Клиент на услугата',
 };
@@ -371,7 +371,7 @@ export default function AdminBidJobPage() {
     if (freeDrafting && !client.free_drafting) {
       if (
         !confirm(
-          'Бесплатна подготовка за овој клиент?\n\nНовите барања ќе одат директно во подготовка, без фактура. Сметката станува клиент на услугата.'
+          'Подготовка без надомест за овој клиент (одобрено од админ)?\n\nНовите барања ќе одат директно во подготовка, без фактура. Сметката станува клиент на услугата.'
         )
       ) {
         return;
@@ -1145,7 +1145,7 @@ export default function AdminBidJobPage() {
                   onCheckedChange={setFreeDrafting}
                   disabled={isBusy}
                 />
-                <Label htmlFor="free-drafting">Бесплатна подготовка (без фактура)</Label>
+                <Label htmlFor="free-drafting">Без надомест (одобрено од админ, без фактура)</Label>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div>

@@ -590,12 +590,12 @@ export default function RiskAnalysisPage() {
                     <Button>Најава</Button>
                   </Link>
                   <Link href="/usluga?src=risk">
-                    <Button variant="outline">Бесплатна проценка</Button>
+                    <Button variant="outline">Нарачајте понуда</Button>
                   </Link>
                 </>
               ) : (
                 <Link href="/usluga?src=risk">
-                  <Button>Побарајте бесплатна проценка</Button>
+                  <Button>Нарачајте понуда</Button>
                 </Link>
               )}
             </div>

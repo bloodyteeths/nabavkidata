@@ -44,7 +44,7 @@ export const batch6Posts: BlogPost[] = [
   <li>Разговарајте со вашиот сметководител за транзициониот период</li>
 </ol>
 
-<p>Нашиот тим го развива <a href="https://facturino.mk" target="_blank" rel="noopener noreferrer">Facturino.mk</a> — едноставна платформа за електронско фактурирање усогласена со барањата на УЈП. Бесплатен пробен период, без обврска.</p>
+<p>Нашиот тим го развива <a href="https://facturino.mk" target="_blank" rel="noopener noreferrer">Facturino.mk</a> — едноставна платформа за електронско фактурирање усогласена со барањата на УЈП.</p>
 `,
     relatedSlugs: ["tenderi-makedonija-vodic-javni-nabavki"],
   },

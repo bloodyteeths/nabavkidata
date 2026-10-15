@@ -216,10 +216,10 @@ export default function SupplierStrengthPage() {
           <CardContent className="py-4 flex items-center justify-between">
             <div>
               <p className="font-medium">Анализата на добавувачи ја правиме ние за вас.</p>
-              <p className="text-xs text-muted-foreground">Како дел од подготовката на понуда ја анализираме и конкуренцијата. Проценката е бесплатна.</p>
+              <p className="text-xs text-muted-foreground">Како дел од подготовката на понуда ја анализираме и конкуренцијата. Анализата е вклучена за клиентите.</p>
             </div>
             <Link href="/usluga?src=supplier_strength">
-              <Button size="sm" variant="outline">Побарајте бесплатна проценка</Button>
+              <Button size="sm" variant="outline">Нарачајте понуда</Button>
             </Link>
           </CardContent>
         </Card>

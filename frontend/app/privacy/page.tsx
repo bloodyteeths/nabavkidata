@@ -51,7 +51,7 @@ function MacedonianContent() {
           Добредојдовте на nabavkidata.com ("Платформата", "ние", "нас" или "нашите"). Ние ја цениме вашата приватност и сме посветени на заштитата на вашите лични податоци. Оваа политика за приватност ќе ве информира како собираме, користиме, чуваме и заштитуваме ваши лични податоци кога ја посетувате нашата веб-страница и ги користите нашите услуги.
         </p>
         <p className="text-muted-foreground">
-          nabavkidata.com е платформа за податоци за јавни набавки која автоматски собира и обработува информации од порталот e-nabavki.gov.mk, користи вештачка интелигенција за анализа и резимеа, нуди бесплатна проценка и услуга за подготовка на тендерски понуди; следењето на тендери и известувањата се вклучени за клиентите на услугата. Платформата и услугата ги обезбедува Фактурино ДООЕЛ Велес.
+          nabavkidata.com е платформа за податоци за јавни набавки која автоматски собира и обработува информации од порталот e-nabavki.gov.mk, користи вештачка интелигенција за анализа и резимеа, нуди услуга за подготовка на тендерски понуди; следењето на тендери и известувањата се вклучени за клиентите на услугата. Платформата и услугата ги обезбедува Фактурино ДООЕЛ Велес.
         </p>
       </section>
 
@@ -377,7 +377,7 @@ function EnglishContent() {
           Welcome to nabavkidata.com (the "Platform", "we", "us", or "our"). We value your privacy and are committed to protecting your personal data. This privacy policy will inform you about how we collect, use, store, and protect your personal information when you visit our website and use our services.
         </p>
         <p className="text-muted-foreground">
-          nabavkidata.com is a public procurement data platform that automatically collects and processes information from the e-nabavki.gov.mk portal, uses artificial intelligence for analysis and summaries, offers a free assessment and a tender bid preparation service; tender monitoring and alerts are included for clients of the service. The platform and service are provided by Fakturino DOOEL Veles.
+          nabavkidata.com is a public procurement data platform that automatically collects and processes information from the e-nabavki.gov.mk portal, uses artificial intelligence for analysis and summaries, offers a tender bid preparation service; tender monitoring and alerts are included for clients of the service. The platform and service are provided by Fakturino DOOEL Veles.
         </p>
       </section>
 

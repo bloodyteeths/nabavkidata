@@ -6,9 +6,10 @@ import { CreditCard, Download, FileText, Loader2, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { FAKTURINO_PAYEE, PAYMENT_INSTRUCTIONS, PAYMENT_NEXT_STEP, TERMS_REQUIRED, formatMkd } from '@/lib/bid-service-types';
+import { PAYMENT_INSTRUCTIONS, PAYMENT_NEXT_STEP, TERMS_REQUIRED, formatMkd } from '@/lib/bid-service-types';
 import type { BidJobStatus, PaymentInfo } from '@/lib/bid-service-types';
 import { formatDmy } from '@/components/bid-service/DeadlineWarning';
+import Pp50Slip from '@/components/bid-service/Pp50Slip';
 
 interface PaymentBoxProps {
   payment: PaymentInfo;
@@ -19,24 +20,19 @@ interface PaymentBoxProps {
   onChanged?: () => void | Promise<void>;
   /** False while the current service terms are not accepted: card payment waits for them. */
   termsAccepted?: boolean;
+  /** For the ПП50 slip: purpose line and payer name. */
+  tenderId?: string | null;
+  payerName?: string | null;
 }
 
 const TERMS_FIRST = 'Прво прифатете ги условите на услугата (погоре), па платете.';
 
-function PayeeRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-2">
-      <dt className="shrink-0 text-muted-foreground sm:w-40">{label}</dt>
-      <dd className="font-medium break-words">{value}</dd>
-    </div>
-  );
-}
 
 /**
  * Payment state for a bid job. The prep fee is paid by card (Stripe Checkout,
  * the card is saved for the success fee) or by invoice from Фактурино ДООЕЛ.
  */
-export default function PaymentBox({ payment, status, jobId, onChanged, termsAccepted = true }: PaymentBoxProps) {
+export default function PaymentBox({ payment, status, jobId, onChanged, termsAccepted = true, tenderId, payerName }: PaymentBoxProps) {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'card' | 'invoice' | null>(null);
@@ -160,21 +156,12 @@ export default function PaymentBox({ payment, status, jobId, onChanged, termsAcc
               Фактура бр. {payment.invoice_number} издадена на {formatDmy(payment.invoice_issued_at)}.
             </p>
             {invoiceButton}
-            <dl className="space-y-1.5 rounded-md border bg-muted/40 p-3 text-xs">
-              <PayeeRow label="Примач" value={FAKTURINO_PAYEE.name} />
-              <PayeeRow label="Адреса" value={FAKTURINO_PAYEE.address} />
-              <PayeeRow label="ЕДБ" value={FAKTURINO_PAYEE.edb} />
-              {FAKTURINO_PAYEE.bankAccount ? (
-                <PayeeRow
-                  label="Трансакциска сметка"
-                  value={`${FAKTURINO_PAYEE.bankAccount}${FAKTURINO_PAYEE.bankName ? `, ${FAKTURINO_PAYEE.bankName}` : ''}`}
-                />
-              ) : (
-                <PayeeRow label="Трансакциска сметка" value="наведена во фактурата" />
-              )}
-              <PayeeRow label="Цел на дознаката" value={`Фактура бр. ${payment.invoice_number}`} />
-              <PayeeRow label="Износ" value={`${formatMkd(payment.prep_fee_mkd)} (без ДДВ)`} />
-            </dl>
+            <Pp50Slip
+              amountMkd={payment.prep_fee_mkd ?? 0}
+              invoiceNumber={payment.invoice_number as string}
+              tenderId={tenderId}
+              payerName={payerName}
+            />
             {!payment.invoice_file_name && (
               <p className="text-muted-foreground">
                 Ако ви треба фактурата како документ, пишете ни во пораките и ќе ви ја испратиме.

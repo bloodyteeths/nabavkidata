@@ -14,6 +14,14 @@ from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import User
+
+# Shown to old free-tier accounts whose trial ran out. Rows blocked before
+# 15 Oct 2026 still carry the English wording, so both prefixes are matched.
+TRIAL_EXPIRED_REASON = (
+    "Пробниот пристап истече. Следењето на тендери и анализите се вклучени "
+    "за клиентите на услугата за подготовка на понуди — нарачајте понуда на /usluga."
+)
+TRIAL_EXPIRED_REASON_PREFIXES = ("Free trial expired", "Пробниот пристап истече")
 from services.entitlements_service import effective_tier, has_client_perks
 from models_fraud import (
     FraudDetection, RateLimit, SuspiciousActivity, BlockedEmail,
@@ -669,7 +677,7 @@ async def check_rate_limit(
 
     # A client promoted after the old free-trial block must not stay blocked.
     if (rate_limit.is_blocked and has_client_perks(user)
-            and (rate_limit.block_reason or "").startswith("Free trial expired")):
+            and (rate_limit.block_reason or "").startswith(TRIAL_EXPIRED_REASON_PREFIXES)):
         rate_limit.is_blocked = False
         rate_limit.block_reason = None
         rate_limit.blocked_until = None
@@ -701,7 +709,7 @@ async def check_rate_limit(
         if rate_limit.is_trial_expired:
             # Block user and require upgrade
             rate_limit.is_blocked = True
-            rate_limit.block_reason = "Free trial expired. Please upgrade to continue using the service."
+            rate_limit.block_reason = TRIAL_EXPIRED_REASON
             rate_limit.blocked_at = datetime.utcnow()
             await db.commit()
 
@@ -1057,7 +1065,7 @@ async def perform_fraud_check(
                     },
                     action_taken="blocked"
                 )
-                return False, "VPN/Proxy usage is not allowed on the free tier. Please upgrade or disable your VPN.", {
+                return False, "Пристапот преку VPN/прокси не е дозволен за оваа сметка. Исклучете го VPN-от или нарачајте понуда — следењето и анализите се вклучени за клиентите.", {
                     "redirect_to": "/pricing"
                 }
 

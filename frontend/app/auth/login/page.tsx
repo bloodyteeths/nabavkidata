@@ -127,7 +127,7 @@ export default function LoginPage() {
                     href="/usluga?src=login"
                     className="font-medium underline hover:text-destructive/80"
                   >
-                    Побарајте бесплатна проценка
+                    Нарачајте понуда
                   </Link>
                 </div>
               </div>
@@ -225,7 +225,7 @@ export default function LoginPage() {
               href="/usluga?src=login"
               className="text-primary hover:underline font-medium"
             >
-              Побарајте бесплатна проценка
+              Нарачајте понуда
             </Link>
           </p>
         </CardFooter>

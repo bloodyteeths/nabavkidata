@@ -100,7 +100,7 @@ export default function Navbar() {
                     </Link>
                     <Link href="/usluga">
                         <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(124,58,237,0.5)]">
-                            Бесплатна проценка
+                            Нарачајте понуда
                         </Button>
                     </Link>
                 </div>
@@ -108,8 +108,8 @@ export default function Navbar() {
                 {/* Mobile Actions */}
                 <div className="lg:hidden flex items-center gap-3">
                     <Link href="/usluga">
-                        <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_10px_rgba(124,58,237,0.3)] px-4" aria-label="Бесплатна проценка">
-                            Проценка
+                        <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_10px_rgba(124,58,237,0.3)] px-4" aria-label="Нарачајте понуда">
+                            Нарачајте
                         </Button>
                     </Link>
                     <ThemeToggle className="text-muted-foreground hover:text-foreground" />
@@ -184,7 +184,7 @@ export default function Navbar() {
                                 </Link>
                                 <Link href="/usluga" onClick={() => setMobileMenuOpen(false)}>
                                     <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(124,58,237,0.5)]">
-                                        Бесплатна проценка
+                                        Нарачајте понуда
                                     </Button>
                                 </Link>
                             </div>

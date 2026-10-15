@@ -151,7 +151,7 @@ export const batch2Posts: BlogPost[] = [
     <li><strong>AI-базирана анализа</strong> - Нашиот <a href="/blog/kako-ai-detektira-korupcija">AI систем за детекција на корупција</a> автоматски ги идентификува тендерите со висок ризик.</li>
     <li><strong>Семантичко пребарување</strong> - Наместо да пребарувате по клучни зборови, можете да поставите прашање на природен јазик.</li>
     <li><strong>Историска анализа</strong> - Пристап до тендери од 2008 година наваму, со можност за споредба и трендови.</li>
-    <li><strong>Отворен пристап</strong> - <a href="/blog/besplaten-pristap-nabavkidata">Основните функционалности се бесплатни</a> за сите граѓани, новинари и граѓански организации.</li>
+    <li><strong>Подготовка на понуди</strong> - <a href="/blog/usluga-podgotovka-ponudi-nabavkidata">Ја подготвуваме целата понуда за вас</a> од документацијата на е-набавки: услови за способност, техничка и финансиска понуда и изјави.</li>
   </ol>
 
   <h2>Транспарентноста е одговорност на сите</h2>
@@ -159,7 +159,7 @@ export const batch2Posts: BlogPost[] = [
   <p>Транспарентноста не е цел сама по себе - таа е средство за градење правичен, ефикасен и одговорен систем на јавни набавки кој служи на интересите на граѓаните.</p>
 </article>
 `,
-    relatedSlugs: ["javni-nabavki-makedonija-2025", "kako-ai-detektira-korupcija", "besplaten-pristap-nabavkidata"]
+    relatedSlugs: ["javni-nabavki-makedonija-2025", "kako-ai-detektira-korupcija", "usluga-podgotovka-ponudi-nabavkidata"]
   },
   {
     slug: "vodic-prebaruvanje-tenderi",
@@ -224,12 +224,12 @@ export const batch2Posts: BlogPost[] = [
     <li>Следат одредени институции или компании</li>
   </ul>
 
-  <h2>7. Бесплатен пристап</h2>
-  <p>Основното пребарување и прегледот на тендери е <a href="/blog/besplaten-pristap-nabavkidata">потполно бесплатен</a>. За напредните функционалности како детална ризик анализа, извоз на податоци и неограничен AI чат, достапни се премиум планови.</p>
-  <p>Започнете со пребарување уште денес и откријте го светот на јавните набавки на нов, паметен начин!</p>
+  <h2>7. Од пребарување до готова понуда</h2>
+  <p>Кога ќе го пронајдете вистинскиот тендер, <a href="/blog/usluga-podgotovka-ponudi-nabavkidata">ние ја подготвуваме целата понуда</a> од документацијата на е-набавки: условите за способност (§5.3), техничката и финансиската понуда и изјавите. Вие ја прегледувате, ја потпишувате со вашиот сертификат и ја поднесувате. Следењето, известувањата, AI анализите и анализата на конкуренцијата се вклучени за клиентите.</p>
+  <p><a href="/usluga">Нарачајте понуда</a> или погледнете ги <a href="/pricing">цените и условите</a>.</p>
 </article>
 `,
-    relatedSlugs: ["semanticko-prebaruvanje-tenderi", "besplaten-pristap-nabavkidata", "kako-ai-detektira-korupcija"]
+    relatedSlugs: ["semanticko-prebaruvanje-tenderi", "usluga-podgotovka-ponudi-nabavkidata", "kako-ai-detektira-korupcija"]
   },
   {
     slug: "svetska-banka-oecd-metodologija",

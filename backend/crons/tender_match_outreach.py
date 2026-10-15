@@ -224,7 +224,7 @@ async def get_eligible_leads(conn, limit: int) -> List[dict]:
           AND NOT EXISTS (
               SELECT 1 FROM suppression_list sl WHERE sl.email = LOWER(ol.email)
           )
-          -- Registered users never get these free tender-match emails: alert
+          -- Registered users never get these unsolicited tender-match emails: alert
           -- emails are a client perk (14.10.2026), and clients get them from
           -- crons/instant_alerts.py.
           AND NOT EXISTS (
@@ -357,8 +357,10 @@ def build_tender_match_email(
         <p>&nbsp;</p>
 
         <p style="background:#f0f9ff; padding:15px; border-radius:8px; border-left:4px solid #2563eb;">
-            Сакате автоматски известувања за секој нов тендер од вашата дејност?<br><br>
-            <a href="{FRONTEND_URL}/auth/register?ref=tender-match" style="background:#2563eb; color:white; padding:10px 20px; border-radius:5px; text-decoration:none; display:inline-block;">Регистрирајте се бесплатно</a>
+            Сакате ние да ја подготвиме Вашата понуда за некој од овие тендери?<br>
+            Ја подготвуваме целата понуда од документацијата на е-набавки: условите за способност (§5.3), техничката и финансиската понуда и изјавите. Вие ја прегледувате, ја потпишувате со Вашиот сертификат и ја поднесувате. Нашите клиенти добиваат и автоматски известувања за секој нов тендер од нивната дејност.<br><br>
+            <a href="{FRONTEND_URL}/usluga?ref=tender-match" style="background:#2563eb; color:white; padding:10px 20px; border-radius:5px; text-decoration:none; display:inline-block;">Нарачајте понуда</a>
+            &nbsp; <a href="{FRONTEND_URL}/pricing?ref=tender-match" style="color:#2563eb;">Цени и услови</a>
         </p>
 
         <p>&nbsp;</p>
@@ -385,8 +387,11 @@ def build_tender_match_email(
 {tender_rows_text}
 Кликнете на линкот за целосна документација, услови и детали.
 
-Сакате автоматски известувања за секој нов тендер од вашата дејност?
-Регистрирајте се бесплатно: {FRONTEND_URL}/auth/register?ref=tender-match
+Сакате ние да ја подготвиме Вашата понуда за некој од овие тендери?
+Ја подготвуваме целата понуда од документацијата на е-набавки: условите за способност (§5.3), техничката и финансиската понуда и изјавите. Вие ја прегледувате, ја потпишувате со Вашиот сертификат и ја поднесувате. Нашите клиенти добиваат и автоматски известувања за секој нов тендер од нивната дејност.
+
+Нарачајте понуда: {FRONTEND_URL}/usluga?ref=tender-match
+Цени и услови: {FRONTEND_URL}/pricing?ref=tender-match
 
 Ако имате прашања — одговорете на овој мејл или јавете се на 070 253 467.
 

@@ -313,7 +313,7 @@ function ChatPage() {
               <Link href="/usluga?src=chat_limit" className="w-full sm:w-auto">
                 <Button className="gap-2 w-full sm:w-auto h-8 md:h-10 text-xs md:text-sm">
                   <ArrowRight className="h-3 w-3 md:h-4 md:w-4" />
-                  Побарајте бесплатна проценка
+                  Нарачајте понуда
                 </Button>
               </Link>
             </div>
@@ -403,7 +403,7 @@ function ChatPage() {
                     {isFreeTier && (
                       <Link href="/usluga?src=chat">
                         <Button size="sm" variant="outline" className="h-7 md:h-9 text-xs">
-                          Бесплатна проценка
+                          Нарачајте понуда
                         </Button>
                       </Link>
                     )}
@@ -496,7 +496,7 @@ function ChatPage() {
             <div className="mt-2 md:mt-3 rounded-md border border-amber-200 bg-amber-100 p-2 md:p-3 text-xs md:text-sm flex items-center justify-between">
               <span>AI асистентот е достапен за нашите клиенти. Ние ја правиме анализата и ја пишуваме понудата за вас.</span>
               <Link href="/usluga?src=chat">
-                <Button size="sm" variant="outline" className="h-7 md:h-9 text-xs">Бесплатна проценка</Button>
+                <Button size="sm" variant="outline" className="h-7 md:h-9 text-xs">Нарачајте понуда</Button>
               </Link>
             </div>
           )}

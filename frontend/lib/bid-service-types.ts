@@ -565,7 +565,7 @@ export const SUCCESS_FEE_NOT_AUTHORISED = 'success_fee_not_authorised';
 export const PAID_VIA_LABELS: Record<PaidVia, string> = {
   stripe: 'Картичка',
   invoice: 'Фактура',
-  free: 'Бесплатно',
+  free: 'Без надомест',
 };
 
 /**
@@ -577,15 +577,17 @@ export const FAKTURINO_PAYEE = {
   name: 'Фактурино ДООЕЛ Велес',
   address: 'ул. Сараевска 37, 1400 Велес',
   edb: '4004026525934',
-  bankAccount: process.env.NEXT_PUBLIC_FAKTURINO_BANK_ACCOUNT || null,
-  bankName: process.env.NEXT_PUBLIC_FAKTURINO_BANK_NAME || null,
+  // From a Halkbank transfer confirmation (Oct 2026); payee name as the bank prints it.
+  slipName: 'ФАКТУРИНО ДООЕЛ Велес',
+  bankAccount: '270-0792240001-74',
+  bankName: 'ХАЛКБАНК АД Скопје',
 };
 
 export const PAYMENT_NEXT_STEP =
   'Штом уплатата ќе пристигне на сметката, ја евидентираме (обично во рок од еден работен ден) и веднаш започнуваме со подготовка. Ќе добиете известување по е-пошта.';
 
 export const PAYMENT_INSTRUCTIONS =
-  'Надоместот за подготовка го плаќате со картичка (преку Stripe) или по фактура. За плаќање по фактура уплатата се врши на трансакциската сметка на Фактурино ДООЕЛ наведена во фактурата, а во целта на дознаката го наведувате бројот на фактурата. Износите се без ДДВ: Фактурино ДООЕЛ не е ДДВ обврзник.';
+  'Надоместот за подготовка го плаќате со картичка (преку Stripe) или по фактура. За плаќање по фактура уплатата се врши на трансакциската сметка на Фактурино ДООЕЛ 270-0792240001-74 (ХАЛКБАНК АД Скопје), со налог ПП50, а во целта на дознаката го наведувате бројот на фактурата. Износите се без ДДВ: Фактурино ДООЕЛ не е ДДВ обврзник.';
 
 export const ENABAVKI_SUBMIT_REMINDER =
   'Понудата ја потпишувате со вашиот дигитален сертификат и ја поднесувате сами на e-nabavki.gov.mk пред рокот. Откако ќе ја поднесете, кликнете „Поднесено“.';

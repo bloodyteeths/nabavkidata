@@ -92,13 +92,13 @@ export default function CategoriesPage() {
 
         <div className="mt-12 text-center">
           <p className="text-gray-500 dark:text-gray-400 mb-4">
-            Поставете аларм за вашата категорија и добивајте известување кога ќе се објави нов тендер.
+            Ние ја подготвуваме целата понуда за тендерот во Вашата категорија. Известувањата за нови тендери се вклучени за клиентите.
           </p>
           <Link
-            href="/auth/register"
+            href="/usluga?src=categories"
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Регистрирајте се бесплатно
+            Нарачајте понуда
             <span aria-hidden="true">&rarr;</span>
           </Link>
         </div>

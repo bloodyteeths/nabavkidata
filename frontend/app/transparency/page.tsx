@@ -275,8 +275,9 @@ export default function TransparencyPage() {
         <section className="bg-gradient-to-r from-blue-700 to-blue-900 rounded-xl p-8 text-white text-center">
           <h2 className="text-2xl font-bold mb-3">Заинтересирани за пилот проект?</h2>
           <p className="text-blue-100 mb-6 max-w-xl mx-auto">
-            Нудиме бесплатен пилот (3 месеци) за институции и организации кои работат
-            на транспарентност и борба против корупција.
+            Со институции и организации кои работат на транспарентност и борба против
+            корупција договараме пилот проект според нивните потреби. Обемот и условите ги
+            договараме заедно.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a

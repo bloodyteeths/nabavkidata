@@ -153,10 +153,10 @@ function MacedonianTerms() {
         </P>
         <UL
           items={[
-            'Бесплатен пристап до база на податоци за тендери и јавни набавки',
+            'Пристап до база на податоци за тендери и јавни набавки',
             'Следење и известувања за тендери релевантни за вашата дејност, вклучени за клиентите за кои подготвуваме понуди',
             'Анализи на тендерска документација, договорни органи и конкуренција, вклучени за клиентите',
-            'Бесплатна проценка дали и под кои услови вреди да се поднесе понуда на конкретен тендер',
+            'Разгледување на вашето барање за понуда и проценка дали и под кои услови вреди да се поднесе понуда на конкретен тендер',
             'Подготовка на тендерска понуда за вас, според условите во член 4',
           ]}
         />
@@ -195,10 +195,11 @@ function MacedonianTerms() {
         <P>Услугата за подготовка на понуди ја обезбедува:</P>
         <CompanyCard lang="mk" />
 
-        <H3>4.2 Бесплатна проценка; следење вклучено за клиенти</H3>
+        <H3>4.2 Барање за понуда; следење вклучено за клиенти</H3>
         <P>
-          Проценката („бесплатна проценка“) дали одреден тендер е соодветен за вас е бесплатна и не ве обврзува на
-          ништо. Пребарувањето и прегледот на тендери на Платформата се слободни. Следењето на тендери, известувањата
+          Испраќањето барање за понуда („Барање за понуда“) не ве обврзува на ништо: ја разгледуваме тендерската
+          документација и ве известуваме дали и под кои услови вреди да се поднесе понуда. Пребарувањето и прегледот
+          на тендери се достапни на Платформата. Следењето на тендери, известувањата
           по е-пошта, AI алатките, ценовните анализи и анализите на конкуренција се вклучени за клиентите за кои
           подготвуваме понуди. Обврска за плаќање настанува дури откако ќе се договориме за подготовка на конкретна
           понуда.
@@ -470,10 +471,10 @@ function EnglishTerms() {
         </P>
         <UL
           items={[
-            'Free access to a database of tenders and public procurement data',
+            'Access to a database of tenders and public procurement data',
             'Tender monitoring and alerts relevant to your business, included for clients we prepare bids for',
             'Analysis of tender documentation, contracting authorities and competition, included for clients',
-            'A free assessment of whether, and on what terms, a tender is worth bidding for',
+            'Review of your bid request and an assessment of whether, and on what terms, a tender is worth bidding for',
             'Preparation of your tender bid, under the terms in Section 4',
           ]}
         />
@@ -495,10 +496,10 @@ function EnglishTerms() {
         <H3>4.1 Provider</H3>
         <CompanyCard lang="en" />
 
-        <H3>4.2 Free assessment; monitoring included for clients</H3>
+        <H3>4.2 Bid request; monitoring included for clients</H3>
         <P>
-          The assessment of whether a tender suits you is free and creates no obligation. Searching and viewing
-          tenders on the Platform is open to everyone. Tender monitoring, email alerts, AI tools, price analytics and
+          Sending a bid request creates no obligation: we review the tender documentation and tell you whether, and
+          on what terms, it is worth bidding. Searching and viewing tenders is available on the Platform. Tender monitoring, email alerts, AI tools, price analytics and
           competitor analytics are included for clients we prepare bids for. A payment obligation arises only once we
           agree to prepare a specific bid.
         </P>

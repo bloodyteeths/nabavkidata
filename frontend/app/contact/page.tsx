@@ -71,7 +71,7 @@ export default function ContactPage() {
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto">
             Имате прашање? Пополнете го формуларот и ќе ви одговориме наскоро. Ако сакате ние да ја
-            подготвиме вашата понуда, <Link href="/usluga?src=contact" className="text-primary underline underline-offset-4">побарајте бесплатна проценка</Link>.
+            подготвиме вашата понуда, <Link href="/usluga?src=contact" className="text-primary underline underline-offset-4">нарачајте понуда</Link> или погледнете ги <Link href="/pricing" className="text-primary underline underline-offset-4">цените и условите</Link>.
           </p>
         </div>
 
