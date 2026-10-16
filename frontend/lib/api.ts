@@ -34,6 +34,15 @@ import type {
   PortalSummary,
   PortalUnread,
 } from './bid-service-types';
+import type {
+  OpsCalendarUrl,
+  OpsDraftSendBody,
+  OpsDraftSendResponse,
+  OpsFocusResponse,
+  OpsShortlistPreview,
+  OpsShortlistsResponse,
+  OpsShortlistUpdateBody,
+} from './ops-types';
 
 const API_URL = (typeof window !== 'undefined')
   ? (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://api.nabavkidata.com')
@@ -3120,6 +3129,88 @@ class APIClient {
       `/api/bid-service/admin/wins/${encodeURIComponent(id)}/mark-invoiced`,
       { method: 'POST', body: JSON.stringify(invoiceNumber ? { invoice_number: invoiceNumber } : {}) }
     );
+  }
+
+  // ---- Operator focus (Phase 4, admin) ----
+
+  async getOpsFocus(includeDone = false): Promise<OpsFocusResponse> {
+    return this.request<OpsFocusResponse>(`/api/ops/focus?include_done=${includeDone ? 'true' : 'false'}`);
+  }
+
+  /** sentManually: the draft went out from Gmail / the mail app („Испратив рачно“). */
+  async markOpsFocusDone(key: string, opts?: { sentManually?: boolean }): Promise<{ key: string; status: 'done' }> {
+    return this.request<{ key: string; status: 'done' }>(
+      `/api/ops/focus/${encodeURIComponent(key)}/done`,
+      opts?.sentManually
+        ? { method: 'POST', body: JSON.stringify({ sent_manually: true }) }
+        : { method: 'POST' }
+    );
+  }
+
+  async snoozeOpsFocus(key: string, days: number): Promise<{ key: string; status: 'snoozed'; snoozed_until: string }> {
+    return this.request<{ key: string; status: 'snoozed'; snoozed_until: string }>(
+      `/api/ops/focus/${encodeURIComponent(key)}/snooze`,
+      { method: 'POST', body: JSON.stringify({ days }) }
+    );
+  }
+
+  async reopenOpsFocus(key: string): Promise<{ key: string; status: 'open' }> {
+    return this.request<{ key: string; status: 'open' }>(
+      `/api/ops/focus/${encodeURIComponent(key)}/reopen`,
+      { method: 'POST' }
+    );
+  }
+
+  async sendOpsDraft(key: string, body: OpsDraftSendBody): Promise<OpsDraftSendResponse> {
+    return this.request<OpsDraftSendResponse>(`/api/ops/drafts/${encodeURIComponent(key)}/send`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async stopOpsWatch(watchId: string, reason: 'replied' | 'not_interested'): Promise<unknown> {
+    return this.request<unknown>(`/api/ops/watches/${encodeURIComponent(watchId)}/stop`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async listOpsShortlists(week?: string): Promise<OpsShortlistsResponse> {
+    const qs = week ? `?week=${encodeURIComponent(week)}` : '';
+    return this.request<OpsShortlistsResponse>(`/api/ops/shortlists${qs}`);
+  }
+
+  async buildOpsShortlists(userId?: string): Promise<{ built: number; existing: number; no_candidates: number }> {
+    return this.request<{ built: number; existing: number; no_candidates: number }>('/api/ops/shortlists/build', {
+      method: 'POST',
+      body: JSON.stringify(userId ? { user_id: userId } : {}),
+    });
+  }
+
+  async updateOpsShortlist(id: string, body: OpsShortlistUpdateBody): Promise<unknown> {
+    return this.request<unknown>(`/api/ops/shortlists/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async previewOpsShortlist(id: string): Promise<OpsShortlistPreview> {
+    return this.request<OpsShortlistPreview>(`/api/ops/shortlists/${encodeURIComponent(id)}/preview`);
+  }
+
+  async sendOpsShortlist(id: string, force = false): Promise<{ sent: boolean; message_id: string | null; to: string }> {
+    return this.request<{ sent: boolean; message_id: string | null; to: string }>(
+      `/api/ops/shortlists/${encodeURIComponent(id)}/send`,
+      { method: 'POST', body: JSON.stringify({ force }) }
+    );
+  }
+
+  async skipOpsShortlist(id: string): Promise<unknown> {
+    return this.request<unknown>(`/api/ops/shortlists/${encodeURIComponent(id)}/skip`, { method: 'POST' });
+  }
+
+  async getOpsCalendarUrl(): Promise<OpsCalendarUrl> {
+    return this.request<OpsCalendarUrl>('/api/ops/calendar-url');
   }
 
   async downloadBidInvoice(jobId: string, filename: string): Promise<void> {

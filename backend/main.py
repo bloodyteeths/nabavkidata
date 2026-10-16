@@ -16,11 +16,16 @@ from database import init_db, close_db, get_db
 from db_pool import get_asyncpg_pool, close_asyncpg_pool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals, whistleblower, clawd_monitor, chat_sessions, chat_v2, seo, tenders_kg, alerts_kg, bid_service, bid_jobs, concierge
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals, whistleblower, clawd_monitor, chat_sessions, seo, tenders_kg, alerts_kg, bid_service, bid_jobs, concierge, ops
 try:
     from api import pipeline
 except ImportError:
     pipeline = None
+# chat_v2 lives only on the production server (not in git); tolerate its absence.
+try:
+    from api import chat_v2
+except ImportError:
+    chat_v2 = None
 # Note: report_campaigns commented out - missing weasyprint on server
 # from api import report_campaigns
 from middleware.fraud import FraudPreventionMiddleware
@@ -158,13 +163,15 @@ app.include_router(referrals.admin_router, prefix="/api")  # Referral program (a
 app.include_router(whistleblower.router)  # Anonymous whistleblower portal (Phase 4.5)
 app.include_router(clawd_monitor.router, prefix="/api")  # Clawd VA monitoring endpoint
 app.include_router(chat_sessions.router, prefix="/api", dependencies=[Depends(require_admin)])  # admin-only (Oct 2026); Persistent chat sessions with memory
-app.include_router(chat_v2.router, prefix="/api", dependencies=[Depends(require_admin)])  # admin-only (Oct 2026); AI agent chat (SSE streaming)
+if chat_v2:
+    app.include_router(chat_v2.router, prefix="/api", dependencies=[Depends(require_admin)])  # admin-only (Oct 2026); AI agent chat (SSE streaming)
 if pipeline:
     app.include_router(pipeline.router, prefix="/api")  # Bid pipeline tracking
 app.include_router(seo.router, prefix="/api")  # SEO metadata endpoints (public, lightweight)
 app.include_router(bid_service.router, prefix="/api")  # Done-for-you bid-writing service (Oct 2026)
 app.include_router(bid_jobs.router, prefix="/api")  # Bid jobs + client portal (Phase 2)
 app.include_router(concierge.router, prefix="/api")  # Tender Q&A concierge (Oct 2026)
+app.include_router(ops.router, prefix="/api")  # Operator focus (Phase 4)
 
 # ============================================================================
 # NabavkiData-KG (Kyrgyzstan) — Phase 2 (Aug 14 2026)
