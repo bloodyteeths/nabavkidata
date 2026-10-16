@@ -9,7 +9,7 @@ sent to a lead or client from here.
 
 Two UTC slots cover CEST/CET; the Skopje-hour guard keeps exactly one, and
 ops_digest_log keeps it to one email per day:
-    30 4,5 * * * cd /home/ubuntu/nabavkidata/backend && /usr/bin/python3 crons/daily_focus.py >> /var/log/nabavkidata/daily_focus.log 2>&1
+    30 4,5 * * 1-5 cd /home/ubuntu/nabavkidata/backend && /usr/bin/python3 crons/daily_focus.py >> /var/log/nabavkidata/daily_focus.log 2>&1
 
 Flags:
     --dry-run   print the email, send nothing, write nothing
@@ -151,6 +151,11 @@ async def run(*, dry_run: bool = False, force: bool = False, now_flag: bool = Fa
         logger.info("not 06:xx in Skopje; exiting")
         return {"status": "wrong_hour"}
     today = ops_copy.today_skopje()
+    # Weekdays only (Atilla, 16 Oct 2026): no sales follow-ups go out at weekends,
+    # so there is no morning list either; Monday's list is built from live state.
+    if not now_flag and today.weekday() >= 5:
+        logger.info("weekend in Skopje; exiting")
+        return {"status": "weekend"}
     pool = pool or await get_asyncpg_pool()
     async with pool.acquire() as conn:
         claimed = False

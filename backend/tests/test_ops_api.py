@@ -637,6 +637,14 @@ class TestDailyFocusCron:
         assert cron.mails == [] and cron.env.conn.digest == {}
 
 
+    def test_weekend_sends_nothing(self, cron, monkeypatch):
+        from datetime import date
+        monkeypatch.setattr(daily_focus.ops_copy, "today_skopje", lambda: date(2026, 10, 17))  # Saturday
+        sat_six = datetime(2026, 10, 17, 4, 30, tzinfo=timezone.utc)  # 06:30 Skopje
+        r = asyncio.run(daily_focus.run(pool=cron.pool, now=sat_six))
+        assert r["status"] == "weekend" and cron.mails == []
+
+
 class TestWeeklyShortlistCron:
     def test_builds_and_never_emails(self, env, monkeypatch):
         calls = []
