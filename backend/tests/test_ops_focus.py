@@ -389,7 +389,9 @@ def test_done_and_snoozed_keys_filtered():
     hot_key = next(i["key"] for i in res["items"] if i["kind"] == "hot_signal")
     win_key = next(i["key"] for i in res["items"] if i["kind"] == "win_review")
     c.state[hot_key] = {"kind": "hot_signal", "status": "done", "done_via": "ui",
-                        "done_at": datetime.now(timezone.utc), "snoozed_until": None,
+                        # done on the list's own day (not wall-clock now), else this only passes on FRI
+                        "done_at": datetime(FRI.year, FRI.month, FRI.day, 10, 0, tzinfo=timezone.utc),
+                        "snoozed_until": None,
                         "title_snapshot": "x"}
     c.state[win_key] = {"kind": "win_review", "status": "snoozed", "done_at": None, "done_via": None,
                         "snoozed_until": FRI + timedelta(days=2), "title_snapshot": None}

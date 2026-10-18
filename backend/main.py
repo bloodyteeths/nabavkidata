@@ -16,7 +16,7 @@ from database import init_db, close_db, get_db
 from db_pool import get_asyncpg_pool, close_asyncpg_pool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals, whistleblower, clawd_monitor, chat_sessions, seo, tenders_kg, alerts_kg, bid_service, bid_jobs, concierge, ops
+from api import tenders, documents, rag, auth, billing, admin, fraud_endpoints, personalization, scraper, stripe_webhook, entities, analytics, suppliers, tender_details, products, epazar, ai, cpv_codes, saved_searches, market_analytics, pricing, competitors, competitor_tracking, alerts, briefings, notifications, corruption, risk, api_keys, insights, contact, explainability, collusion, outreach, referrals, whistleblower, clawd_monitor, chat_sessions, seo, tenders_kg, alerts_kg, bid_service, bid_jobs, concierge, ops, upwork_oauth
 try:
     from api import pipeline
 except ImportError:
@@ -172,6 +172,7 @@ app.include_router(bid_service.router, prefix="/api")  # Done-for-you bid-writin
 app.include_router(bid_jobs.router, prefix="/api")  # Bid jobs + client portal (Phase 2)
 app.include_router(concierge.router, prefix="/api")  # Tender Q&A concierge (Oct 2026)
 app.include_router(ops.router, prefix="/api")  # Operator focus (Phase 4)
+app.include_router(upwork_oauth.router, prefix="/api")  # Upwork OAuth for our own hiring (Oct 2026)
 
 # ============================================================================
 # NabavkiData-KG (Kyrgyzstan) — Phase 2 (Aug 14 2026)
