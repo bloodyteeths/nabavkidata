@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
 # Postmark API token
-export POSTMARK_API_TOKEN="33d10a6c-0906-42c6-ab14-441ad12b9e2a"
+: "${POSTMARK_API_TOKEN:?POSTMARK_API_TOKEN is not set. Export it or source .env.production. No default: the old hardcoded token was revoked and callers failed with a silent HTTP 401.}"
 
 # Activate virtual environment
 # venv removed - using system python
