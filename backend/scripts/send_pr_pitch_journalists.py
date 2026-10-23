@@ -11,7 +11,13 @@ import httpx
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-POSTMARK_API_TOKEN = os.getenv('POSTMARK_API_TOKEN', '33d10a6c-0906-42c6-ab14-441ad12b9e2a')
+POSTMARK_API_TOKEN = os.getenv("POSTMARK_API_TOKEN")
+if not POSTMARK_API_TOKEN:
+    raise SystemExit(
+        "POSTMARK_API_TOKEN is not set. Export it or put it in .env.production.\n"
+        "There is deliberately no default: the token that used to be hardcoded here was "
+        "revoked and every caller relying on it failed with a silent HTTP 401."
+    )
 POSTMARK_FROM_EMAIL = 'hello@nabavkidata.com'
 POSTMARK_FROM_NAME = 'Тамара Сарсевска'
 
