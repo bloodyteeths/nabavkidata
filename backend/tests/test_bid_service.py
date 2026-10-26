@@ -302,7 +302,9 @@ class TestQualifyNewEmail:
         r = client.post("/api/bid-service/qualify", json=_payload(sector="градежништво"))
         assert r.status_code == 200
         args = conn.find("INSERT INTO bid_service_leads")[0][2]
-        assert "градежништво" in args
+        # Stored in its own column once the migration has run, folded into the
+        # free-text field before that. Either way it must not be lost.
+        assert any("градежништво" in str(a) for a in args)
 
     def test_free_text_is_split_into_keywords(self, make_client):
         client, conn = make_client()

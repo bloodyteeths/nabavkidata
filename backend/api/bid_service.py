@@ -25,7 +25,6 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-import asyncpg
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
@@ -406,7 +405,15 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
                 wants or None, tender["tender_id"] if tender else None,
                 body.source, uid, json.dumps(history),
             )
-            try:
+            # Probe instead of try/except: this runs inside a transaction, so a
+            # failed INSERT aborts it and every later statement raises
+            # InFailedSQLTransactionError rather than reaching the fallback.
+            has_sector = await conn.fetchval(
+                """SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                                  WHERE table_name = 'bid_service_leads'
+                                    AND column_name = 'sector')"""
+            )
+            if has_sector:
                 lead_id = await conn.fetchval(
                     """
                     INSERT INTO bid_service_leads
@@ -417,7 +424,7 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
                     """,
                     *insert_args, sector or None,
                 )
-            except asyncpg.UndefinedColumnError:
+            else:
                 # add_bid_service_lead_sector.sql has not been applied yet: keep
                 # taking leads rather than dropping them, and carry the sector in
                 # the free-text field so nothing the visitor typed is lost.
