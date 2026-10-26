@@ -25,6 +25,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
+import asyncpg
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
@@ -45,6 +46,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/bid-service", tags=["Bid service"])
 
 ADMIN_EMAIL = "atillatkulu@gmail.com"
+# Every new lead alerts both the owner and the shared inbox: two October leads
+# sat unanswered for days behind a single failed send.
+ALERT_EMAILS = (ADMIN_EMAIL, "hello@nabavkidata.com")
 SITE = "https://nabavkidata.com"
 PREP_FEE_MKD = 30000
 SUCCESS_FEE_PCT = 5
@@ -154,6 +158,7 @@ class QualifyRequest(BaseModel):
     lead_person: str = Field("", max_length=500)
     phone: str = Field("", max_length=100)
     wants_to_win: str = Field("", max_length=1000)
+    sector: str = Field("", max_length=120)
     tender_id: Optional[str] = Field(None, max_length=100)
     source: str = Field("usluga", max_length=50)
 
@@ -212,16 +217,23 @@ async def _send_admin_alert(subject: str, rows: list[tuple[str, str]]) -> None:
         f"<td style='padding:6px 10px'>{_esc(v)}</td></tr>"
         for k, v in rows
     )
-    try:
-        await postmark_service.send_email(
-            to=ADMIN_EMAIL,
-            subject=subject,
-            html_content=f"<table style='font-family:sans-serif;font-size:14px'>{body}</table>"
-                         f"<p><a href='{SITE}/admin/leads'>Отвори ги барањата</a></p>",
-            tag="bid-service-lead",
-        )
-    except Exception:
-        logger.exception("bid-service admin alert failed: %s", subject)
+    html_content = (f"<table style='font-family:sans-serif;font-size:14px'>{body}</table>"
+                    f"<p><a href='{SITE}/admin/leads'>Отвори ги барањата</a></p>")
+    sent = 0
+    for addr in ALERT_EMAILS:
+        try:
+            await postmark_service.send_email(
+                to=addr,
+                subject=subject,
+                html_content=html_content,
+                tag="bid-service-lead",
+            )
+            sent += 1
+        except Exception:
+            logger.exception("bid-service admin alert to %s failed: %s", addr, subject)
+    if not sent:
+        # Nobody was told. Make it loud in the log so it is findable later.
+        logger.error("bid-service lead alert reached NOBODY: %s", subject)
 
 
 async def _send_confirmation(email: str, first_name: str, tender_title: Optional[str],
@@ -280,6 +292,20 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
         raise HTTPException(status_code=400, detail="Внесете валидна е-пошта.")
     company = body.company.strip()
     wants = (body.wants_to_win or "").strip()
+    sector = (body.sector or "").strip()
+
+    # A request tied to a specific tender already says what they want to win.
+    # A general enquiry does not, so both fields are required there: two Google
+    # leads arrived in October with every one of these blank and could not be
+    # answered at all.
+    if not body.tender_id:
+        if len(wants) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Напишете што сакате да освоите, со неколку збора.",
+            )
+        if len(sector) < 2:
+            raise HTTPException(status_code=400, detail="Изберете ја вашата дејност.")
 
     pool = await get_asyncpg_pool()
     async with pool.acquire() as conn:
@@ -369,18 +395,39 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
                             uid, f"Следење — {company}"[:255], json.dumps({"keywords": keywords}),
                         )
 
-            lead_id = await conn.fetchval(
-                """
-                INSERT INTO bid_service_leads
-                    (email, company_name, lead_person, phone, wants_to_win, tender_id, source,
-                     user_id, history)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
-                RETURNING id
-                """,
+            insert_args = (
                 email, company, body.lead_person or None, body.phone or None,
                 wants or None, tender["tender_id"] if tender else None,
                 body.source, uid, json.dumps(history),
             )
+            try:
+                lead_id = await conn.fetchval(
+                    """
+                    INSERT INTO bid_service_leads
+                        (email, company_name, lead_person, phone, wants_to_win, tender_id, source,
+                         user_id, history, sector)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
+                    RETURNING id
+                    """,
+                    *insert_args, sector or None,
+                )
+            except asyncpg.UndefinedColumnError:
+                # add_bid_service_lead_sector.sql has not been applied yet: keep
+                # taking leads rather than dropping them, and carry the sector in
+                # the free-text field so nothing the visitor typed is lost.
+                logger.warning("bid_service_leads.sector missing; run add_bid_service_lead_sector.sql")
+                lead_id = await conn.fetchval(
+                    """
+                    INSERT INTO bid_service_leads
+                        (email, company_name, lead_person, phone, wants_to_win, tender_id, source,
+                         user_id, history)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+                    RETURNING id
+                    """,
+                    *insert_args[:4],
+                    f"[{sector}] {wants}".strip() if sector else (wants or None),
+                    *insert_args[5:],
+                )
 
             # Only the signed-in owner of an existing account may change it; an
             # anonymous submit just records the lead against that user.
@@ -402,6 +449,7 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
             ("Контакт", f"{body.lead_person or '-'} <{email}> {body.phone or ''}"),
             ("Тендер", f"{tender['tender_id']} — {tender['title']}" if tender else "-"),
             ("Рок", str(tender["closing_date"]) if tender and tender["closing_date"] else "-"),
+            ("Дејност", sector or "-"),
             ("Што сака да добие", wants or "-"),
             ("Историја (наши податоци)", hist_line),
             ("Извор", body.source),

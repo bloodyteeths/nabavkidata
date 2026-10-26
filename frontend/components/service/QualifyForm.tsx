@@ -39,6 +39,7 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
   const [person, setPerson] = useState(user?.full_name || "");
   const [phone, setPhone] = useState("");
   const [wants, setWants] = useState("");
+  const [sector, setSector] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -65,6 +66,7 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
         lead_person: person.trim(),
         phone: phone.trim(),
         wants_to_win: wants.trim(),
+        sector: sector.trim(),
         tender_id: tenderId || null,
         source,
       });
@@ -149,10 +151,24 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
             </div>
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="q-sector">Дејност</Label>
+            <Input
+              id="q-sector"
+              required={!tenderId}
+              minLength={2}
+              maxLength={120}
+              placeholder="На пр. градежништво, ИТ, медицинска опрема, транспорт"
+              value={sector}
+              onChange={(e) => setSector(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="q-wants">Какви тендери сакате да добиете?</Label>
             <Textarea
               id="q-wants"
               rows={3}
+              required={!tenderId}
+              minLength={10}
               placeholder="На пр. одржување на софтвер, градежни работи, медицински материјал, или број на конкретен тендер"
               value={wants}
               onChange={(e) => setWants(e.target.value)}

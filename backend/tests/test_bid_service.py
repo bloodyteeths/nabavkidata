@@ -185,6 +185,7 @@ def _payload(**kw):
         "lead_person": "Марко Петровски",
         "phone": "070123456",
         "wants_to_win": "одржување на софтвер",
+        "sector": "ИТ",
         "source": "usluga",
     }
     base.update(kw)
@@ -272,12 +273,26 @@ class TestQualifyNewEmail:
         text = confirm["subject"] + " " + confirm["html"]
         assert not PRICE_RE.search(text), PRICE_RE.search(text)
 
-    def test_no_alert_when_wants_to_win_empty(self, make_client):
+    def test_general_enquiry_rejects_empty_wants_to_win(self, make_client):
+        # Two Google leads in October arrived with this blank and could not be
+        # answered, so a general enquiry now has to say what it wants to win.
         client, conn = make_client()
         r = client.post("/api/bid-service/qualify", json=_payload(wants_to_win=""))
+        assert r.status_code == 400
+        assert conn.find("INSERT INTO bid_service_leads") == []
+
+    def test_general_enquiry_rejects_missing_sector(self, make_client):
+        client, conn = make_client()
+        r = client.post("/api/bid-service/qualify", json=_payload(sector=""))
+        assert r.status_code == 400
+        assert conn.find("INSERT INTO bid_service_leads") == []
+
+    def test_sector_is_stored_with_the_lead(self, make_client):
+        client, conn = make_client()
+        r = client.post("/api/bid-service/qualify", json=_payload(sector="градежништво"))
         assert r.status_code == 200
-        assert conn.find("INSERT INTO tender_alerts") == []
-        assert r.json()["auth"] is not None  # new identity: still auto-logged-in
+        args = conn.find("INSERT INTO bid_service_leads")[0][2]
+        assert "градежништво" in args
 
     def test_free_text_is_split_into_keywords(self, make_client):
         client, conn = make_client()

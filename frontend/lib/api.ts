@@ -2674,6 +2674,7 @@ class APIClient {
     lead_person?: string;
     phone?: string;
     wants_to_win?: string;
+    sector?: string;
     tender_id?: string | null;
     source?: string;
   }) {
