@@ -158,7 +158,7 @@ class QualifyRequest(BaseModel):
     lead_person: str = Field("", max_length=500)
     phone: str = Field("", max_length=100)
     wants_to_win: str = Field("", max_length=1000)
-    sector: str = Field("", max_length=120)
+    sector: Optional[str] = Field(None, max_length=120)
     tender_id: Optional[str] = Field(None, max_length=100)
     source: str = Field("usluga", max_length=50)
 
@@ -298,7 +298,13 @@ async def qualify(body: QualifyRequest, request: Request, background: Background
     # A general enquiry does not, so both fields are required there: two Google
     # leads arrived in October with every one of these blank and could not be
     # answered at all.
-    if not body.tender_id:
+    #
+    # Only enforced when the request carries a `sector` key at all. The API
+    # deploys on push while the Next.js bundle is rebuilt by hand, so for a
+    # while the live form is an older build that cannot send these fields;
+    # enforcing against it would reject every real enquiry in that window.
+    # An older build omits the key (None), the current one always sends it.
+    if body.sector is not None and not body.tender_id:
         if len(wants) < 10:
             raise HTTPException(
                 status_code=400,

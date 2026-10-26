@@ -287,6 +287,16 @@ class TestQualifyNewEmail:
         assert r.status_code == 400
         assert conn.find("INSERT INTO bid_service_leads") == []
 
+    def test_old_frontend_without_sector_key_still_accepted(self, make_client):
+        # The API deploys on push, the Next.js bundle by hand. In between, the
+        # live form cannot send these fields and must not be rejected.
+        client, conn = make_client()
+        payload = _payload(wants_to_win="")
+        payload.pop("sector")
+        r = client.post("/api/bid-service/qualify", json=payload)
+        assert r.status_code == 200
+        assert conn.find("INSERT INTO bid_service_leads") != []
+
     def test_sector_is_stored_with_the_lead(self, make_client):
         client, conn = make_client()
         r = client.post("/api/bid-service/qualify", json=_payload(sector="градежништво"))
