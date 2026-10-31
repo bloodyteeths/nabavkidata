@@ -70,6 +70,12 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
         tender_id: tenderId || null,
         source,
       });
+      if (typeof window !== "undefined" && window.gtag) {
+        window.gtag("event", "generate_lead", { lead_source: source });
+        // The Ads conversion label lives in the Google Ads account, not in this repo.
+        const label = process.env.NEXT_PUBLIC_ADS_LEAD_LABEL;
+        if (label) window.gtag("event", "conversion", { send_to: `AW-17761825331/${label}` });
+      }
       if (res.auth) {
         // Brand-new identity: sign in here and continue straight into the service.
         await setTokens(res.auth.access_token, res.auth.refresh_token ?? "");

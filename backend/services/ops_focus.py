@@ -208,6 +208,20 @@ def _who(r: dict) -> str:
 # ---------------------------------------------------------------------------
 # Draft builders (all must pass ops_copy.check_draft_copy)
 # ---------------------------------------------------------------------------
+def is_signup_only(lead: dict) -> bool:
+    """A Google sign-up is logged as a lead (api/auth.py) but asked for nothing."""
+    return (lead.get("source") == "google"
+            and not lead.get("wants_to_win") and not lead.get("tender_id"))
+
+
+def draft_signup_note(lead: dict) -> dict:
+    lines = [greeting(lead.get("lead_person")), "",
+             "Видовме дека отворивте профил на НабавкиДата.", "",
+             "Со каква дејност работите? Ќе Ви кажеме кои отворени тендери вредат за Вас."]
+    return {"to": (lead.get("email") or "").strip().lower(), "subject": "Вашиот профил на НабавкиДата",
+            "body_text": "\n".join(lines) + SIGNATURE}
+
+
 def draft_lead_reply(lead: dict, tender_open: bool) -> dict:
     company = (lead.get("company_name") or "").strip()
     lines = [greeting(lead.get("lead_person")), ""]
@@ -603,12 +617,16 @@ async def win_items(conn, today: date) -> list[dict]:
 
 async def lead_items(conn, today: date) -> list[dict]:
     out = []
-    for l in [dict(x) for x in await conn.fetch(SQL_LEADS)]:   # CAPS applied in build_focus
+    rows = [dict(x) for x in await conn.fetch(SQL_LEADS)]   # CAPS applied in build_focus
+    # Stable sort: real requests first, so sign-ups cannot push them past the cap.
+    for l in sorted(rows, key=is_signup_only):
         email = (l.get("email") or "").strip().lower()
         has_tender = bool(l.get("tender_id"))
         t_open = has_tender and tender_is_open(l, today)
         who = (l.get("company_name") or email).strip()
-        detail = f"Ново барање од /usluga ({l.get('source') or 'форма'})"
+        signup = is_signup_only(l)
+        detail = ("Регистрација преку Google, без барање" if signup
+                  else f"Ново барање од /usluga ({l.get('source') or 'форма'})")
         if l.get("lead_person"):
             detail += f", лице: {l['lead_person']}"
         if l.get("wants_to_win"):
@@ -622,11 +640,11 @@ async def lead_items(conn, today: date) -> list[dict]:
             links.insert(0, _link("Отвори тендер", tender_link(l["tender_id"])))
         out.append(_item(
             "lead_untriaged", f"lead:{l['id']}", today,
-            f"Нов лид: {who}", detail, email=email,
+            f"Регистрација: {who}" if signup else f"Ново барање: {who}", detail, email=email,
             tender=tender_obj(l) if t_open else None, links=links,
-            draft=draft_lead_reply(l, t_open),
+            draft=draft_signup_note(l) if signup else draft_lead_reply(l, t_open),
             meta={"lead_id": str(l["id"]), "user_id": l.get("user_id") and str(l["user_id"]),
-                  "tender_open": t_open}))
+                  "tender_open": t_open, "signup_only": signup}))
     return out
 
 

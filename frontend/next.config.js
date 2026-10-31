@@ -78,6 +78,13 @@ const nextConfig = {
         destination: '/tenders/:num-:year',
         permanent: true,
       },
+      // Outreach emails linked /signup, which has no page and fell through to login.
+      // The query string (?ref=...) carries over.
+      {
+        source: '/signup',
+        destination: '/usluga',
+        permanent: false,
+      },
       // Renamed blog post (old slug advertised free access)
       {
         source: '/blog/besplaten-pristap-nabavkidata',

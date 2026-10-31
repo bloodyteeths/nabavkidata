@@ -62,6 +62,7 @@ const SOURCE_LABELS: Record<string, string> = {
   tender_card: 'Картичка на тендер',
   paywall: 'Ограничен пристап',
   email: 'Е-пошта',
+  google: 'Регистрација преку Google (без барање)',
 };
 
 function formatDate(value: string | null | undefined, withTime = false): string {

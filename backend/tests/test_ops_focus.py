@@ -426,6 +426,28 @@ def test_closed_lead_tender_not_offered():
     assert "17400" not in it["draft"]["body_text"]
 
 
+def test_google_signup_is_not_labelled_a_request():
+    c = FakeConn()
+    signup = dict(lead_row(email="nov@firma.mk"), source="google", wants_to_win=None,
+                  tender_id=None)
+    request = dict(lead_row(email="info@prozorci.mk"), source="register",
+                   wants_to_win="PVC vrati", tender_id=None)
+    c.leads = [signup, request]
+    items = run(ops_focus.lead_items(c, FRI))
+    assert [i["email"] for i in items] == ["info@prozorci.mk", "nov@firma.mk"]
+    assert items[0]["title"].startswith("Ново барање:")
+    assert items[1]["title"].startswith("Регистрација:")
+    assert items[1]["meta"]["signup_only"] is True
+    assert "барањето" not in items[1]["draft"]["body_text"]
+    assert check_draft_copy(items[1]["draft"]["body_text"]) == []
+
+
+def test_google_lead_with_a_stated_goal_stays_a_request():
+    assert not ops_focus.is_signup_only(dict(lead_row(), source="google", tender_id=None))
+    assert ops_focus.is_signup_only(dict(lead_row(), source="google", tender_id=None,
+                                         wants_to_win=None))
+
+
 def test_mark_done_lead_side_effect_and_idempotent_goback():
     c = FakeConn()
     lead = lead_row()

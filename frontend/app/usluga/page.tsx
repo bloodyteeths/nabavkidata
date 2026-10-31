@@ -67,7 +67,8 @@ const steps = [
 ];
 
 export default function UslugaPage({ searchParams }: { searchParams: SearchParams }) {
-  const source = cleanSource(firstParam(searchParams.src));
+  // Site CTAs tag ?src=, outreach emails tag ?ref=.
+  const source = cleanSource(firstParam(searchParams.src) ?? firstParam(searchParams.ref));
   const tenderId = cleanTenderId(firstParam(searchParams.tender) ?? firstParam(searchParams.tender_id));
 
   return (
