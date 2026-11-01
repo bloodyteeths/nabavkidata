@@ -11,7 +11,6 @@ import {
   Building2,
   Calendar,
   Tag,
-  Users,
   ArrowRight,
   Award,
   FileText,
@@ -30,7 +29,6 @@ interface AwardData {
   estimated_value_mkd: number | null;
   actual_value_mkd: number | null;
   winner: string | null;
-  num_bidders: number | null;
   publication_date: string | null;
   closing_date: string | null;
   cpv_code: string | null;
@@ -140,14 +138,6 @@ export default function AwardDetailClient() {
                 </span>
               </div>
             )}
-            {award.num_bidders != null && award.num_bidders > 0 && (
-              <div className="flex items-start gap-2">
-                <Users className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
-                <span>
-                  <strong>{award.num_bidders} компании</strong> поднеле понуда {award.num_bidders === 1 ? '— без конкуренција' : '— конкурентна постапка'}
-                </span>
-              </div>
-            )}
             {award.procuring_entity && (
               <div className="flex items-start gap-2">
                 <Building2 className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
@@ -208,19 +198,6 @@ export default function AwardDetailClient() {
                 <p className="text-sm font-bold">
                   {formatCurrency(award.actual_value_mkd || award.estimated_value_mkd || 0)}
                 </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Num Bidders */}
-        {award.num_bidders && (
-          <Card>
-            <CardContent className="flex items-start gap-3 pt-6">
-              <Users className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">Број на понудувачи</p>
-                <p className="text-sm font-medium">{award.num_bidders}</p>
               </div>
             </CardContent>
           </Card>

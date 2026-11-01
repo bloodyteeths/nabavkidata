@@ -23,7 +23,6 @@ interface SeoAward {
   estimated_value_mkd: number | null;
   actual_value_mkd: number | null;
   winner: string | null;
-  num_bidders: number | null;
   publication_date: string | null;
   closing_date: string | null;
   cpv_code: string | null;
@@ -71,7 +70,6 @@ export async function generateMetadata({
   if (award.procuring_entity) descParts.push(award.procuring_entity);
   if (award.actual_value_mkd) descParts.push(formatMKD(award.actual_value_mkd));
   else if (award.estimated_value_mkd) descParts.push(formatMKD(award.estimated_value_mkd));
-  if (award.num_bidders) descParts.push(`${award.num_bidders} понудувачи`);
   const description = descParts.length > 0
     ? descParts.join(" | ")
     : award.description?.slice(0, 160) || "Детали за доделена јавна набавка.";
@@ -102,7 +100,6 @@ function JsonLd({ award, paramId }: { award: SeoAward; paramId: string }) {
   if (award.procuring_entity) descParts.push(`Договорен орган: ${award.procuring_entity}`);
   if (award.actual_value_mkd) descParts.push(`Вредност: ${formatMKD(award.actual_value_mkd)}`);
   else if (award.estimated_value_mkd) descParts.push(`Проценета вредност: ${formatMKD(award.estimated_value_mkd)}`);
-  if (award.num_bidders) descParts.push(`Број на понудувачи: ${award.num_bidders}`);
 
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -153,7 +150,6 @@ export default async function AwardPage({
           {award.actual_value_mkd && <p>Договорена вредност: {formatMKD(award.actual_value_mkd)}</p>}
           {award.estimated_value_mkd && <p>Проценета вредност: {formatMKD(award.estimated_value_mkd)}</p>}
           {award.winner && <p>Победник: {award.winner}</p>}
-          {award.num_bidders && <p>Број на понудувачи: {award.num_bidders}</p>}
           {award.publication_date && <p>Датум на објава: {award.publication_date}</p>}
           {award.cpv_code && <p>CPV: {award.cpv_code}</p>}
           {award.procedure_type && <p>Постапка: {award.procedure_type}</p>}
