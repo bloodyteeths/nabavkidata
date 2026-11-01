@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { SignupGate } from "@/components/SignupGate";
+import ServiceOfferCard from "@/components/service/ServiceOfferCard";
 
 const API_URL = "https://api.nabavkidata.com";
 
@@ -105,6 +106,12 @@ export default function AwardDetailClient() {
           </div>
         </div>
       </div>
+
+      <ServiceOfferCard
+        title="Сакате ваков договор?"
+        text="Ако се објави нов оглас за ваков предмет, ние од NabavkiData ја подготвуваме целата понуда, а Вие ја проверувате, ја потпишувате и ја поднесувате. Пред да ја одредите цената, Ви покажуваме за колку е доделуван ист или сличен предмет и, каде што е објавено, колку понуди имало и каков бил распонот на цените. Тоа е платена услуга."
+        source="award_page"
+      />
 
       {/* Teaser Insights — visible to everyone */}
       <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">

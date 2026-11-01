@@ -8,7 +8,7 @@ import { CheckCircle2, FileText, Bell, ShieldCheck, Search, PenLine, Send } from
 export const metadata: Metadata = {
   title: "Ние ја пишуваме вашата тендерска понуда | NabavkiData",
   description:
-    "Ги следиме тендерите на е-набавки за вас и ја подготвуваме целата тендерска документација. Вие ја прегледувате, потпишувате и поднесувате. Од 30.000 МКД по понуда без ДДВ.",
+    "Ги следиме тендерите на е-набавки за вас и ја подготвуваме целата тендерска документација. Вие ја прегледувате, потпишувате и поднесувате. Од 30.000 МКД по понуда. Не сме обврзник за ДДВ, па ДДВ не се пресметува.",
   alternates: {
     canonical: "https://www.nabavkidata.com/usluga",
   },
@@ -89,9 +89,14 @@ export default function UslugaPage({ searchParams }: { searchParams: SearchParam
                 <span className="text-foreground">Ние ја пишуваме </span>
                 <span className="text-gradient">вашата тендерска понуда</span>
               </h1>
-              <p className="text-lg text-muted-foreground leading-relaxed mb-8">
+              <p className="text-lg text-muted-foreground leading-relaxed mb-4">
                 NabavkiData сега ги следи тендерите и ги подготвува понудите за вас. Вие продолжувате да ја водите
                 фирмата, ние се грижиме за документацијата.
+              </p>
+              <p className="text-base text-foreground leading-relaxed mb-8">
+                Ја подготвуваме понудата да биде прифатлива, а пред да ја одредите цената ви покажуваме за колку е
+                доделуван ист или сличен предмет и, каде што е објавено, колку понуди имало и каков бил распонот на
+                цените.
               </p>
 
               <ul className="space-y-5">
@@ -163,7 +168,7 @@ export default function UslugaPage({ searchParams }: { searchParams: SearchParam
               <li className="flex gap-3">
                 <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
                 <span>
-                  <strong>Подготовка на понуда:</strong> од 30.000 МКД по понуда, без ДДВ. Цената ја договараме пред да започнеме
+                  <strong>Подготовка на понуда:</strong> од 30.000 МКД по понуда. Не сме обврзник за ДДВ, па ДДВ не се пресметува. Цената ја договараме пред да започнеме
                   со работа.
                 </span>
               </li>

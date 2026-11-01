@@ -29,6 +29,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
+import ServiceOfferCard from '@/components/service/ServiceOfferCard';
 import { formatCurrency, formatDate, tenderUrl } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -265,6 +266,12 @@ export default function SupplierDetailClient() {
           </Link>
         </CardContent>
       </Card>
+
+      <ServiceOfferCard
+        title="Учествувате на тендери?"
+        text="Ние од NabavkiData ја подготвуваме целата понуда. Вие ја проверувате, ја потпишувате и ја поднесувате. Пред да ја одредите цената, Ви покажуваме за колку е доделуван ист или сличен предмет и, каде што е објавено, колку понуди имало и каков бил распонот на цените. Тоа е платена услуга."
+        source="supplier_page"
+      />
 
       {/* Search tenders link */}
       <div className="flex justify-center mb-6">
