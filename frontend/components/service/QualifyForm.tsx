@@ -72,9 +72,9 @@ export default function QualifyForm({ tenderId, source = "usluga", compact = fal
       });
       if (typeof window !== "undefined" && window.gtag) {
         window.gtag("event", "generate_lead", { lead_source: source });
-        // The Ads conversion label lives in the Google Ads account, not in this repo.
-        const label = process.env.NEXT_PUBLIC_ADS_LEAD_LABEL;
-        if (label) window.gtag("event", "conversion", { send_to: `AW-17761825331/${label}` });
+        // "Request /usluga" conversion in the nabavkidata Ads account (643-018-6227).
+        const label = process.env.NEXT_PUBLIC_ADS_LEAD_LABEL || "-fkACMns5LAdELPkv5VC";
+        window.gtag("event", "conversion", { send_to: `AW-17761825331/${label}` });
       }
       if (res.auth) {
         // Brand-new identity: sign in here and continue straight into the service.
